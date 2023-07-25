@@ -1,0 +1,284 @@
+#*************
+# M1DP
+#*************
+
+mVar SESSION(invcui.floorplan,env,VERSION_INNOVUS)  "20.14.000"
+mVar SESSION(invcui.prects,dependencies) /proj/cayman/wa/gyorgov/impl/tpb_array_sequencer.1.0A/track.Nov17preDFT/invcui.floorplan
+
+mVar TRACK(sessions) -lappend "invcui.floorplan.updatedb"
+
+mRunStep
+mReportSteps
+mConfigStep floorplan_create_pg -stop 1
+mConfigStep floorplan_load_macrto_placemnt -skip 1
+mConfigStep floorplan_create_pg -pre { set ::mortar::ns_info(tool,version) 20.14; set_multi_cpu_usage -local_cpu 16; mSessionSavedb_invcui -db tpb.place_macros; }
+mConfigStep floorplan_create_pg -post { set_multi_cpu_usage -local_cpu 8; mSessionSavedb_invcui -db tpb.pg; }
+mConfigStep generate_mbist_sharing -pre { source /proj/cayman/wa/mamundson/m1dpe_overrides/mbist_sharing.tcl }
+
+mSessionSavedb_invcui -db tpb.pg
+mSessionRestoredb_invcui -database
+
+mVar FLOW(pnr_setup_slack)      -0.100 
+mVar FLOW(pnr_hold_slack)       -0.050 
+mVar FLOW(pnr_early_clock)       0 
+mVar FLOW(pnr_useful_skew_prects) 0 
+mVar FLOW(pnr_design_power_effort) "none" 
+mVar FLOW(pnr_multibit_opt)      0 
+mVar FLOW(pnr_multibit_merging)  0 
+mVar FLOW(pnr_multibit_splitting) 0
+mVar FLOW(pnr_ccopt)               0
+
+mVar FLOW(m1dpe_cif_cascading_clocks) 1
+
+mVar VERILOG(tpb_sb_partition_sub_cluster) "/mrvl2g/aw5_xtl_cayman/cayman/cayman/wa/sarabpa/netlist/tpb_sb_partition_sub_cluster/mux_structure/outputs/tpb_sb_partition_sub_cluster.v"
+
+# Queue: normal, memory: 100G, cpu: 8c
+mVar SESSION(invcui.postcts,sgq) "normal:100m:8c"
+
+# Specify user.tcl
+mVar SESSION(tempuscui.prects.etmgen,user.tcl) { source /proj/cayman/wa/thelvey/user.tcl}
+
+# CTS override file (can be used to skew groups of RAMs in sb)
+mVar TCL($mfw_design,cts_override_file)       "$::PROJ_ROOT_DEx/pd/clocks/$mfw_design/$mfw_design.cts.tcl"
+
+# CTS settings
+# Run this as a pre or post âcts_apply_cdcâ step:
+mortar::source /proj/asictools/m1dpe/sandbox/common/flow/tcl/df_cts_spec.tclz
+::df::clk::update_clock_merge_cells
+
+#If you want to pull in the code now (instead of waiting for it to make it to the VPC, add the following to your prects user.tcl:
+source /proj/cayman/wa/mlasher/df_cts_spec.tcl
+
+#The input pin with the fastest clock of all â*anpa_keep_orâ instances has cts_pin_insertion_delay set.  The default is 100.0 ps, but can be used to override to another insertion delay.
+mVar FLOW(m1dpe_sms_or_insertion_delay) 
+mVar FLOW(m1dpe_sms_or_insertion_delay) auto
+
+# SDC
+::m1dpe_override_constraints dev
+
+# Restore Tempus session
+mstarun tempus@21.11.000 shift_setup_tt0p72v85c_rcworstCCwT85c -sgq normal:20m:4c -restore
+read_db $db_name
+
+#*************
+# Innovus
+#*************
+
+# Tip for design planning:
+# These commands are faster than writing and reading the ports.tcl files, for intermediate design planning work these can be used and manipulated 
+# but once everything is done you still need to create handoff files for the children to use.
+
+write_partition_pins cluster0.txt -partition <cluster0_name>
+read_partition_pins cluster0.txt -partition <cluster0_name>
+commit_partitions and flatten_partitions are commands to go from the brown(partition/hinst) to grey(inst) and grey to brown blocks.
+
+# CIF source
+# CIF from Gary
+source /proj/cayman/DE1p5/pd/clocks/tpb_array_sequencer/tpb_array_sequencer.cif.tcl
+# Manual CIF
+source /mrvl2g/cayman_extvol05/cayman/cayman/wa_005/gyorgov/scripts/tpb_array_sequencer/cts/tpb_array_sequencer.cif.tcl
+source /mrvl2g/cayman_extvol05/cayman/cayman/wa_005/gyorgov/scripts/tpb_array_sequencer/cts/clock_cells.tcl
+
+# Detailed DRV
+set_db opt_detail_drv_failure_reason true
+
+# Manual clock route
+gui_deselect -all
+delete_routes -net clk_pe
+set_db route_design_selected_net_only true
+select_obj net:tpb_array_sequencer/clk_pe
+route_design
+set_db route_design_selected_net_only false
+
+# Pin editing
+edit_pin -cell tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster -pin xbus_ctrl_data_out[[expr $a+0]] -assign "0 [expr $x+49.623]" -edge 0 -layer 13 -pin_depth 1.008 -pin_width 0.378 -fixed_pin 1 -honor_constraint 0 -fix_overlap 0
+get_db [get_db pin:tpb_array_sequencer/tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster/*] -if {.place_status==unplaced}
+
+# Flp creation
+df::init_rlm_fplan  -ceiling M16 -check_size_only -ceiling M14
+
+# LEF
+df::create_rlm_lef
+
+# Quick design placement to flush netlist issues
+set_db place_design_floorplan_mode 1
+
+# MDC
+update_inst -name ... -base_cell ...
+mdc::check_special_cells
+
+# Quick route
+set_db route_design_with_timing_driven false
+set_db route_design_with_si_driven false
+set_db route_design_detail_end_iteration 10
+
+# Dont touch nets
+M1DP-CMD:mExecStep:invcuiApplyDontTouchOnMacroPins --- set_db net:sdma_arith/VDD .skip_routing true
+M1DP-CMD:mExecStep:invcuiApplyDontTouchOnMacroPins --- set_db net:sdma_arith/VSS .skip_routing true
+
+# CCopt in cluster mode
+set_db cts_balance_mode cluster
+
+# To update constraints interactively
+set_interactive_constraint_modes [all_constraint_modes -active]
+set_interactive_constraint_modes {}
+
+#*************
+# CIF
+#*************
+
+set start_net_name [cif::get_net_name_from_pin -pin_name u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_clock_out_f2_mux/anpa_keep_clk_mux/Z]
+cif::what_does_this_drive -start_net_name n2361
+set start_net_name_2 [cif::get_net_name_from_pin -pin_name u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_clock_out_f1_mux/anpa_keep_clk_mux/Z]
+cif::what_does_this_drive -start_net_name n2362
+cif::in_floorplanning 0
+
+#*************
+# Track
+#*************
+
+# Design planning
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "import_dplan /proj/cayman/wa_005/gyorgov/track_configs/tc.tpb_array_sequencer_dplan.tcl" -n `date +%b%d`_DE1p5_dplan
+
+# Clusters ****
+mfw setup -b tpb_array_sequencer_sbuf_rd_rsp_cluster -c "block_pd /proj/cayman/wa_005/gyorgov/track_configs/tc.tpb_array_sequencer_child1_dplan.tcl" -n `date +%b%d` -release DE1p5.DFT.dft.3.insert_tp_scan.2021_10_25_22_46_53
+mfw setup -b tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster -c "block_pd /proj/cayman/wa_005/gyorgov/track_configs/tc.tpb_array_sequencer_child0_dplan.tcl" -n `date +%b%d` -release DE1p5.DFT.dft.3.insert_tp_scan.2021_10_26_01_56_11
+
+# Parent ****
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`preDFT -release DE1p5.PNR.import.2021_11_04_12_41_38
+
+## PostDFT
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`postDFT_noECF -release DE1p5.DFT.dft.3.insert_tp_scan.2021_11_15_00_08_16
+
+# DE2
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`preDFT_DE2 -release DE2.PNR.import.2022_02_09_12_06_36
+# DE2 second drop
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`preDFT_DE2 -release DE2.PNR.import.2022_02_16_11_56_42
+# DE2 DFT
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/DE2/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`_DE2 -release DE2.DFT.dft.3.insert_tp_scan.2022_03_06_23_17_50
+# DE2p1
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/DE2p1/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`preDFT_DE2p1 -release DE2p1.PNR.import.2022_04_15_16_14_50
+# DE2p1 DFT
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/DE2p1/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`_DE2p1 -release DE2p1.DFT.dft.3.insert_tp_scan.2022_05_17_04_57_52
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/DE2p1/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`_DE2p1 -release DE2p1.DFT.dft.3.insert_tp_scan.2022_06_07_10_05_44
+# DE3
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/DE3/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`preDFT_DE3 -release DE3.PNR.import.2022_08_10_08_06_18
+# DE3 DFT
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/DE3/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`_DE3 -release DE3.DFT.dft.3.insert_tp_scan.2022_08_23_06_21_24
+# DE3 DFT phase3
+mfw setup -make track -b tpb_array_sequencer.1.0A -c "parent_pd /proj/cayman/wa_005/gyorgov/track_configs/DE3/tc.tpb_array_sequencer_parent.tcl" -n `date +%b%d`_DE3 -release DE3.DFT.dft.3.insert_tp_scan.2022_09_08_07_32_32
+
+# Tensors  ****
+mfw setup -c block_pd -b tpb_simd_rd_tensor_generate -release DE1p5.PNR.import.2021_10_23_16_29_51 -n DE1p5_predft_1102a
+mfw setup -c block_pd -b tpb_simd_wr_tensor_generate -release DE1p5.PNR.import.2021_10_23_16_29_51 -n DE1p5_predft_1102a
+
+# PSUM ******
+mfw setup -c block_pd -b tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster -n `date +%b%d`_DE2_predft_pv_flush -release DE2.PNR.import.2022_02_16_12_01_55
+
+# tpb_sb_partition_sub_cluster ****
+# DE1p5
+mfw setup -c block_pd -b tpb_sb_partition_sub_cluster -n `date +%b%d` -release DE1p5.PNR.import.2021_11_04_12_40_24
+# DE2
+mfw setup -c block_pd -b tpb_sb_partition_sub_cluster -n `date +%b%d`preDFT -release DE2.PNR.import.2022_02_09_12_02_24
+# DE2 second drop
+mfw setup -c block_pd -b tpb_sb_partition_sub_cluster -n `date +%b%d`preDFT_DE2 -release DE2.PNR.import.2022_02_16_12_06_38
+# DE2 DFT
+mfw setup -c block_pd -b tpb_sb_partition_sub_cluster -n `date +%b%d`_DE2 -release DE2.DFT.dft.3.insert_tp_scan.2022_02_24_14_52_49
+# DE2p1
+mfw setup -c block_pd -b tpb_sb_partition_sub_cluster -n `date +%b%d`preDFT_DE2p1 -release DE2p1.PNR.import.2022_04_15_19_37_38
+mfw setup -c "block_pd /proj/cayman/wa_005/gyorgov/track_configs/DE2p1/tc.tpb_partition_sub_cluster.tcl" -b tpb_sb_partition_sub_cluster -n `date +%b%d`preDFT_DE2p1 -release DE2p1.PNR.import.2022_04_15_19_37_38
+# DE2p1 DFT
+mfw setup -c "block_pd /proj/cayman/wa_005/gyorgov/track_configs/DE2p1/tc.tpb_partition_sub_cluster.tcl" -b tpb_sb_partition_sub_cluster -n `date +%b%d`_DE2p1 -release DE2p1.DFT.dft.3.insert_tp_scan.2022_04_21_20_32_35
+# DE3 
+mfw setup -c "block_pd /proj/cayman/wa_005/gyorgov/track_configs/DE3/tc.tpb_partition_sub_cluster.tcl" -b tpb_sb_partition_sub_cluster -n `date +%b%d`preDFT_DE3 -release DE3.PNR.import.2022_08_10_08_41_17
+# DE3 DFT
+mfw setup -c "block_pd /proj/cayman/wa_005/gyorgov/track_configs/DE3/tc.tpb_partition_sub_cluster.tcl" -b tpb_sb_partition_sub_cluster -n `date +%b%d`_DE3 -release DE3.DFT.dft.3.insert_tp_scan.2022_08_18_11_54_12
+# DE3 DFT phase3
+mfw setup -c "block_pd /proj/cayman/wa_005/gyorgov/track_configs/DE3/tc.tpb_partition_sub_cluster.tcl" -b tpb_sb_partition_sub_cluster -n `date +%b%d`_DE3 -release DE3.DFT.dft.3.insert_tp_scan.2022_09_07_06_08_21
+# DE3 DFT phase3 ECO
+mfw setup -c "block_eco /proj/cayman/wa_005/gyorgov/track_configs/DE3/tc.tpb_partition_sub_cluster.tcl" -b tpb_sb_partition_sub_cluster -n `date +%b%d`_DE3 -release DE3.DFT.dft.3.insert_tp_scan.2022_09_07_06_08_21
+
+
+# tpb_dve_wrapper ****
+mfw setup -b tpb_dve_wrapper -c "parent_pd /proj/cayman/wa/gyorgov/track_configs/DE2p1/tc.tpb_dve_wrapper.tcl" -n `date +%b%d`_DE2p1_preDFT_FlexH_dist_500 -release DE2p1.PNR.import.2022_04_15_16_19_58
+# DE2p1 DFT
+mfw setup -b tpb_dve_wrapper -c "parent_pd /proj/cayman/wa/gyorgov/track_configs/DE2p1/tc.tpb_dve_wrapper.tcl" -n `date +%b%d`_DE2p1_postDFT_FlexH_dist_500 -release DE2p1.DFT.dft.3.insert_tp_scan.2022_05_16_12_18_18
+# DE3
+mfw setup -b tpb_dve_wrapper -c "parent_pd /proj/cayman/wa/gyorgov/track_configs/DE3/tc.tpb_dve_wrapper.tcl" -n `date +%b%d`_DE3_preDFT_FlexH_dist_500 -release DE3.PNR.import.2022_08_11_23_04_55
+# DE3 2nd drop
+mfw setup -b tpb_dve_wrapper -c "parent_pd /proj/cayman/wa/gyorgov/track_configs/DE3/tc.tpb_dve_wrapper.tcl" -n `date +%b%d`_DE3_preDFT -release DE3.PNR.import.2022_09_04_15_33_20
+# DE3 DFT
+mfw setup -b tpb_dve_wrapper -c "parent_pd /proj/cayman/wa/gyorgov/track_configs/DE3/tc.tpb_dve_wrapper.tcl" -n `date +%b%d`_DE3_postDFT -release DE3.DFT.dft.3.insert_tp_scan.2022_08_30_14_20_13
+# DE3 DFT phase3 
+mfw setup -b tpb_dve_wrapper -c "parent_pd /proj/cayman/wa/gyorgov/track_configs/DE3/tc.tpb_dve_wrapper.tcl" -n `date +%b%d`_DE3_postDFT -release DE3.DFT.dft.3.insert_tp_scan.2022_09_13_14_38_29
+# DE3 DFT phase3 CKAN
+mfw setup -b tpb_dve_wrapper -c "parent_pd /proj/cayman/wa/gyorgov/track_configs/DE3/tc.tpb_dve_wrapper.tcl" -n `date +%b%d`_DE3_postDFT -release DE3.DFT.dft.3.insert_tp_scan.2022_09_26_11_37_32
+# DE3 DFT phase3 redrop
+mfw setup -b tpb_dve_wrapper -c "parent_pd /proj/cayman/wa/gyorgov/track_configs/DE3/tc.tpb_dve_wrapper.tcl" -n `date +%b%d`_DE3_postDFT -release DE3.DFT.dft.3.insert_tp_scan.2022_10_20_08_19_47
+
+# tpb_dve_bank_wrapper ****
+mfw setup -b tpb_dve_bank_wrapper -c "parent_pd /proj/cayman/wa/gyorgov/track_configs/DE3/tc.tpb_dve_bank_wrapper.tcl" -n `date +%b%d`_DE3_postDFT -release DE3.DFT.dft.3.insert_tp_scan.2022_09_26_11_33_47
+
+#*************
+# Grid
+#*************
+
+qstat
+batch_info -u $user
+mystat_asictools
+mystat
+sgdel
+
+#*************
+# Command line
+#*************
+
+# PreCTS db release
+cd <cluster0_track_dir>/invcui.prects
+ddm release . "Release message"
+
+# PreCTS ETM release
+cd <cluster0_track_dir>/tempuscui.prects.etmgen
+ddm release . "Release message"
+
+# Snapshot Mike
+/proj/cayman/DE1p5/pd/cayman.dashboard.DE1p5.tcl
+firefox /proj/cayman/DE1p5/m1dpe_dashboard/latest/m1dpe_dashboard.html
+
+# Main logical hierarchies
+grep tree= invcui.floorplan/report/*.logical.hierarchy.rpt | sed 's/tree=//' | awk '{printf "%6d %s\n", $5,$1}' | sort -nr | head -25
+
+# Use zgrep recursively
+find . -name '*cap_slew*' -print0 | xargs -0 zgrep "invcui_cts_cts_build_treeFE_OFC61612_n"
+
+# Perl oneliner to change coordinates in tcl
+echo "-layer M6 -assign {418.5570000000 268.0000000000}" | perl -pE 's/(.+{.+ )(.+)(})//g ; print "$1" ; printf ( "%.4f",$2*0.5 ) ; print "$3"'
+
+#*************
+# Location
+#*************
+
+# Clocks
+/proj/cayman/DE1p5/pd/clocks
+
+# Snapshot
+/proj/cayman/DE1p5/pd/snapshot
+
+# Timing SDC
+/proj/cayman/DE1p5/timing
+
+# db repository
+/proj/cayman/release/
+
+# Config files
+/proj/cayman/projflow/project/DE1p5.2021.10.000a/CONFIG/track_config.parent_pd.tcl
+/proj/asictools/m1dpe/2021.10.000e/common/flow/CONFIG/flow_config.m1dpe.tcl
+/proj/asictools/m1dpe/2021.10.000e/common/flow/CONFIG/flow_config.m1dpe_schema.tcl
+/proj/asictools/m1dpe/2021.10.000e/n5/flow/CONFIG/flow_config.n5.tcl
+/proj/asictools/m1dpe/2021.10.000e/common/flow/CONFIG/flow_config.parent_impl.tcl
+/proj/asictools/m1dpe/2021.10.000e/common/flow/CONFIG/flow_config.parent_signoff.tcl
+/proj/cayman/projflow/project/DE1p5.2021.10.000a/CONFIG/track_config.project.tcl
+
+# DE2 prelim ports and floorplan from Ruchira
+/proj/cayman/wa/ruchinaphade/impl/tpb_top.1.0A/track.Jan10preDFT_dplan_DE2_prelim/invcui.import.dplan/dataout/snapshot/transfer_Feb01/tpb_array_sequencer
+
