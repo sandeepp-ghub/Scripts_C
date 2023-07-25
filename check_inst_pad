@@ -1,0 +1,28 @@
+
+source /proj/cayman/wa/seth/tools.tcl
+
+set cif_insts [get_db insts -if {.base_name==CIF*bufL* && .base_cell.name==CKBD16*}]
+
+set pad_val [expr 43*0.051]
+
+set areas [list]
+delete_obj [get_db gui_rects]
+foreach cin $cif_insts {
+  set inst_rect [get_db $cin .overlap_rects]
+  set exp_shape [get_computed_shapes $inst_rect SIZEX $pad_val]
+  set move_shape [get_computed_shapes $inst_rect MOVE [list $pad_val 0]]
+
+  set not_shape [get_computed_shapes [list $inst_rect $move_shape] BBOX]
+
+  set search_area [get_computed_shapes $exp_shape ANDNOT $not_shape]
+  lappend areas {*}[get_computed_shapes $search_area SIZE -0.0005]
+
+  create_gui_shape -layer 100 -rect $search_area
+}
+
+set all_ovlp_insts [get_obj_in_area -obj_type inst -areas $areas]
+
+set non_phys [get_db $all_ovlp_insts -if { .is_physical == false }]
+
+puts "Found [llength $non_phys] insts!"
+plc [get_db $non_phys .name]
