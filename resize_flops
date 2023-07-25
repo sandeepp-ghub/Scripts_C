@@ -1,0 +1,98 @@
+
+source /proj/cayman/wa/seth/tools.tcl
+
+set mode "setup"
+set eco_inv_fname "seth.setup.flop_upsizes.eco_inv"
+set fname [glob TTR2*/TTR2_out/Report_Tmg/late/buckets/default__to__default/report_tmg.merged_bucket.late.default__to__default.txt.gz]
+
+#set mode "hold"
+#set eco_inv_fname "seth.hold.flop_upsizes.eco_inv"
+#set fname [glob TTR2*/TTR2_out/Report_Tmg/early/buckets/default__to__default/report_tmg.merged_bucket.early.default__to__default.txt.gz]
+
+
+puts "Reading $fname ..."
+set f [open "|zcat $fname"]
+set data [read $f]
+close $f
+puts "Done"
+puts ""
+
+puts "Splitting lines ..."
+set lines [split $data \n]
+set tot_lines [llength $lines]
+puts ""
+
+set fh [open $eco_inv_fname w]
+puts $fh "set_db eco_batch_mode false"
+puts $fh "set_db eco_refine_place false"
+puts $fh "set_db eco_update_timing false"
+puts $fh "set_db eco_check_logical_equivalence true"
+puts $fh "set_db eco_honor_fixed_status false"
+puts $fh "set_db eco_honor_dont_touch false"
+puts $fh "set_db eco_honor_dont_use false"
+puts $fh "set_db eco_batch_mode true"
+
+
+set i 0
+set sp_pin ""
+set ep_pin ""
+foreach line $lines {
+  if { ! [expr $i % 1000] } { puts "$i of $tot_lines ..." }
+  regsub {^\s+} $line {} line
+  set fields [split $line]
+  #puts "SETH [llength $fields] : [lindex $fields 0] : [lindex $fields 1] : [lindex $fields 2]"
+  if { [lindex $fields 0] == "Path" } {
+    set sp_pin ""
+    set ep_pin ""
+  }
+  if { [lindex $fields 0] == "Startpoint:" } {
+    set sp_pin [lindex $fields 2]
+  }
+  if { [lindex $fields 0] == "Endpoint:" } {
+    set ep_pin [lindex $fields 2]
+    set min_tpath [report_timing -collection -early -from $sp_pin -to $ep_pin -retime path_slew_propagation]
+    set min_slack [get_db $min_tpath .slack]
+    if { $min_slack > -5 } { continue }
+
+    set sp_pin_obj [get_db pins $sp_pin]
+    set ep_pin_obj [get_db pins $ep_pin]
+
+    set sp_inst_obj [get_db $sp_pin_obj .inst]
+    set ep_inst_obj [get_db $ep_pin_obj .inst]
+
+    set inst_objs [list $ep_inst_obj]
+    if { $mode == "setup" } {
+      set inst_objs [concat {*}$sp_inst_obj {*}$ep_inst_obj]
+    }
+
+    foreach inst_obj [list $ep_inst_obj] {
+      set inst_name [get_db $inst_obj .name]
+      set bc_name [get_db $inst_obj .base_cell.base_name]
+
+      lassign [regexp -inline {^.*D(\d+)BWP.*CNOD(U*E*(LVT|SVT)L*L*)$} $bc_name] match drv vt trash
+      regsub $vt $bc_name ULVT ulvt_cell
+
+      if { [llength [get_db base_cells $ulvt_cell]] && $vt != "ELVT" } {
+        puts $fh "eco_update_cell -inst $inst_name -cells $ulvt_cell"
+        puts $fh ""
+      } else {
+        puts $fh "#ERROR: $ulvt_cell does NOT exist in library"
+      }
+
+
+
+      #puts "$inst_name $bc_name"
+    }
+    continue
+    incr i
+  }
+
+  incr i
+  #if { $i > 20 } { break }
+}
+
+
+puts $fh "set_db eco_batch_mode false"
+close $fh
+
+puts "Created $eco_inv_fname"
