@@ -1,0 +1,58 @@
+# model the DE2 fthru
+
+mortar::tag_eco -name "fthru_20220119"
+
+set fthru ""
+# 1518 + 20-30 additional DFT paths
+for {set i 0} {$i < 1550} {incr i} {
+  lappend fthru "in" "fthru_DE2_preview_${i}"
+}
+
+#   port->f1  f2  f3->port
+set cell "SDFQD2BWP210H6P51CNODLVTLL"
+
+set pipeline_stages 7 ; # 8090um, 1.5mm spacing per pipe at 540ps/mm with some variation (810ps); adding one more stage as constraints are pulling to stages close to the boundary,
+set clk_net "axi_clk" ; # this is the 960MHz clock which is ok to model at this time, but these nets would be 1.2 GHz eventually right?
+
+set iter 0
+foreach {north_dir name} $fthru {
+  if { $north_dir eq "in" } {
+    set north_port "${name}_input"
+    set south_port "${name}_output"
+    set south_dir  "out"
+    set ports [list $north_port $south_port]
+  } else {
+    set north_port "${name}_output"
+    set south_port "${name}_input"
+    set south_dir  "in"
+    set ports [list $south_port $north_port]
+  }
+
+  if { [get_db ports $north_port] ne "" || [get_db ports $south_port] ne "" } {
+    puts "Skipping $name as it already exists"
+    continue
+  }
+  puts [format "(%4d) Creating fthru and pipeline for %s" [incr iter] $name]
+
+  create_port -direction $north_dir -name $north_port
+  create_port -direction $south_dir -name $south_port
+  for {set i 0 } {$i < $pipeline_stages} {incr i} {
+    set inst "pipeline_l${i}_${name}"
+    create_inst -base_cell $cell -name $inst
+    if { $i == 0 } {
+      connect_pin -inst $inst -pin "D" -net [lindex $ports 0]
+      create_net -name [set pipe_out "pipeline_l${i}_${name}_out"]
+      connect_pin -inst $inst -pin "Q" -net $pipe_out
+    } elseif { $i == [expr $pipeline_stages-1] } {
+      connect_pin -inst $inst -pin "D" -net $pipe_out ; # previous guy
+      connect_pin -inst $inst -pin "Q" -net [lindex $ports e]
+    } else {
+      connect_pin -inst $inst -pin "D" -net $pipe_out ; # previous guy
+      create_net -name [set pipe_out "pipeline_l${i}_${name}_out"]
+      connect_pin -inst $inst -pin "Q" -net $pipe_out
+    }
+    connect_pin -inst $inst -pin "CP" -net $clk_net
+    connect_pin -inst $inst -pin "SI" -net "1'b0"
+    connect_pin -inst $inst -pin "SE" -net "1'b0"
+  }
+}
