@@ -1,0 +1,42 @@
+###### If there are more than 1 loads to the sector buffer net, PadClk command fails when you source it for the first time #######
+###### You may need to re-run the script from mortar::remove_repower to end to remove the existing clkpad buffers and re-add them ######
+
+source /proj/cayman/extvols/wa_004/dhuu/tcl/clkpadbufs/PadClk_proc.tcl
+
+### Give the sector buffer output net that you want to add delay 
+set n CIF_clk_axi_netL_1
+
+### Get the pin names of the instances that are driven by the sector buffer
+#set pins [get_db net:$n .loads.name]
+#set pins [list u_channel_vr_top_fb/CTS_ccl_inv_04293/I]
+set pins [list u_channel_vr_top_fb/CTS_cdb_inv_15307/I]
+
+### Get Instance names of the pins that are listed above
+#set cells [get_db net:$n .loads.inst.name]
+#set cells [list u_channel_vr_top_fb/CTS_ccl_inv_04293]
+set cells [list u_channel_vr_top_fb/CTS_cdb_inv_15307]
+
+### The sector buffer output net that drives the pins listed in $pins from above
+mortar::remove_repower -name $n  -stop_gate_names $cells
+
+if {[llength [get_db route_blockages ClkPad_*_blockage_*]] > 0} {delete_route_blockages -name ClkPad_*_blockage_*}
+
+if {[llength [get_db place_blockages ClkPad_*_blockage_*]] > 0} {gui_deselect -all; select_obj [get_db place_blockages ClkPad_*_blockage_*] ; delete_selected_from_floorplan}
+
+set distance 50 ; #This is default value if not specified
+set wirespace 4    ; # no coupling if 4
+set b 6
+set orient down
+set startx   70
+set starty 9680
+set amount 400 ; # in ps
+
+PadClk -pins $pins -amount $amount  -prefix hd1118 -orient $orient  -wirespace $wirespace   -distance $distance -startx $startx -starty $starty  -base_cell CKBD${b}BWP210H6P51CNODULVT
+
+sn [get_db [get_db pins *ClkPad*hd*] .net.name]
+
+source /proj/cayman/extvols/wa_004/dhuu/tcl/PadClk_tcl/create_route_blockage.tcl
+
+#source /proj/cayman/extvols/wa_004/dhuu/tcl/clkpadbufs/incr_routes.tcl
+
+
