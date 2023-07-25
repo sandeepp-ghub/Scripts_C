@@ -1,0 +1,134 @@
+proc PadClkRoute {args} {
+  set opt_net   ""
+  set opt_space 1
+  set opt_orient ""
+  # D2  grid  0.083333333 0.416666667 0.75
+  # D4  grid  0.083333333 0.416666667 0.75
+  # D6  grid  0.166666667 0.5         0.833333333
+  # D8  grid  0.083333333 0.416666667 0.75
+  # D10 grid  0.083333333 0.416666667 0.75
+  # D12 grid  0.166666667 0.5         0.833333333
+  # D14 grid  0.083333333 0.416666667 0.75
+  # D16 grid  0.083333333 0.416666667 0.75
+  # D20 grid  0.083333333 0.416666667 0.75
+  #mortar::source /proj/asictools/m1dpe/sandbox/common/flow/tcl/cif.tclz
+  #cifi::set_technology 5
+
+
+  ::mortar::parse_args $args {
+    { "net"      opt_net     string  1}
+    { "orient"   opt_orient  string  1}
+    { "space"  opt_space   integer 1}
+  } {
+       set net   ${opt_net}
+       set space  ${opt_space}
+       set orient ${opt_orient}
+
+       #####Find VDD/VSS Power Grids       ##########
+       set vddm3 [lsort -u -real -increasing [get_db [get_db [get_db nets VDD*] .special_wires -if {.layer.name==M3}] .path.x]]
+       set vssm3 [lsort -u -real -increasing [get_db [get_db [get_db nets VSS*] .special_wires -if {.layer.name==M3}] .path.x]]
+       if {[llength [get_db nets VCS*]] > 0} {set votherm3 [lsort -u -real -decreasing [get_db [get_db [get_db nets VCS*] .special_wires {.layer.name==M3}] .path.x]]} else {set votherm3 ""}
+       set allvm3 [lsort -u -real -increasing [concat $vddm3 $vssm3 $votherm3]]
+
+       set                                           vddm4   [lsort -u -real -increasing [get_db [get_db [get_db nets VDD*] .special_vias -if {.via_def.name==VIAGEN34_1}] .point.y]]
+       set                                           vssm4   [lsort -u -real -increasing [get_db [get_db [get_db nets VSS*] .special_vias -if {.via_def.name==VIAGEN34_1}] .point.y]]
+       if {[llength [get_db nets VCS*]] > 0} {set votherm4   [lsort -u -real -increasing [get_db [get_db [get_db nets VCS*] .special_vias -if {.via_def.name==VIAGEN34_1}] .point.y]]} else {set votherm4 ""}
+       set allvm4 [lsort -u -real -increasing [concat $vddm4 $vssm4 $votherm4]]
+       #puts $allvm3
+       #puts $allvm4
+
+       set M3pitch  [get_db [get_db layers M3] .pitch_x]
+       set M4pitch  [get_db [get_db layers M4] .pitch_y]
+
+       #####Done Find VDD/VSS Power Grids  ##########
+
+       puts "M3/M4 rout pitch  $M3pitch $M4pitch"
+       set offset 0
+       puts ""
+       puts "# Route nets ${net}_*net"
+       set bufs [get_db insts ${net}*_ClkPad*_buf]
+       set x [lindex [lsort -u -increasing -real [get_db $bufs .location.x]] 0]
+       set y [lindex [lsort -u -increasing -real [get_db $bufs .location.y]] 0]
+
+     if [regexp $orient (up|down)] {
+         for {set i 0} {$i < [llength $allvm3]} {incr i} {if {$x > [lindex $allvm3 $i] && $x <= [lindex $allvm3 [expr $i + 1]] } {set startx [expr [lindex $allvm3 $i] + $M3pitch]}}
+         while {$startx < $x} {set startx [expr $startx + $M3pitch]}
+         set ally [lsort -u -real -increasing [get_db  [get_db insts ${net}_*ClkPad*] .location.y]] ; set starty [lindex $ally 0]; set endy [lindex $ally end]
+     }
+     if [regexp $orient (left|right)] {
+         for {set i 0} {$i < [llength $allvm4]} {incr i} {if {$y > [lindex $allvm4 $i] && $y <= [lindex $allvm4 [expr $i + 1]] } {set starty [expr [lindex $allvm4 $i] + $M4pitch]}}
+         while {$starty < $y} {set starty [expr $starty + $M4pitch]}
+         set allx [lsort -u -real -increasing [get_db  [get_db insts ${net}_*ClkPad*] .location.x]] ; set startx [lindex $allx 0]; set endx [lindex $allx end]
+     }
+
+
+       delete_routes -net [get_db nets .name ${net}_ClkPad_*net]
+       set numnets [llength [get_db nets .name ${net}_ClkPad_*net]]
+
+
+       for {set i 1} {${i} <=${numnets}} {incr i} {
+          set n [get_db nets  ${net}*_${i}_net]
+          set_route_attribute  -net [get_db ${n} .name] -top_preferred_routing_layer    5
+          set_route_attribute  -net [get_db ${n} .name] -bottom_preferred_routing_layer 4
+          set_route_attribute  -net [get_db ${n} .name] -route_rule                     single_isolate
+          set_route_attribute  -net [get_db ${n} .name] -shield_net                     none
+
+          set_db edit_wire_nets  [get_db $n .name]
+          set_db edit_wire_layer_vertical   M3
+          set_db edit_wire_layer_horizontal M4
+          set_db edit_wire_width_horizontal 0.020
+          set_db edit_wire_width_vertical 0.020
+          set_db edit_wire_shape none
+          set_db edit_wire_rule single_isolate3x
+          #set_db edit_wire_rule default
+          set_db [get_db nets $n] .dont_touch false
+          set_db [get_db nets $n] .skip_routing false
+
+        #### 111022 checking to route horizontal or vertical
+        if [regexp $orient (up|down)] {
+
+          set_db edit_wire_status routed ;
+          edit_add_route_point $startx [expr $starty + $offset]
+          edit_end_route_point $startx [expr $endy   - $offset]
+
+
+          #If cannot put in a segment. try again with a pitch over
+          if {[lindex [reportWirePercentage  [get_db $n .name]] 20] < 5} {
+            set startx [expr $startx + 1*$M3pitch]
+            set_db edit_wire_status routed  ;
+            edit_add_route_point $startx [expr $starty + $offset]
+            edit_end_route_point $startx [expr $endy   - $offset]
+          }
+          #End try again
+
+          set startx [expr $startx + ${space}*$M3pitch]
+          if {[lsearch $allvm3 $startx] >= 0 } {set startx [expr $startx + $M3pitch]; append noroute " " [get_db $n .name]} ; # if x value overlapped with M3 wires. jump to the next available pitch
+          gui_deselect -all
+        } elseif [regexp $orient (left|right)] {
+
+          set_db edit_wire_status routed ;
+          edit_add_route_point [expr $startx + $offset] $starty
+          edit_end_route_point [expr $endx   - $offset] $starty
+          puts "startx $startx $endx $endx starty $starty"
+
+          #If cannot put in a segment. try again with a pitch over
+          if {[lindex [reportWirePercentage  [get_db $n .name]] 20] < 5} {
+            set starty [expr $starty + 1*$M4pitch]
+            delete_routes -net $n
+            set_db edit_wire_status routed  ;
+            edit_add_route_point [expr $startx + $offset] $starty
+            edit_end_route_point [expr $endx   - $offset] $starty
+          }
+          #End try again
+
+          set starty [expr $starty + ${space}*$M4pitch]
+          if {[lsearch $allvm4 $starty] >= 0 } {set starty [expr $starty + $M4pitch]; append noroute " " [get_db $n .name]} ; # if x value overlapped with M4 wires. jump to the next available pitch
+          gui_deselect -all
+
+        }
+     }
+  # }
+}
+
+
+
