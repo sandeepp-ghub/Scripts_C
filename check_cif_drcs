@@ -1,0 +1,598 @@
+
+set CIF_FAST_BAT 1
+set CIF_SKIP_REMOVE 1
+
+#mortar::source /proj/asictools/m1dpe/sandbox/common/flow/tcl/cif.tclz
+source /proj/cayman/bin/cif.tcl
+cifi::set_technology 5
+
+
+source /proj/cayman/wa/seth/scripts/utils.tcl
+
+#cif::dsa 
+#cif::sn CIF_*_NET_*
+#set custom_net_names [cif::gsn]
+#cif::dsa 
+#select_routes -nets $custom_net_names -obj_type {wire via}
+#check_drc -check_only selected
+#check_connectivity -selected 
+
+set xt 23.256
+set yt 26.88
+
+
+proc cif_drc {args} {
+  global nick_name
+  cif::dsa 
+  cif::sn CIF_${nick_name}_NET_*
+  set custom_net_names [cif::gsn]
+  cif::dsa 
+  select_routes -nets $custom_net_names -obj_type {wire via}
+  check_drc -check_only selected -limit 10000
+}
+
+proc all_drc {args} {
+  cif::dsa 
+  cif::sn CIF_*_NET_*
+  set custom_net_names [cif::gsn]
+  cif::dsa 
+  select_routes -nets $custom_net_names -obj_type {wire via}
+  check_drc -check_only selected -limit 100000
+}
+
+proc cif_conn {args} {
+  global nick_name
+  cif::dsa 
+  cif::sn CIF_${nick_name}_NET_*
+  set custom_net_names [cif::gsn]
+  cif::dsa 
+  select_routes -nets $custom_net_names -obj_type {wire via}
+  check_connectivity -selected 
+}
+
+proc all_conn {args} {
+  cif::dsa 
+  cif::sn CIF_*_NET_*
+  set custom_net_names [cif::gsn]
+  cif::dsa 
+  select_routes -nets $custom_net_names -obj_type {wire via}
+  check_connectivity -selected 
+}
+
+proc fix_min_cut {args} {
+  global nick_name
+
+  set min_cut_mrkrs [get_db markers -if {.subtype == Minimum_Cut}]
+
+  if { ![llength [get_db via_defs get_db via_defs VIA1415_2cut]] } {
+    create_via_definition -name VIA1415_2cut -row_column {1 2} -via_rule VIAGEN1415
+  }
+
+  set from_via VIA1415_1cut
+  set to_via VIA1415_2cut
+
+  set i 1
+  set tot_vias [llength $min_cut_mrkrs]
+  foreach mrkr $min_cut_mrkrs {
+
+    set bbox [get_db $mrkr .bbox]
+    set via_obj [get_db [get_obj_in_area -obj_type via -areas $bbox] -if {.via_def.cut_layer.name == "VIA14"}]
+    if { [get_db $via_obj .via_def.name] != "VIA1415_1cut" } { continue }
+    #set wire_obj [get_db [get_obj_in_area -obj_type wire -areas $bbox] -if {.layer.name == "M10"}]
+
+    set via_location [get_db $via_obj .location]
+    set net_name [get_db $via_obj .net.name]
+
+    puts "Creating $i of $tot_vias VIA1415 at $via_location ..."
+
+    set_db $via_obj .status routed
+    set_db edit_wire_nets $net_name
+
+    edit_update_via -at $via_location -from $from_via -to $to_via -net $net_name
+    set_db $via_obj .status fixed
+    incr i
+  }
+}
+
+proc fix_bs {net1 net2} {
+  global nick_name
+  set fname cif_${nick_name}_[eval exec {date "+%y%m%d"}].def
+
+  set lines [list]
+  if { [file exists $fname] } {
+    set lines [f2l $fname]
+  } else {
+    puts "ARROW $fname does not exist!"
+    return
+  }
+
+  set new_lines $lines
+
+  set fix_dict [dict create]
+  set short_mrkrs [get_db markers -if {.subtype == Metal_Short && .layer.name == M14}]
+  #set short_mrkrs [get_db markers -if {.subtype == Adjacent_Cut_Spacing && .layer.name == VIA14}]
+  foreach mrkr $short_mrkrs {
+    set objects [get_db $mrkr .objects]
+    set obj_types [get_db -uniq $objects .obj_type]
+    if { $obj_types != "net" } {
+      continue
+    }
+    set obj_list [lsort [get_db $objects .name]]
+    set net_list [lsort [list $net1 $net2]]
+
+    if { $obj_list != $net_list } {
+      #puts "$obj_list != $net_list"
+      continue
+    }
+
+    set bboxs [get_db $mrkr .bbox]
+    foreach bbox $bboxs {
+      set all_wire_obj [get_obj_in_area -obj_type wire -areas $bbox -layer M14]
+      set error_wire_obj [get_db $all_wire_obj -expr { [regexp $net1 $obj(.net.name)]}]
+      if { ![llength $error_wire_obj] } {
+        continue
+      }
+
+      set net_name [get_db -uniq $error_wire_obj .net.name]
+      set shit_ord [convert_um_to_dbu [get_db -uniq $error_wire_obj .points.y]]
+      set shift [convert_um_to_dbu [expr -0.252*4]]
+
+      set new_ord [expr $shit_ord + $shift]
+      #puts "$net_name $bbox"
+      puts "$net_name $shit_ord -> $new_ord"
+      set new_lines [mod_net $new_lines $net_name $shit_ord $new_ord]
+    }
+  }
+
+  exec cp $fname bak.$fname
+  puts "Created a backup: bak.$fname"
+  puts ""
+  puts "cif::defin $fname"
+
+  l2f $fname $new_lines
+
+}
+
+
+proc mod_net {lines net_name shit_ord new_ord} {
+
+  set ret_lines [list]
+  set in_net 0
+
+  foreach l $lines {
+    if { $in_net } {
+      if { [regexp {USE CLOCK} $l] } {
+        set in_net 0
+      }
+      #puts "IN_NET: $l"
+      regsub -all $shit_ord $l $new_ord l
+    } else {
+      if { [regexp "^.*- ${net_name}\s*$" $l] } {
+        set in_net 1
+      }
+    }
+    lappend ret_lines $l
+  }
+  return $ret_lines
+}
+
+
+
+#writes out only shields
+#cif::clock_wires_out -include_vias 1 -include_shields 1 -include_wires 0
+
+proc read_cif {args} {
+  global nick_name
+  cif::dsa 
+  cif::sn CIF_${nick_name}_NET_*
+  
+  set fname cif_${nick_name}_[eval exec {date "+%y%m%d"}].def
+  if { [file exists $fname] } {
+    cif::defin $fname
+    puts $fname
+  } else {
+    puts "ARROW!  $fname does NOT exist!"
+  }
+}
+
+proc conv_svia {args} {
+  global nick_name
+  cif::dsa
+  cif::sn CIF_${nick_name}_NET_*
+
+  set net_objs [get_db selected]
+  set svias [get_db $net_objs .special_vias]
+
+  if { ! [llength $svias] } {
+    puts "YES!!! NO SPECIAL VIAS"
+    return
+  } else {
+    puts "$nick_name has [llength $svias] special vias :("
+  }
+  foreach svia $svias {
+    set net_name [get_db $svia .net.name]
+    set via_def [get_db $svia .via_def.name]
+    set cut_layer [get_db $svia .via_def.cut_layer.name]
+    set via_loc [get_db $svia .point]
+
+    delete_obj $svia
+
+    deselect_obj -all
+    set_db selected [get_db nets $net_name]
+
+    #set_db edit_wire_drc_on false
+    #set_db edit_wire_ignore_drc true
+    #set_db edit_wire_via_allow_geometry_drc true
+
+    set_db edit_wire_nets {$net_name}
+    set_db edit_wire_via_auto_snap false
+    set_db edit_wire_via_auto_update false
+
+    set_db edit_wire_via_cell_name $via_def
+    set_db edit_wire_via_create_by viacell
+
+    set_db edit_wire_create_via_on_pin true
+    set_db edit_wire_via_cut_layer $cut_layer
+    set_db edit_wire_via_type regular
+
+    edit_create_via $via_loc
+    deselect_obj -all
+
+    #edit_update_route_net -to $net_name
+
+    #set_db edit_wire_drc_on true
+    #set_db edit_wire_ignore_drc false
+    #set_db edit_wire_via_allow_geometry_drc false
+  }
+}
+
+proc z_pin_vias {args} {
+  set inst_obj [get_db selected]
+  set inst_rects [get_db $inst_obj .overlap_rects]
+
+
+
+  set z_pin [get_db [get_db selected .pins] -if {.direction == out}]
+  set net_name [get_db $z_pin .net.name]
+
+  set z_bp [get_db [get_db selected .base_cell.base_pins] -if {.direction == out}]
+  set z_m12_ls [get_db [get_db $z_bp .physical_pins.layer_shapes] -if {.layer.name == M12}]
+  set z_bp_rect [get_db $z_m12_ls .shapes.rect]
+  set z_gbl_rect [get_transform_shapes -inst [get_db selected] -local_pt $z_bp_rect]
+
+  set z_cen [get_rect -center $z_gbl_rect]
+  puts $z_cen
+
+  #set m15_wires [get_obj_in_area -obj_type wire -layer M15 -areas $inst_rects]
+  #set over_clk_wires [get_obj_in_area -obj_type wire -layer M16 -areas $inst_rects]
+  #set attach_wires [get_db $over_clk_wires -if {.net.name == $net_name}]
+
+  #set wire_rects [get_db $attach_wires .rect]
+
+  #set wire_cen [get_rect -center [get_computed shapes {*}$wire_rects AND {*}$z_gbl_rect]]
+
+  #set wire_x [lindex $wire_cen 0]
+  #set pin_y [lindex $z_cen 1]
+
+  #set via_loc [list $wire_x $pin_y]
+  #set via_loc $z_cen
+
+  #puts $via_loc
+
+#  set_db edit_wire_drc_on false
+#  set_db edit_wire_ignore_drc true
+#  set_db edit_wire_via_allow_geometry_drc true
+#    
+#  set_db selected [get_db nets $net_name]
+#  #create_via -net $net_name -via_def VIA14_SCB_S20_552_stack_via_1x4 -location $via_loc
+#  #create_via -net $net_name -via_def VIA12_SCB_S20_stack_via_3x11 -location $via_loc
+#  #create_via -net $net_name -via_def VIA13_SCB_S20_552_stack_via_2x11 -location $via_loc
+#  #set via_def VIA12_SCB_S20_stack_via_3x11
+#  #set cut_layer VIA12
+#  set via_def VIA15_SCB_S20_4x4
+#  set cut_layer VIA15
+#
+#  set_db edit_wire_nets {$net_name}
+#  set_db edit_wire_via_auto_snap false
+#  set_db edit_wire_via_auto_update false
+#
+#  #set_db edit_wire_via_cell_name $via_def
+#  set_db edit_wire_via_cell_name $via_def
+#  set_db edit_wire_via_create_by viacell
+#
+#  set_db edit_wire_create_via_on_pin true
+#  set_db edit_wire_via_cut_layer $cut_layer
+#  set_db edit_wire_via_type regular
+#
+#  edit_create_via $via_loc
+#
+#  set_db edit_wire_nets {}
+  deselect_obj -all
+}
+
+proc add_v {{args 0}} {
+  set layers [get_db selected .layer.name]
+  regsub -all M $layers {} layer_nums 
+  set layer_nums [lsort $layer_nums]
+
+  set via_def_name VIA[join $layer_nums ""]_1cut
+  if { $layer_nums == "15 16" && $args == 4} {
+    set via_def_name VIA15_SCB_S20_4x4
+  }
+
+  set point_x 0
+  set point_y 0
+  foreach wire [get_db selected] {
+    set dir [get_db $wire .layer.direction]
+    set wire_cen [get_rect -center [get_db $wire .rect]]
+    if { $dir == "horizontal" } {
+      set point_y [lindex $wire_cen 1]
+    } else {
+      set point_x [lindex $wire_cen 0]
+    }
+  }
+
+  set net_name [get_db -uniq selected .net.name]
+  if { [llength $net_name] > 1 } {
+    puts "ARROW! More than one net_name: $net_name"
+    return
+  }
+
+  set via_loc [list $point_x $point_y]
+
+  puts "create_via -via_def $via_def_name -net $net_name -location $via_loc"
+  #create_via -via_def $via_def_name -net $net_name -location $via_loc
+}
+
+proc all_cif {args} {
+  global nick_name
+
+  set cifs [list clk_fast clk_local clk_axi_ext WRCK CCLK TCK DFT_CE0_TCLK CWGDSK]
+  set derived 0
+  foreach nn $cifs {
+
+    set nick_name $nn
+
+    set derived 0
+
+    cif::dsa 
+    cif::sn CIF_${nn}_NET_*
+    #set fname cif_${nn}_[eval exec {date "+%y%m%d"}].def
+    set fname "/proj/cayman/DE3/pd/clocks/xbar_top_32_0/cif_${nn}_221218.def"
+    if { $nn == "CWGDSK" } {
+      set fname "/proj/cayman/DE3/pd/clocks/xbar_top_32_0/cif_${nn}_detail_221218.def"
+    }
+    if { ! [file exists $fname] } {
+      puts "ERROR! No $fname $nn !!"
+      #set derived_cif cif_${nn}_derived.def
+      #if { ! [file exists $derived_cif] } {
+        #puts "ERROR! No $fname or $derived_cif for $nn"
+        #continue
+      #} else {
+        #set derived 1
+        #set fname $derived_cif
+        #puts "ERROR only $derived_cif exists!"
+        #continue
+      #}
+    }
+    puts ""
+    puts "###############"
+    puts "## $fname"
+    puts "###############"
+    puts ""
+    cif::defin $fname
+
+    #if { $derived } {
+      #write_cif
+    #}
+
+  }
+}
+
+
+
+proc write_cif {args} {
+  global nick_name
+  ##
+  #Write out the wire def!!
+  ##
+  #recreate the def
+  cif::dsa 
+  cif::sn CIF_${nick_name}_NET_*
+  
+  set fname cif_${nick_name}_[eval exec {date "+%y%m%d"}].def
+  
+  cif::clock_wires_out -filename $fname -include_vias 1 -include_shields 0 -include_wires 1
+  
+  ::cif::clock_wires_sort -filename $fname
+  
+  cif::defin $fname
+  puts $fname
+}
+
+proc write_shields {args} {
+  global nick_name
+  set shield_fname cif_${nick_name}_shields_[eval exec {date "+%y%m%d"}].def
+  set all_shield_fname cif_${nick_name}_shields_[eval exec {date "+%y%m%d"}]_ALL_SHIELDS.def
+  cif::clock_wires_out -filename $all_shield_fname -include_vias 0 -include_shields 1 -include_wires 0
+  ::cif::clock_wires_sort -filename $all_shield_fname
+  
+  exec sed -e "s/- (VSS|VDD).*$/- \\1/g" $all_shield_fname | egrep -v "(SHIELD|NEW).*(M8|M9|M10|M11|M12|M13|M14)" > $shield_fname
+
+  puts $shield_fname
+}
+
+proc gc {args} {
+  set layer_dir [get_db selected .layer.direction]
+  set cen [get_rect -center [get_db [get_db selected] .rect]]
+  if { $layer_dir == "vertical"} {
+    return [lindex $cen 0]
+  } {
+    return [lindex $cen 1]
+  }
+}
+
+proc del_shields {args} {
+  global nick_name
+
+  cif::dsa 
+  cif::sn CIF_${nick_name}_NET_*
+
+  set net_names [cif::gsn]
+  cif::dsa 
+
+  select_routes -shield_only -nets $net_names
+  delete_routes -selected
+  #set shields [get_db selected]
+  #delete_obj $shields
+}
+
+proc del_all_shields {args} {
+  cif::dsa 
+
+  #set cifs [list clk_fast clk_local clk_axi_ext WRCK CCLK TCK DFT_CE0_TCLK CWGDSK]
+  set cifs [list clk_axi clk_tpb_core_dve clk_xbar TCK WRCK WRSTN]
+
+  set net_names [list]
+
+  foreach nn $cifs {
+    cif::dsa 
+    cif::sn CIF_${nn}_NET_*
+    if { ![llength [get_db selected]] } {
+      cif::sn CIF_${nn}_*
+    }
+    lappend net_names {*}[cif::gsn]
+  }
+  cif::dsa 
+
+  select_routes -shield_only -nets $net_names
+  delete_routes -selected
+  #set shields [get_db selected]
+  #delete_obj $shields
+
+}
+
+proc sn {args} {
+  global nick_name
+  set net_name ""
+  #puts "SETH $args [llength $args]"
+  if { ![llength $args] } {
+    set net_name CIF_${nick_name}_NET_*
+  } else {
+    set net_name CIF_${args}_NET_*
+  }
+  cif::dsa 
+  cif::sn $net_name
+}
+
+proc ddrc {args} {
+  eval_legacy { violationBrowserDelete -tool Verify }
+}
+
+proc sr {{move 0}} {
+  global nick_name
+  set layer_dir [get_db selected .layer.direction]
+  #set idx 0
+  #if { $layer_dir == "horizontal" } {
+    #set idx 1
+  #}
+
+  set wire_cen [lindex [get_db selected .points.x] 0]
+  if { $layer_dir == "horizontal" } {
+    set wire_cen [lindex [get_db selected .points.y] 0]
+  }
+
+  set mask [get_db selected .mask]
+
+  set layer_name [get_db selected .layer.name]
+
+  set new_cen 0
+  if { $mask != 0 } {
+    set track_num [expr [um2track $wire_cen $layer_name] + $move]
+    set new_cen [track2um $track_num $layer_name]
+  } else {
+    set track_num [expr [um2track $wire_cen $layer_name $mask] + $move]
+    set new_cen [track2um $track_num $layer_name $mask]
+  }
+
+  puts "%s/$wire_cen/$new_cen/g"
+
+  set fname cif_${nick_name}_[eval exec {date "+%y%m%d"}].def
+  if { [file exists $fname] } {
+    puts "cif::def_editor_vi $fname"
+    puts "cif::defin $fname"
+  } else {
+    puts "ARROW!  $fname does NOT exist!"
+  }
+}
+
+#cif::clock_wires_initial -filename ${clock_dir}/cif_${tree_name}_[eval exec {date "+%y%m%d"}].def
+#grep -v (thow away all shields M14 and below!!!!)
+
+#source /proj/cayman/DE3/pd/snapshot/xbar_top_32_0/remove_scb_rbs.tcl
+
+#CLK_FAST
+#set nick_name clk_fast
+#set detour_clk_fast_master "/proj/cayman/DE3/pd/clocks/xbar_top_32_0/cif_clk_fast_master_221205.def"
+#cif::defin $detour_clk_fast_master
+
+#CLK_LOCAL
+#set nick_name clk_local
+#set def_file_master "/proj/cayman/wa/seth/impl/xbar_top_32_0.1.0A/track.postdft.DE3.Dec11_1138.run97.huu_delay/invcui.cts/cif_${nick_name}_derived.def"
+#if { [file exists $def_file_master] } {
+#  set bname [lindex [file split $def_file_master] end]
+#  puts "$bname exists :)"
+#  cif::defin $def_file_master
+#}
+
+#WRCK
+#set nick_name WRCK
+#set def_file_master "/proj/cayman/wa/seth/impl/xbar_top_32_0.1.0A/track.postdft.DE3.Dec11_1138.run97.huu_delay/invcui.cts/cif_${nick_name}_derived.def"
+#cif::defin $def_file_master
+#set def_file_master "/proj/cayman/wa/seth/impl/xbar_top_32_0.1.0A/track.postdft.DE3.Dec11_1138.run97.huu_delay/invcui.cts/cif_${nick_name}_derived.def"
+#if { [file exists $def_file_master] } {
+#  set bname [lindex [file split $def_file_master] end]
+#  puts "$bname exists :)"
+#  cif::defin $def_file_master
+#}
+
+#set nick_name DFT_CE0_TCLK
+#set def_file_master "/proj/cayman/wa/seth/impl/xbar_top_32_0.1.0A/track.postdft.DE3.Dec11_1138.run97.huu_delay/invcui.cts/cif_${nick_name}_derived.def"
+#if { [file exists $def_file_master] } {
+#  set bname [lindex [file split $def_file_master] end]
+#  puts "$bname exists :)"
+#  cif::defin $def_file_master
+#}
+
+#set nick_name TCK
+#set def_file_master "/proj/cayman/wa/seth/impl/xbar_top_32_0.1.0A/track.postdft.DE3.Dec11_1138.run97.huu_delay/invcui.cts/cif_${nick_name}_derived.def"
+#if { [file exists $def_file_master] } {
+#  set bname [lindex [file split $def_file_master] end]
+#  puts "$bname exists :)"
+#  cif::defin $def_file_master
+#}
+
+#set nick_name CCLK
+#set def_file_master "/proj/cayman/wa/seth/impl/xbar_top_32_0.1.0A/track.postdft.DE3.Dec11_1138.run97.huu_delay/invcui.cts/cif_${nick_name}_derived.def"
+#if { [file exists $def_file_master] } {
+#  set bname [lindex [file split $def_file_master] end]
+#  puts "$bname exists :)"
+#  cif::defin $def_file_master
+#}
+
+#create_net CIF_clk_axi_ext_NET_6_1
+#connect_pin
+#set nick_name clk_axi_ext
+if {0} {
+  #The design I'm screwing with trimmed the SCBs back
+  #Just one more of the 100s of PITAs
+  set nick_name clk_axi_ext
+  create_inst -name CIF_${nick_name}_BUF_6_1 -base_cell MRVCKS20BWP210H6P51CNODULVT -location {311.916 4834.2}
+  create_net -name CIF_${nick_name}_NET_6_1
+
+  connect_pin -inst CIF_${nick_name}_BUF_6_1 -net CIF_${nick_name}_NET_5_1 -pin I
+  connect_pin -inst CIF_${nick_name}_BUF_6_1 -net CIF_${nick_name}_NET_6_1 -pin Z
+  #create_net -name CIF_${nick_name}_NET_5_1
+}
+
+set nick_name clk_axi
