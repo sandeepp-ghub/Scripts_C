@@ -1,0 +1,82 @@
+set rpt /proj/cayman/extvols/wa_002/gford/impl/xbar_top_32_0.1.0A/track.DE1p5_preDFT_1104_norblk_meth08/invcui.prects.audit/xbar_top_32.reducedplace_targetretime.late.reg2reg.rpt
+set pipe_cycle_margin 0.1
+set bucket_name_depth 1
+
+#------------------------------------------------
+
+array unset tmg_buckets
+array set tmg_buckets {}
+
+set fo [open tmg_pipe_summary.csv w]
+puts $fo "Slack,Type,Num_Pipes,Endpoint,Capture_Clock,Capture_Clock_Period,Startpoint,Launch_Clock"
+
+set fi [open $rpt r]
+set state 0
+while {![eof $fi]} {
+  gets $fi fl
+  regsub -all " +" [string trim $fl] " " fl
+  set fls [split $fl]
+  if {$state == 0 && [string match "*VIOLATED*" $fl]} {
+    set type [lindex $fls 5]
+    set state 1
+  } elseif {$state == 1 && [lindex $fls 0] eq "Startpoint:"} {
+    set startpoint [lindex $fls 2]
+    set state 2
+  } elseif {$state == 2 && [lindex $fls 0] eq "Clock:"} {
+    set launch_clock [lindex $fls 2]
+    set state 3
+  } elseif {$state == 3 && [lindex $fls 0] eq "Endpoint:"} {
+    set endpoint [lindex $fls 2]
+    set state 4
+  } elseif {$state == 4 && [lindex $fls 0] eq "Clock:"} {
+    set capture_clock [lindex $fls 2]
+    set state 5
+  } elseif {$state == 5 && [lindex $fls 0] eq "Clock" && [lindex $fls 1] eq "Edge:+"} {
+    set capture_clock_period [lindex $fls 2]
+    set launch_clock_period [lindex $fls 3]
+    set state 6
+  } elseif {$state == 6 && [lindex $fls 0] eq "Slack:="} {
+    set slack [lindex $fls 1]
+    
+    set startpoint_split [split $startpoint /]
+    set startpoint_bucket "N/A"
+    if {[llength $startpoint_split] > [expr {$bucket_name_depth + 2}]} {
+      set startpoint_bucket [lindex $startpoint_split $bucket_name_depth]
+    }
+    set endpoint_split [split $endpoint /]
+    set endpoint_bucket "N/A"
+    if {[llength $endpoint_split] > [expr {$bucket_name_depth + 2}]} {
+      set endpoint_bucket [lindex $endpoint_split $bucket_name_depth]
+    }
+    
+    if {![info exists tmg_buckets($startpoint_bucket|$endpoint_bucket)]} {
+      set tmg_buckets($startpoint_bucket|$endpoint_bucket) 0
+    }
+    incr tmg_buckets($startpoint_bucket|$endpoint_bucket)
+    
+    set num_pipes "?"
+    if {$capture_clock_period > 0} {
+      set num_pipes [expr {round(ceil(abs($slack) / ($capture_clock_period * (1.0 - $pipe_cycle_margin))))}]
+    }
+    puts $fo "$slack,$type,$num_pipes,$endpoint,$capture_clock,$capture_clock_period,$startpoint,$launch_clock"
+    
+    set state 0
+  }
+}
+catch {close $fi}
+catch {close $fo}
+
+set fo [open tmg_buckets.rpt w]
+puts $fo [format "%-10s %-25s %-25s" "Num Paths" "From" "To"]
+puts $fo "------------------------------------------------------------"
+set buckets [list]
+foreach pair [array names tmg_buckets] {
+  lassign [split $pair |] start end
+  set num $tmg_buckets($pair)
+  lappend buckets [list $num $start $end]
+}
+foreach bucket [lsort -index 0 -integer -decreasing $buckets] {
+  lassign $bucket num start end
+  puts $fo [format "%-10s %-25s %-25s" $num $start $end]
+}
+catch {close $fo}
