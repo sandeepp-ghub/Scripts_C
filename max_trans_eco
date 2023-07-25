@@ -1,0 +1,77 @@
+
+set rpt_fname [dict create \
+  hbm "/proj/cayman/wa/seth/impl/hbm_xbar_wrapper_0.1.0A/track.timing.Mar09_1619/tempuscui.signoff.sta/TTR2.hbm_xbar_wrapper_0.001.2023-03-09-22:21:12/TTR2_out/Cap_Slew/max_transition/buckets/xbar/cap_slew.max_transition.merged_bucket.hbm.txt.gz" \
+  fab "/proj/cayman/wa/seth/impl/hbm_xbar_wrapper_0.1.0A/track.timing.Mar09_1619/tempuscui.signoff.sta/TTR2.hbm_xbar_wrapper_0.001.2023-03-09-22:21:12/TTR2_out/Cap_Slew/max_transition/buckets/fab/cap_slew.max_transition.merged_bucket.fab.txt.gz" \
+]
+
+set eco_fname [dict create \
+  hbm "hbm_group.max_tran.eco.tcl" \
+  fab "fab_group.max_tran.eco.tcl" \
+]
+
+set inst_expr [dict create \
+  hbm "HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_\d" \
+  fab "HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_\d" \
+]
+
+set rpt_eco_files [dict create \
+  $hbm_rpt_name $hbm_eco_fname \
+  $fab_rpt_name $fab_eco_fname \
+]
+
+foreach mod {fab hbm} {
+
+  set rpt_name [dict get $rpt_fname $mod]
+  set eco_name [dict get $eco_fname $mod]
+
+  set inst_regexp [dict get $inst_expr $mod]
+
+  set ef [open $eco_name w]
+
+  puts "Reading $rpt_name ..."
+  set f [open "|zcat $rpt_name"]
+  set data [read $f]
+  close $f
+  puts "Done"
+  puts ""
+
+
+  puts "Splitting lines ..."
+  set lines [split $data \n]
+  set tot_lines [llength $lines]
+  puts ""
+
+  set i 1
+  foreach line $lines {
+    if { ! [expr $i % 1000] } { puts "$i of $tot_lines ..." }
+    incr i
+
+    if { $i == 2 } { continue }
+
+    set fields [regexp -inline -all -- {\S+} $line]
+
+    set pin_name [lindex $fields 0]
+
+    set pin_obj [get_db pins $pin_name]
+
+    #IencIOBuf
+    #
+    set max_tran [get_db $pin_obj .max_transition]
+    set actual_tran [get_db $pin_obj .slew_max]
+    set slack [expr $max_tran - $actual_tran]
+
+    puts $ef "#$pin_name"
+    puts $ef "#Req Tran: $max_tran"
+    puts $ef "#Act Tran: $actual_tran"
+    puts $ef "#Slack   : $slack"
+    puts $ef ""
+
+  }
+
+  puts "Created $eco_name ..."
+  puts ""
+  close $ef
+
+}
+
+
