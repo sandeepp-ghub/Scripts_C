@@ -1,0 +1,250 @@
+proc ::df::specify_partitions { args } {
+  set opt_masters_list {}
+
+  ::mortar::parse_args $args {
+    { "masters" opt_masters_list list }
+  } {
+
+    set rc 0
+
+    if { ![::mortar::tool -name -is {Innovus}] } {
+      ::mortar::unsupported_tool "SPECIFY PARTITIONS"
+      return $rc
+    }
+
+    # The reason somebody would want to choose which hierarchical instance is a master rather than use a default is if
+    # they wanted a certain orientation of the instance to be the one that defined the port locations, rather than the
+    # default, which may be a different orientation.
+
+    # NOTE: The RLM_CEILING and RLM_TYPE user-defined properties get added during the df::legalize_selected_modules proc
+    # (which calls the df::legalize_rlm_module proc to actually set them). These properties get added to the cell (vCell)
+    # of the hierarchical instance and since they are cell-based properties, do not get saved into the database. Therefore,
+    # this proc must be run in the same session as the legalizing step to ensure these properties exist.
+    # NOTE: Cadence may have fixed this - need to confirm
+
+    # First check that there are hierarchical instances in the design
+
+    set hinst_ptr_list [get_db designs .hinsts ]
+    if {$hinst_ptr_list == ""} {
+      ::mortar::echo -error -text "No hierarchical instances found in this design, so there is nothing to partition. Exiting"
+      return $rc
+    }
+
+    # Identify the hierarchical instances that should be partitioned based on having an RLM_CEILING and RLM_TYPE attribute
+    if {![is_attribute RLM_TYPE -obj_type hinst]} {
+      ::mortar::echo -error -text "The RLM_TYPE attribute for hinst object types has not been defined. Please run the df::legalize_selected_modules proc to define and create this attribute"
+      return $rc
+    }
+
+    if {![is_attribute RLM_CEILING -obj_type hinst]} {
+      ::mortar::echo -error -text "The RLM_CEILING attribute for hinst object types has not been defined. Please run the df::legalize_selected_modules proc to define and create this attribute"
+      return $rc
+    }
+
+    set hinst_to_partition_list {}
+    foreach hinst_ptr $hinst_ptr_list {
+      set rlmtype_prop_ptr [get_db $hinst_ptr .RLM_TYPE]
+      set rlmceiling_prop_ptr [get_db $hinst_ptr .RLM_CEILING]
+
+      if {($rlmtype_prop_ptr != "") && ($rlmceiling_prop_ptr != "")} {
+        lappend hinst_to_partition_list $hinst_ptr
+      }
+    }
+
+    if {$hinst_to_partition_list == ""} {
+      ::mortar::echo -error -text "No hierarchical instance cells were found that contain RLM_TYPE and RLM_CEILING attributes. Please run the df::legalize_selected_modules proc to create these attributes"
+      return $rc
+    }
+
+    # Check that hierarchical instances listed as masters exist and are in partition list
+    if {$opt_masters_list != ""} {
+      foreach master_hinst $opt_masters_list {
+        ::mortar::echo -text "$master_hinst"
+        # Check that it exists in design
+        set master_hinst_ptr [get_db [get_db hinsts $master_hinst]]
+        if {$master_hinst_ptr == ""} {
+          ::mortar::echo -error -text "Hierarchical instance named $master_hinst specified in -master list was not found in this design. Names in this list must be one of these: [get_db hinsts .name $master_hinst]"
+          return $rc
+        }
+
+        # Check that it exists in partition list
+        if {[lsearch -exact $hinst_to_partition_list $master_hinst_ptr] < 0} {
+          ::mortar::echo -error -text "Hierarchical instance named $master_hinst specified in -master list does not contain RLM_TYPE and RLM_CEILING attributes. Please run the df::legalize_rlm_module proc on this hInst to create these attributes"
+          return $rc
+        }
+      }
+    }
+
+    # Determine set of instances to define partitions based on. For reused, will use hierarchical instance in master list if found
+
+    # dbget doesn't properly return the all names of the hinsts that have a common vcell, only returns one, so can't use it
+    # (i.e. if the vcell is identified by dbget top.hInst.treeHInsts.cell.name rlm_reuse, then
+    # dbget <that vcell_pointer>.hInst.name only returns rlm_reuse_inst3, not rlm_reuse_inst1 rlm_reuse_inst2 rlm_reuse_inst3
+    # Instead need to loop through and set my own arrays
+    array set member_list {}
+    set unique_vcell_list {}
+    foreach hinst_ptr $hinst_to_partition_list {
+      set hinst_name [get_db $hinst_ptr .name]
+      set vcell_name [get_db $hinst_ptr .module.name]
+
+      lappend member_list($vcell_name) $hinst_name
+
+      if {[lsearch $unique_vcell_list $vcell_name] == -1} {
+        lappend unique_vcell_list $vcell_name
+      }
+    }
+
+    # Loop through unique vcell list and determine the hierarchical instance that should be used for partition definition for each
+    # one
+    set specific_hinst_to_partition_list {}
+    foreach unique_vcell_name $unique_vcell_list {
+
+      # Is a reused vcell
+      if {[llength $member_list($unique_vcell_name)] > 1} {
+
+        # If a hierarchical instance was specified in the -master list that was passed in, use that, otherwise default to first in
+        # the list
+        if {$opt_masters_list == ""} {
+          # Need outer lindex 0 to remove braces in case name has brackets in it
+          set first_hinst_name_in_list [lindex [lindex $member_list($unique_vcell_name) 0] 0]
+          set first_hinst_ptr [get_db $hinst_to_partition_list .name $first_hinst_name_in_list]
+          lappend specific_hinst_to_partition_list $first_hinst_ptr
+
+          ::mortar::echo -text "$unique_vcell_name is a reused rlm. Since no -master list of hInsts was passed in, first hInst found ($first_hinst_name_in_list) will be used as master"
+
+        } else {
+
+          # Loop through names in -master list to see if any are hierarchical instances of this vcell
+          set found_master_for_this_vcell 0
+          foreach master_hinst $opt_masters_list {
+
+            # Can't use lsearch because if member_list contains a hinst that has brackets, it will be enclosed in braces and search
+            # won't work. Instead, need to loop through one at a time
+            # NOTE - if I used lsearch -exact it would work
+            foreach unscrubbed_member_name $member_list($unique_vcell_name) {
+
+              set scrubbed_member_name [lindex $unscrubbed_member_name 0]
+
+              if {$master_hinst eq $scrubbed_member_name} {
+                set master_hinst_ptr [get_db hinsts $master_hinst]
+                lappend specific_hinst_to_partition_list $master_hinst_ptr
+                set found_master_for_this_vcell 1
+
+                ::mortar::echo -text "$unique_vcell_name is a reused rlm. hInst named $master_hinst found in -master list and will be used as master for this rlm"
+
+                # Break out of this inner for loop
+                break
+              }
+            }
+
+            # Break out of this outer for loop
+            if {$found_master_for_this_vcell} {
+              break
+            }
+
+            #if {[lsearch -exact $member_list($unique_vcell_name) $master_hinst] >= 0} {
+            #  set master_hinst_ptr [dbget -p $hinst_to_partition_list.name $master_hinst]
+            #  lappend specific_hinst_to_partition_list $master_hinst_ptr
+            #  set found_master_for_this_vcell 1
+            #
+            #  ::mortar::echo -text "$unique_vcell_name is a reused rlm. hInst named $master_hinst found in -master list and will be used as master for this rlm"
+            #
+            #  break
+            #}
+
+          }
+
+          if {$found_master_for_this_vcell == 0} {
+
+            # Need outer lindex 0 to remove braces in case name has brackets in it
+            set first_hinst_name_in_list [lindex [lindex $member_list($unique_vcell_name) 0] 0]
+            set first_hinst_ptr [get_db hinsts .name $first_hinst_name_in_list]
+            lappend specific_hinst_to_partition_list $first_hinst_ptr
+
+            ::mortar::echo -text "$unique_vcell_name is a reused rlm. Since no hInsts of this rlm were listed in the -master list of hInsts passed in, first hInst found ([lindex $first_hinst_name_in_list 0]) will be used as master"
+
+          }
+        }
+
+      # Not a reused vcell
+      } else {
+
+        # Add the hierarchical instance name of this non-reused vcell to the list
+        # Need outer lindex 0 to remove braces in case name has brackets in it
+        set only_hinst_name_in_list [lindex [lindex $member_list($unique_vcell_name) 0] 0]
+        set only_hinst_ptr [get_db hinsts .name $only_hinst_name_in_list]
+
+        lappend specific_hinst_to_partition_list $only_hinst_ptr
+      }
+    }
+    # Define partitions based on properties
+    # - work on specific hinst list created above which will contain one hinst for each unique vcell
+    foreach hinst_ptr $specific_hinst_to_partition_list {
+      # Must use lindex 0 for case where name has brackets
+      set hinst_name [lindex [get_db $hinst_ptr .name] 0]
+      set vcell_ceiling [get_db $hinst_ptr .RLM_CEILING]
+      set vcell_ceiling_num [get_db layer:$vcell_ceiling .route_index]
+      set vcell_type [get_db $hinst_ptr .RLM_TYPE]
+
+      # Since you need to pass the hierarchical instance name to the command, BUT if it is a reused RLM, we only need to define
+      # partition for ONE of the hinsts, first need to identify if it is reused. It will set the first one I the list as the master
+
+      # Base partition definitions. These are all currently set to the defaults.
+      set rail_width 0.0
+      set routing_halo 0
+      set placement_halo 0
+      # specifies pin pitch dimension - default of one pin for every two metal tracks - actual pin pitch depends on the pin's metal layer
+      set min_pin_pitch 2
+      set core_spacing 0
+
+      # Partition settings
+      # Currently setting partition settings for RLMUNRINGED and RLMUNRINGEDVI to be the same
+      # FIXME - what differences would need to be here?
+      if {($vcell_type == "RLMUNRINGEDPWR") || ($vcell_type == "RLMUNRINGEDVI")} {
+
+        set reserved_layer_list {}
+        set top_bottom_pin_list {}
+        set left_right_pin_list {}
+        set layer_list_count 0
+        while {$layer_list_count < $vcell_ceiling_num} {
+          incr layer_list_count
+          lappend reserved_layer_list $layer_list_count
+
+          # No pins on M2, M3 or M4
+          if {$layer_list_count > 5} {
+
+            # Even layer pins on left and right sides
+            if {[expr {$layer_list_count % 2}] != 0} {
+              lappend left_right_pin_list $layer_list_count
+            # Odd layer pins on top and bottom
+            } elseif {[expr {$layer_list_count % 2}] == 0} {
+              lappend top_bottom_pin_list $layer_list_count
+            }
+          }
+        }
+        # Call the specify partition command
+        ::mortar::echo -text "specifying partition for $hinst_name by running:"
+        ::mortar::echo -text "create_partition -hinst $hinst_name -reserved_layer { $reserved_layer_list }\
+        -pin_layer_top { $top_bottom_pin_list } -pin_layer_bottom { $top_bottom_pin_list }\
+        -pin_layer_left { $left_right_pin_list } -pin_layer_right { $left_right_pin_list }\
+        -min_pitch_left $min_pin_pitch -min_pitch_right $min_pin_pitch -min_pitch_top $min_pin_pitch -min_pitch_bottom $min_pin_pitch\
+        -rail_width $rail_width\
+        -place_halo $placement_halo $placement_halo $placement_halo $placement_halo\
+        -route_halo $routing_halo\
+        -core_spacing $core_spacing $core_spacing $core_spacing $core_spacing"
+
+        eval "create_partition -hinst $hinst_name -reserved_layer { $reserved_layer_list }\
+        -pin_layer_top { $top_bottom_pin_list } -pin_layer_bottom { $top_bottom_pin_list }\
+        -pin_layer_left { $left_right_pin_list } -pin_layer_right { $left_right_pin_list }\
+        -min_pitch_left $min_pin_pitch -min_pitch_right $min_pin_pitch -min_pitch_top $min_pin_pitch -min_pitch_bottom $min_pin_pitch\
+        -rail_width $rail_width\
+        -place_halo $placement_halo $placement_halo $placement_halo $placement_halo\
+        -route_halo $routing_halo\
+        -core_spacing $core_spacing $core_spacing $core_spacing $core_spacing"
+      }
+    }
+
+    set rc 1
+    return $rc
+  }
+}
