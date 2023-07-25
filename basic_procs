@@ -1,0 +1,95 @@
+alias gs gui_show 
+alias r_r "mfw run -interactive &"
+
+proc ps {} { get_db selected .place_status }
+proc sps {} { set_db selected .place_status placed}
+proc spf {} { set_db selected .place_status fixed}
+proc wfp {file_name} {write_floorplan_script -append_to_file $file_name -sections blocks}
+proc ds {} {deselect_obj -all}
+proc set_net_stat {net} {
+foreach n $net {
+        set_db [get_db nets $n] .dont_touch true
+        set_db [get_db nets $n] .wires.status fixed
+        set_db [get_db nets $n] .skip_routing true
+        }
+        }
+
+
+ proc net_stat {net} {
+        foreach n $net {
+        puts "$n DontTouch [get_db [get_db nets $n] .dont_touch]"
+        puts "$n wires.status [get_db [get_db nets $n] .wires.status -u]"
+        puts "$n skip_routing [get_db [get_db nets $n] .skip_routing]"
+        }
+        }
+proc inst_loc {inst } {set location [get_db [get_db insts $inst] .bbox ]}
+proc inst_cell {inst} {set cell_name [get_db [get_db insts $inst] .base_cell.name]}
+proc pin_slew {pin} {
+set pin_ptr [get_db pins $pin]
+set slew [ get_property [get_db pins $pin] max_transition]
+return $slew
+}
+
+proc late_slack {pin} {
+set pin_ptr [get_db pins $pin]
+set slack [get_property [get_pins $pin] slack_max]
+if {$slack == "" || $slack == "INFINITY"} {
+set slack [ get_property [report_timing -collection -through $pin -late] slack]
+}
+return $slack
+}
+
+proc early_slack {pin} {
+set pin_ptr [get_db pins $pin]
+set slack [get_property [get_pins $pin] slack_min]
+if {$slack == "" || $slack == "INFINITY"} {
+set slack [ get_property [report_timing -collection -through $pin -late] slack]
+}
+return $slack
+}
+
+proc late_slew {pin} {
+set pin_ptr [get_db pins $pin]
+set slew [get_property [get_pins $pin] slew_max]
+}
+
+proc is_clock {net} { 
+ if {[get_db nets $net] == 0x0} {
+ return "$net doesnt exist"
+ } else {
+set is_clk [get_db [get_db nets $net] .is_clock]
+return $is_clk
+}
+}
+
+proc sel_ip {} {select_obj [get_db ports -if {.direction == in}]}
+proc sel_op {} {select_obj [get_db ports -if {.direction == out}]}
+
+proc find_via_pillar_used {} {
+  set out [open via_pillar_used.txt "w"]
+  foreach vp [get_db pins .stack_via_rule.name -unique ] {
+    if !{[regexp $vp 0x0]} {
+      puts $out $vp
+    }
+  }
+  close $out
+}
+
+proc find_number_of_inst_having_via_pillar {} {
+  set inp [open via_pillar_used.txt "r"]
+  set out [open via_pillar_number_of_inst.txt "w"]
+  while {[gets $inp x]>=0} {
+    set y [llength [get_db pins .stack_via_rule.name $x]]
+    puts "$out" "$y instance has $x via pillars"
+  }
+  close $inp
+  close $out
+}
+
+proc Layers {} {
+foreach lay [get_db layers] {
+set Layer_info [get_db $lay .width]; set layer [get_db $lay .name]
+echo $layer $Layer_info }
+}
+
+
