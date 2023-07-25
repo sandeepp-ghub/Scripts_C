@@ -1,0 +1,68 @@
+
+  ##AXI
+  #HBM_XBAR_WRAPPER/HBM_XBAR/CWGDSK_CHANNEL/CTS_ccl_a_inv_00011                                                                            I->ZN            CKND10BWP210H6P51CNODULVT         31.6   -661.5                                                       -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/CWGDSK_CHANNEL/GEN_CWGDSK_1__CLK1_genblk1_CLK_DIVIDER/CWGDSK                                                  SYSCLK->YMEMCLK  CWGDSK                            65.6   -596.5  HBM_XBAR_WRAPPER/HBM_XBAR/clk_axi_local Gen Adj. = 0.0  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_fast_clock_1_0_buf/anpa_keep_clk_buf               I->Z             CKBD16BWP210H6P51CNODULVT         21.2   -576.9                                                       -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_cgc_fast_clock_f2/U_ICG                            CP->Q            CKLNQD10BWP210H6P51CNODULVT       17.4   -561.0                                                       -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_clock_out_f2_mux/anpa_keep_clk_mux                 I0->Z            CKMUX2D8BWP210H6P51CNODULVT       22.1   -540.1                                                       -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/AXI_LOCAL_CLK_GATE_WRAPPER/clk_gate_logic/U_ICG                                                               CP->Q            CKLNQD10BWP210H6P51CNODULVT       24.7   -517.6                                                       -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/u_clk_axi_local_buf/anpa_keep_clk_buf                                                                         I->Z             CKBD16BWP210H6P51CNODULVT         16.8   -501.9                                                       -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/CIF_clk_local_buf_root                                                                                        I->Z             CKBD16BWP210H6P51CNODULVT         22.1   -481.2                                                       -  
+
+  ##FAST
+  #HBM_XBAR_WRAPPER/HBM_XBAR/CWGDSK_CHANNEL/CTS_ccl_a_inv_00011                                                               I->ZN            CKND10BWP210H6P51CNODULVT           31.6   -661.5                                                      -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/CWGDSK_CHANNEL/GEN_CWGDSK_0__CLK0_genblk1_CLK_BUF/CWGDSK                                         SYSCLK->YMEMCLK  CWGDSK                              61.6   -600.7  HBM_XBAR_WRAPPER/HBM_XBAR/clk_xbar_buf Gen Adj. = 0.0  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_fast_clock_0_0_buf/anpa_keep_clk_buf  I->Z             CKBD16BWP210H6P51CNODULVT           17.4   -584.6                                                      -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_cgc_fast_clock_f1/U_ICG               CP->Q            CKLNQD10BWP210H6P51CNODULVT         17.4   -568.7                                                      -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_clock_out_f1_mux/anpa_keep_clk_mux    I0->Z            CKMUX2D8BWP210H6P51CNODULVT         18.0   -551.6                                                      -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/XBAR_CLK_GATE_WRAPPER/clk_gate_logic/U_ICG                                                       CP->Q            CKLNQD10BWP210H6P51CNODULVT         20.6   -532.6                                                      -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/u_clk_fast_buf/anpa_keep_clk_buf                                                                 I->Z             CKBD16BWP210H6P51CNODULVT           14.4   -519.4                                                      -  
+  #HBM_XBAR_WRAPPER/HBM_XBAR/CIF_clk_fast_buf_root                                                                            I->Z             CKBD16BWP210H6P51CNODULVT           19.4   -501.2                                                      -  
+
+
+set axi_inp_pins [list \
+  CWGDSK_CHANNEL/CTS_ccl_a_inv_00011/I \
+  CWGDSK_CHANNEL/GEN_CWGDSK_1__CLK1_genblk1_CLK_DIVIDER/CWGDSK/SYSCLK \
+  u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_fast_clock_1_0_buf/anpa_keep_clk_buf/I \
+  u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_cgc_fast_clock_f2/U_ICG/CP \
+  u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_clock_out_f2_mux/anpa_keep_clk_mux/I0 \
+  AXI_LOCAL_CLK_GATE_WRAPPER/clk_gate_logic/U_ICG/CP \
+  u_clk_axi_local_buf/anpa_keep_clk_buf/I \
+  CIF_clk_local_buf_root/I \
+  HBM_XBAR_WRAPPER/HBM_XBAR/CIF_clk_local_BUF_1_1/I \
+]
+
+set fast_inp_pins [list \
+  CWGDSK_CHANNEL/CTS_ccl_a_inv_00011/I \
+  CWGDSK_CHANNEL/GEN_CWGDSK_0__CLK0_genblk1_CLK_BUF/CWGDSK/SYSCLK \
+  u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_fast_clock_0_0_buf/anpa_keep_clk_buf/I \
+  u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_cgc_fast_clock_f1/U_ICG/CP \
+  u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_clock_out_f1_mux/anpa_keep_clk_mux/I0 \
+  XBAR_CLK_GATE_WRAPPER/clk_gate_logic/U_ICG/CP \
+  u_clk_fast_buf/anpa_keep_clk_buf/I \
+  CIF_clk_fast_buf_root/I \
+]
+
+
+
+puts ""
+puts "AXI_CLOCK"
+foreach inp_pin_name $axi_inp_pins {
+  set pin_obj [get_db pins $inp_pin_name]
+  set net [get_db $pin_obj .net]
+  set bot [get_db $net .bottom_preferred_layer.name]
+  set top [get_db $net .bottom_preferred_layer.name]
+  set rr [get_db -uniq $net .wires.route_rule.name]
+  puts "$bot:$top $rr $inp_pin_name $net"
+}
+
+puts ""
+puts "FAST_CLOCK"
+foreach inp_pin_name $fast_inp_pins {
+  set pin_obj [get_db pins $inp_pin_name]
+  set net [get_db $pin_obj .net]
+  set bot [get_db $net .bottom_preferred_layer.name]
+  set top [get_db $net .bottom_preferred_layer.name]
+  set rr [get_db -uniq $net .wires.route_rule.name]
+  puts "$bot:$top $rr $inp_pin_name $net"
+}
