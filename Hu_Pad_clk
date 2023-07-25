@@ -1,0 +1,346 @@
+source /proj/cayman/extvols/wa_004/dhuu/tcl/hd.tcl
+source /proj/cayman/extvols/wa_004/dhuu/tcl/clkpadbufs/PadClkRoute_proc.tcl
+
+proc PadClk {args} {
+  set opt_pins   ""
+  set opt_amount 0
+  set opt_orient ""
+  set opt_prefix ""
+  set opt_startx 0
+  set opt_starty 0
+  set opt_distance 0
+  set opt_base_cell CKBD6BWP210H6P51CNODULVT
+  set wirespace 0
+  # D2  grid  0.083333333 0.416666667 0.75
+  # D4  grid  0.083333333 0.416666667 0.75
+  # D6  grid  0.166666667 0.5         0.833333333
+  # D8  grid  0.083333333 0.416666667 0.75
+  # D10 grid  0.083333333 0.416666667 0.75
+  # D12 grid  0.166666667 0.5         0.833333333
+  # D14 grid  0.083333333 0.416666667 0.75
+  # D16 grid  0.083333333 0.416666667 0.75
+  # D20 grid  0.083333333 0.416666667 0.75
+  mortar::source /proj/asictools/m1dpe/sandbox/common/flow/tcl/cif.tcl
+  cifi::set_technology 5
+
+
+  ::mortar::parse_args $args {
+    { "pins"   opt_pins    string  1}
+    { "amount" opt_amount  integer 1}
+    { "orient" opt_orient  string  0}
+    { "prefix" opt_prefix  string  1}
+    { "startx" opt_startx  integer 1}
+    { "starty" opt_starty  integer 1}
+    { "distance" opt_distance  integer  0}
+    { "base_cell" opt_base_cell  string 0}
+    { "wirespace" opt_wirespace  integer 0}
+  } {
+       set pins   ${opt_pins}
+       set amount ${opt_amount}
+       set orient ${opt_orient}
+       set prefix ${opt_prefix}
+       set startx ${opt_startx}
+       set starty ${opt_starty}
+       set distance ${opt_distance}
+       set base_cell ${opt_base_cell}
+       set wirespace ${opt_wirespace}
+
+       if [regexp (D2|D4|D8|D10|D14|D16|D20) ${base_cell}] {set gridx1 0.083333333; set gridx2 0.416666667; set gridx3 0.75}
+       if [regexp (D6|D12) ${base_cell}]                   {set gridx1 0.166666667; set gridx2 0.5        ; set gridx3 0.833333333}
+       set Mask2pitch    0.204 ;  # Mask2 pitch is 0.204, make sure to move gate in increment of 0.204
+       set M1VSSVDDpitch 0.612 ; # M1 VSS/VDD pitch 0.612
+
+       if {1} {puts ""; puts "PadClk -pins $pins -amount $amount -orient $orient -prefix $prefix -startx $startx -starty $starty";  puts ""}
+
+
+       if {[get_db pins $pins]!=""} {
+             set numbuf 60
+             set prebuf 35
+             set sourcenet [lsort -u [get_db [get_db pins $pins] .net.name]]
+             if {[llength $sourcenet] == 1} {
+                  set sourcenet [lindex $sourcenet 0]
+                  for {set i 1} {$i <= $numbuf} {incr i} {
+                     create_inst -base_cell ${base_cell}       -name ${sourcenet}_ClkPad_${prefix}_${i}_buf
+                     create_net                                -name ${sourcenet}_ClkPad_${prefix}_${i}_net
+
+                     #connect output pin
+                     connect_pin -net ${sourcenet}_ClkPad_${prefix}_${i}_net            -inst ${sourcenet}_ClkPad_${prefix}_${i}_buf -pin Z
+
+                     #connect input pin
+                     if {$i> 1} {
+                       connect_pin -net ${sourcenet}_ClkPad_${prefix}_[expr ${i} - 1]_net -inst ${sourcenet}_ClkPad_${prefix}_${i}_buf -pin I
+                     } else       {
+                       connect_pin -net ${sourcenet}                                      -inst ${sourcenet}_ClkPad_${prefix}_${i}_buf -pin I
+                     }
+                  }
+                  #connect all sinks to last ClkPad Buffer Net
+                  foreach pin $pins {
+                      set inst [lindex [get_db [get_db pins $pin] .inst.name] 0]
+                      set  p   [lindex [get_db [get_db pins $pin] .base_name] 0]
+                      connect_pin -net ${sourcenet}_ClkPad_${prefix}_[expr ${numbuf}]_net -inst $inst -pin $p
+                  }
+
+                  #####place PadClk gates in either vertical or hozizontal fashion
+                  if {[regexp ^(up) $orient] || $orient==""} {
+                    set dx $Mask2pitch;
+                    if {$distance ==0} {set distance 50} ; lassign [split [expr $distance / (2*0.21)] "."] a b; set distance [expr $a *2*0.21]; #puts $distance
+                    #if [regexp (D6|D8|D10)   ${base_cell}] {set dx [expr 4*$dx]; puts "dx $dx"} ; #Gate sizes to make snap factor
+                    #if [regexp (D12|D14|D16) ${base_cell}] {set dx [expr 4*$dx]} ; #Gate sizes to make snap factor
+                    #puts "wirespace $wirespace"
+                    if {${wirespace}==""||${wirespace}==1} {
+                        set dx [expr 6*$Mask2pitch]
+                        if [regexp (D10|D12|D14|D16)   ${base_cell}] {set dx [expr 6*$Mask2pitch]}
+                    } elseif {${wirespace}==4} {
+                        set dx [expr 6*$Mask2pitch]
+                    } else {
+                      puts "Please make sure wirespace is either 1 or 4 only, I am going to use 1 for wirespace"
+                        set dx [expr 6*$Mask2pitch]
+                    }
+
+                   #puts "### $dx $wirespace ${base_cell}"
+                    set dy [get_db [get_db base_cells ${base_cell}] .bbox.width]; # heigth is 0.21um
+
+                    set xcount 0; set ycount 0
+
+                    set startgridx [expr $startx / $M1VSSVDDpitch]; lassign [split $startgridx "."] startgridxint startgridxdec; set startgridxdec 0.${startgridxdec}
+                    if {${startgridxdec} < $gridx1} {
+                      set gridx $gridx3
+                    } elseif {${startgridxdec} >= ${gridx1} && ${startgridxdec} < ${gridx2}} {
+                      set gridx $gridx3
+                    } else {
+                      set gridx $gridx3
+                    }
+                    set startx [expr (${startgridxint}+${gridx})*${M1VSSVDDpitch}]
+                    for {set i 1} {$i <= ${numbuf}} {incr i} {
+                        set x  [expr $startx + 0]
+                        set y  [expr $starty + 4*${ycount}*$dy]
+
+                        #puts "$starty $y $dx $dy"
+                        place_inst  ${sourcenet}_ClkPad_${prefix}_${i}_buf $x $y -fixed
+                        if {[expr $i % 2] == 0} {
+                         set y [expr $y + $distance]
+                         place_inst  ${sourcenet}_ClkPad_${prefix}_${i}_buf $x $y -fixed
+                         incr xcount; incr ycount;
+                        }
+
+                      ##puts "startx $startx gridx $gridx dx $dx x $x y $y xcount $xcount ycount $ycount i $i "
+                      if {[expr $i % 8] == 0} {set xcount 0; set ycount 0; set startx [expr $startx + $dx]; set starty [expr $starty + $dy]}
+                    }
+                  } elseif [regexp ^(right) $orient] {
+                    set dx $Mask2pitch;
+                    if {$distance ==0} {set distance 50} ; lassign [split [expr $distance / (2*0.204)] "."] a b; set distance [expr $a *2*0.204];
+                    if [regexp (D6|D8|D10)   ${base_cell}] {set dx [expr 4*$dx]; puts "dx $dx"}
+                    if [regexp (D12|D14|D16) ${base_cell}] {set dx [expr 4*$dx]}
+                    if {${wirespace}==""||${wirespace}==1} {set dx [expr 4*$dx]}
+
+                    set dy [get_db [get_db base_cells ${base_cell}] .bbox.width]; # heigth is 0.21um
+
+                    set xcount 0; set ycount 0
+
+                    set startgridx [expr $startx / $M1VSSVDDpitch]; lassign [split $startgridx "."] startgridxint startgridxdec; set startgridxdec 0.${startgridxdec}
+                    if {${startgridxdec} < $gridx1} {
+                      set gridx $gridx1
+                    } elseif {${startgridxdec} >= ${gridx1} && ${startgridxdec} < ${gridx2}} {
+                      set gridx $gridx2
+                    } else {
+                      set gridx $gridx3
+                    }
+                    set startx [expr (${startgridxint}+${gridx})*${M1VSSVDDpitch}]
+                    # puts "startx is $startx"
+                    for {set i 1} {$i <= ${numbuf}} {incr i} {
+                        set x  [expr $startx + ${xcount}*$dx]
+                        set y  [expr $starty + 2*${ycount}*$dy]
+                        place_inst  ${sourcenet}_ClkPad_${prefix}_${i}_buf $x $y -fixed
+                        if {[expr $i % 2] == 0} {
+                         set x [expr $x + $distance]
+                         place_inst  ${sourcenet}_ClkPad_${prefix}_${i}_buf $x $y -fixed
+                         incr xcount; incr ycount;
+                        }
+
+                     # puts "dx $dx x $x y $y xcount $xcount ycount $ycount i $i "
+                      if {[expr $i % 10] == 0} {set xcount 0; set ycount 0; set starty [expr $starty +   9*$dy]}
+                    }
+
+                  } elseif [regexp ^(down) $orient] {
+                    #########down#######################
+                    set dx $Mask2pitch;
+                    if {$distance ==0} {set distance 50} ; lassign [split [expr $distance / (2*0.21)] "."] a b; set distance [expr $a *2*0.21];
+                    #if [regexp (D6|D8|D10)   ${base_cell}] {set dx [expr 4*$dx]; puts "dx $dx"} ; #Gate sizes to make snap factor
+                    #if [regexp (D12|D14|D16) ${base_cell}] {set dx [expr 4*$dx]} ; #Gate sizes to make snap factor
+                    # puts "wirespace $wirespace"
+                    if {${wirespace}==""||${wirespace}==1} {
+                        set dx [expr 6*$Mask2pitch]
+                        if [regexp (D10|D12|D14|D16)   ${base_cell}] {set dx [expr 6*$Mask2pitch]}
+                    } elseif {${wirespace}==4} {
+                        set dx [expr 6*$Mask2pitch]
+                    } else {
+                      puts "Please make sure wirespace is either 1 or 4 only, I am going to use 1 for wirespace"
+                        set dx [expr 6*$Mask2pitch]
+                    }
+
+                    puts "### $dx $wirespace ${base_cell}"
+                    set dy [get_db [get_db base_cells ${base_cell}] .bbox.width]; # heigth is 0.21um
+
+                    set xcount 0; set ycount 0
+
+                    set startgridx [expr $startx / $M1VSSVDDpitch]; lassign [split $startgridx "."] startgridxint startgridxdec; set startgridxdec 0.${startgridxdec}
+                    if {${startgridxdec} < $gridx1} {
+                      set gridx $gridx3
+                    } elseif {${startgridxdec} >= ${gridx1} && ${startgridxdec} < ${gridx2}} {
+                      set gridx $gridx3
+                    } else {
+                      set gridx $gridx3
+                    }
+                    set startx [expr (${startgridxint}+${gridx})*${M1VSSVDDpitch}]
+                    for {set i 1} {$i <= ${numbuf}} {incr i} {
+                        set x  [expr $startx + 0]
+                        set y  [expr $starty + 4*${ycount}*$dy]
+                        # puts "$starty $y"
+                        place_inst  ${sourcenet}_ClkPad_${prefix}_${i}_buf $x $y -fixed
+                        if {[expr $i % 2] == 0} {
+                         set y [expr $y - $distance]
+                         place_inst  ${sourcenet}_ClkPad_${prefix}_${i}_buf $x $y -fixed
+                         incr xcount; incr ycount;
+                        }
+
+                    ##puts "startx $startx gridx $gridx dx $dx x $x y $y xcount $xcount ycount $ycount i $i "
+                      if {[expr $i % 8] == 0} {set xcount 0; set ycount 0; set startx [expr $startx + $dx]; set starty [expr $starty + $dy]}
+                    }
+
+                  #########down#######################
+                  } elseif [regexp ^(left) $orient] {
+                    set dx $Mask2pitch;
+                    if {$distance ==0} {set distance 50} ; lassign [split [expr $distance / (2*0.204)] "."] a b; set distance [expr $a *2*0.204];
+                    if [regexp (D6|D8|D10)   ${base_cell}] {set dx [expr 4*$dx]}
+                    if [regexp (D12|D14|D16) ${base_cell}] {set dx [expr 4*$dx]}
+
+                    set dy [get_db [get_db base_cells ${base_cell}] .bbox.width]; # heigth is 0.21um
+
+                    set xcount 0; set ycount 0
+
+                    set startgridx [expr $startx / $M1VSSVDDpitch]; lassign [split $startgridx "."] startgridxint startgridxdec; set startgridxdec 0.${startgridxdec}
+                    if {${startgridxdec} < $gridx1} {
+                      set gridx $gridx1
+                    } elseif {${startgridxdec} >= ${gridx1} && ${startgridxdec} < ${gridx2}} {
+                      set gridx $gridx2
+                    } else {
+                      set gridx $gridx3
+                    }
+                    set startx [expr (${startgridxint}+${gridx})*${M1VSSVDDpitch}]
+                    # puts "startx is $startx"
+                    for {set i 1} {$i <= ${numbuf}} {incr i} {
+                        set x  [expr $startx + ${xcount}*$dx]
+                        set y  [expr $starty + 2*${ycount}*$dy]
+                        place_inst  ${sourcenet}_ClkPad_${prefix}_${i}_buf $x $y -fixed
+                        if {[expr $i % 2] == 0} {
+                         set x [expr $x - $distance]
+                         place_inst  ${sourcenet}_ClkPad_${prefix}_${i}_buf $x $y -fixed
+                         incr xcount; incr ycount;
+                        }
+
+                     # puts "dx $dx x $x y $y xcount $xcount ycount $ycount i $i "
+                      if {[expr $i % 10] == 0} {set xcount 0; set ycount 0; set starty [expr $starty + 9*$dy]}
+                    }
+                   }
+
+              #End Place
+
+             ###Begin using enough buffers#################################################
+             #puts "$amount $sourcenet"
+             set  perlevel 35 ; #50ps for D6 50um single ndr
+             set level [expr int(${amount} / ${perlevel})]
+             set rightnet ${sourcenet}_ClkPad_${prefix}_${level}_net
+             puts "HereHereHere $rightnet ${inst}/${p}"
+
+             foreach pin $pins {
+                      set inst [lindex [get_db [get_db pins $pin] .inst.name] 0]
+                      set  p   [lindex [get_db [get_db pins $pin] .base_name] 0]
+                      puts "#### connect_pin net ${rightnet} inst $inst pin $p"
+                      connect_pin -net $rightnet -inst $inst -pin $p
+             }
+
+             #foreach pin $pins {connect_pin -net ${rightnet}    -inst $inst -pin $pin}
+             if {[lindex [reportWirePercentage [get_db nets .name ${rightnet}]] 22] > [expr $perlevel - 10]} {
+                set ebm [get_db eco_batch_mode]
+                mortar::rebind_gate -gate_name ${sourcenet}_ClkPad_${prefix}_${level}_buf -lib_name CKBD16BWP210H6P51CNODULVT
+                set_db eco_batch_mode $ebm
+                snapCKB16togrid  ${sourcenet}_ClkPad_${prefix}_${level}_buf
+                set_route_attribute  -net ${rightnet} -top_preferred_routing_layer    15
+                set_route_attribute  -net ${rightnet} -bottom_preferred_routing_layer 14
+                set_route_attribute  -net ${rightnet} -route_rule                     single_isolate
+                set_route_attribute  -net ${rightnet} -shield_net                     VSS
+                set_route_attribute  -net ${rightnet} -skip_routing                   false
+
+                #rename to something different for rightnet
+                #rename_obj  ${rightnet} ${sourcenet}_to_pin  -escape_ok
+
+             }
+
+
+
+             if {$level < ${numbuf} } {
+               for {set count [expr $level + 1]} {$count <= ${numbuf}} {incr count } {
+                       # puts "delete $count"
+                       if {[get_db insts ${sourcenet}_ClkPad_${prefix}_${count}_buf]!=""} {delete_inst -inst  ${sourcenet}_ClkPad_${prefix}_${count}_buf}
+                       if {[get_db nets  ${sourcenet}_ClkPad_${prefix}_${count}_net]!=""} {delete_nets        ${sourcenet}_ClkPad_${prefix}_${count}_net}
+               }
+             }
+             rename_obj  ${rightnet} ${sourcenet}_to_pin  -escape_ok
+
+             #### Add D16 to driver long net from the source to pack
+             set sourcenetlength [lindex [reportWirePercentage [get_db nets .name ${sourcenet}]] 22]
+             set sourcenetbc     [lindex [reportWirePercentage [get_db nets .name ${sourcenet}]] 30]
+             # puts "$sourcenetlength $sourcenetbc"
+             if {$sourcenetlength > $perlevel || ![regexp (MRVCK|MRVLSPBUF|CK|IN|BUF) $sourcenetbc]} {
+               #puts "Add Buffer $sourcenetlength $sourcenetbc"
+
+               if {[get_db insts ${sourcenet}_rootbuf] == ""} {mortar::create_gate -name ${sourcenet}_rootbuf -lib_name  CKBD16BWP210H6P51CNODULVT}
+               if {[get_db nets  ${sourcenet}_rootnet] == ""} {mortar::create_net  -name ${sourcenet}_rootnet}
+
+               connect_pin -net ${sourcenet}         -inst ${sourcenet}_rootbuf -pin I
+               connect_pin -net ${sourcenet}_rootnet -inst ${sourcenet}_rootbuf -pin Z
+               connect_pin -net ${sourcenet}_rootnet -inst ${sourcenet}_ClkPad_${prefix}_1_buf -pin I
+
+               lassign [lindex [get_db [get_db nets ${sourcenet}] .driver_pins.location] 0] px py ;
+               place_inst  ${sourcenet}_rootbuf $px [expr $py + 1] -soft_fixed
+               #::mortar::move_gate -x_coord          $px -y_coord    $py -orient         r0         -name    ${sourcenet}_rootbuf  -free_loc
+               snapCKB16togrid  ${sourcenet}_rootbuf
+               set_route_attribute  -net ${sourcenet}_rootnet -top_preferred_routing_layer    15
+               set_route_attribute  -net ${sourcenet}_rootnet -bottom_preferred_routing_layer 14
+               set_route_attribute  -net ${sourcenet}_rootnet -route_rule                     single_isolate
+               set_route_attribute  -net ${sourcenet}_rootnet -shield_net                     VSS
+               set_route_attribute  -net ${sourcenet}_rootnet -skip_routing                   false
+
+
+             }
+
+
+             ###Begin using enough buffers#################################################
+             ##puts "PadClkRoute net $sourcenet space $wirespace orient $orient"
+             PadClkRoute -net $sourcenet -space $wirespace -orient $orient
+             ###End   using enough buffers#################################################
+
+
+
+
+             ###End   using enough buffers#################################################
+
+             } else {mortar::echo "Error in parm ClkPad only can pad sinks with common drive net, Please Make sure to select pins with common driver net"}
+       } else {puts "Pin(s) does not exist, Please Check"}
+  }
+
+
+}
+
+# D2  grid  0.083333333 0.416666667 0.75
+# D4  grid  0.083333333 0.416666667 0.75
+# D6  grid  0.166666667 0.5         0.833333333
+# D8  grid  0.083333333 0.416666667 0.75
+# D10 grid  0.083333333 0.416666667 0.75
+# D12 grid  0.166666667 0.5         0.833333333
+# D14 grid  0.083333333 0.416666667 0.75
+# D16 grid  0.083333333 0.416666667 0.75
+# D20 grid  0.083333333 0.416666667 0.75
+
+
+
