@@ -1,0 +1,5 @@
+proc wireLen { netName } {
+  set netP [dbGetNetByName $netName]
+  set netlen [expr {[dbDBUToMicrons [dbNetWireLenX $netP]] + [dbDBUToMicrons [dbNetWireLenY $netP]]}]
+  puts "The total wire length of the $netName net is $netlen."
+}
