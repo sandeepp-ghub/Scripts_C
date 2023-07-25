@@ -1,0 +1,50 @@
+set ports_per_100u 1522
+
+array unset block_ports
+array set block_ports {}
+
+::delete_pin_group -pin_group hbm_ports
+::delete_pin_group -pin_group fab_ports
+::delete_pin_group -pin_group clk_ports
+::delete_pin_group -pin_group misc_ports
+
+#HBM group ports (left)
+set blocks [::get_db insts -if {.base_cell.name==xbar_hbm_group_32}]
+set hbm_ports [::get_db [concat [::get_db $blocks .pins.net.driver_ports] [::get_db $blocks .pins.net.load_ports]] -if {.net.is_power==false && .net.is_ground==false && .net.load_pins.inst.base_cell.name!=xbar_fab_group && .net.driver_pins.inst.base_cell.name!=xbar_fab_group && .name!=clk* && .name!=scan_mode && .name!=ijtag* && .name!=DFT* && .name!=*_edt_*}]
+::create_pin_group -name hbm_ports -opt_order -pins [::get_db -unique $hbm_ports .name]
+::create_pin_guide -pin_group hbm_ports -layers [list M6 M8 M10] -area [list [expr {[::get_db current_design .bbox.ll.x] - 1.0}] [expr {[::get_db current_design .bbox.ll.y] + 5.0}] [expr {[::get_db current_design .bbox.ll.x] + 1.0}] [expr {[::get_db current_design .bbox.ur.y] - 5.0}]]
+foreach port $hbm_ports {
+  set block_ports([lindex [::get_db $port .name] 0]) 1
+}
+
+#Fab group ports (right)
+set blocks [::get_db insts -if {.base_cell.name==xbar_fab_group}]
+set fab_ports [::get_db [concat [::get_db $blocks .pins.net.driver_ports] [::get_db $blocks .pins.net.load_ports]] -if {.net.is_power==false && .net.is_ground==false && .net.load_pins.inst.base_cell.name!=xbar_hbm_group_32 && .net.driver_pins.inst.base_cell.name!=xbar_hbm_group_32 && .name!=clk* && .name!=scan_mode && .name!=ijtag* && .name!=DFT* && .name!=*_edt_*}]
+::create_pin_group -name fab_ports -opt_order -pins [::get_db -unique $fab_ports .name]
+::create_pin_guide -pin_group fab_ports -layers [list M6 M8 M10] -area [list [expr {[::get_db current_design .bbox.ur.x] - 1.0}] [expr {[::get_db current_design .bbox.ll.y] + 5.0}] [expr {[::get_db current_design .bbox.ur.x] + 1.0}] [expr {[::get_db current_design .bbox.ur.y] - 5.0}]]
+foreach port $fab_ports {
+  set block_ports([lindex [::get_db $port .name] 0]) 1
+}
+
+#Clock ports (right)
+set clk_ports [list clk_axi clk_fast DFT_CE0_TCLK]
+set width 12
+foreach port $clk_ports {
+  set block_ports($port) 1
+}
+::create_pin_group -name clk_ports -spread_pins -spacing 4 -pins $clk_ports
+::create_pin_guide -pin_group clk_ports -layers [list M14] -area [list [expr {[::get_db current_design .bbox.ur.x] - 1.0}] [expr {([::get_db current_design .bbox.ll.y] + ([::get_db current_design .bbox.dy] / 2.0)) - ($width / 2.0)}] [expr {[::get_db current_design .bbox.ur.x] + 1.0}] [expr {([::get_db current_design .bbox.ll.y] + ([::get_db current_design .bbox.dy] / 2.0)) + ($width / 2.0)}]]
+
+
+#Misc ports (top)
+set misc_ports [list]
+foreach port [::get_db ports] {
+  if {![info exists block_ports([lindex [::get_db $port .name] 0])]} {
+    lappend misc_ports $port
+  }
+}
+set width [expr {((1.0 * [llength $misc_ports]) / $ports_per_100u) * 100.0}]
+::create_pin_group -name misc_ports -opt_order -pins [::get_db $misc_ports .name]
+::create_pin_guide -pin_group misc_ports -layers [list M5 M7 M11] -area [list [expr {([::get_db current_design .bbox.ll.x] + ([::get_db current_design .bbox.dx] / 2.0)) - ($width / 2.0)}] [expr {[::get_db current_design .bbox.ur.y] - 1.0}] [expr {([::get_db current_design .bbox.ll.x] + ([::get_db current_design .bbox.dx] / 2.0)) + ($width / 2.0)}] [expr {[::get_db current_design .bbox.ur.y] + 1.0}]]
+
+#assign_io_pins
