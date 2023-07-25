@@ -1,0 +1,28 @@
+
+
+set short_regions [list \
+  wdata_hbm_l0c1_mux \
+  wdata_hbm_l0c0_mux \
+]
+
+
+#gford - add in screens for trouble corners of regions
+#create_place_blockage -name cng_spread_1 -type partial -density 5 -rects {244.9755 5645.6725 630.8025 5347.028}
+#create_place_blockage -name cng_spread_2 -type partial -density 5 -rects {625.8795 7246.6015 857.901 7016.3895}
+
+foreach reg $short_regions {
+  set group_obj [get_db groups $reg]
+  set reg_rect [get_db $group_obj .rects]
+  lassign {*}$reg_rect g_llx g_lly g_urx g_ury
+
+  set region_width [get_rect $reg_rect -dx]
+
+  set screen_rect [list \
+    [expr $g_llx - $region_width] \
+    [expr $g_ury + $region_width] \
+    [expr $g_llx + $region_width] \
+    [expr $g_ury - $region_width] \
+  ]
+  #create_gui_shape -layer 100 -rect $screen_rect
+  create_place_blockage -name ${reg}_density_screen -type partial -density 5 -rects $screen_rect
+}
