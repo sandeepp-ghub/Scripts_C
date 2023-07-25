@@ -1,0 +1,180 @@
+
+#source /proj/cayman/wa/seth/tools.tcl
+source /proj/cayman/wa/seth/scripts/check_cif_drcs.tcl
+
+
+set cif_idxs [list \
+  3_1 ul \
+  3_2 ur \
+  3_3 ll \
+  3_4 lr \
+]
+
+set rem_bufs [list 5 6]
+
+set clk_name "clk_fast"
+
+set vd VIA34_1cut_BW20_UW20
+
+#set_db edit_wire_layer M3
+
+foreach {cif_idx loc} $cif_idxs {
+  puts "ECOing out 2 bufs from -> $cif_idx $loc"
+  set bufs_to_del [lmap a $rem_bufs {string cat CIF_${clk_name}_NET_${cif_idx}_ClkPad_${loc}_${a}_buf}]
+  #pl "[get_db insts $bufs_to_del]"
+  foreach b $bufs_to_del {
+    puts "  --> REMOVING $b"
+    set pins [get_db [get_db insts $b] .pins]
+    foreach p $pins {
+      set net_name [get_db $p .net.name]
+      set pin_base_name [get_db $p .base_name]
+      disconnect_pin -inst $b -net $net_name -pin $pin_base_name
+      #puts "disconnect_pin -inst $b -net $net_name -pin $pin_base_name"
+    }
+  }
+  set from_net CIF_${clk_name}_NET_${cif_idx}_ClkPad_${loc}_6_net
+  set to_net CIF_${clk_name}_NET_${cif_idx}_ClkPad_${loc}_4_net
+  #edit_update_route_net -to
+
+  set recon_buf CIF_${clk_name}_NET_${cif_idx}_ClkPad_${loc}_7_buf
+  disconnect_pin -inst $recon_buf -net $from_net -pin I
+  connect_pin -inst $recon_buf -net $to_net -pin I
+
+  delete_routes -net CIF_${clk_name}_NET_${cif_idx}_ClkPad_${loc}_5_net
+  delete_nets CIF_${clk_name}_NET_${cif_idx}_ClkPad_${loc}_5_net
+
+  deselect_obj -all
+  set_db edit_wire_nets $from_net
+  select_routes -obj_type {wire via} -nets $from_net
+  edit_update_route_net -to $to_net
+
+  deselect_obj -all
+  set_db edit_wire_nets {}
+  delete_nets $from_net
+
+
+  set_db edit_wire_create_crossover_vias true
+  set_db edit_wire_via_cut_layer {VIA3}
+  set_db edit_wire_via_cell_name VIA34_1cut_BW20_UW20
+
+  set m4_areas [list]
+
+  foreach b $bufs_to_del {
+    set bi [get_db insts $b]
+    set olr [get_db $bi .overlap_rects]
+    set wires_to_del ""
+    if { $loc == "ul" || $loc == "ll" } {
+      set wires_to_del [get_db [get_obj_in_area -areas $olr -obj_type {patch_wire wire} -layer {M0 M1 M2}] \
+                         -if { .net.name == $to_net}]
+    } else {
+      set wires_to_del [get_db [get_obj_in_area -areas $olr -obj_type {patch_wire wire} -layer {M0 M1 M2 M3}] \
+                         -if { .net.name == $to_net}]
+    }
+    set_db selected $wires_to_del
+    delete_routes -selected
+
+    set vias_to_del [get_db [get_obj_in_area -areas $olr -obj_type via -layer {VIA0 VIA1 VIA2}] \
+                       -if { .net.name == $to_net}]
+    set_db selected $vias_to_del
+    delete_routes -selected
+  }
+
+  if { $loc == "ul" || $loc == "ll" } {
+    set m3_insts [get_db insts CIF_${clk_name}_NET_${cif_idx}_ClkPad_${loc}_5_buf]
+    set m3_areas [get_db $m3_insts .overlap_rects]
+    set m3_routes [get_db [get_obj_in_area -layer M3 -areas $m3_areas -obj_type wire] \
+                    -if {.net.name == $to_net}]
+    set m3_rect [get_db $m3_routes .rect]
+    set m3_ury [get_rect $m3_rect -ury]
+
+    set m3_grow [get_computed_shapes $m3_rect SIZEX 0.02]
+
+    #deselect_obj -all
+    #set_db selected [get_obj_in_area -obj_type wire -layer M4 -areas $m3_grow]
+    #delete_routes -selected
+    #deselect_obj -all
+    #select_routes -area $m3_grow -net $to_net -obj_type {wire} -layer {M0 M1 M2 M3}
+    #delete_routes -selected
+    #deselect_obj -all
+    #select_routes -area $m3_grow -net $to_net -obj_type {via} -layer {VIA0 VIA1 VIA2}
+    #delete_routes -selected
+
+
+    #delete_obj [get_db gui_rects]
+    set m4_areas [get_computed_shapes [get_db $m3_routes .rect] SIZEY [expr 0.210] MOVE {0 0.420}]
+    #create_gui_shape -layer 100 -rect $m4_areas
+
+    set m4_routes [get_db [get_obj_in_area -layer M4 -areas $m4_areas -obj_type wire] \
+                  -if {.net.name == $to_net}]
+    set m4_rect [get_db $m4_routes .rect]
+    set m4_width [get_rect $m4_rect -dy]
+
+
+    set end_point [expr 4*$m4_width + [lindex [get_rect $m4_rect -center] 1]]
+
+    set diff [convert_dbu_to_um [convert_um_to_dbu [expr $end_point - $m3_ury]]]
+
+    set_db edit_wire_nets $to_net
+    #select_routes -obj_type {wire} -nets $to_net
+    set m3_routes [get_db [get_obj_in_area -layer M3 -areas $m3_areas -obj_type wire] \
+                    -if {.net.name == $to_net}]
+    set_db selected $m3_routes
+    edit_resize_routes -direction y -offset $diff -side high
+    deselect_obj -all
+    set_db edit_wire_nets {}
+
+  } elseif { $loc == "ur" || $loc == "lr"} {
+    set m3_insts [get_db insts CIF_${clk_name}_NET_${cif_idx}_ClkPad_${loc}_7_buf]
+    set m3_areas [get_db $m3_insts .overlap_rects]
+    set m3_routes [get_db [get_obj_in_area -layer M3 -areas $m3_areas -obj_type wire] \
+                    -if {.net.name == $to_net}]
+    set m3_rect [get_db $m3_routes .rect]
+    set m3_lly [get_rect $m3_rect -lly]
+
+    set m3_grow [get_computed_shapes $m3_rect SIZE 0.02]
+
+    deselect_obj -all
+    set_db selected [get_obj_in_area -obj_type wire -layer M4 -areas $m3_grow]
+    delete_routes -selected
+    #select_routes -area $m3_grow -net $to_net -obj_type {wire} -layer {M4}
+
+    #delete_obj [get_db gui_rects]
+    set m4_areas [get_computed_shapes $m3_rect SIZEY [expr 0.210] MOVE {0 -0.320}]
+    #create_gui_shape -layer 100 -rect $m4_areas
+
+    set m4_routes [get_db [get_obj_in_area -layer M4 -areas $m4_areas -obj_type wire] \
+                  -if {.net.name == $to_net}]
+    set m4_rect [get_db $m4_routes .rect]
+    set m4_width [get_rect $m4_rect -dy]
+
+    set m4_lly [get_rect $m4_rect -lly]
+
+    set end_point [expr [lindex [get_rect $m4_rect -center] 1] - 4*$m4_width]
+    set diff [convert_dbu_to_um [convert_um_to_dbu [expr $end_point - $m3_lly]]]
+
+    set_db edit_wire_nets $to_net
+    #select_routes -obj_type {wire} -nets $to_net
+    deselect_obj -all
+    set m3_routes [get_db [get_obj_in_area -layer M3 -areas $m3_areas -obj_type wire] \
+                    -if {.net.name == $to_net}]
+    set_db selected $m3_routes
+    edit_resize_routes -direction y -offset $diff -side low
+    deselect_obj -all
+    set_db edit_wire_nets {}
+
+  }
+
+  foreach b $bufs_to_del {
+    delete_inst -inst $b
+    #puts "delete_inst -inst $b"
+  }
+
+  ::set_route_attributes -nets $to_net -skip_routing false
+  edit_trim_routes -nets $to_net
+  ::set_route_attributes -nets $to_net -skip_routing true
+
+}
+
+
+#set nick_name clk_fast
+
