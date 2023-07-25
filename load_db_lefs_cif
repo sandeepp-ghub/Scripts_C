@@ -1,0 +1,67 @@
+
+read_db ../invcui.floorplan.pre_cif.with_ports.db
+
+update_lef_macro  /proj/cayman/release/xbar_hbm_group_32.1.0A/DE3.PNR.release.prects.2022_11_14_00_00_00/invcui.prects/dataout/xbar_hbm_group_32.invcui.prects.common_dataout.lef -macros xbar_hbm_group_32
+
+update_lef_macro  /proj/cayman/release/xbar_fab_group.1.0A/DE3.PNR.release.prects.2022_11_14_00_00_00/invcui.prects/dataout/xbar_fab_group.invcui.prects.common_dataout.lef -macros xbar_fab_group
+
+set_db selected [get_db insts axi_top/fab_group_*]
+
+move_obj -selected -direction left -distance 31.008
+
+
+mortar::source /proj/cayman/bin/cif.tcl 
+cifi::set_technology 5
+
+cif::in_floorplanning 1
+
+source /proj/cayman/DE3/pd/clocks/xbar_top_32_0/scripts/xbar_top_32_0.cif.tcl
+
+source ../tools.tcl
+
+
+
+proc show_buf_locs {nick_name color} {
+  cif::dsa
+  cif::si "CIF*${nick_name}*bufL*"
+  set buf_names [get_db selected .base_name]
+  plc $buf_names
+  set rects [get_db selected .bbox]
+
+  set clk_fast_layer "${nick_name}_buf_layer"
+  delete_obj [get_db gui_shapes -if {.gui_layer_name == $clk_fast_layer}]
+  set_layer_preference ${nick_name}_layer -color $color
+
+  foreach rect $rects {
+    set new_size [get_computed_shapes $rect SIZE 5]
+    create_gui_shape -layer ${nick_name}_layer -rect $new_size
+  }
+}
+
+delete_obj [get_db gui_shapes]
+show_buf_locs "clk_fast" red
+show_buf_locs "clk_local" green
+
+proc hl_rm_bufs {nick_name color} {
+  cif::dsa
+  cif::si "CIF*${nick_name}*bufL*"
+  set buf_rects [get_db selected .bbox]
+  puts "SETH found [llength $buf_rects] total sector_buffers"
+
+  cif::dsa
+  #set ram_inst_objs [get_db insts -if {.base_cell.base_name == "sacrls0g4u2p256x72m2b4w0c1p0d0r1rm4rw00zh0h0ms0mg0"}]
+  #set ram_rects [get_db $ram_inst_objs .bbox]
+  set ram_rects [cif::collect_blockages -cell_type sacrls0g4u2p256x72m2b4w0c1p0d0r1rm4rw00zh0h0ms0mg0]
+
+  set inscts [get_computed_shapes [get_computed_shapes $buf_rects AND $ram_rects] SIZE 10]
+  puts "SETH FOUND [llength $inscts] sector buffer overlaps!!"
+
+  set clk_fast_layer "${nick_name}_buf_layer"
+  delete_obj [get_db gui_shapes -if {.gui_layer_name == $clk_fast_layer}]
+  set_layer_preference ${nick_name}_layer -color $color
+  foreach r $inscts {
+    create_gui_shape -layer ${nick_name}_layer -rect $r
+  }
+}
+
+hl_rm_bufs clk_fast red
