@@ -1,0 +1,100 @@
+
+source /proj/cayman/wa/seth/tools.tcl
+
+set in_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_*_c1_int_DFT_EDTIN*]
+
+#set in_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_0_c1_int_DFT_EDTIN[2] HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_0_c1_int_DFT_EDTIN[1]]
+#set in_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_*_c1_int_DFT_EDTIN[1]]
+#set out_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_*_c1_int_DFT_EDTOUT[1]]
+
+set target_group [get_db groups GRP_SSN_ssn_scan_host_*_inst]
+set target_center [get_rect [get_db $target_group .rects] -center]
+lassign $target_center t_x t_y
+
+set pin_center [::mortar::get_centroid [get_db $in_pins .location]]
+lassign $pin_center p_x p_y
+set p_x [format "%.2f" $p_x]
+set p_y [format "%.2f" $p_y]
+
+set steps 4
+set y_incr [format "%.2f" [expr ($t_y - $p_y) / $steps]]
+
+set base_group_name ssh_DFT_IN_PIPE
+
+delete_obj [get_db gui_rects]
+for {set i 1} { $i <= $steps } { incr i } {
+  set name ${base_group_name}_${i}
+  set fi [all_fanin -startpoints_only -to $in_pins ]
+  #pc $fi
+  puts ""
+  set curr_inst_names [get_db $in_pins .inst.name]
+  set bounded_names [lmap a $curr_inst_names { string cat "^" $a "$" }]
+  set names_expr [join $bounded_names "|"]
+
+  set fi_insts [get_db $fi .inst -if { [regexp {PIPE} .name] && ![regexp $names_expr .name]}]
+
+  set comp_insts [mint_compress [get_db $fi_insts .name]]
+  regsub -all {\d+:\d+} $comp_insts "*" star_insts
+  #set comp_insts [get_db $fi_insts .name]
+  set in_pins [get_db $fi_insts .pins -if {.is_data==true&&.is_clear==false&&![regexp {SI$} .base_name]}]
+
+  set r_x $t_x
+  set r_y [expr ($i-1) * $y_incr + $p_y]
+  set region_area [list \
+    [expr $r_x - 50] \
+    [expr $r_y - 30] \
+    [expr $r_x + 50] \
+    [expr $r_y + 30] \
+  ]
+
+  puts "create_group -type region -rects \{$region_area\} -name $name"
+  puts "update_group -name $name -add -obj \[get_db insts $star_insts\]"
+
+  create_gui_shape -layer 100 -rect $region_area
+}
+
+
+#####DFT_OUT PINS
+set out_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_*_c1_int_DFT_EDTOUT*]
+
+set pin_center [::mortar::get_centroid [get_db $out_pins .location]]
+lassign $pin_center p_x p_y
+set p_x [format "%.2f" $p_x]
+set p_y [format "%.2f" $p_y]
+
+set steps 4
+set y_incr [format "%.2f" [expr ($t_y - $p_y) / $steps]]
+
+set base_group_name ssh_DFT_OUT_PIPE
+delete_obj [get_db gui_rects]
+for {set i 1} { $i <= $steps } { incr i } {
+  set name ${base_group_name}_${i}
+  set fo [all_fanout -end -from $out_pins ]
+  #pc $fo
+  puts ""
+  set curr_inst_names [get_db $out_pins .inst.name]
+  set bounded_names [lmap a $curr_inst_names { string cat "^" $a "$" }]
+  set names_expr [join $bounded_names "|"]
+
+  set fo_insts [get_db $fo .inst -if { [regexp {PIPE} .name] && ![regexp $names_expr .name]}]
+
+  set comp_insts [mint_compress [get_db $fo_insts .name]]
+  regsub -all {\d+:\d+} $comp_insts "*" star_insts
+  #set comp_insts [get_db $fo_insts .name]
+  set out_pins [get_db $fo_insts .pins -if {.is_clock==true&&![regexp {E$} .base_name]}]
+
+  set r_x $t_x
+  set r_y [expr ($i-1) * $y_incr + $p_y]
+  set region_area [list \
+    [expr $r_x - 50] \
+    [expr $r_y - 30] \
+    [expr $r_x + 50] \
+    [expr $r_y + 30] \
+  ]
+
+  puts "create_group -type region -rects \{$region_area\} -name $name"
+  puts "update_group -name $name -add -obj \[get_db insts $star_insts\]"
+
+  create_gui_shape -layer 100 -rect $region_area
+}
+
