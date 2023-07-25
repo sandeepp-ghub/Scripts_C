@@ -1,0 +1,27 @@
+
+set mods [list \
+  xbar_fab_group \
+  xbar_hbm_group_32 \
+]
+
+set xt 23.256
+set yt 26.88
+
+set blocks [get_db insts -if {.base_cell.base_class == "block"}]
+
+set children [get_db $blocks -expr { [regexp (xbar_fab_group|xbar_hbm_group_32) $obj(.base_cell.base_name)] }]
+
+foreach child $children {
+  set or {*}[get_db $child .overlap_rects]
+  lassign $or llx lly urx ury
+  set sllx [expr $llx / $xt]
+  set slly [expr $lly / $yt]
+
+  set wx [expr ( [get_rect $or -dx] + 0.051) / $xt ]
+  set hy [expr [get_rect $or -dy] / $yt ]
+
+  puts "$child : "
+  puts "  Origin in Tiles         : $sllx $slly"
+  puts "  Dimensions in Tiles     : $wx $hy"
+}
+
