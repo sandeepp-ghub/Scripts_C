@@ -1,0 +1,295 @@
+
+get_db timing_report_fields 
+set_db timing_report_fields {delay delay_sigma incr_delay user_derate arrival transition load fanout edge cell hpin pin_location phys_info annotation}
+set_db timing_report_fields {delay incr_delay arrival transition load fanout edge cell hpin pin_location phys_info}
+
+::set_multi_cpu_usage -keep_license true
+
+alias rtx "report_timing -late"
+alias rtm "report_timing -early"
+
+alias rtxe "report_timing -late -path_type endpoint"
+alias rtme "report_timing -early -path_type endpoint"
+
+alias rtxs "report_timing -late -path_type summary"
+alias rtms "report_timing -early -path_type summary"
+
+proc get_crpr_point { tpath } {
+  set crpr_name [get_db $tpath .cppr_branch_point.name]
+  return $crpr_name
+}
+
+proc garr { tpath point_name } {
+
+  set check_type [get_db $tpath .check_type]
+  set launch_arr [get_db $tpath .launching_clock_source_arrival_time]
+
+  set tpaths [dict create \
+    launch_clock [get_db $tpath .launch_clock_path] \
+    data_path $tpath \
+    capt_clock [get_db $tpath .capture_clock_path] \
+  ]
+
+  dict for {path_type sub_path} $tpaths {
+    set tpoints [get_db $sub_path .timing_points]
+    foreach tpoint $tpoints {
+
+      set tpin [get_db $tpoint .pin]
+      set arrival [get_db $tpoint .arrival]
+      set tpin_name [get_db $tpin .name]
+      if { [regexp $point_name $tpin_name] } {
+        puts "$path_type : $tpin_name : $arrival"
+      }
+    }
+  }
+}
+
+
+#Catch local -> xbar inside grandchildren
+report_timing -late -max_paths 20 -path_type endpoint \
+              -from [get_db clocks */HBM_XBAR_WRAPPER/HBM_XBAR/clk_axi_local] \
+              -to [get_db clocks */HBM_XBAR_WRAPPER/HBM_XBAR/clk_xbar_buf]
+
+#Catch xbar -> local inside grandchildren
+report_timing -late -max_paths 20 -path_type endpoint \
+              -from [get_db clocks */HBM_XBAR_WRAPPER/HBM_XBAR/clk_xbar_buf] \
+              -to [get_db clocks */HBM_XBAR_WRAPPER/HBM_XBAR/clk_axi_local]
+
+#Scary - HOLD TIMING
+report_timing -early -max_paths 20 -path_type endpoint \
+              -from [get_db clocks */HBM_XBAR_WRAPPER/HBM_XBAR/clk_axi_local] \
+              -to [get_db clocks */HBM_XBAR_WRAPPER/HBM_XBAR/clk_xbar_buf]
+
+report_timing -early -max_paths 20 -path_type endpoint \
+              -from [get_db clocks */HBM_XBAR_WRAPPER/HBM_XBAR/clk_xbar_buf] \
+              -to [get_db clocks */HBM_XBAR_WRAPPER/HBM_XBAR/clk_axi_local]
+
+#hbm<->hbm see hold delay buffers
+report_timing -to HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_2/hbm_port_5/xbar_axi4_wout/deco_w/up_deco_/FIFO_ENTRY_PACK_6__async_fifo_entry/dout_reg_267_/D
+
+#hbm<->hbm to see hold picture
+report_timing -early -max_paths 20 -path_type endpoint -retime path_slew_propagation -retime_slack_sort_by pba_slack \
+-from [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/hbm_port_*/xbar_axi4_wout/g_speedup_f2s/dn_sb_reg_*/CP ] \
+-to [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/hbm_port_*/xbar_axi4_wout/wsplit/dn_wstrb_reg_reg_*/D]
+
+# Launch clock to pin
+#  -253.3   16.1    12.929       -  R     CKND16BWP210H6P51CNODULVT      HBM_XBAR_WRAPPER/HBM_XBAR/CWGDSK_CHANNEL/CTS_ccl_a_inv_00013/ZN
+#  221.3      -         -       -  R     xbar_hbm_group_32              HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_2/clk_fast
+#
+# Capture clock to pin
+#  251.0   15.1    12.929       -  R     CKND16BWP210H6P51CNODULVT      HBM_XBAR_WRAPPER/HBM_XBAR/CWGDSK_CHANNEL/CTS_ccl_a_inv_00013/Z
+#  544.2      -         -       -  R     xbar_hbm_group_32              HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_2/clk_axi
+
+##################
+## FAB REPORT PARSING
+##################
+#zgrep "Startpoint:\| Endpoint:\| Slack\|  Clock:" report_tmg.merged_bucket.late.fab_to_fab.txt.gz | awk 'NR%5!=2' | paste - - - - > fab_to_fab_late.rpt
+#zgrep "Startpoint:\| Endpoint:\| Slack\| Clock: " report_tmg.merged_bucket.early.fab_to_fab.txt.gz | paste - - - - > fab_to_fab_early.rpt
+##zgrep "Startpoint:\| Endpoint:\| Slack: \| Clock: " report_tmg.merged_bucket.late.xbar__to__xbar.txt.gz | paste - - - - - > xbar_to_xbar_late.rpt
+#zgrep "Startpoint:\| Endpoint:\| Slack\| Clock: " report_tmg.merged_bucket.late.xbar__to__xbar.txt.gz > xbar_to_xbar_late.rpt
+
+#echo "set data {}" > f
+#zgrep VIOLATED /path/to/timing.tarpt.gz | awk '{print $4}' | sed 's/(/lappend data /'  >> f
+#
+#tclsh
+#source /proj/mkit/pkgs/minfra/mPkg/latest/mflow_mortar/mPkgUtil
+#source f
+#mortar::numeric_histogram -data $data
+
+
+##################
+## FAB INTERFACE
+##################
+#xbt -> fab
+report_timing -through HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_*/mem_rdata[*]
+report_timing -through HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_*/mem_rdata[*] -path_type endpoint -max_paths 50
+set tpaths [report_timing -through HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_*/mem_rdata[*] -path_type endpoint -max_paths 500 -collection]
+mortar::numeric_histogram -data [get_db $tpaths .slack]
+
+set fname "dont_touch_buffers.txt"
+set fp [open $fname w]
+set low_slack_tps [get_db $tpaths -if {.slack < 50}]
+foreach lst $low_slack_tps {
+  set tpins [get_db $lst .timing_points.pin]
+  set inst_names [get_db -uniq $tpins .inst.base_name]
+  foreach inst_name $inst_names {
+    if { [regexp {encIOBuf} $inst_name] } {
+      puts $fp "$inst_name"
+    }
+  }
+}
+close $fp
+source /proj/cayman/wa/seth/scripts/utils.tcl
+set dont_touch_bufs [f2l "/mrvl2g/cayman_extvol05/cayman/cayman/wa_005/seth/impl/hbm_xbar_wrapper_1.1.0A/track.timing.run103.xbt_1_reconstruct.Jan17_0950/tempuscui.signoff.sta/dont_touch_buffers.txt"]
+
+#fab -> xbt
+report_timing -through HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_*/xb_data[*]
+
+#hxw -> fab
+report_timing -through HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_*/up_wdata[*]
+
+#fab -> hxw
+report_timing -through HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_*/up_rdata[*]
+
+##################
+## HBM INTERFACE
+##################
+#xbt -> hbm
+report_timing -through HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/mem_rdata[*]
+
+#hbm -> xbt
+report_timing -through HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/xb*_rdata[*]
+
+#hbm -> hxw
+set hbm_out_hpins [get_db hpins [list \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_araddr[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_arid[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_arlen[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_arsize[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_arsrc[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_aruser[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_arvalid \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_awaddr[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_awid[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_awlen[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_awsize[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_awsrc[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_awuser[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_awvalid \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_bready \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_rready \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_wdata[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_wid[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_wlast \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_wstrb[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_wvalid \
+]]
+set all_hbms [get_db  hinsts -expr { [regexp {HBM_XBAR/axi_top/hbm_group_\d+$} $obj(.name)] } ]
+set all_hpins [get_db $all_hbms .hpins]
+
+report_timing -through $hbm_out_hpins -path_type endpoint -max_paths 20 -retime path_slew_propagation -retime_slack_sort_by pba_slack
+
+
+
+#hxw -> hbm
+  #HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_awready \
+  #HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_wready \
+  #HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_bid[*] \
+  #HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_bresp[*] \
+  #HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_bvalid \
+
+set hbm_in_hpins [get_db hpins [list \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_arready \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_rdata[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_rid[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_rlast \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_rresp[*] \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_*/dn*_rvalid \
+]]
+report_timing -through $hbm_in_hpins -path_type endpoint -max_paths 200 -retime path_slew_propagation -retime_slack_sort_by pba_slack
+
+
+#im_data paths
+set im_data_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_*__column_*/im_data_reg_*_/D]
+llength $im_data_pins
+report_timing -path_type endpoint -max_paths 20 -to $im_data_pins
+report_timing -retime path_slew_propagation -path_type endpoint -max_paths 20 -to $im_data_pins
+
+#Generate reports with now IO
+#redirect -file fp_inputs.tcl {pcc [all_inputs]}
+#redirect -file fp_outputs.tcl {pcc [all_outputs]}
+
+#set_interactive_constraint_modes [get_db constraint_modes]
+#source /proj/cayman/wa/seth/scripts/fp_hxw_inputs.tcl
+#source /proj/cayman/wa/seth/scripts/fp_hxw_outputs.tcl
+
+#report_timing -from [get_ports hbm_apb_amzn_chain_in_paddr[*]]
+
+#set_interactive_constraint_modes {}
+#update_timing
+#mRunStep signoff_report_timing -save 0
+#mRunStep signoff_report_power -save 0
+#mRunStep signoff_report_noise -save 0
+#mRunStep signoff_report_xtalk -save 0
+#mRunStep signoff_finish -skip 0 -save 0
+
+
+#SCENARIOS
+pl $scenarios_signoff
+
+
+proc get_clock_latency {fh i clk {verbose 0}} {
+
+  set clk_port_name ""
+  set hxw_clk_name ""
+  if { $clk == "axi" } {
+    set clk_port_name "clk_axi"
+    set hxw_clk_name "HBM_XBAR_WRAPPER/HBM_XBAR/clk_axi_local"
+  } elseif { $clk == "fast" } {
+    set clk_port_name "clk_fast"
+    set hxw_clk_name "HBM_XBAR_WRAPPER/HBM_XBAR/clk_xbar_buf"
+  } else {
+    puts "ERROR! clk: $clk is NOT valid.  (axi|fast)"
+    return
+  }
+  set clk_path [report_clock_timing -to HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/${fh}_group_${i}/$clk_port_name -type latency -clock $hxw_clk_name -view func_setup_ssgnp0p675v0c_cworstCCwT0c -verbose -tcl_list]
+  if { $verbose } {
+    puts "report_clock_timing -to HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/${fh}_group_${i}/$clk_port_name -type latency -clock $hxw_clk_name -view func_setup_ssgnp0p675v0c_cworstCCwT0c"
+  }
+  set start_lat 0
+  set end_lat 0
+  foreach rpt_line [lindex $clk_path 1 1 0 1 1 2 1 1 0 1] {
+    set row_title [lindex $rpt_line 0]
+    #puts "row_t: $row_title"
+    set vals [lindex $rpt_line 1]
+    set lat [lindex $vals 4]
+    if { $row_title == "row_1" } {
+      set start_lat $lat
+      continue
+      #puts "SETH start_latency: $start_lat"
+    }
+    set child_entry "HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/${fh}_group_${i}"
+    set curr_pt {*}[lindex $vals 0]
+    #puts "SETH vals\[0\]: $curr_pt == $child_entry latency: $lat"
+    if { [string equal $curr_pt $child_entry] } {
+      #puts "vals: $vals"
+      set end_lat $lat
+      break
+    }
+  }
+  #puts "expr $end_lat - $start_lat"
+  return [expr $end_lat - $start_lat]
+}
+
+proc print_arrivals {fh {verbose 0}} {
+  set tpaths ""
+  set fline "%-15s%-15s%-15s%-15s"
+  set l [format $fline "${fh}_num" "axi_arrival" "xbar_arrival" "delta"]
+  puts $l
+
+  set l [format $fline "---------" "-----------" "------------" "-----"]
+  puts $l
+  foreach i [list 0 1 2 3] {
+
+    set axi_arr [get_clock_latency $fh $i axi $verbose]
+    set fast_arr [get_clock_latency $fh $i fast $verbose]
+
+    set delta [expr $axi_arr - $fast_arr]
+
+    set axi_arr_str [format "%.2f" $axi_arr]
+    set fast_arr_str [format "%.2f" $fast_arr]
+    set delta_str [format "%.2f" $delta]
+    set l [format $fline "${fh}_group_$i" $axi_arr_str $fast_arr_str $delta_str]
+    puts $l
+
+  }
+}
+
+
+
+
+
+
+  #foreach tp $tpoints {
+    #puts "[get_db $tp .pin.name]"
+  #}
