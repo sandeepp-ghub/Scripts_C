@@ -1,0 +1,61 @@
+#!/proj/mkit/pkgs/minfra/tclkit/ActiveTcl-8.6.11/bin/tclsh
+set outfile [lindex $argv 0]
+set outfile [regsub {.data.rpt} $outfile {}]
+
+puts "writing filtered xtalk results to $outfile.data.filtered_rpt"
+if { [catch {open "${outfile}.data.filtered_rpt" "w"} hdl2] } {
+  puts  "Couldn't open ${outfile}.data.filtered_rpt for writing."
+}
+
+set hdl [open ${outfile}.data.rpt r]
+
+set mode 0
+while {![eof $hdl]} {
+  set line [gets $hdl]
+  if {[regexp {^---} $line]} {
+    set record [list]
+    lappend record $line
+  } elseif {[regexp VictimNet $line]} {
+    set mode 1
+    set sum 0
+    set n1 0
+    set n2 0
+    set net ""
+    set slack ""
+    lappend record $line
+  } elseif {$mode == 0} {
+    puts $hdl2 $line
+  } elseif {$mode == 1} {
+    lappend record $line
+    if {[regexp {^\s*[0-9\.]+\s*\/\s*[-0-9\.]+\s+(\S+)\s+(\S+)\s+(\S+)} $line match n ne sl]} {
+      set n1 $n
+      set net $ne
+      set slack $sl
+      set mode 2
+    }
+  } elseif {$mode == 2} {
+    lappend record $line
+    if {[regexp {VictimInst} $line]} {
+      set mode  3
+    }
+  } elseif {$mode == 3} {
+    lappend record $line
+    if {[regexp {^[RF]\s+(\S+)\s+\S+\s+\S+\s+(\S+)\s+} $line match n pi]} {
+      set sum [expr abs($n1 + $n)]
+      if {$slack eq "-"} {set slack 9999}
+      if {[expr 0.1 * $sum] > $slack || $sum > 175} {
+        foreach l $record {
+          puts $hdl2 $l
+        }
+        set record [list]
+#        puts $hdl2 "sum: $sum slack: $slack fix: $pi"
+      } else {
+#        puts $hdl2 "sum: $sum slack: $slack waive: $pi"
+      }
+    }
+  }
+}    
+
+
+close $hdl
+close $hdl2
