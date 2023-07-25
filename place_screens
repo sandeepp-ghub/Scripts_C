@@ -1,0 +1,14 @@
+#Screens to keep flops away from child interfaces
+set rect [get_computed_shapes [get_db [::get_db insts -if {.base_cell.name==xbar_hbm_group_32}] .bbox] SIZEX 7.5 MOVE [list 7.5 0] ANDNOT [get_db [::get_db insts -if {.base_cell.name==xbar_hbm_group_32}] .bbox]]
+lassign [lindex $rect 0] llx lly urx ury
+create_place_blockage -name left_screen_0 -type partial -density 20 -exclude_flops -rects $rect
+create_place_blockage -name left_screen_1 -type partial -density 25 -rects [list [expr {$urx + 0}] $lly [expr {$urx + 100}] $ury]
+create_place_blockage -name left_screen_2 -type partial -density 30 -rects [list [expr {$urx + 100}] $lly [expr {$urx + 200}] $ury]
+create_place_blockage -name left_screen_3 -type partial -density 35 -rects [list [expr {$urx + 200}] $lly [expr {$urx + 300}] $ury]
+
+set rect [get_computed_shapes [get_db [::get_db insts -if {.base_cell.name==xbar_fab_group}] .bbox] SIZEX 7.5 MOVE [list -7.5 0] ANDNOT [get_db [::get_db insts -if {.base_cell.name==xbar_fab_group}] .bbox]]
+lassign [lindex $rect 0] llx lly urx ury
+create_place_blockage -name right_screen_0 -type partial -density 20 -exclude_flops -rects $rect
+create_place_blockage -name right_screen_1 -type partial -density 25 -rects [list [expr {$llx - 100}] $lly [expr {$llx - 0}] $ury]
+create_place_blockage -name right_screen_2 -type partial -density 30 -rects [list [expr {$llx - 200}] $lly [expr {$llx - 100}] $ury]
+create_place_blockage -name right_screen_3 -type partial -density 35 -rects [list [expr {$llx - 300}] $lly [expr {$llx - 200}] $ury]
