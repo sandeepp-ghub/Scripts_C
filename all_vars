@@ -1,0 +1,11 @@
+set fileid [open "variables.txt" w+] 
+foreach {x} [lsort [info globals]] {
+  if { [array exists $x] } {
+      foreach {key val} [array get $x] {
+        puts $fileid "$x\($key\) $val" 
+      }
+  } else {
+      puts $fileid "$x [subst $$x] " 
+  }
+}
+close $fileid
