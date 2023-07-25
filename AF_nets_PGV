@@ -1,0 +1,70 @@
+
+
+
+##########################################################################
+#      MANAGE SPECIAL BUS ACTIVITY
+##########################################################################
+if { [get_db current_design .name] == "Xm_CAYMAN_NX_TIEXtsubsystem_aseq" } {
+   set AF_file /proj/cayman/extvols/wa_010/esayre/Q7_NX/input_set_wide_bus_list_AF_Xm_CAYMAN_NX_TIEXtsubsystem_aseq.txt
+} elseif { [get_db current_design .name] == "Xm_cayman_Q7Xtsubsystem_pseq" } {
+   set AF_file /proj/cayman/extvols/wa_010/esayre/Q7_NX/input_set_wide_bus_list_AF_Xm_cayman_Q7Xtsubsystem_pseq.txt
+} elseif { [get_db current_design .name] == "Xm_cayman_Q7Xtsubsystem_cctop" } {
+   set AF_file /proj/cayman/extvols/wa_010/esayre/Q7_NX/input_set_wide_bus_list_AF_Xm_cayman_Q7Xtsubsystem_cctop.txt
+} else {
+   set AF_file ""
+};
+
+
+
+##############################################
+#    DEFINE LIST of NETS to ENHANCE ACTIVITY
+##############################################
+if { $AF_file != "" } {
+    # Initialize 'list_of_bad_nets' file
+    exec echo "####################################################"  > ./list_of_bad_nets_pins
+    exec echo "# LIST OF BAD NETS NOT FOUND BY 'get_nets' COMMAND #" >> ./list_of_bad_nets_pins
+    exec echo "####################################################" >> ./list_of_bad_nets_pins
+    exec echo ""                                                     >> ./list_of_bad_nets_pins
+
+    # Read nets from File(s) listed in 'file_list'
+    foreach file_name $AF_file {
+       puts "################################"
+       puts "### OPENING FILE:$file_name; ###"
+       puts "################################"
+       exec echo "### From File:$file_name; ###"  >> ./list_of_bad_nets_pins
+       set file_p [open $file_name r];
+
+       # Read nets from variable list labelled 'net_list'
+       while {[gets $file_p line] >= 0} {
+          # Ignore Commented lines #
+          if { [regex "^#" ${line}] } {
+             set do_nothing 1;
+          } elseif { [regex "get_pins " ${line}] } {
+             set from_get_cmd ${line}
+             if { $from_get_cmd == "" } {
+                puts "   |--> (BAD CMD:)  $from_get_cmd;"
+                exec echo $line >> list_of_bad_nets_pins;
+             } else {
+                set_switching_activity -activity 1.0 -duty 0.5 -period 832 -pin ${line};
+             }; # End of IF;
+          } elseif { [regex "get_nets " ${line}] } {
+             set from_get_cmd ${line}
+             if { $from_get_cmd == "" } {
+                puts "   |--> (BAD CMD:)  $from_get_cmd;"
+                exec echo $line >> list_of_bad_nets_pins;
+             } else {
+                set_switching_activity -activity 1.0 -duty 0.5 -period 832 -net ${line};
+             }; # End of IF;
+          } else {
+                exec echo $line >> list_of_bad_nets_pins;
+          }; # End of IF;
+       }; # End of WHILE;
+
+    }; # End of FOREACH;
+
+    puts "################################"
+    puts "### AF for Nets: COMPLETED   ###"
+    puts "################################"
+    puts ""
+    puts "### (INFO): BAD NETS; found in: ./list_of_bad_nets_pins  ###"
+}; # End of IF;
