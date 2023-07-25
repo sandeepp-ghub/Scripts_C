@@ -1,0 +1,5 @@
+set NDR_nets  [get_db [get_db nets -if { .route_rule.name == "clock_m1m4_1x_m5m10_2x_m11m16_8x" }] .name]
+foreach n $NDR_nets {
+   set_route_attributes -net $n -reset
+   set_route_attributes -net $n -route_rule  double_isolate -shield_nets VSS -shield_side double 
+}
