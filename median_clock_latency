@@ -1,0 +1,168 @@
+
+
+
+
+
+
+proc median_clock_latency {} {
+
+
+  set out [open median_clock_latency.txt "w"]
+
+#clock:xbar_hbm_group_32/func_setup_ssgnp0p675v0c_cworstCCwT0c/clk_axi
+#clock:xbar_hbm_group_32/func_setup_ssgnp0p675v0c_cworstCCwT0c/clk_xbar
+
+  #hbm xbar wrapper
+  set skew_dict [dict create \
+    "clk_axi" "clk_axi" \
+    "clk_xbar" "clk_fast" \
+  ]
+
+  delete_skew_groups *
+
+  dict for {skg_name skg_root_pin_name} $skew_dict {
+    set sinks [all_fanout -end -from port:$skg_root_pin_name]
+    set sinks [get_db $sinks -if {.obj_type == pin}]
+    set sinks [get_db $sinks -if {.direction == in}]
+    #set sources [get_db port:$skg_root_pin_name .load]
+    puts ""
+    puts "create_skew_group -name $skg_name -constrains none -shared_sinks < [llength $sinks] sinks >"
+    puts "create_clock_tree -no_skew_group -source port:$skg_root_pin_name -name $skg_name"
+    puts ""
+    create_skew_group -name $skg_name -constrains none -sources port:$skg_root_pin_name -shared_sinks [get_db $sinks .name]
+    create_clock_tree -no_skew_group -source port:$skg_root_pin_name -name $skg_name
+  }
+
+  #set skew_group_name [get_db skew_groups .name]
+  #set skew_group_name [list "CIF_axi_gated_BUF_skew_group_001/m1dpx/cif" \
+  #                          "CIF_axi_gated_BUF_skew_group_002/m1dpx/cif" \
+  #                    ]
+  set skew_group_name [dict keys $skew_dict]
+  #set clock_tree_sinks_name [get_db -u clock_trees .sinks.name]
+
+  set num_skew_groups [llength $skew_group_name]
+
+  set del_con ssgnp0p675v0c_cworstCCwT0c_setup
+
+  set an_view [get_db [get_db analysis_views -if {.delay_corner.name == $del_con} ] \
+                -expr { [regexp {func} $obj(.name)] }]
+  set an_view_name [get_db $an_view .name]
+
+  set i 1
+  foreach skew_group $skew_group_name {
+    set list ""
+    puts "Processing $skew_group ... $i of $num_skew_groups ..."
+    set clock_tree_sinks_name [get_db [get_db skew_groups $skew_group] .sinks.name]
+
+    set skg_obj [get_db skew_groups $skew_group]
+    set skg_source [get_db $skg_obj .sources]
+    set skg_clocks [get_db [get_db $skg_source .clocks] -expr { [regexp $an_view_name $obj(.name)] }]
+
+    if { [llength $skg_clocks] != 1 } {
+      puts "ERROR! More than one clock found on $skg_source"
+      continue
+    }
+
+    #get_db $skg_clocks .source_latency_late_rise_max
+    #During the postCTS stage, latencies are associated to the sources of the clock and not to the clock itself. In such a scenario, you can use the following command to query the latency:
+    #get_db [get_db $skg_clocks .sources ] .arrival_max_rise
+    
+    foreach sink $clock_tree_sinks_name {
+
+
+      #set skew_group_source_latency []
+      #puts "set intra_sink_delay \[get_skew_group_delay -delay_corner $del_con -skew_group $skew_group -to $sink\]"
+      set intra_sink_delay [get_skew_group_delay -delay_corner $del_con -skew_group $skew_group -to $sink]
+
+      if {![regexp Inf $intra_sink_delay]} {
+        lappend list $intra_sink_delay
+      }
+    }
+    set list [lsort -real $list]
+    set length [llength $list]
+    set length1 [expr $length + 1]
+    set length2 [expr $length - 1]
+    set mid [expr $length1/2]
+    set median [lindex $list $mid]
+    set max [lindex $list $length2]
+    set min [lindex $list 0]
+    if !([regexp $max ""]) {
+      set sum [expr $max + $min]
+      set avg [expr $sum/2]
+      puts "$out" "##########Clock Data for skew group $skew_group ###### \n Median clock latency $median \n Max clock latency $max \n Min clock latency $min \n Average clock latency $avg \n Number of sinks $length \n ############### \n"
+    }
+    incr i
+  }
+
+  close $out
+  puts ""
+  puts "Created median_clock_latency.txt "
+  #if { $i > 3} { break}
+}
+
+set_db extract_rc_engine pre_route
+set_db extract_rc_effort_level low
+
+
+# run it
+median_clock_latency
+
+#set skew_group CIF_axi_gated_BUF_skew_group_001/m1dpx/cif
+#set skg_obj [get_db skew_groups $skew_group]
+#set sinks [get_db $skg_obj .sinks]
+#
+#set sink_bbox [get_computed_shapes [get_db $sinks .inst.overlap_rects] BBOX]
+#set color white
+#set_layer_preference layer_${color} -color $color -stipple Slash
+##gui_highlight [get_db selected] -color $color
+#create_gui_shape -layer layer_${color} -rect $sink_bbox
+
+
+#  set del_con ssgnp0p675v0c_cworstCCwT0c_setup
+#  set an_view [get_db [get_db analysis_views -if {.delay_corner.name == $del_con} ] \
+#                -expr { [regexp {func} $obj(.name)] }]
+#  set an_view_name [get_db $an_view .name]
+#
+#  set all_clocks [get_db [get_db clocks -expr { [regexp $an_view_name $obj(.name)] }] \
+#                   -if { .is_virtual == false } ]
+#  set clocks_names [list \
+#    axi_clk_buf \
+#  ]
+#  foreach clock_name $clock_names {
+#    set clk_obj [get_db $all_clocks -if {.base_name == $clock_name}]
+#  }
+#
+#report_timing \
+#-view $an_view_name \
+#-to pin:hbm_xbar_wrapper_1/HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_31__hbm_xbar_clk_rd_regslice/AXI_SLICE_LOGIC_1__genblk1_rd_if_axi3_regslice/RRESP_SLC_rresp_fifo/FIFO_ENTRY_PACK_0__fifo_entry/dout_reg_145_/D \
+#-path_type full_clock
+
+
+#proc get_ins_dly_to_skew_grp {skew_group_name view_name} {
+#
+#  set skg_obj [get_db skew_groups $skew_group]
+#
+#  set skg_sinks [get_db $skg_obj .sinks]
+#
+#  set sink0 [lindex $skg_sinks 0]
+#
+#  set skg_source [get_db $skg_obj .sources]
+#  set skg_clocks [get_db [get_db $skg_source .clocks] -expr { [regexp $an_view_name $obj(.name)] }]
+#
+#  set timing_path [eval "report_timing -view $view_name -collection -path_type full_clock"]
+#  
+#  foreach_in_collection path $timing_path {
+#    if {$launch_clock_path} {set path [get_property $path launch_clock_path]}
+#    if {$capture_clock_path} {set path [get_property $path capture_clock_path]}
+#    set t_points [get_property $path timing_points]
+#    foreach_in_collection point $t_points {
+#      set pin [get_object_name [get_property $point pin]]
+#      select_obj $pin
+#      #if {[catch {[get_db $pin .obj_type] == "port"}]} {
+#        #catch {select_obj [dbTermInstName [dbGetTermByInstTermName $pin]]}
+#        #puts [dbTermInstName [dbGetTermByInstTermName $pin]]
+#      #}
+#      puts $pin
+#    }
+#  }
+#}
