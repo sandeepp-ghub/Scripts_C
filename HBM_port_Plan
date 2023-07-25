@@ -1,0 +1,77 @@
+set ports_per_100u 1522
+
+array unset assigned_ports
+array set assigned_ports {}
+
+#sengine ports
+#set ymin [expr {[::get_db current_design .bbox.ur.y] - 5.0 - 1549.56}]
+set ymin [expr {[::get_db current_design .bbox.ur.y] - 5.0 - 2400}]
+#set ymax [expr {[::get_db current_design .bbox.ur.y] - 5.0}]
+set ymax [::get_db [::get_db insts -if {.base_cell.name==xbar_top_32}] .bbox.ur.y]
+set height [expr {$ymax - $ymin}]
+set group_height [expr {$height / 32.0}]
+set p 0
+while {$p < 32} {
+  set ports [::get_db ports hbm_*_${p}_*]
+  
+  set ports_area [list [expr {[::get_db current_design .bbox.ur.x] - 1.0}] [expr {$ymin + ($group_height * $p)}] [expr {[::get_db current_design .bbox.ur.x] + 1.0}] [expr {$ymin + ($group_height * $p) + $group_height}]]
+  
+  ::delete_pin_group -pin_group sengine_${p}_ports
+  ::create_pin_group -name sengine_${p}_ports -pins [::get_db $ports .name] -opt_order
+  ::create_pin_guide -pin_group sengine_${p}_ports -layers [list M6 M8 M10] -area $ports_area
+  foreach port $ports {
+    set assigned_ports($port) 1
+  }
+  
+  incr p
+}
+
+
+
+#hbm ports
+set xbar [::get_db insts -if {.base_cell.name==xbar_top_32}]
+set p 0
+while {$p < 32} {
+  set ports [::get_db ports xbar_*_${p}_*]
+  
+  #Get area of pins on xbar
+  set pins [::get_db -regexp $xbar .pins .*/hbm_\[a-z\]*${p}_.*]
+  set ls [::get_db $pins .base_pin.physical_pins.layer_shapes -if {.layer.direction==horizontal}]
+  set pr [::get_transform_shapes -inst $xbar -local_pt [::get_db $ls .shapes.rect]]
+  lassign [lindex [::get_computed_shapes $pr BBOX] 0] llx lly urx ury
+  set ports_area [list [expr {[::get_db current_design .bbox.ll.x] - 1.0}] $lly [expr {[::get_db current_design .bbox.ll.x] + 1.0}] $ury]
+  
+  ::delete_pin_group -pin_group hbm_${p}_ports
+  ::create_pin_group -name hbm_${p}_ports -pins [::get_db $ports .name] -opt_order
+  ::create_pin_guide -pin_group hbm_${p}_ports -layers [list M6 M8 M10] -area $ports_area
+  foreach port $ports {
+    set assigned_ports($port) 1
+  }
+  
+  incr p
+}
+
+#clk ports
+set clk_ports [list hbm_xbar_clk axi_clk]
+set width 12
+foreach port $clk_ports {
+  set assigned_ports([::get_db ports $port]) 1
+}
+::delete_pin_group -pin_group clk_ports
+::create_pin_group -name clk_ports -spread_pins -spacing 4 -pins $clk_ports
+::create_pin_guide -pin_group clk_ports -layers [list M14] -area [list [expr {[::get_db current_design .bbox.ur.x] - 1.0}] [expr {([::get_db current_design .bbox.ll.y] + ([::get_db current_design .bbox.dy] / 2.0)) - ($width / 2.0)}] [expr {[::get_db current_design .bbox.ur.x] + 1.0}] [expr {([::get_db current_design .bbox.ll.y] + ([::get_db current_design .bbox.dy] / 2.0)) + ($width / 2.0)}]]
+
+
+#misc ports
+set misc_ports [list]
+foreach port [::get_db ports] {
+  if {![info exists assigned_ports($port)]} {
+    lappend misc_ports $port
+  }
+}
+set width [expr {((1.0 * [llength $misc_ports]) / $ports_per_100u) * 100.0}]
+::delete_pin_group -pin_group misc_ports
+::create_pin_group -name misc_ports -pins [::get_db $misc_ports .name] -opt_order
+::create_pin_guide -pin_group misc_ports -layers [list M5 M7 M11] -area [list [expr {([::get_db current_design .bbox.ll.x] + ([::get_db current_design .bbox.dx] / 2.0)) - ($width / 2.0)}] [expr {[::get_db current_design .bbox.ur.y] - 1.0}] [expr {([::get_db current_design .bbox.ll.x] + ([::get_db current_design .bbox.dx] / 2.0)) + ($width / 2.0)}] [expr {[::get_db current_design .bbox.ur.y] + 1.0}]]
+
+#assign_io_pins
