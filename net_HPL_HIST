@@ -1,0 +1,44 @@
+set bucket_size 1000
+set est_buff_dist 100
+
+set start [clock seconds]
+set max 0
+set total 0
+set num 0
+set est_buffers 0
+foreach net [::get_db nets] {
+  lassign [lindex [::get_db $net .bbox] 0] llx lly urx ury
+  set l [expr {($urx - $llx) + ($ury - $lly)}]
+  if {$l > 0} {
+    set total [expr {$total + $l}]
+    set b [expr {round(round(($l * 1.0) / $bucket_size) * $bucket_size)}]
+    if {![info exists buckets($b)]} {
+      set buckets($b) 0
+    }
+    incr buckets($b)
+    
+    set bufs [expr {round($l / $est_buff_dist)}]
+    set est_buffers [expr {$est_buffers + $bufs}]
+    
+    if {$b > $max} {
+      set max $b
+    }
+  }
+  
+  incr num
+}
+
+puts ""
+set c 0
+while {$c <= $max} {
+  if {[info exists buckets($c)]} {
+    puts "$c | $buckets($c)"
+  } else {
+    puts "$c | 0"
+  }
+  incr c $bucket_size
+}
+puts ""
+puts "Total HPL = $total"
+puts "Estimated buffers (step=${est_buff_dist}um) = $est_buffers"
+puts "Summarized ${num} nets in [expr {[clock seconds] - $start}]s."
