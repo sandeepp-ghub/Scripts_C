@@ -1,0 +1,237 @@
+set eco_out [mVar DESIGN].reg2mem_pull.eco.tcl
+
+set adjust_pins {
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_2_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_1_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_0_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_2_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_1_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_0_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_2_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_1_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_0_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_2_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_1_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_0_/E
+
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_5_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_4_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_3_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_2_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_1_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_0_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_5_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_4_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_3_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_2_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_1_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_0_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_5_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_4_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_3_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_2_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_1_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_0_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_5_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_4_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_3_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_2_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_1_/E
+axi_top/xbar_fab2hbm/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_0_/E
+
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_2_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_1_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_0_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_2_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_1_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_0_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_2_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_1_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_0_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_2_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_1_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_addr_gen/addr_mode_reg_0_/E
+
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_5_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_4_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_3_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_2_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_1_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_0_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_5_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_4_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_3_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_2_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_1_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_2/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_0_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_5_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_4_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_3_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_2_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_1_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_0_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_5_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_4_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_3_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_2_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_1_/E
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_0/i_SMS_proc/U_xbar_top_32_op_decoder/opcode_reg_0_/E
+
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_3/i_SMS_proc/U_xbar_top_32_addr_gen/wr_sel_reg/E
+
+axi_top/xbar_hbm2fab/g_mem_ctrl_32_u_sms_mem_ctrl_1/i_SMS_proc/U_xbar_top_32_addr_gen/t_addr_reg_5_/E
+}
+
+
+#########################################################################################################################
+#########################################################################################################################
+#########################################################################################################################
+
+array unset ::equiv_nets
+array set ::equiv_nets {}
+array unset ::net_src_data
+array set ::net_src_data {}
+array unset ::net_src_fanout
+array set ::net_src_fanout {}
+
+proc ::find_pull_option {pin} {
+  global max_fanout
+  global max_dist
+  global min_pull
+  global max_pull
+  
+  set min_pull   10
+  set max_pull   140
+  set max_dist   25
+  set max_fanout 30
+  
+  global equiv_nets
+  global net_src_data
+  global net_src_fanout
+  
+  set pin_net [::mortar::get_pin_net -pin_name $pin]
+  
+  set pin_x [::mortar::get_pin_attribute -name $pin -x_coord]
+  set pin_y [::mortar::get_pin_attribute -name $pin -y_coord]
+  set pin_t [::get_property [::get_pins $pin] actual_latency_late_rise_max]
+  puts "  Location        = ($pin_x, $pin_y)"
+  puts "  Current latency = $pin_t"
+  
+  #Build equiv pin lookup data
+  set src_net [::mortar::trace_repower -name $pin_net -source_net]
+  if {![info exists equiv_nets($src_net)]} {
+    set equiv_nets($src_net) [list]
+    foreach net [::mortar::trace_repower -name $src_net -equiv_nets] {
+      set src_pin [::mortar::get_net_pins -net_name $net -source]
+      if {$src_pin ne ""} {
+        set src_sinks [::mortar::get_net_pins -net_name $net -sink]
+        set src_f [llength $src_sinks]
+        set src_x [::mortar::get_pin_attribute -name $src_pin -x_coord]
+        set src_y [::mortar::get_pin_attribute -name $src_pin -y_coord]
+        set src_t [::get_property [::get_pins $src_pin] actual_latency_late_rise_max]
+        
+        set llx $src_x
+        set lly $src_y
+        set urx $src_x
+        set ury $src_y
+        foreach sink_pin $src_sinks {
+          set sink_x [::mortar::get_pin_attribute -name $sink_pin -x_coord]
+          set sink_y [::mortar::get_pin_attribute -name $sink_pin -y_coord]
+          if {$sink_x < $llx} {
+            set llx $sink_x
+          }
+          if {$sink_x > $urx} {
+            set urx $sink_x
+          }
+          if {$sink_y < $lly} {
+            set lly $sink_y
+          }
+          if {$sink_y > $ury} {
+            set ury $sink_y
+          }
+        }
+        
+        set net_src_data($net) [list $src_x $src_y $src_t $llx $lly $urx $ury]
+        set net_src_fanout($net) $src_f
+        lappend equiv_nets($src_net) $net
+      }
+    }
+  }
+  
+  #Evaluate options
+  set best_net ""
+  set best_dist 0
+  set best_pull 0
+  foreach net $equiv_nets($src_net) {
+    if {$net ne $pin_net} {
+      #puts "    CHECK: $net"
+      #puts "      $net_src_fanout($net) < $max_fanout"
+      if {$net_src_fanout($net) < $max_fanout} {
+        lassign $net_src_data($net) x y t llx lly urx ury
+        set d [expr {max(0, $llx - $pin_x, $pin_x - $urx) + max(0, $lly - $pin_y, $pin_y - $ury)}]
+        #puts "      $d < $max_dist"
+        if {$d < $max_dist} {
+          set pull [expr {$pin_t - $t}]
+          #puts "      $pull < $max_pull && $pull > $min_pull"
+          if {$pull < $max_pull && $pull > $min_pull} {
+            #puts "        $pull > $best_pull"
+            if {$best_net eq "" || $pull > $best_pull} {
+              #puts "          BEST!"
+              set best_net $net
+              set best_dist $d
+              set best_pull $pull
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  return [list $best_net $best_dist $best_pull]
+}
+
+set pull_ops [list]
+
+foreach pin $adjust_pins {
+  puts $pin
+  
+  lassign [::find_pull_option $pin] best_net best_dist best_pull
+  
+  #Check if we have no option because we need to bypass a leaf ICG
+  if {$best_net eq ""} {
+    set pin_net [::mortar::get_pin_net -pin_name $pin]
+    set src_net [::mortar::trace_repower -name $pin_net -source_net]
+    set src_pin [::mortar::get_net_pins -net_name $src_net -source]
+    set src_inst [::mortar::get_pin_gate -pin_name $src_pin]
+    set src_cell [::mortar::get_gate_attribute -name $src_inst -cell_name]
+    if {[string match "CKLNQ*" $src_cell]} {
+      puts "  Move search to leaf ICG: $src_inst"
+      set pin $src_inst/CP
+      lassign [::find_pull_option $pin] best_net best_dist best_pull
+    }
+  }
+  
+  if {$best_net ne ""} {
+    puts "  Pull operation  = $best_pull (dist=${best_dist}um; net=$best_net)"
+    lappend pull_ops [list $pin $best_net $best_pull]
+    incr net_src_fanout($best_net)
+  } else {
+    puts "  WARNING: No pull option found!"
+  }
+}
+
+#Write ECO
+set fo [open $eco_out w]
+foreach op $pull_ops {
+  lassign $op pin net delta_t
+  puts $fo "#$pin"
+  puts $fo "puts \"$pin\""
+  puts $fo "puts \"  pull ${delta_t}ps to: $net\""
+  puts $fo "::mortar::disconnect_pin -pin_name $pin"
+  puts $fo "::mortar::connect_pin -pin_name $pin -net_name $net"
+  puts $fo ""
+}
+catch {close $fo}
+
+puts ""
+puts "Proposed pull operations ([llength $pull_ops]/[llength $adjust_pins] pins) written to ECO: $eco_out"
