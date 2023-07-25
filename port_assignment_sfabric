@@ -1,0 +1,148 @@
+set corner_to_port_space 5
+set ports_per_100u 1522
+
+#set v_port_layers [list M6 M8 M10]
+#set h_port_layers [list M5 M7 M9]
+#set clk_port_layer [list M11]
+
+#low ceiling
+set v_port_layers [list M4 M6]
+set h_port_layers [list M3 M5]
+set clk_port_layer [list M5]
+::set_db design_top_routing_layer M6
+::set_pin_constraint -side {L R} -layer {5 7}
+::set_pin_constraint -side {T B} -layer {4 6}
+
+###########################################
+
+set master_ports [::get_db ports master_*]
+set master_port_nums [list]
+foreach port $master_ports {
+  set num [string range [lindex [split [lindex [::get_db $port .name] 0] _] 1] 2 end]
+  if {$num ne ""} {
+    lappend master_port_nums $num
+  }
+}
+if {[llength $master_port_nums] > 0} {
+  set master_port_nums [lsort -unique -increasing -real $master_port_nums]
+}
+puts "Master ports: [llength $master_ports] (groups: $master_port_nums)"
+
+set slave_ports [::get_db ports slave_*]
+set slave_port_nums [list]
+foreach port $slave_ports {
+  set num [string range [lindex [split [lindex [::get_db $port .name] 0] _] 1] 2 end]
+  if {$num ne ""} {
+    lappend slave_port_nums $num
+  }
+}
+if {[llength $slave_port_nums] > 0} {
+  set slave_port_nums [lsort -unique -increasing -real $slave_port_nums]
+}
+puts "Slave ports: [llength $slave_ports] (groups: $slave_port_nums)"
+
+if {[llength $master_ports] > [llength $slave_ports]} {
+  puts "Assign master left/top; slave bottom."
+  set left_ports $master_ports
+  set left_port_nums $master_port_nums
+  set bottom_ports $slave_ports
+  set bottom_port_nums $slave_port_nums
+} else {
+  puts "Assign slave left/top; master bottom."
+  set bottom_ports $master_ports
+  set bottom_port_nums $master_port_nums
+  set left_ports $slave_ports
+  set left_port_nums $slave_port_nums
+}
+
+#Split up left/top
+if {0 && [string match "*demux" [::get_db current_design .name]]} {
+  #Keep wide ports on left
+  set top_port_nums [list]
+} else {
+  #Split wide ports on left/top
+  set all_port_nums $left_port_nums
+  set cut_num [expr {round(ceil([llength $all_port_nums] / 2.0))}]
+  set left_port_nums [lrange $all_port_nums 0 [expr {$cut_num - 1}]]
+  set top_port_nums [lrange $all_port_nums $cut_num end]
+}
+
+#Left assign
+if {[llength $left_port_nums] > 0} {
+  set group_height [expr {([::get_db current_design .bbox.dy] - (2.0 * $corner_to_port_space)) / [llength $left_port_nums]}]
+  set current_y $corner_to_port_space
+  foreach num $left_port_nums {
+    set box [list -1 $current_y 1 [expr {$current_y + $group_height}]]
+    ::delete_pin_group -pin_group left_${num}_ports
+    ::create_pin_group -name left_${num}_ports -pins [::get_db [::get_db $left_ports *_if${num}_*] .name]
+    ::create_pin_guide -pin_group left_${num}_ports -layers $v_port_layers -area $box
+    
+    set current_y [expr {$current_y + $group_height}]
+  }
+} elseif {[llength $left_ports] > 0} {
+  set sindex [expr {round([llength $left_ports] / 2)}]
+  set total_width [expr {((1.0 * [llength [lrange $left_ports 0 $sindex]]) / $ports_per_100u) * 100.0}]
+  set box [list -1 [expr {max($corner_to_port_space, ([::get_db current_design .bbox.dy] / 2.0) - ($total_width / 2.0))}] 1 [expr {min([::get_db current_design .bbox.ur.y] - $corner_to_port_space, ([::get_db current_design .bbox.dy] / 2.0) + ($total_width / 2.0))}]]
+  ::delete_pin_group -pin_group left_ports
+  ::create_pin_group -name left_ports -pins [::get_db [lrange $left_ports 0 $sindex] .name]
+  ::create_pin_guide -pin_group left_ports -layers $v_port_layers -area $box
+}
+
+#Top assign
+if {[llength $top_port_nums] > 0} {
+  set group_width [expr {([::get_db current_design .bbox.dx] - (2.0 * $corner_to_port_space)) / [llength $top_port_nums]}]
+  set current_x $corner_to_port_space
+  foreach num $top_port_nums {
+    set box [list $current_x [expr {[::get_db current_design .bbox.ur.y] - 1.0}] [expr {$current_x + $group_width}] [expr {[::get_db current_design .bbox.ur.y] + 1.0}]]
+    ::delete_pin_group -pin_group top_${num}_ports
+    ::create_pin_group -name top_${num}_ports -pins [::get_db [::get_db $left_ports *_if${num}_*] .name]
+    ::create_pin_guide -pin_group top_${num}_ports -layers $h_port_layers -area $box
+    
+    set current_x [expr {$current_x + $group_width}]
+  }
+} elseif {[llength $left_port_nums] == 0 && [llength $left_ports] > 0} {
+  set sindex [expr {round([llength $left_ports] / 2)}]
+  set total_width [expr {((1.0 * [llength [lrange $left_ports [expr {$sindex + 1}] end]]) / $ports_per_100u) * 100.0}]
+  set box [list [expr {max($corner_to_port_space, ([::get_db current_design .bbox.dx] / 2.0) - ($total_width / 2.0))}] [expr {[::get_db current_design .bbox.ur.y] - 1}] [expr {min([::get_db current_design .bbox.ur.x] - $corner_to_port_space, ([::get_db current_design .bbox.dx] / 2.0) + ($total_width / 2.0))}] [expr {[::get_db current_design .bbox.ur.y] + 1}]]
+  ::delete_pin_group -pin_group top_ports
+  ::create_pin_group -name top_ports -pins [::get_db [lrange $left_ports [expr {$sindex + 1}] end] .name]
+  ::create_pin_guide -pin_group top_ports -layers $h_port_layers -area $box
+}
+
+#Bottom assign
+set total_width [expr {((1.0 * [llength $bottom_ports]) / $ports_per_100u) * 100.0}]
+if {[llength $bottom_port_nums] > 0} {
+  set group_width [expr {(1.0 * $total_width) / [llength $bottom_port_nums]}]
+  set current_x [expr {([::get_db current_design .bbox.dx] / 2.0) - ($total_width / 2.0)}]
+  foreach num $bottom_port_nums {
+    set box [list $current_x [expr {[::get_db current_design .bbox.ll.y] - 1.0}] [expr {$current_x + $group_width}] [expr {[::get_db current_design .bbox.ll.y] + 1.0}]]
+    ::delete_pin_group -pin_group bottom_${num}_ports
+    ::create_pin_group -name bottom_${num}_ports -pins [::get_db [::get_db $bottom_ports *_if${num}_*] .name]
+    ::create_pin_guide -pin_group bottom_${num}_ports -layers $h_port_layers -area $box
+    
+    set current_x [expr {$current_x + $group_width}]
+  }
+} else {
+  set current_x [expr {([::get_db current_design .bbox.dx] / 2.0) - ($total_width / 2.0)}]
+  set box [list $current_x [expr {[::get_db current_design .bbox.ll.y] - 1.0}] [expr {$current_x + $total_width}] [expr {[::get_db current_design .bbox.ll.y] + 1.0}]]
+  ::delete_pin_group -pin_group bottom_ports
+  ::create_pin_group -name bottom_ports -pins [::get_db $bottom_ports .name]
+  ::create_pin_guide -pin_group bottom_ports -layers $h_port_layers -area $box
+}
+
+#Bottom misc assign
+set misc_ports [::get_db ports -if {.name!=master_* && .name!=slave_* && .name!=clk}]
+set misc_total_width [expr {((1.0 * [llength $misc_ports]) / $ports_per_100u) * 100.0}]
+set box [list [expr {([::get_db current_design .bbox.dx] / 2.0) - ($total_width / 2.0) - $corner_to_port_space - $misc_total_width}] -1 [expr {([::get_db current_design .bbox.dx] / 2.0) - ($total_width / 2.0) - $corner_to_port_space}] 1]
+::delete_pin_group -pin_group misc_ports
+::create_pin_group -name misc_ports -pins [::get_db $misc_ports .name]
+::create_pin_guide -pin_group misc_ports -layers $h_port_layers -area $box
+
+#Clk assign (bottom center)
+set box [list [expr {([::get_db current_design .bbox.dx] / 2.0) - 1.0}] -1 [expr {([::get_db current_design .bbox.dx] / 2.0) + 1.0}] 1]
+::delete_pin_group -pin_group clk_ports
+::create_pin_group -name clk_ports -pins [::get_db [::get_db ports clk] .name]
+::create_pin_guide -pin_group clk_ports -layers $clk_port_layer -area $box
+
+#Do assignment
+assign_io_pins
