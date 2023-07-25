@@ -1,0 +1,193 @@
+#!/proj/mkit/pkgs/minfra/python/3.9.6_v1/bin/python
+
+
+import os, re, argparse, glob, json, pprint, csv, sys
+
+dir_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(dir_path)
+
+from blk_pkg import *
+
+
+def create_csv_sum(json_data, early_late):
+
+  early_late_data = json_data['Report Tmg'][f'{early_late}']
+  buckets = early_late_data['merged buckets']
+  bucket_dict = json.loads(f'{buckets}')
+
+  b_num2name = bucket_dict['Bucket']
+  b_tns = bucket_dict['TNS']
+  b_nvp = bucket_dict['Viol']
+  b_wns = bucket_dict['WNS']
+
+  sorted_nvp = sorted(b_nvp.items(), key=lambda x:x[1], reverse=True)
+
+  csv_name = f'{early_late}.csv'
+  with open(csv_name, 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(["Bucket", "WNS", "TNS", "Viol"])
+
+    for nvp_info in sorted_nvp:
+      b_num, nvp = nvp_info
+      b_name = b_num2name[b_num]
+      wns = b_wns[b_num]
+      tns = b_tns[b_num]
+      if re.match(r'.*all.*', b_name):
+        if b_name != 'all__to__all':
+          continue
+
+      csv_row = [round(num, 1) for num in [wns, tns, nvp]]
+      csv_row.insert(0, b_name)
+
+      writer.writerow(csv_row)
+
+  print(f'Created {csv_name}')
+
+def create_block_csv(json_data,blk_name):
+
+  early_data = json_data['Report Tmg']['early']
+  early_buckets = early_data['merged buckets']
+  e_bucket_dict = json.loads(f'{early_buckets}')
+
+  e_b_num2name = e_bucket_dict['Bucket']
+  e_b_name2num = {v: k for k, v in e_b_num2name.items()}
+  e_b_tns = e_bucket_dict['TNS']
+  e_b_nvp = e_bucket_dict['Viol']
+  e_b_wns = e_bucket_dict['WNS']
+
+  late_data = json_data['Report Tmg']['late']
+  late_buckets = late_data['merged buckets']
+  l_bucket_dict = json.loads(f'{late_buckets}')
+
+  l_b_num2name = l_bucket_dict['Bucket']
+  l_b_name2num = {v: k for k, v in l_b_num2name.items()}
+  l_b_tns = l_bucket_dict['TNS']
+  l_b_nvp = l_bucket_dict['Viol']
+  l_b_wns = l_bucket_dict['WNS']
+
+  tran_data = json_data['Cap Slew']['max_transition']
+  tran_buckets = tran_data['merged buckets']
+  t_bucket_dict = json.loads(f'{tran_buckets}')
+
+  t_num2name = t_bucket_dict['Bucket']
+  t_name2num = {v: k for k, v in t_num2name.items()}
+
+  t_viol = t_bucket_dict['Viol']
+
+  csv_name = f'block_sum.csv'
+
+  if not blk_name in order:
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    print(f'ERROR: {blk_name} has not been added to {dir_path}/blk_pkg.py')
+    print(f'       No {csv_name} created')
+    return
+
+  blk_order = order[blk_name]
+
+  #print(f'SETH blk_name: {blk_name}')
+  with open(csv_name, 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(["Block", "Setup WNS", "Setup TNS", "Setup VP", "Hold WNS", "Hold TNS", "Hold VP", "DRV"])
+
+    for sub_blk_name in blk_order:
+
+      #print(f'  SETH Trying sub_blk: {sub_blk_name}')
+      bkt_names = blk2bkt[sub_blk_name]
+
+      #If doing a single block override the bucket name to default__to__default
+      if (len(order[blk_name]) == 1):
+        bkt_names = ['default__to__default']
+
+      l_wns = 0
+      l_tns = 0
+      l_nvp = 0
+      e_wns = 0
+      e_tns = 0
+      e_nvp = 0
+
+      for bkt_name in bkt_names:
+        if bkt_name in e_b_name2num:
+          e_b_num = e_b_name2num[bkt_name]
+          #print(f'    SETH FOUND early bkt_name: {bkt_name} <-> bkt_num: {e_b_num}')
+
+          if (e_b_wns[e_b_num] < e_wns) :
+            e_wns = e_b_wns[e_b_num]
+          e_tns += e_b_tns[e_b_num]
+          e_nvp += e_b_nvp[e_b_num]
+
+        if bkt_name in l_b_name2num:
+          l_b_num = l_b_name2num[bkt_name]
+          #print(f'    SETH FOUND -LATE- bkt_name: {bkt_name} <-> bkt_num: {e_b_num}')
+
+          if (l_b_wns[l_b_num] < l_wns):
+            l_wns = l_b_wns[l_b_num]
+          l_tns += l_b_tns[l_b_num]
+          l_nvp += l_b_nvp[l_b_num]
+
+
+      #max_tran/DRV hard code to default bucket for now
+      max_tran_num = t_name2num['default']
+      max_tran = t_viol[max_tran_num]
+
+      raw_vals = [l_wns, l_tns, l_nvp, e_wns, e_tns, e_nvp, max_tran]
+
+      csv_row = [round(num, 1) for num in raw_vals]
+
+      csv_row.insert(0, sub_blk_name)
+
+      writer.writerow(csv_row)
+
+  print(f'Created {csv_name}')
+
+  #print(f'{b_name}  :  {nvp}')
+
+#pp.pprint(sorted_tns)
+#pp.pprint(b_num2name)
+
+#pp = pprint.PrettyPrinter(indent=4)
+#pp.pprint(blk2bkt)
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--file', type=str, required=False)
+parser.add_argument('--blk',  type=str, required=False)
+
+args = parser.parse_args()
+
+cwd = os.getcwd()
+
+rpt_fname = ''
+if args.file:
+  rpt_fname = args.file
+else:
+  rpt_glob = glob.glob('TTR2.*/TTR2_out/*summary.json')
+  rpt_fname = max(rpt_glob, key=os.path.getctime)
+
+  print(f'{cwd}\n')
+  print(f'Found Latest TTR Summary: {rpt_fname}\n')
+
+blk_name = ""
+if args.blk:
+  blk_name = args.blk
+else:
+  p_list = cwd.split(os.sep)
+  for dirn in p_list:
+    if m := re.match(r'^(.*)\.1\.0A$', dirn):
+      #print(f'  SETH: FOUND {dirn} : match {m.group(1)}')
+      blk_name = m.group(1)
+
+f = open(rpt_fname, 'r')
+data = json.loads(f.read())
+
+#pp = pprint.PrettyPrinter(indent=4)
+#pp.pprint(data)
+
+#for i in data['emp_details']:
+    #print(i)
+f.close()
+
+create_csv_sum(data, 'early')
+create_csv_sum(data, 'late')
+
+create_block_csv(data,blk_name)
+print(f'\n')
