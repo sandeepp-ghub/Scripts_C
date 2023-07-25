@@ -1,0 +1,357 @@
+# ./myParseArgs.tcl  ;# used in most procs to default/check args passed to procs
+### if {[info procs ::df::snap_gate_array] eq "" || [info procs  ::df::snap_free_location] eq ""} {catch "source /tool/asictools/methscripts/n7/sandbox/tcl/df_pd.tcl" rc};  ### legalization script until promoted in June 2020?
+    if {[info procs ::df::snap_gate_array] eq ""                                                } {::mortar::echo "(W) The -legal (placement) options cannot be done since depend on missing Greg Ford ::df::snap_free_location & ::df::snap_gate_array functions." -prefix sgr_funcs};
+namespace eval ::sgr {          ;##### All procs & globals in Namespace sgr ####
+if {[info procs unlogCommand] ne ""} {unlogCommand "redirect"}; # suppress many,many msgs from log: <CMD> redirect null {source /tool/asictools/contrib/tcl/myParseArgs.tcl} -variable
+  set dist_slew_nets     {};# user must either re-source or manually clear this variable. It accumulates every call to dist proc!!!
+                                    } else { if {[info procs ::ui_view_box] ne ""} {set ::sgr::ui_view_box {[eval ::ui_view_box]} } else {set ::sgr::ui_view_box {[eval ::gui_view_box]}};
+    } elseif {[info procs ::df::parm] ne "" && [::df::netlist_dir -read] ne ""} { set ::sgr::netlist  [::df::netlist_dir -read];
+# if {[info procs ::tmg::resource_get] == ""} { set ::sgr::timing_done 0} else {set ::sgr::timing_done 1};
+#echo "Define procs in general";
+#if {![info exist ::sgr::RITB_ecomode]}   { if {[info procs ::df::snap_gate_array] != "" && [::df::__open_gate_array_site_count] > 0} { set ::sgr::RITB_ecomode 1} else { set ::sgr::RITB_ecomode 0 }};
+  if {$::sgr::RITB_ecomode == 1 && [info procs ::df::snap_gate_array] != ""} {
+    ::mortar::echo  " In RitB do NOT ever remove fillers!!! Legalization process does this for you (df::backfill_gate_array, followed by df::snap_gate_array) per Greg Ford 7nm GA fill instructions." -warning -prefix "";
+#echo "Define procs short/easy ones";
+#### common USEFUL cmd infc procs (support SDC ptrs, get_db ptrs, & names)
+proc existGate       {inst} {set inst [lindex $inst 0];if {[regexp {^0x} $inst]}      {if {[get_property $inst hierarchical_name -quiet] eq ""} {return 0} else {return 1}} elseif {[regexp {^inst:(.*$)} $inst match xx] && [get_cells $xx -quiet] ne ""} {return 1} elseif {[get_cells $inst -quiet] ne ""} {return 1} else {return 0}};
+proc existNet        {net } {set net  [lindex $net  0];if {[regexp {^0x} $net ]}      {if {[get_property $net  hierarchical_name -quiet] eq ""} {return 0} else {return 1}} elseif {[regexp {^net:(.*$)}  $net  match xx] && [get_nets  $xx -quiet] ne ""} {return 1} elseif {[get_nets  $net  -quiet] ne ""} {return 1} else {return 0}};
+proc existPin        {pin } {set pin  [lindex $pin  0];if {[regexp {^0x} $pin ]}      {if {[get_property $pin  hierarchical_name -quiet] eq ""} {return 0} else {return 1}} elseif {[regexp {^pin:(.*$)}  $pin  match xx] && [get_pins  $xx -quiet] ne ""} {return 1} elseif {[get_pins  $pin  -quiet] ne ""} {return 1} else {return 0}};
+proc existPort       {port} {set port [lindex $port 0];if {[regexp {^0x} $port]}      {if {[get_property $port hierarchical_name -quiet] eq ""} {return 0} else {return 1}} elseif {[regexp {^port:(.*$)} $port match xx] && [get_ports $xx -quiet] ne ""} {return 1} elseif {[get_ports $port -quiet] ne ""} {return 1} else {return 0}};
+proc isClkNet        {net } {set net  [lindex $net  0];if {[regexp {^0x} $net ]} {set net  [get_property $net  hierarchical_name]};
+proc isClk           {pin } {set pin  [lindex $pin  0];if {[regexp {^0x} $pin ]} {set pin  [get_property $pin  hierarchical_name]};
+proc isClkPin        {pin } {set pin  [lindex $pin  0];if {[regexp {^0x} $pin ]} {set pin  [get_property $pin  hierarchical_name]};
+proc isFixed         {inst} {set inst [lindex $inst 0];if {[regexp {^0x} $inst]} {set inst [get_property $inst hierarchical_name]};
+proc isTie           {net } {set net  [lindex $net  0];if {[regexp {^0x} $net ]} {set net  [get_property $net  hierarchical_name]};
+proc isTieHi         {net } {set net  [lindex $net  0];if {[regexp {^0x} $net ]} {set net  [get_property $net  hierarchical_name]};
+proc isTieLo         {net } {set net  [lindex $net  0];if {[regexp {^0x} $net ]} {set net  [get_property $net  hierarchical_name]};
+proc DelDangle      {net {doit "eval"} } {set net  [lindex $net  0];if {[regexp {^0x} $net ]} {set net  [get_property $net  hierarchical_name]};
+                                            set     processDrvs [list $drv]; set i 0;
+                                            while {   [llength $processDrvs] > 0} {
+                                              set drvp [lindex $processDrvs end];                                            # process 1 drvp at a loop iteration
+                                              set               processDrvs [lreplace $processDrvs end end];                 # remove drvp from list, to not process again
+                                                  set processDrvs [concat [get_db $pinp2 .net.drivers] $processDrvs] ;    # prepend next trace back source driver(s)
+                                              incr i; if {$i > 9} {echo "\[DelDangle\]: (W) deleted $del_cnt dangling, looks like loop since remaining to evaluate: {$processDrvs}";};
+                             };# DelDangle proc end
+proc TieInPin        {pin {tieHi 0} {vcs 0} {noDelDangle 1} } {
+                             };# TieInPin proc end
+#proc RetimeLchPins      {{pins ""} {cellType ""} {noDelDangle 0} {doit "eval"} } {}   ;#  HDBSVT11_LDNQ_Y2_4     LNQD2BWP210H6P51CNODLVT 5nm
+proc RetimeLchPins {args} {
+                             };# RetimeLchPins proc end
+proc BypassLatNQ { args  } {
+   puts $ofile "echo {Done processing [llength $lats] LatNQ matching RegExp={$HoldFixLats}};"
+} ;# BypassLatNQ proc end
+proc scanout_pipe { so_source_pin {name ""} {clk_net "tessent_persistent_cell_shift_capture_clock_1_Q"} {se_net "DFT_CE0_SE_ts1"} } { ;# custom 5nm COMPHY scanout timing fix -not validated with DFT, yet!!!
+proc CloneBuf           {{pins ""} {cellType ""} {traceBufs 0} {noDelDangle 0} {doit "eval"} } {
+                             };# CloneBuf      proc end
+#echo "while { #processDrvs=[llength $processDrvs] > 0}";set drvp [lindex $processDrvs end];set               processDrvs [lreplace $processDrvs end end];echo " while {isPin=[regexp {^pin:} $drvp] && drvp.net.loads=[llength [get_db $drvp .net.loads]] == 0}"
+#set del_net  [get_db $drvp .net.name];set del_inst [get_db $drvp .inst.name];set pinp   [get_db $drvp .inst.pins -if {.direction == in}];set processDrvs [concat [get_db $pinp .net.drivers] $processDrvs]; echo  "delete_inst -inst {$del_inst}; #dangling";echo "Add inpin srcs: $processDrvs";
+proc GetPlace        {inst} {set inst [lindex $inst 0];if {[regexp {^0x} $inst]} {set inst [get_property $inst hierarchical_name]};
+proc GetLegal        {inst  xloc yloc  {place_it 0} {radius 40} {verbose 0}} {
+                             };# GetLegal proc end
+proc ChangeCell      {inst  libcell {place_it 0} {radius 40} {verbose 0}} {
+                          };# ChangeCell proc end
+proc CellTypes       {wildcard {FileAppend ""}} {if { [regexp {^\-} $wildcard]} { echo "\[CellTypes\]: (W) Illegal glob wildcard \"$wildcard\" specified (all positional parms) to search current .libs loaded. Syntax: CellTypes *wildcard* \[FileAppend\]";return ""};
+proc GetCellType     {inst} {set inst [lindex $inst 0];if {[regexp {^0x} $inst]} {set inst [get_property $inst hierarchical_name]};
+proc GetParentInst   {pin } {set pin  [lindex $pin  0];if {[regexp {^0x} $pin ]} {set pin  [get_property $pin  hierarchical_name]};
+proc GetShortPin     {pin } {set pin  [lindex $pin  0];if {[regexp {^0x} $pin ]} {set pin  [get_property $pin  hierarchical_name]};
+proc GetFanOutPins   {net } {set net  [lindex $net  0];if {[regexp {^0x} $net ]} {set net  [get_property $net  hierarchical_name]};
+proc GetFanOutGates  {net } {set net  [lindex $net  0];if {[regexp {^0x} $net ]} {set net  [get_property $net  hierarchical_name]};
+proc GetSourcePin    {net } {set net  [lindex $net  0];if {[regexp {^0x} $net ]} {set net  [get_property $net  hierarchical_name]};
+proc GetTreeSourcePin    {net } {set net  [lindex $net  0];if {[regexp {^0x} $net ]} {set net  [get_property $net  hierarchical_name]};
+proc GetSourceGate   {net } {set net  [lindex $net  0];if {[regexp {^0x} $net ]} {set net  [get_property $net  hierarchical_name]};
+proc GetNetLength  {net {layers 0} } {set net  [lindex $net  0];
+                                    return [format %${::sgr::AccuracyDist}f [expr $expression]]; # typical exit proc
+proc GetDist         {net {extra 0} } {set net  [lindex $net  0]; set alt_pinp "";
+proc GetAttr         {net {extra 0} } {set net  [lindex $net  0]; set alt_pinp "";
+proc fltline      {{points ""} {ClearFltLine 0} {width 0}} {global  ::sgr::disable_fltlines  ::sgr::fltline ::sgr::fltline_width ::sgr::gui_delete_objs ::sgr::create_gui_shape; if {$points eq ""} {set points $::sgr::fltline};if {$width eq 0} {set width $::sgr::fltline_width}; if {$points ne "" && !$::sgr::disable_fltlines } { if {$ClearFltLine} {$::sgr::gui_delete_objs -shape}; $::sgr::create_gui_shape  -layer 1 -arrow -width $width -line $points};echo "\[fltline\] Move graph window to refresh arrows."};
+proc GetArcs         {pin {view "func_"} {to_pins 1} {from_pins 1} {quiet 0} } {set pin  [lindex $pin  0];
+                     }; #end GetArcs proc
+proc dfStep          {{step 3}} {global ::sgr::recipe;if {[info procs ::df::step] ne ""] } { echo "\n####Running next $step DFLOW steps in RECIPE: $::sgr::recipe, with a -status summary at end.";for {set i 0} {$i < $step} {incr i} {::df::step -run -next;};::df::step -status;}};
+proc list_selection  {args} {
+proc sc  {args} {
+} ;# end sc proc
+proc sl  {args} {
+} ;# end sl proc
+proc sn  {args} {
+} ;# end sn proc
+proc sp  {args} {
+} ;# end sp proc
+proc snp {args} {
+} ;# end snp proc
+proc lHier           {net {quiet 0}} {set return_module "";set msg "";set net  [lindex $net  0];
+} ;# end lHier proc
+proc WireDetail { args  } {
+                {             nolabels          Bool              0        0    "Skip labelling in front of data; most useful for other procs that know the what the returned data is."}
+  if {$alt_netsp eq ""} {mortar::echo "No Found net|pin|ports specified nor selected to process, nothing to do." -error;
+    foreach netp $alt_netsp { ;# process all requested nets found
+};# WireDetail proc end
+proc SOMCapSlew { args } {
+                {             ob_slw            Bool              0      0    "Default will no longer process outbound slew reports. If want to merge these slews (as low priority), then turn this on."}
+                {             no_filtered       Bool              0      0    "Do NOT do default is priority use of *filtered cap/slew report over the myTime report. Refer to slack waiver proces using /home/thelvey/Public/dflow/tempus_filter_cap_slew.dev.tcl."}
+                {             no_mpw            Bool              0      0    "Do NOT process any PulseWidth (mpw) files."}
+                {             no_si             Bool              0      0    "Do NOT process any Noise/Glitch (noise_glitch) files."}
+                {             no_xtalk          Bool              0      0    "Do NOT process any xtalk (cross talk coupling) files."}
+                {             waive_maxT        Real              0      0    "At signoff, may want to waive DATA pin (not Clk) violations up to this amount (waive). Will count as Waved maxT, but be at bottom of list. Different than TimH filter script for slack Waiver process."}
+                {             waive_CkT         Real              0      0    "At signoff, may want to waive Clock pin slew violations up to this amount (waive). Will count as Waived, but be at bottom of list. Different than TimH filter script for slack Waiver process."}
+                {             noMinCapSlw       Bool              0      0    "Skip minC and minT violation processing."}
+  set badFileNames "\n# Empty or No violations or bad Report format files processed:";
+  set AllerrorFiles 0;set AllnovioFiles 0; set AllprocessedFiles 0;      set skip_vio_out_file {}; set Allskip 0; set Allnotfound 0;
+  set    errorFiles 0;set    novioFiles 0; set    processedFiles 0; set pathnum 0;
+    set processedFiles [expr $processedFiles + [llength $slw_files]];
+    if {!$quiet} {echo "\[$sN\] (I) ==Dir${pathnum}== Found [llength $slw_files] \${RLM}_mmmc*dc.outbound.slew*.\$view.txt files in $dir to process..."}
+      if {$verbose} {echo "\[$sN\] (dbg) Start processing file: $file"}
+      if {$verbose} {echo "\[$sN\] (dbg) Finished processing $rec_cnt lines in file: $file finding $file_upper_vio Max and $file_lower_vio Min new & unique Slew violations. Format_OK=$ok_format\n"}
+      if {$ok_format == 0} {incr errorFiles;incr FilesProcessedE($pathnum); set badFileNames "$badFileNames \n# Lines: [format %5d $rec_cnt] $file";echo "\[$sN\]: (W) File invalid format after processing $rec_cnt lines, or has no Violations listed: $file"};
+      if {[expr $file_upper_vio + $file_lower_vio] == 0} {incr novioFiles;if {$verbose} {echo "\[$sN\] (I) Following File had no violations: $file after processing $rec_cnt lines.";if {$ok_format} {echo "\[$sN\] (I) Above File Format looks correct..."}}}
+##### break; # temp end after processing 1st file
+  if {$processedFiles > 0} {
+    set summaryMsg "Processed [format %3d $processedFiles] \${RLM}_mmmc*dc.outbound.slew*.$view.txt files, with $novioFiles files having NO violations. Found $noexist_upper_pins Max and $noexist_lower_pins Min Slew pins that No longer exist in netlist.";
+    set AllerrorFiles [expr $AllerrorFiles + $errorFiles];set AllnovioFiles [expr $AllnovioFiles + $novioFiles]; set AllprocessedFiles [expr $AllprocessedFiles + $processedFiles];
+  } ; #if processed any files
+  } else { echo "\[$sN\] (I) NEW Default skips all outbound slew vio, use -ob_slw to process all outbound slew files: \${RLM}_mmmc*dc.outbound.slew*.\$view.txt" }
+  set    errorFiles 0;set    novioFiles 0; set    processedFiles 0;  set pathnum 0; set skip_maxC 0; set total_waived 0; set waived 0; set DCcnt 0;
+    set processedFiles [expr $processedFiles + [llength $capslw_files]];
+    if {!$quiet} {echo "\[$sN\] (I) ==Dir${pathnum}== Found [llength $capslw_files] *.cap.gz files in $dir to process..."}
+      if {$verbose} {echo "\[$sN\] (dbg) Start processing file: $file"}
+      if {$verbose} {echo "\[$sN\] (I) Finished processing $rec_cnt lines finding $file_maxC_vio MaxCap unique violations. Format_OK=$ok_format for File:$file\n"}
+      if {$ok_format == 0} {incr errorFiles;incr FilesProcessedE($pathnum); set badFileNames "$badFileNames \n# Lines: [format %5d $rec_cnt] $file"; echo "\[$sN\]: (W) File invalid format after processing $rec_cnt lines, or has no Violations listed: $file"};
+      if {[expr $file_maxC_vio + $file_maxT_vio] == 0} {incr novioFiles;if {!$quiet} {echo "\[$sN\] (I) Following File had no MAX violations after processing $rec_cnt lines: $file";if {$ok_format > 0} {echo "\[$sN\] (I) Above File Format looks correct: maxSlw,minSlw,maxCap,minCap sections all found."}}}
+      ### break; # temp end after processing 1st file
+#echo "1After processed $processedFiles *.cap.gz files, counts: clk_maxC_pins=$clk_maxC_pins "
+  if {$processedFiles > 0} {
+    set summaryMsg "Processed [format %3d $processedFiles] \${RLM}*.cap.gz files, with $novioFiles files having NO violations.";
+    set AllerrorFiles [expr $AllerrorFiles + $errorFiles];set AllnovioFiles [expr $AllnovioFiles + $novioFiles]; set AllprocessedFiles [expr $AllprocessedFiles + $processedFiles];
+  set    errorFiles 0;set    novioFiles 0; set    processedFiles 0;  set pathnum 0; set skip_maxC 0; set waived 0; set DCcnt 0;
+    set processedFiles [expr $processedFiles + [llength $capslw_files]];
+    if {!$quiet} {echo "\[$sN\] (I) ==Dir${pathnum}== Found [llength $capslw_files] *.tran.gz files in $dir to process..."}
+      if {$verbose} {echo "\[$sN\] (dbg) Start processing file: $file"}
+              set net $netname; set netname "";  # reset netname so only process one sinkpin slew
+      if {$verbose} {echo "\[$sN\] (I) Finished processing $rec_cnt lines finding $file_maxC_vio MaxCap, $file_maxT_vio MaxSlew, $file_minC_vio MinCap, and $file_minT_vio MinSlew unique violations. Format_OK=$ok_format for File:$file\n"}
+      if {$ok_format == 0} {incr errorFiles;incr FilesProcessedE($pathnum); set badFileNames "$badFileNames \n# Lines: [format %5d $rec_cnt] $file"; echo "\[$sN\]: (W) File invalid format after processing $rec_cnt lines, or has no Violations listed: $file"};
+      if {[expr $file_maxC_vio + $file_maxT_vio] == 0} {incr novioFiles;if {!$quiet} {echo "\[$sN\] (I) Following File had no MAX violations after processing $rec_cnt lines: $file";if {$ok_format > 0} {echo "\[$sN\] (I) Above File Format looks correct: maxSlw,minSlw,maxCap,minCap sections all found."}}}
+      ### break; # temp end after processing 1st file
+#echo "2After processed $processedFiles *.cap.gz files, counts: clk_maxC_pins=$clk_maxC_pins "
+  if {$processedFiles > 0} {
+    set summaryMsg "Processed [format %3d $processedFiles] \${RLM}*.tran.gz files, with $novioFiles files having NO violations."
+    set AllerrorFiles [expr $AllerrorFiles + $errorFiles];set AllnovioFiles [expr $AllnovioFiles + $novioFiles]; set AllprocessedFiles [expr $AllprocessedFiles + $processedFiles];
+  set    errorFiles 0;set    novioFiles 0; set    processedFiles 0;  set pathnum 0;  set waived 0; set DCcnt 0; set file_DCcnt 0;
+    set processedFiles [expr $processedFiles + [llength $capslw_files]];
+    if {!$quiet} {echo "\[$sN\] (I) ==Dir${pathnum}== Found [llength $capslw_files] \${RLM}*cap_slew.gba* files in $dir to process ($filtered_files filtered)..."}
+      if {$verbose} {echo "\[$sN\] (dbg) Start processing file: $file"}
+      if {$verbose} {echo "\[$sN\] (I) Finished processing $rec_cnt lines finding $file_maxC_vio MaxCap, $file_maxT_vio MaxSlw, $file_minC_vio MinCap, and $file_minT_vio MinSlew unique violations. Format_OK=$ok_format for File:$file\n"}
+      if {$ok_format == 0} {incr errorFiles;incr FilesProcessedE($pathnum); set badFileNames "$badFileNames \n# Lines: [format %5d $rec_cnt] $file"; echo "\[$sN\]: (W) File invalid format after processing $rec_cnt lines, or has no Violations listed: $file"};
+      if {[expr $file_maxC_vio + $file_maxT_vio] == 0} {incr novioFiles;if {!$quiet} {echo "\[$sN\] (I) Following File had no MAX violations after processing $rec_cnt lines: $file";if {$ok_format > 3} {echo "\[$sN\] (I) Above File Format looks correct: maxSlw,minSlw,maxCap,minCap sections all found."}}}
+      ### break; # temp end after processing 1st file
+  if {$processedFiles > 0} {
+    set summaryMsg "Processed [format %3d $processedFiles] \${RLM}*cap_slew.gba* files, with $novioFiles files having NO violations.";
+    set AllerrorFiles [expr $AllerrorFiles + $errorFiles];set AllnovioFiles [expr $AllnovioFiles + $novioFiles]; set AllprocessedFiles [expr $AllprocessedFiles + $processedFiles];
+echo "1. done maxCap/maxTran processing of $processedFiles files. [llength $::returndata ] unique violation NETs included. ${maxC_vio} maxC + ${maxT_vio} maxT non-unique total. ${Allnotfound}Not_Found + ${total_waived}Waived ${DCcnt} included in $Allskip skipped vios."
+  };# if processed files > 0
+  set    errorFiles 0;set    novioFiles 0; set    processedFiles 0;  set pathnum 0; set skip_vio 0; set pw_vio 0; set pw_waived 0; set pw_DC 0; set waived 0; set DCcnt 0;
+    set processedFiles [expr $processedFiles + [llength $pw_files]];
+#   if {!$quiet} {echo "\[$sN\] (I) ==Dir${pathnum}== Found [llength $pw_files] \${RLM}*.mpw.* files in $dir to process..."}
+    if {!$quiet} {echo "\[$sN\] (I) ==Dir${pathnum}== Found [llength $pw_files] \${RLM}*.mpw.* files in $dir to process ($filtered_files filtered)..."}
+      if {$verbose} {echo "\[$sN\] (I) Finished processing $rec_cnt lines finding $file_pw_vio PulsWidth violations. Format_OK=$ok_format for File:$file\n"}
+      if {$file_pw_vio == 0} {incr novioFiles;incr FilesProcessedE($pathnum); set badFileNames "$badFileNames \n# Lines: [format %5d $rec_cnt] $file";if {!$quiet} {echo "\[$sN\] (I) Following File had no PulseWidth violations after processing $rec_cnt lines: $file";if {$ok_format > 1} {echo "\[$sN\] (I) Above File Format looks correct: Header labels as expected."}}}
+      ### break; # temp end after processing 1st file
+#echo "3    After processed $processedFiles pw files, counts: pw_vio=$pw_vio waive=$waive skip_vio=$skip_vio pw_DC=$pw_DC"
+  if {$processedFiles > 0} {
+    set summaryMsg "Processed [format %3d $processedFiles] \${RLM}*.mpw.* files, with $novioFiles files having NO violations.";
+    set AllerrorFiles [expr $AllerrorFiles + $errorFiles];set AllnovioFiles [expr $AllnovioFiles + $novioFiles]; set AllprocessedFiles [expr $AllprocessedFiles + $processedFiles];
+  };# if processed files > 0
+echo "2. done mPW processing $processedFiles files. [llength $uniq_pw_vio_nets ] unique mPW vios of $pw_vio total. Accumulated ${Allnotfound}Not_Found + ${total_waived}Waived ${DCcnt} included in $Allskip skipped vios."
+  } else { if {!$quiet} {echo "\[$sN\]: (W) -no_mpw option SKIPs all \${RLM}*.mpw.* file(s) processing/merging/uniquifying..."}};
+  set    errorFiles 0;set    novioFiles 0; set    processedFiles 0;  set pathnum 0; set skip_vio 0; set si_vio 0; set DC_cnt 0;
+    set processedFiles [expr $processedFiles + [llength $si_files]];
+    if {!$quiet} {echo "\[$sN\] (I) ==Dir${pathnum}== Found [llength $si_files] \${RLM}*.noise_glitch*\${view}* files in $dir to process..."}
+      if {$verbose} {echo "\[$sN\] (dbg) Start processing file: $file"}
+      if {$verbose} {echo "\[$sN\] (I) Finished processing $rec_cnt lines finding $ok_format Noise violations, accumulated unique [llength $uniq_si_vio_nets] violations while skipping $skip_si, for File:$file\n"}
+  if {$processedFiles > 0} {
+    set summaryMsg "Processed [format %3d $processedFiles] \${RLM}*.noise_glitch*\${view}* files, with $novioFiles files having NO violations.";
+    set AllerrorFiles [expr $AllerrorFiles + $errorFiles];set AllnovioFiles [expr $AllnovioFiles + $novioFiles]; set AllprocessedFiles [expr $AllprocessedFiles + $processedFiles];
+  };# if processed files > 0
+echo "3. done noise/glitch processing $processedFiles files. [llength $uniq_si_vio_nets] unique vios of $si_vio total.  Accumulated ${Allnotfound}Not_Found + ${DCcnt}DC included in $Allskip skipped vios."
+  } else { if {!$quiet} {echo "\[$sN\]: (W) -no_si option SKIPs all \${RLM}*.noise_glitch* file(s) processing/merging/uniquifying..."}};
+  set    errorFiles 0;set    novioFiles 0; set    processedFiles 0;  set pathnum 0; set skip_vio 0; set xtalk_vio 0; set DC_cnt 0;
+    set processedFiles [expr $processedFiles + [llength $xtalk_files]];
+    if {!$quiet} {echo "\[$sN\] (I) ==Dir${pathnum}== Found [llength $xtalk_files] *xtalk*rpt*  files in $dir to process..."}
+      if {$verbose} {echo "\[$sN\] (dbg) Start processing file: $file"}
+      if {$verbose} {echo "\[$sN\] (I) Finished processing $rec_cnt lines finding $ok_format xtalk violations, accumulated unique [llength $uniq_xtalk_vio_nets] violations while skipping $skip_xtalk, for File:$file\n"}
+  if {$processedFiles > 0} {
+    set summaryMsg "Processed [format %3d $processedFiles] *xtalk*rpt* files, with $novioFiles files having NO violations.";
+    set AllerrorFiles [expr $AllerrorFiles + $errorFiles];set AllnovioFiles [expr $AllnovioFiles + $novioFiles]; set AllprocessedFiles [expr $AllprocessedFiles + $processedFiles];
+  };# if processed files > 0
+echo "4. done xtalk processing $processedFiles files. [llength $uniq_xtalk_vio_nets] unique vios of $xtalk_vio total.  Accumulated ${Allnotfound}Not_Found + ${DCcnt}DC included in $Allskip skipped vios."
+  } else { if {!$quiet} {echo "\[$sN\]: (W) -no_xtalk option SKIPs all *xtalk*rpt* file(s) processing/merging/uniquifying..."}};
+echo "5. Done processing ALL vio types, resulting in [llength $::returndata ] NETs, to be unqiufied across vio TYPEs."
+echo "6. Done processing ALL vio types, non-unique EXCLUDE of $Allskip violations because $Allnotfound Not_Found or -exclude_regexp or -exclude_proto or Lesser magnitude on same NET."
+  set file_qual "$file_qual.${AllprocessedFiles}Files";
+#   if {$verbose && $no_unique} {echo "\[$sN\] (I) -no_unique=0  causing final across PulseWidth/noise/cap/slew uniquification (in that priority order). Total violations were [llength $::returndata] now [llength $tmp_returndata] unique after processing ."}
+    set summaryMsg "Processed [format %3d $AllprocessedFiles] total files for PW/Noise/Cap/Slw violations, $AllnovioFiles files had 0 violations, $AllerrorFiles may have errors in format. Uniquified to [llength $::returndata] NET violations.";
+    set summaryMsg "Processed [format %3d $AllprocessedFiles] total files for PW/Noise/Cap/Slw violations, $AllnovioFiles files had 0 violations. Uniquified to [llength $::returndata] NET violations.";
+    if {[expr $i % 200] == 1} { echo "[clock format [clock seconds] -format {%H:%M:%S}] ... Be patient, processed $i of [llength $::returndata] violation nets"}
+#   if {[expr $curr_time - $last_time] > 30} {set last_time $curr_time; echo "[clock format $curr_time -format {%H:%M:%S}] ... Be patient, processed $i of [llength $::returndata] violation nets."};# every 30 sec msg
+proc dist {args} {
+    {quiet        Bool 0  0   "Flag suppresses all info written to console. Useful if just want dist procedure to return of max filtered distance."}
+    if {$verbose} {echo "0. nothing in \$what, so processing [llength [get_db selected ]] currently selected objects, for the type that has the most."}
+  if {[llength $pinObjs] > [llength $netObjs] && [llength $pinObjs] > [llength $instObjs] && [llength $pinObjs] > [llength $portObjs]} {set whatObjs $pinObjs; if {!$quiet} {echo "\[$sN\] (I) Most $msg_qual Obj type is Pins, so will process those [llength $whatObjs]."}
+  } elseif { [llength $instObjs] > [llength $netObjs] && [llength $instObjs] > [llength $portObjs]}                                    {set whatObjs $instObjs;if {!$quiet} {echo "\[$sN\] (I) Most $msg_qual Obj type is Cell Instances, so will process those [llength $whatObjs]."}
+  } elseif { [llength $portObjs] > [llength $netObjs]}                                                                                 {set whatObjs $portObjs;if {!$quiet} {echo "\[$sN\] (I) Most $msg_qual Obj type is IO Ports, so will process those [llength $whatObjs]."}
+  } else                                                                                                                               {set whatObjs $netObjs; if {!$quiet} {echo "\[$sN\] (I) Most $msg_qual Obj type is Net names, so will process those [llength $whatObjs]."}
+###### Main procedure parm list ###############
+  # now map homogeneous "what" specification into $in_list and $out_list to process & report as 2 separate groups
+}; #end dist proc
+proc compass {args} {
+  } elseif {$verbose} { echo "\[$pN\] (dbug) After processing [llength $snkp] Required -snkp parm values, extracted [llength $Psrcp] src ptrs & [llength $Psnkp] sink ptrs (nor x,y coordinate) to compute a compass dir."};
+}; #endproc compass
+### low level proc used by BufferPin that has much more checking and more options ####
+###proc BufferPin { sinkpins {celltypes "-h"} {bufnameprefix "BufPin"} {place "50.00%"} {repeatCnt 0} {planes ""} {effort "low"} {wc "default"} {weight 2} {legal 0} {verbose 1} {module ""} } {}
+proc BufferPin {args} {
+                {             ritb              Bool              0        0    "Use GA cells and custom placement process for rm of GA fill, and then placing."}
+      set rptCnt  [expr $rptCnt - 1]; # adjust how proc thinks of count
+  } elseif {[regexp {^\s*\{?\s*\{?\s*([\+\-]?)([0-9\.]+)([A-z]?)\s+([\+\-]?)([0-9\.]+)([A-z]?)\s*(.*)$} $Thru  match signX thruX isDeltaX signY thruY isDeltaY moreCoord]} {  ;# process -Thru like list of coordinates. No repeatCnt parm supported!
+}; #end BufferPin proc
+proc SplitSinks  { args } {
+  foreach ptr $snkpins { ;# process all the placed sinks
+proc DeleteDiodes { net } {
+proc rmc {args} {
+}; # rmc proc end
+proc rmTree {args} {
+} ;# end rmTree proc
+proc MakeLVT { args } {
+proc pwrup   { args } {
+                {             ritb              Bool              0       0    "Use GA cells and custom placement process for rm of GA fill, and then placing."}
+}; #end pwrup proc
+proc Protect     { args } {
+    ### process NETs
+    set cmd   "$cmd  ### process NETs\n";
+    set cmd   "$cmd  ### process INSTs\n";
+    ### process NETs
+    set cmd   "$cmd  ### process NETs\n";
+    ### process INSTs
+    set cmd   "$cmd  ### process INSTs\n";
+  };# done processing all NETs & INSTs
+  } else { ::mortar::echo "No NETs nor cell INSTs found to process (listed or selected)... Please retry." -warning;}
+  if {!$quiet} {echo "\[$sN\] (I) $trialmsg [llength $protect_nets] Nets + [llength $protect_cells] insts, with $skip_notfound NOT found, and could not process $err_net Nets and $err_inst Insts."}
+}; #end Protect proc
+proc ForcePlanes { args } {
+    #   This proc will save in your logs dir, a ForcePlanes_*.ProtectAfterRoute*.tcl file to help remember, if >1 net specified.
+  set processed_nets {};
+    lappend processed_nets  $netName;
+  set ::sgr::Cmds "$::sgr::Cmds set ::sgr::ecoNets \[concat \$::sgr::ecoNets \$processed_nets\]; #mark nets for routing\n";
+    set ::sgr::batch_delete_routes [concat $::sgr::batch_delete_routes $processed_nets];
+      if {!$quiet} {set ::sgr::Cmds "$::sgr::Cmds ::mortar::echo \"(I) Accumulated \[llength \$::sgr::batch_delete_routes\] accumulated {ForcePlanes -batch} NETs, including \[llength \$processed_nets\] just processed NETs, for route deletions.\";\n"};
+      if {!$quiet} {set ::sgr::Cmds "$::sgr::Cmds ::mortar::echo \"(I) Add \[llength \$processed_nets\] NETs to deferred \[llength \$::sgr::batch_delete_routes\] accumulated NETs \\\$::sgr::batch_delete_routes for later processing...\";\n";
+    if {[llength $processed_nets] > 0} {
+      if {$verbose } {::sgr::WireDetail $processed_nets };
+    } else { ::mortar::echo "No NETs found to process. Nothing done." -warning};
+      echo "set processed_nets {$processed_nets};"
+  return [llength $processed_nets];
+};#end ForcePlanes proc
+#### internally used proc to do simple inversion determination, and buff tree ROOT source pin evaluation
+proc trcbkinv {args} {  ;# { {pin ""} {verbose 0} {trcbknodes 0} {trcbkendpt 0} {trcbkendlev 0} {stop_regexp ""} {thru_regexp ""} {thru_pin_regexp ""}}   ;# return 1 if trace back to ROOT (thru BUF/INV/DLY) results in inversion @ specified pin
+      set  inversion [lindex $trc_list_inversion end]; # restore a buf tree stage NET, to process all its sinks
+      if {$verbose} {echo "\[trcbkinv\] (dbg) Before tree/stage $level, about to process [llength $pinptrs] sourcepins: $pinptrs"};
+      foreach pinp $pinptrs {      ;# process every fanout sink pin
+}; # end trcbkinv proc
+#### internally used proc to do simple inversion determination, and buff tree sinkpins evaluation
+proc trcfwdinv {args} {  ;# {{pin ""} {verbose 0} {trcfwdnodes 0} {trcfwdendpt 0} {trcfwdendlev 0} {stop_regexp ""} {thru_regexp ""} {thru_pin_regexp ""}}   ;# return inversion array whether tree fanouts are inverted (1) or not (0) relative to specified start fwd trace $pin parm polarity
+      set  inversion [lindex $trc_list_inversion end]; # restore a buf tree stage NET, to process all its sinks
+      if {$verbose} {echo "\[trcfwdinv\] (dbg) Before tree/stage $level, about to process [llength $pinptrs] sinkpins: $pinptrs"};
+      foreach pinp $pinptrs {      ;# process every fanout sink pin
+}; # end trcfwdinv proc
+proc tbbuf  { args } {
+    if {$verbose} {echo "\[$sN\] (dbg) -buf not specified, so processing [llength [get_db selected ]] currently selected objects, for 1st buf/inv/dly cell selected."}
+  if {[llength $buf] > 1} { ::mortar::echo "Only processing 1st in list of buffers to trace: \"[lindex $buf 0]\"" -warning}
+}; # end tbbuf proc
+proc tbclk  { args } {
+    if {$verbose} {echo "\[$sN\] (dbg) -buf not specified, so processing [llength [get_db selected ]] currently selected objects, for 1st buf/inv/dly cell selected."}
+  if {[llength $buf] > 1} { ::mortar::echo "Only processing 1st in list of buffers to trace: \"[lindex $buf 0]\"" -warning}
+}; # end tbclk proc
+proc tbprim  { args } {
+    if {$verbose} {echo "\[$sN\] (dbg) -buf not specified, so processing [llength [get_db selected ]] currently selected objects, for 1st buf/inv/dly cell selected."}
+  if {[llength $buf] > 1} { ::mortar::echo "Only processing 1st in list of buffers to trace: \"[lindex $buf 0]\"" -warning}
+}; # end tbprim proc
+proc tbscan { args } {
+    if {$verbose} {echo "\[$sN\] (dbg) -buf not specified, so processing [llength [get_db selected ]] currently selected objects, choose $buf to start traceback."}
+}; # end tbscan proc
+proc ConnectClosest { args } {
+}; # end ConnectClosest proc
+proc tb { {pins "-h "} {options "-max_slack 999999  -max_paths 1 "} {leave_endpt 0} } {
+if {![info exist ::sgr::tbr_max_pin_len]}   { set ::sgr::tbr_max_pin_len  120 };  # default to same as proc so can make a "sticky" value
+if {![info exist ::sgr::tbr_max_phase_len]} { set ::sgr::tbr_max_phase_len 50 };  # default to same as proc so can make a "sticky" value
+proc tbr { args } {
+    if {$summary_reports} {set pass_options "$pass_options -summary_reports -no_view_summary -no_data_summary $rpt1_options $rpt2_options";set summary_reports 0;}; ### have the tbr embedded call do the -summary_reports and turn off for current proc invokation
+} ;### end tbr proc
+proc nameTrunc { name max_len {isclk 0} {hier_nickname 0} {hier_blkname 0} } {
+}; # end nameTrunc proc
+proc fastWLS { pin {view ""} {quiet 0} {pba 0} } {        ;# faster verion (and more accurate when PBA) without so many parms to just get WLS, no view options
+proc theWLS { args } {
+proc theSlew { args } {
+proc fastWES { pin {view ""} {quiet 0} {pba 0} } {        ;# faster verion (and more accurate when PBA) without so many parms to just get WES, no view options
+proc theWES { args } {
+proc GetActive { args } {
+proc TmgStats {args } {
+proc TmgRpt {args } {
+proc HistRpt { args } {
+proc GenTopHoldPad { args } {
+                {             noTmg             Bool              0     0    "Must specify this parm if current session is NOT a Worst Late Timing session from which Setup margins will determined where to insert padding along Early slack path. Not a recommended process!" }
+     set cnt_from_sink 0; set cnt_processed 0;
+     puts $out_fid "\nsource $::sgr_functions_info_script/sgr_func.tcl; # define procs\n";
+         incr cnt_processed;
+         if {$startpth != -1 && ($cnt_processed < $startpth || $endpth < $cnt_processed)} {continue}; # skips down in endpt report to specific start path
+            set tb_data         "#Seq${cnt_processed}#Fil${file_cnt}#Pth${pathlast} Eslk=$slk Phase=$beginptPhase -- $endptPhase"  ;  # array of slacks and hier data to determine best place to pad
+###echo "$cnt_processed About to process $dreci Drecs, ::AlreadyHoldPaddedEndpts=[llength $::AlreadyHoldPaddedEndpts] desired_hier_lev=$hlev_goal ::sgr::hier_xref=[llength $::sgr::hier_xref] endpt=$endpt ";
+            if {$levels_not_found ne ""} {incr path_not_found_cnt;set tmp "\n\[GenHoldPad\]: (W) Netlist not same, Path #Seq${cnt_processed}#Fil${file_cnt}#Pth${pathlast} to Endpt: $endpt has [llength $levels_not_found] NotFound gate/pins: $levels_not_found"; if {$verbose} {puts $out_fid "#$tmp";if {$path_not_found_cnt < 5} {echo $tmp;}}};
+       if {$cnt_holdpad_cmds == 0 && $startpth != -1 && ($cnt_processed < $startpth || $endpth > $cnt_processed)} { ::mortar::echo "Appears your -startpth $startpth TO -endpth $endpth Path# range is outside the tbrDB in memory with $cnt_processed Endpt paths." -warning}
+       set msg " Processed $cnt_processed tbrDB PATHs, Filtering Hold $minSlack < slacks < $maxSlack. PATHs between $startpth and $endpth, Skipped $skip_maxSlack Early Violations exceeding -maxSlack $maxSlack, $skip_notEarly TmgTests not Early, and $cnt_from_sink sinkpin not in netlist."
+proc GenHoldPad { args } {
+                {             noTmg             Bool              0     0    "Must specify this parm if current session is NOT a Worst Late Timing session from which Setup margins will determined where to insert padding along Early slack path. Not a recommended process!" }
+     set cnt_from_sink 0; set cnt_processed 0;
+     puts $out_fid "\nsource $::sgr_functions_info_script/sgr_func_7nm.tcl; # define procs\n";
+         incr cnt_processed;
+       set msg " Processed $cnt_processed tbrDB Hold $minSlack < slacks < $maxSlack between $startpth and $endpth, Skipped $skip_maxSlack Early Violations exceeding -maxSlack $maxSlack, $skip_notEarly TmgTests not Early, and $cnt_from_sink sinkpin not in netlist."
+proc HoldPad { args } {
+                {             ritb              Bool              0       0    "Use GA cells and custom placement process for rm of GA fill, and then placing."}
+# set no_fBufferPin 0; # can we use fast, but limited parm, fBufferPin proc
+# if {$ritb && ($::sgr::RITB_ecomode == 0 || [info procs ::df::snap_gate_array] == "")} {}
+#   if {[info procs ::df::snap_gate_array] == ""} {source /afs/btv.ibm.com/data/design/styrax/pd/xenon1.1/usr/gford/scripts/snap_free_location.tcl};
+#proc xget_property { $args } {echo "xget_property: $args "}
+#proc xget_pins     { $args } {echo "xget_pins: $args "}
+proc GetAttached { args } {                               ;# formerly  GetAttachedPinsIgnoreBufs
+                {             forcenet          Bool              0        0    "Force the NetPinPort to only search NETS (sometimes same name is PORT & net names; this proc prioritizes Pins, then Ports, then Nets)."}
+}  ;# end GetAttached proc
+## for futre OrientOpt could use Ding Ma script: /home/dma/dma/local/proc_snap_all.tcl ######################
+proc SnapMove {args} {
+                {             ritb              Bool              0       0    "Use GA cells and custom placement process for rm of GA fill, and then placing."}
+#{} elseif {[info procs ::df::snap_free_location] != "" && $radius > 0 && !$ecoChangeCell && $::sgr::consequitive_mv_errors < 100 } {} ;# doing free location non RITB with Greg Ford new fast legalization code
+#{} elseif {[info procs ::mortar::snap_free_location] != "" && $radius > 0 && !$ecoChangeCell && $::sgr::consequitive_mv_errors < 100 } {}  ;# doing free location non RITB with Greg Ford new fast legalization code
+#     if {[info procs ::df::snap_free_location] == ""} {source /afs/btv.ibm.com/data/design/styrax/pd/xenon1.1/usr/gford/scripts/snap_free_location.tcl}
+}; #end SnapMove proc
+proc snap_flexh_buffers { args } {
+     return [list [expr $x - $newx] [expr $y - $newy]]; #normal return from proc
+}; #end Huu snap_flexh_buffers proc
+proc GetCentroid {args} {
+    foreach pinp $pinptrs {   ;# ok, now ready to process found pins/ports
+proc Write2File {args} {
+proc reformatListofLists { args } {
+  if { [llength $ListofLists] < 1} {if {!$quiet} {echo \[$sN\]: (W) "Cannot process 1st required positional parm ListofLists"}; return [list "" ""]}
+} ;# end  reformatListofLists proc
+proc zoomSel  { {quiet 0} {coords ""} } {
+proc fix {args} {
+proc unfix {args} {
+#echo "Define proc TopStats";
+proc TopStats {{FileAppend ""}} {
+### links to non-embedded procs to make easier to run from context of current Timing Session ##################
+proc batchinfo { }            {global sgr_functions_info_script;mortar::echo "Cadence current session localCPUs in effect is [get_multi_cpu_usage -local_cpu]";report_resource -verbose;if {[info exist ::env(JOB_NAME)]} {mortar::echo "=== This session SunGrid JOB_ID=$::env(JOB_ID) with JOB_NAME=$::env(JOB_NAME) ========="};if {[file exist $::sgr_functions_info_script/batchinfo]} {catch {system $::sgr_functions_info_script/batchinfo -quiet} rc};return 0;}
+#proc batchfree { }            {global sgr_functions_info_script;source $::sgr_functions_info_script/batchfree; }
+#proc AnalyzeSerialPreicgs { args } {global sgr_functions_info_script;source $::sgr_functions_info_script/AnalyzeSerialPreicgs.tcl;set file [AnalyzeSerialPreicgs -Merge2RootFO 800000 $args];mortar::echo "Generated all merge serial PREICGs for all DOMAINs in file $file.";return $file}; # gen merge PREICGs script
+#proc AnalyzeSyncr         { } {global sgr_functions_info_script;source $::sgr_functions_info_script/AnalyzeSyncr.tcl; }; # Find discreet & multibit Synchronizers, analyzing for common clk, distance,...
+#proc AnalyzeCheckTmgRpt   { } {global sgr_functions_info_script;source $::sgr_functions_info_script/AnalyzeCheckTmgRpt.tcl; }; #check clk pins have phases
+#proc AnalyzeMemories      { } {global sgr_functions_info_script ::sgr::timing_done;if {$::sgr::timing_done != 0} {source $::sgr_functions_info_script/fx14_mem_tmg.tcl} else {::mortar::echo -warning -text "Timing does not appear to have run, so ignore request. If timing run, \"set ::sgr::timing_done 1\" then retry."}; }; #report Mem pin groups affinity, dist, slack
+# if {[info procs ::df::__open_gate_array_site_count] == ""} {source /afs/btv.ibm.com/data/design/styrax/pd/xenon1.1/usr/gford/scripts/snap_free_location.tcl}
+if {[info procs ::df::current] != "" } {
+#   ###### ecoAddRepeater process###########
+proc FileAge { file {units "hours"} } {set age -1;if {[file exist $file]} {
+proc sec2hour { secs } {set hours [format %6.2f [expr $secs / 3600.0]]; set days [format %6.2f [expr $hours / 24.0]];echo  "$hours hours OR $days days."; return $hours}
+namespace export *            ;##### All procs defined are potentially importable into other namespaces
