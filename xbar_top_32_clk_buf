@@ -1,0 +1,32 @@
+set clk_ports [list clk_axi clk_fast DFT_CE0_TCLK]
+
+set blocks [::get_db insts -if {.base_cell.name==xbar_fab_group}]
+set target_x [expr {[lindex [::get_db $blocks .bbox.ll.x] 0] - 8}]
+
+set fix_bufs [list]
+foreach clk_port $clk_ports {
+  set p [::get_db ports $clk_port]
+  set l [lindex [::get_db $p .location] 0]
+  lassign $l x target_y
+  set buf_name ${clk_port}_IencIOBuf
+  set net_name ${clk_port}_NencIOBuf
+  
+  ::mortar::create_gate -name $buf_name -lib_name $LIBCELL(cbuff)
+  ::mortar::create_net -name $net_name
+  ::mortar::connect_pin -pin_name $buf_name/Z -net_name $net_name
+  foreach sink [::mortar::get_net_pins -net_name $clk_port -sink] {
+    ::mortar::disconnect_pin -pin_name $sink
+    ::mortar::connect_pin -pin_name $sink -net_name $net_name
+  }
+  ::mortar::connect_pin -pin_name $buf_name/I -net_name $clk_port
+  ::mortar::move_gate -name $buf_name -x_coord $target_x -y_coord $target_y
+  lappend fix_bufs $buf_name
+}
+
+place_detail -inst $fix_bufs
+foreach buf $fix_bufs {
+  ::set_db [::get_db insts $buf] .place_status fixed
+}
+foreach clk_port $clk_ports {
+  ::set_db [::get_db nets $clk_port] .dont_touch true
+}
