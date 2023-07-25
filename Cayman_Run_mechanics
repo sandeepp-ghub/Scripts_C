@@ -1,0 +1,744 @@
+#!/bin/tclsh
+#
+#
+#Fixed clock cells
+mdc::check_place
+set fix [get_db markers .objects -if {.obj_type==inst}]
+set_db $fix .place_status_cts unset
+place_detail -eco true -hard_fence false
+set_db $fix .place_status_cts fixed
+
+
+#relaxed
+# special derate relaxation
+FLOW(sta_relaxing_mode1)
+    # Use 850mv derate table for high voltage corners (Currently only supporting Tempus)
+FLOW(sta_relaxing_mode2)
+    # Remove the aging derate from the hold capture clocks and reduce the additional aging by 0.5% (Supporting Innovus and Tempus)
+FLOW(sta_relaxing_mode3)
+    # Reduce hold margin by 5(ff)-10(ss) ps.   (Supporting Innovus and Tempus)
+FLOW(sta_relaxing_mode4)
+    # Setup corners - launch clock 0, data path 2%, capture clock default.
+
+#BBM / bbm
+>/proj/cayman/wa/davidlawson/impl/scripts/bbm_verilog_from_log.pl \
+/mrvl2g/cayman_extvol09/cayman/cayman/wa_009/jpike/impl/cayman_top.1.0A/track.Jan31_DE3_postDFT_top_fabric_inter_bbm/tempuscui.signoff.sta/logfiles/run_func_setup_ssgnp0p675v0c_cworstCCwT0c_2023-01-31-10:48:11.log| grep ch_vl_bot
+
+/proj/cayman/wa/davidlawson/impl/scripts/bbm_verilog_from_log.pl \
+logfiles/run_func_setup_ssgnp0p675v0c_cworstCCwT0c_2023-02-18-22:34:05.log |  grep hbm_xbar_wrap
+
+
+#Dynamic Runs
+ ll -rt track*/pgv.signoff.dynamic/dynamic_run/adsRpt/dynamic.rpt.summary
+
+
+/proj/cayman/wa/gford/tcl/split_pgv_dynamic_hxw /proj/cayman/wa/esayre/impl/hbm_xbar_wrapper_0.1.0A/track.DE3_PGVspef/pgv.signoff.dynamic.top/dynamic_run/adsRpt
+Reading in psi_highlight_fails...
+Splitting 137706 violating insts...
+HXW | 122073 | 21.09%
+XBT |   2500 | 12.88%
+FAB |    856 | 13.02%
+HBM |  12277 | 14.93%
+
+/proj/cayman/wa/gford/tcl/split_pgv_dynamic_hxw /proj/cayman/wa/esayre/impl/hbm_xbar_wrapper_0.1.0A/track.DE3_PGVspef/pgv.signoff.dynamic.top/dynamic_run/adsRpt | sed -e 's/\s\s*|\s\s*/,/g' | awk -F "," '{print $2","$1}'
+
+
+# NLDM Models
+#
+/proj/cayman/release/IP/tcbn05_bwph210l6p51cnod_base_ulvt/120b/synopsys/nldm/tcbn05_bwph210l6p51cnod_base_ulvtssgnp_0p675v_0c_cworst_CCworst_T_hm.lib.gz
+
+
+
+#
+#
+#
+get_db timing_report_fields 
+set_db timing_report_fields {delay delay_sigma incr_delay user_derate arrival transition load fanout voltage edge phase cell hpin net pin_location phys_info annotation}
+
+#set_max_delay max_delay boundary latency
+/mrvl2g/cayman_extvol07/cayman/cayman/wa_007/davidlawson/impl/scripts/report_boundary_latency.tcl
+
+
+
+#read_db/write_db
+o Official way to save/restore a DB in M1DP
+  o mSessionSavedb_invcui -db_prefix ...
+  o mSessionRestoredb_invcui -database ...
+o Official way to save dataout for next session
+mRunStep common_dataout -end
+
+#mfw clean
+mfw run -clean --force
+
+#
+#Workdocs - getting things to Artemis
+confluence wikipage : https://wiki.labcollab.net/confluence/x/p_mqaQ 
+If you add yourself as a watch to the page, you will get notified every time a new deck is uploaded.
+
+work docs 
+Marvell to Artemis -> PD and Floorplanning ->  DE3 Block Deep Dive Series -> Dec6
+#
+#
+echo "set data {}" > f
+zgrep VIOLATED report_tmg.merged_bucket.late.default__to__default.txt.gz | awk '{print $4}' | sed 's/(/lappend data /'  >> f
+#
+#cat hxw0_cc_top.rpt | awk '{print $8}' > f
+#cat seth.rpt | awk '{print $8}' > f
+tclsh
+source /proj/mkit/pkgs/minfra/mPkg/latest/mflow_mortar/mPkgUtil
+source f
+mortar::numeric_histogram -data $data -step 5
+
+#####
+# restore tempus session
+#####
+mstarun tempus -sgq <sgq list> MMMC [-tag <tag name>] -restore
+mstarun tempus -sgq normal:400m:8c MMMC  -restore
+
+restore using dshell :
+ create restore dir anywhere and any name you like
+ cd to that restore dir
+ dshell &
+ File pulldown --> Open Terminal
+ csh                    (switch to csh in the terminal)
+ cd to restore dir
+
+ app add tempus=21.16-s080_1; tempus -sgq 3t:1200m:16c -stylus -nowin
+
+ app add tempus=21.14.000; tempus -sgq 3t:1200m:16c -stylus -nowin
+
+ read_db <location of dat directory like MMMC/hbm_top_0.enc.dat>
+
+@innovus 30> set_table_style -help
+
+Usage: set_table_style [-help] [-indent <integer>] [-major_sort <integer>] [-max_widths <integer>] [-min_widths <integer>] [-minor_sort <integer>] [-name <string>] [-nosplit] [-reverse_rows] -frame  | -no_frame_fix_width
+
+-help                           # Prints out the command usage
+-frame                          # Specifies that the table columns have a fixed frame or border, based on the minimum and maximum width settings (bool, required)
+-indent <integer>               # Specifies the number of spaces to leave on the left for that particular table (int, optional)
+-major_sort <integer>           # Specifies the column to be used in the major sort (int, optional)
+-max_widths <integer>           # Specifies the maximum width for each table column in the report specified by the -name argument (int, optional)
+-min_widths <integer>           # Specifies the minimum width for each table column in the report specified by the -name argument (int, optional)
+-minor_sort <integer>           # Specifies the column to be used in the minor sort (int, optional)
+-name <string>                  # Changes the formatting for the specified table (string, optional)
+-no_frame_fix_width             # Specifies that the table columns have a fixed minimum width, but no maximum width (bool, required)
+-nosplit                        # Specifies that each column follows the preceding column without splitting to a new line, if the data in one column overruns the next column (bool, optional)
+-reverse_rows                   # Reverses the data rows (bool, optional)
+
+
+report_timing -fields {hpin cell delay required arrival edge}
+
+@innovus 34> get_db timing_report_fields
+delay delay_sigma incr_delay user_derate arrival transition load fanout voltage edge phase cell hpin net pin_location phys_info annotation
+
+set_db timing_report_fields {delay delay_sigma incr_delay user_derate arrival transition load fanout edge cell hpin net pin_location phys_info annotation}
+
+
+#DE make trake MAKETRACK release used
+grep MAKETRACK_OPTION track.postdft.DE3.Dec17_1239.run97.SCB_U/flow/track_config.tcl | awk '{print $4}'
+
+report_timing -output_format gtd -max_paths 10000 -max_slack 0.75 -path_exceptions all -late > top.mtarpt
+report_timing -group blk2reg -path_type full_clock -output_format gtd > top.mtarpt
+#read_timing_debug_report -name default_report top.mtarpt -max_path_num 10000 -update_category 0
+read_timing_debug_report top.mtarpt -max_path_num 1000 -update_category 0
+write_to_gif
+report_timing -group blk2reg -path_type endpoint -max_paths 20
+set_db selected [get_db [get_db  [all_fanout -endpoints_only -from ssn_bus_clock_in] -if {.obj_type == pin}] .inst]
+
+#pl [get_db $tpaths .launching_point.name ]
+
+#Steve Robinsons hold time fixes
+/proj/cayman/bin/srobinson/MergeEndptPerl -in "xbar_top_32_0.rptTmg.gba.late.gz" -tech 5nm -summary
+/proj/cayman/bin/srobinson/sgr_func.tcl
+
+#Library stuff
+
+ pl [get_db [get_db inst:HBM_XBAR_WRAPPER/HBM_XBAR] .base_cell.lib_cells.library.files ]
+
+
+#please update the dashboard with latest tracks for xbar_top_32_* blocks so the metrics are pulled from the status I send to Artemis
+/proj/cayman/DE3/m1dpe_dashboard/cayman.dashboard_pd.DE3.tcl
+
+#find latest version
+grep xbar /proj/cayman/designset/cayman.DE3_DFT/DESIGNSET.tcl
+ll -rtd /proj/cayman/release/xbar_top_32_0.1.0A/DE3.DFT.*
+
+#Keep license
+::set_multi_cpu_usage -keep_license true
+
+#Todd run area
+/proj/cayman/wa/thornquist/impl/hbm_xbar_wrapper_1.1.0A/track.1129_DE3_CTS.1129.postdft.flat.fr_AS.4/tempuscui.cts.sta/MMMC/report/
+
+#clock latency
+/proj/crimson0/DE3/pd/clocks/scripts/get_rlm_clock_latency.tcl
+
+#live_status
+cat status/hbm_top_0.live_status.2022-11-29_13:50:06.csv | column -t -s "," 
+
+
+# fab / hbm width calculations
+set xt 23.256
+set yt 26.88
+
+xbar_fab_group -> 108.477 / 
+xbar_hbm_group -> 139.485 x 1639.68
+139.485 - 108.477 + xt
+
+#run96 child widths
+xbar_hbm_group_32 162.741 1639.68
+xbar_fab_group    139.485 1639.68
+
+#run97 xbar_*_group sizes
+xbar_hbm_group_32 185.997 1639.68
+xbar_fab_group    162.741 1639.68
+
+
+hbm_xbar_wrapper width
+1651.125
+
+
+
+#SETTING UP A BLOCK:
+/proj/cayman/wa/cdehaas/impl/scripts/hbm_handoff/make.txt
+
+#load design from place and restart
+cd invcui.prects
+mfw run -interactive -nodb
+read_db <find_the_db>
+source the remainder of the post_place_tcl
+
+/proj/cayman/extvols/wa_002/gford/impl/xbar_top_32_1.1.0A/track.DE3_1029nl_postDFT_1162w_backup/invcui.prects/rerun_from_place.tcl
+
+
+#huu CIF examples / pointers
+/proj/cayman/extvols/wa_004/dhuu/tcl/cifs/tree_build_5nm.tcltest
+/proj/cayman/extvols/wa_004/dhuu/tcl/cifs/sengine_fabric_top/2baytop1baybottom/CIF_clk_axi_regions.tcl
+
+#EDT grouping script
+cd invcui.raw
+mfw run
+read_db /proj/cayman/wa_011/dabhatia/impl/xbar_top_32_0.1.0A/track.DE3_predft_1116_run88_1101/invcui.prects/dataout/xbar_top_32_0
+
+#edt groupings for the flops
+source /proj/cayman/DE3/pd/snapshot/xbar_top_32_0/dftRegionRequest/map.tcl
+#edt groupings for the MEMORIES
+source /proj/cayman/DE3/pd/snapshot/xbar_top_32_0/dftRegionRequest/map2.tcl
+
+
+#########################3333
+## XBAR_1
+#########################3333
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c parent_pd -n track.postdft.DE3.`date +%b%d_%H%M`.1116 -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_53_56
+mfw setup -make track -b xbar_top_32_1.1.0A -c parent_pd -n track.postdft.DE3.`date +%b%d_%H%M`.1162.ccopt_WRCK_CCLK_TCK -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_53_56
+mfw setup -make track -b xbar_top_32_1.1.0A -c parent_pd -n track.postdft.DE3.`date +%b%d_%H%M`.1162.ccopt_WRCK_CCLK_TCK.m1dpe_rapid_clock_placement_1 -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_53_56
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/rchatty/track_configs/track_config.xbar_top_32_1_saurabh_cif.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.1162.rashmi_settings -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_53_56
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1_saurabh_cif.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.1162.htree -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_53_56
+
+#Copy Scott's area
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1_saurabh_cif.tcl" -n track.DE3_Nov02postDFT_pd_1162_saurabh_cif_fp_fixed -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_53_56
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1_saurabh_cif.tcl" -n track.DE3_Nov11postDFT_pd_1162_lasher_cts -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_53_56
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/rchatty/track_configs/track_config.xbar_top_32_1_saurabh_cif.tcl" -n track.DE3_Nov02postDFT_pd_1162_saurabh_all_cif.tmg_triage -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_53_56
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/rchatty/track_configs/track_config.xbar_top_32_1_saurabh_cif.tcl" -n track.DE3_Nov02postDFT_pd_1162_saurabh_all_cif.tmg_triage -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_53_56
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run97.base -release DE3.DFT.dft.3.insert_tp_scan.2022_12_02_17_53_23
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run97.SCU_U -release DE3.DFT.dft.3.insert_tp_scan.2022_12_02_17_53_23
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run96.base -release DE3.DFT.dft.3.insert_tp_scan.2022_12_02_17_37_13
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.tcl" -n track.postdft.DE3.signoff.pgv -release DE3.DFT.dft.3.insert_tp_scan.2022_11_14_06_57_31
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.run97.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run97.huu_delay -release DE3.DFT.dft.3.insert_tp_scan.2022_12_16_16_03_22
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run97.SCB_U -release DE3.DFT.dft.3.insert_tp_scan.2022_12_16_16_03_22
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.baseline.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.baseline.rcscale.negbdry.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline.rcscale.negbdry -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.baseline.rcscale.negbdry.lockupdef.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline.rcscale.negbdry.lockupdef -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.v2regions.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.v2regions -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.v2regions.rcscale.negbdry.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.v2regions.rcscale.negbdry -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.v2regions.rcscale.negbdry.lockupdef.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.v2regions.rcscale.negbdry.lockupdef -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.baseline.rcscale.negbdry.lockupdef.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline.rcscale.negbdry.lockupdef.cts.modregions.reg2mem.routem14 -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.baseline.rcscale.negbdry.lockupdef.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline.lockupdef.refineregions.congeffort -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.baseline.rcscale.negbdry.lockupdef.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline.lockupdef.refineregions.modclk.ctslayers.screens.midscreen -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_eco /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.baseline.rcscale.negbdry.lockupdef.tcl" -n track.eco.DE3.`date +%b%d_%H%M` -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+
+mfw setup -make track -b xbar_top_32_1.1.0A -c "parent_eco /proj/cayman/wa/seth/track_config/xbar_top_32_1/track_config.xbar_top_32_1.baseline.rcscale.negbdry.lockupdef.tcl" -n track.eco.ant.arrivals.DE3.`date +%b%d_%H%M` -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_34_26
+
+#########################3333
+## XBAR_0
+#########################3333
+mfw setup -make track -b xbar_top_32_0.1.0A -c parent_pd -n track.postdft.DE3.`date +%b%d_%H%M`.1069 -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_46_03
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0_saurabh_cif.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.1162.rashmi_settings -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_46_03
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0_saurabh_cif.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.1162.orig_cif.seth_restart -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_46_03
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0_saurabh_cif.tcl" -n track.edt_grouping -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_46_03
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0_saurabh_cif.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.1162.cif_work -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_46_03
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0_saurabh_cif.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.1162.cif_wires -release DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_46_03
+
+  # XBAR 0 with run88 (TDM) netlist using standard recipe
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.1162.TDM -release DE3.PNR.import.2022_11_09_18_51_21
+  # XBAR 0 with run88 (TDM) netlist using Lasher CTS recipe
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.lasher_cts.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.1162.TDM.lasher_cts -release DE3.PNR.import.2022_11_09_18_51_21
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.cif_debug -release DE3.DFT.dft.3.insert_tp_scan.2022_11_14_06_49_40
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run96.base -release DE3.DFT.dft.3.insert_tp_scan.2022_12_02_17_18_03
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.run97.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run97.base -release DE3.DFT.dft.3.insert_tp_scan.2022_12_02_17_47_04
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.run97.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run97.base.postrouteincr -release DE3.DFT.dft.3.insert_tp_scan.2022_12_02_17_47_04
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.run97.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run97.SCB_U -release DE3.DFT.dft.3.insert_tp_scan.2022_12_02_17_47_04
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.run97.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run97.huu_delay -release DE3.DFT.dft.3.insert_tp_scan.2022_12_02_17_47_04
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.tcl" -n track.postdft.DE3.Dec19_1444.1162.run96final -release DE3.DFT.dft.3.insert_tp_scan.2022_12_02_17_18_03 
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.tcl" -n track.postdft.DE3.Dec21_1301.1162.run96final.v2regions -release DE3.DFT.dft.3.insert_tp_scan.2022_12_02_17_18_03 
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.baseline.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_28_01
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.baseline.rcscale.negbdry.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline.rcscale.negbdry -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_28_01
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.baseline.rcscale.negbdry.lockupdef.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline.rcscale.negbdry.lockupdef -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_28_01
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.v2regions.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.v2regions -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_28_01
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.v2regions.rcscale.negbdry.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.v2regions.rcscale.negbdry -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_28_01
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.v2regions.rcscale.negbdry.lockupdef.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.v2regions.rcscale.negbdry.lockupdef -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_28_01
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.baseline.rcscale.negbdry.lockupdef.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline.lockupdef.refineregions.congeffort -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_28_01
+
+
+
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.baseline.rcscale.negbdry.lockupdef.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.run103.baseline.rcscale.negbdry.lockupdef.cts -release DE3.DFT.dft.3.insert_tp_scan.2022_12_26_08_28_01
+
+mfw setup -make track -b xbar_top_32_0.1.0A -c "parent_eco /proj/cayman/wa/seth/track_config/xbar_top_32_0/track_config.xbar_top_32_0.baseline.rcscale.negbdry.lockupdef.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.phase6.final.eco.round7-pv_flush4
+
+#########################3333
+## HBM_XBAR_0
+#########################3333
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "parent_pd" -n track.DE3_postdft_Nov24 -release DE3.DFT.dft.3.insert_tp_scan.2022_10_31_20_34_23
+#Timing
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper_0.timing.track_config.tcl" -n track.timing.run96.`date +%b%d_%H%M`
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper_0.timing.track_config.tcl" -n track.timing.run103.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "parent_pd" -n track.DE3_postdft_Jan03
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "parent_pd" -n track.DE3_postdft_Nov24 -release DE3.DFT.dft.3.insert_tp_scan.2022_10_31_20_34_23
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "parent_pd" -n DE3_postdft_Jan12_APB_Left_side_APB -release DE3.DFT.dft.3.insert_tp_scan.2023_01_02_08_45_36
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper_0.timing.track_config.tcl" -n track.timing.run103.final_XBT0_candidate.no_eco.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.run103.final_XBT0.ajay_hxw0.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.run103.fab_ECO3.sdcdev.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.XBT.HXW.HBM_deepak.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.HXW0_final.HBM_deepak.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hold_fix2.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw.xbt.tempus_drv.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.clk_eco.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0.del_holds.add_missing_latches.upsize_drivers_into_xbt_fab.new_fab_group.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0.del_holds.add_missing_latches.upsize_drivers_into_xbt_fab.new_fab_group.deepak_hbm.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0.del_holds.add_missing_latches.upsize_drivers_into_xbt_fab.new_fab_group.seth_hbm.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0.tempus_eco0.xbt0_no_eco.new_fab_group.seth_hbm.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0.xbt0.tempus_eco1.seth_hbm.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0.deepak_fab_eco1.seth_hbm_eco1.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0_eco2.xbt_eco2.seth_hbm.shan_fab.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0_eco3.xbt_eco2.hbm_eco2.fab.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0_eco3.xbt_eco3.hbm_eco2.fab.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0_eco3.xbt_eco3.hbm_RECOVER.fab_terrible.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0_eco3.xbt_eco3.deepak_hbm.deepak_fab.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0_eco3.xbt_eco3.hbm_eco3.fab_eco3.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0_eco4.xbt_eco4.hbm_seth_ufrm_eco1.fab_deepak.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw0_eco5.xbt_eco4.hbm_seth_ufrm_eco1.fab_deepak.`date +%b%d_%H%M`
+
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_0.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.REDO_ECO_HXW0_SPARE_CELLS.Feb25_1103
+
+#########################3333
+## HBM_XBAR_1
+#########################3333
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/hbm_xbar_wrapper_1/track_config.tcl" -n track.postdft.DE3.`date +%b%d_%H%M`.1162.htree -release DE3.DFT.dft.3.insert_tp_scan.2022_10_31_19_20_56
+  #Debug for postcts timing and clock insertion -> copy DB from here ->
+  #  /proj/cayman/extvols/wa_003/ankushs/impl/hbm_xbar_wrapper_1.1.0A/track.DE3_postdft_nov22_newDFT_ITR11_1162_RTS/invcui.postcts/
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_pd /proj/cayman/wa/ankushs/track_configs/track_config.DE3.1162_HXW_1_18nov.tcl" -n track.DE3_postdft_nov22_newDFT_ITR11_1162_RTS.tmg_triage -release DE3.DFT.dft.3.insert_tp_scan.2022_10_31_19_20_56
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_pd /proj/cayman/wa/ankushs/track_configs/track_config.DE3.1162_HXW_1_18nov.tcl" -n track.DE3_postdft_nov30_newDFT_ITR11_1162_RTS.rstextnd -release DE3.DFT.dft.3.insert_tp_scan.2022_10_31_19_20_56
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_pd /proj/cayman/wa/ankushs/track_configs/track_config.DE3.1162_HXW_1_10Dec.tcl" -n track.DE3_postdft_Dec05_ITR13_1162_Phs4.regions.hold_latch -release DE3.DFT.dft.3.insert_tp_scan.2022_12_05_20_08_17
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_pd /proj/cayman/wa/ankushs/track_configs/track_config.DE3.1162_HXW_1_10Dec.tcl" -n track.DE3_postdft_Dec05_ITR13_1162_Phs4.regions.hold_latch.fromprects -release DE3.DFT.dft.3.insert_tp_scan.2022_12_05_20_08_17
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_pd /mrvl2g/cayman_extvol03/cayman/cayman/wa_003/ankushs/track_configs/track_config.DE3.1162_HXW_1_23Dec.tcl" -n track.DE3_postdft_Dec23_ITR16_1162_Phs4_port_move -release DE3.DFT.dft.3.insert_tp_scan.2022_12_05_20_08_17
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_pd /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper_0.timing.track_config.tcl" -n track.timing.run103.hbm_fab_no_hold_boundary_setup.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_pd /mrvl2g/cayman_extvol03/cayman/cayman/wa_003/ankushs/track_configs/track_config.DE3.1162_HXW_1_4jan.scandef.tcl" -n track.DE3_postdft_12Jan_ITR21_1162_Phs6_EDT_pipe_SSN_HOST_APB_Left_side_APB -release DE3.DFT.dft.3.insert_tp_scan.2023_01_02_08_37_28
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_pd /mrvl2g/cayman_extvol03/cayman/cayman/wa_003/ankushs/track_configs/track_config.DE3.1162_HXW_1_18jan.scandef.tcl" -n track.DE3_postdft_29jan_ITR22_phs6_PR_incr_latch_plate_ECO4 -release DE3.DFT.dft.3.insert_tp_scan.2023_01_02_08_37_28
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper_0.timing.track_config.tcl" -n track.timing.run103.xbt_1_reconstruct.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper_0.timing.track_config.tcl" -n track.timing.run103.new_HXW1_new_hbm.no_eco.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.run103.new_rajiv_hxw1.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.run103.fab_ECO3.sdcdev.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw1.new_xbt1.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.xbt1.clkfast_root_push.hxw1.setup_opt_latch_on_latch_paths.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.010223_new_latch_incr_4_eco
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_eco " -n track.DE3_postdft_01Feb_ITR22_phs6_ECO4
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw1_addmsg_latchs.xbt1_root_clk_mod.mrvl_fab.mrvl_hbm.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw1_addmsg_latchs.xbt1_root_clk_mod.mrvl_fab.deepak_hbm.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw1_cts_rerun.xbt1_root_clk_mod.mrvl_fab.seth_hbm.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw1_eco1_jtag_fix.xbt1_no_fix.deepak_fab.seth_hbm.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw1_eco2_jtag_fix.xbt1_clk_twk.hbm_eco2.fab_eco2.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw1_eco3.xbt_eco3.hbm_eco3.fab_eco3.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw1_eco4.xbt_eco3.hbm_eco3.hbm_seth_new_blkg.fab_deepak.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "parent_eco " -n track.DE3_postdft_27jan_ITR23_phs6_bkp_run_eco4
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw1_eco5.xbt_eco4.hbm_seth_new_blkg.fab_deepak.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.hxw1_eco5.xbt_eco6.hbm_.fab_deepak.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.all_func_all_shift_corners.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.old_xbt.old_hbm.`date +%b%d_%H%M`
+
+mfw setup -make track -b hbm_xbar_wrapper_1.1.0A -c "block_sta /proj/cayman/wa/seth/track_config/timing/hbm_xbar_wrapper.timing.track_config.tcl" -n track.timing.`date +%b%d_%H%M`
+
+#######
+### HBM_GROUP
+#######
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_11_29_09_56_29 -n track.postDFT.DE3.2022_11_29_09_56_29.run97.0
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.postdft.DE3.Jan12.run2
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.postdft.DE3.Jan12.run2_db_Feb3_noccopt_noaxipush_M12ceil_4tap_smsins
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.postdft.DE3.Jan12.run2_db_Feb3_noccopt_noaxipush_M12ceil_8tap_nosms_balclks
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.postdft.DE3.Jan12.run2_db_Feb6_noccopt_noaxipush_M12ceil_8tap_WITHsms_balclks
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_eco -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.eco2.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_eco -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.eco3.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_eco -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.uniform.eco3.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.postdft.DE3.`date +%b%d_%H%M`.noccopt_noaxipush_M12ceil_8tap_nosms_balclks_uniform_density_uncert_softblkg
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.postdft.DE3.`date +%b%d_%H%M`.AXIPUSH_NOD1_NOSVT_balclks_uniform_density_uncert_softblkg
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.postdft.DE3.`date +%b%d_%H%M`.NOHOLDFIX_noclkpush_NOD1_NOSVT_balclks_uniform_density_expand_softblkg
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.postdft.DE3.`date +%b%d_%H%M`.NOD1_NOSVT_balclks_uniform_density_expand_softblkg_postrt_blkg_uncert
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco1.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.no_hld_fix.expnd_blkg_nosvt_nod1.eco1.`date +%b%d_%H%M`
+
+#mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.2pro.eco1.`date +%b%d_%H%M`
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.uniform.eco5.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco2.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco3.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco4.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco5.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco6.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco7.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco8.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco9.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco10.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco11.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco12.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco13.`date +%b%d_%H%M`
+
+mfw setup -make track  -b xbar_hbm_group_32.1.0A -c "block_eco /proj/cayman/wa/seth/track_config/xbar_hbm_group_32/track_config.tcl" -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_26_32 -n track.expnd_blkg_nosvt_nod1.eco14.`date +%b%d_%H%M`
+
+
+###################
+### sfabric_central_d2d_side_macro
+###################
+mfw setup -make track  -b sfabric_central_d2d_side_macro.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_10_28_04_05_21 -n sfab_central_d2d.hold_latch
+
+###################
+### vl_top
+###################
+mfw setup -make track  -b channel_vl_bot.1.0A -c block_eco -n DE3_postdft_channel_vl_bot_PortUpdate_490clk_push_TCK_exp_Jan10_UD_eco21
+
+
+#######
+### FAB_GROUP
+#######
+#mfw setup -make track -b xbar_fab_group.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_11_29_09_12_37 -n track.postDFT.DE3.2022_11_29_09_12_37.run97.0
+mfw setup -make track -b xbar_fab_group.1.0A -c block_eco -n track.postDFT.2022_12_22_07_27_46.sms_chain_fix.2.eco3
+
+mfw setup -make track -b xbar_fab_group.1.0A -c block_pd -n track.postDFT.2022_12_22_07_27_46.sms_chain_fix.2
+
+mfw setup -make track -b xbar_fab_group.1.0A -c block_pd -release DE3.DFT.dft.3.insert_tp_scan.2022_12_22_07_27_46 -n track.`date +%b%d_%H%M`.nosms_balclks_uniform_density_unsert_softblkg
+
+
+#######
+### channel_vmid
+#######
+mfw setup -make track -b channel_vmid.1.0A -c block_pd -n DE3.DFT.dft.3.insert_tp_scan.2022_09_20_05_20_43-000e.spread -release DE3.DFT.dft.3.insert_tp_scan.2022_09_20_05_20_43
+
+
+#Grep through timing reports
+zgrep "Startpoint:\| Endpoint:\| Slack:" xbar_top_32_1.invcui.prects.prects_placeopt_reg2icg.tarpt.gz | paste - - - | grep -v lockup | egrep -v "gnt_or_pipe|gnt_pipe|_warb|mem_rdata|oq_pushv" | less -iIS
+
+#This adds the capture clock to the list
+zgrep "Startpoint:\| Endpoint:\| Slack\|  Clock:" hbm_xbar_wrapper_1.invcui.cts.timing.time_design_reg2reg_hold.tarpt.gz | awk 'NR%5!=2' | paste - - - - | less -iIS
+
+cd /proj/cayman/wa/thornquist/impl/hbm_xbar_wrapper_1.1.0A/track.1129_DE3_CTS.1129.postdft.flat.fr_AS.4/tempuscui.cts.sta/MMMC/report
+zgrep "Startpoint:\| Endpoint:\| Slack\|  Clock:" hbm_xbar_wrapper_1.rptTmg.gba.late.gz | awk 'NR%5!=2' | paste - - - - > /proj/cayman/wa/seth/scratch/tmg_fail_sum.txt
+
+zgrep -A500 -B5 "Path 636:" hbm_xbar_wrapper_1.rptTmg.gba.late.gz > /proj/cayman/wa/seth/scratch/full_fab3_path.rpt
+
+zgrep "Startpoint:\| Endpoint:\| Slack" hbm_xbar_wrapper_0.rptTmg.gba.late.gz | paste - - - | egrep -v "abort_sram_write_protect|ijtag" > seth_late.rpt
+
+zgrep "Startpoint:\| Endpoint:\| Slack\|Data Path:\|Clock:" report_tmg.merged_bucket.late.fab_to_fab.txt.gz | paste - - - - - - - - | awk '{if ($6 != $12) print $0}' | awk '{print $4, $6,$10, $12, $19, $20}' > /proj/cayman/wa/seth/scratch/fab_to_fab_late.rpt
+zgrep "Startpoint:\| Endpoint:\| Slack\|Data Path:\|Clock:" report_tmg.merged_bucket.early.fab_to_fab.txt.gz | paste - - - - - - - - | awk '{if ($6 != $12) print $0}' | awk '{print $4, $6,$10, $12, $19, $20}' > /proj/cayman/wa/seth/scratch/fab_to_fab_early.rpt
+
+zgrep "Startpoint:\| Endpoint:\| Slack\|Data Path:\|Clock:" report_tmg.merged_bucket.early.hbm__to__hbm.txt.gz | paste - - - - - - - - | awk '{if ($6 != $12) print $0}' > hbm_to_hbm_early.rpt
+zgrep "Startpoint:\| Endpoint:\| Slack\|Data Path:\|Clock:" report_tmg.merged_bucket.early.hbm__to__hbm.txt.gz | paste - - - - - - - - | awk '{if ($6 != $12) print $0}' | awk '{print $4, $6,$10, $12, $19, $20}' > hbm_to_hbm_early.rpt
+
+###########
+### Cayman constraints area
+###########
+/proj/cayman/DE3/timing/postdft/sdc.current/xbar_top_32_0/xbar_top_32_0.clocksAndIO_constraints.tcl
+
+
+
+#Where am I
+ls -Art */logfiles/*.log | tail -n 1
+
+
+#Password for weekly block update files:
+artemis1
+
+Find latest xbar version
+grep xbar /proj/cayman/designset/cayman.DE3_DFT/DESIGNSET.tcl
+
+{hbm_xbar_wrapper_0}                                 {DE3.DFT.dft.3.insert_tp_scan.2022_10_31_20_34_23}
+{hbm_xbar_wrapper_1}                                 {DE3.DFT.dft.3.insert_tp_scan.2022_10_31_19_20_56}
+{xbar_fab_group}                                     {DE3.DFT.dft.3.insert_tp_scan.2022_10_31_08_25_47}
+{xbar_hbm_group_32}                                  {DE3.DFT.dft.3.insert_tp_scan.2022_10_31_08_21_02}
+{xbar_top_32_0}                                      {DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_46_03}
+{xbar_top_32_1}                                      {DE3.DFT.dft.3.insert_tp_scan.2022_10_29_11_53_56}
+
+## READ DB
+cd invcui.raw
+mfw run
+read_db ../invcui.floorplan/dataout/xbar_top_32_0
+
+
+######
+## Batch runs
+######
+How to run batch jobs (mfw run -from <start> -to <end> does not work)
+------------------------------
+You must use a shell script that will successively pushd into a session dir, run the job, popd, and wait for the HANDOFF before repeating on the next session
+e.g.,
+/proj/cayman/wa/cdehaas/impl/batch_run_leaf.sh
+/proj/cayman/wa/cdehaas/impl/batch_run_parent.sh
+/proj/cayman/wa/cdehaas/impl/batch_run_signoff.sh
+
+Those files are all mostly the same with different lines 
+commented/uncommented in order to control what sessions are run.
+wait_on_file is a perl script that will be in your PATH 
+that is essentially a while loop that will run until the provided argument file appears
+IMPORTANT: the reason that there is a different version 
+for leaf v. parent blocks is that a parent_pd track requires
+a session called invcui.prects.updatedb to occur between invcui.prects and invcui.cts
+This will update ETM, LEF, IPSPEC, etc for child blocks to the post-clocked versions
+Some more info: because the M1DP lock file is on a per-session basis, there is
+nothing preventing you from running sessions that are parallel in the flow at the same time.
+That is why you see no wait_on_file for tempuscui.prects.etmgen in my batch run files
+
+
+######
+## MFW Copy
+######
+Most people seem to not use the copy feature for some reason and most will prefer to use the first option where you setup up a fresh track using the same settings as the source track.
+Then a lot of times they will use the ¿dependency feature¿ to point to the source track for previous session data.
+e.g.,
+
+#############
+## Dependency trick
+#############
+flow/track_config.tcl
+mVar SESSION(<session>,dependencies) "<path to previous session dir>" 
+
+# -----------------------------------------------------------------------------
+# Load handoff
+# 
+# Will load the setting based on SESSION(<session name>,dependencies)
+# If the dependency is not set or empty, mLoadHandoff will just return
+# -----------------------------------------------------------------------------
+
+mVar SESSION(invcui.cts,dependencies)   /proj/cayman/wa/seth/impl/xbar_top_32_1.1.0A/track.postdft.DE3.Dec08_1739.run97.SCU_U/invcui.prects.updatedb
+
+
+mVar SESSION(invcui.route,dependencies)   /proj/cayman/wa/spletch/impl/xbar_top_32_1.1.0A/track.DE3_Nov02postDFT_pd_1162_saurabh_cif_fp_fixed/invcui.cts
+
+
+mVar SESSION(invcui.route,dependencies)   [file join [file dirname [mVar SESSION(wa)]] invcui.cts]
+
+#or
+mVar SESSION(invcui.prects,dependencies)   /proj/cayman/wa/spletch/impl/xbar_top_32_1.1.0A/track.DE3_Nov02postDFT_pd_1162_saurabh_cif_fp_fixed/invcui.floorplan
+#BEFORE mLoadHandoff
+mLoadHandoff
+mLoadHandoff_post
+
+
+#Check for number of flops
+#prects shows mutlibit
+zgrep /proj/cayman/extvols/wa_004/cbradley/impl/xbar_fab_group.1.0A/track.postDFT.DE3.2022_10_31_08_25_47.phase4.hp4/invcui.prects/report/xbar_fab_group.references.rpt.gz
+
+#floorplan shows single bit
+zgrep /proj/cayman/extvols/wa_004/cbradley/impl/xbar_fab_group.1.0A/track.postDFT.DE3.2022_10_31_08_25_47.phase4.hp4/invcui.floorplan/report/xbar_fab_group.references.rpt.gz
+
+
+
+
+#REQUIRED CIF MVARs
+mVar FLOW(m1dpe_cif_cascading_clocks) 1
+mVar FLOW(m1dpe_rapid_clock_placement) 1
+mVar FLOW(m1dpe_cif_assign_sinks) 1
+
+
+
+#XBAR 0 clocks
+set clock_objs [list \
+clock:xbar_top_32_0/func_setup_ssgnp0p675v0c_cworstCCwT0c/TCK \
+clock:xbar_top_32_0/func_setup_ssgnp0p675v0c_cworstCCwT0c/WRCK \
+clock:xbar_top_32_0/func_setup_ssgnp0p675v0c_cworstCCwT0c/clk_axi \
+clock:xbar_top_32_0/func_setup_ssgnp0p675v0c_cworstCCwT0c/clk_axi_local \
+clock:xbar_top_32_0/func_setup_ssgnp0p675v0c_cworstCCwT0c/clk_xbar \
+clock:xbar_top_32_0/func_setup_ssgnp0p675v0c_cworstCCwT0c/clk_xbar_buf \
+clock:xbar_top_32_0/func_setup_ssgnp0p675v0c_cworstCCwT0c/tessent_tck \
+]
+
+
+
+###########
+## floorplan + prects release
+###########
+cd tempuscui.prects.etmgen
+mfw run
+#when run in complete, grep dataout/HANDOFF for ETMLIB; you should see 4 ETMs, that's how you know it worked ie both generation and merge worked
+#once you know it worked
+cd gx.release.prects
+mfw run
+#when run in complete, grep dataout/HANDOFF for ETMLIB; you should see 4 ETMs and one LEF for the XBT
+cd <track dir>
+ddm release gx.release.prects "comments"
+#For comment add width and may be tree type.
+#Release sometimes takes forever
+
+
+#eco settings\
+set_db eco_honor_dont_touch false
+set_db eco_honor_dont_use false
+set_db eco_honor_fixed_status false
+set_db eco_refine_place false
+set_db eco_update_timing false
+set_db eco_check_logical_equivalence true
+set_db eco_batch_mode true
+
+## Seth's cayman procs
+/proj/cayman/DC5-to-VPC/aarock/misc.procs.tcl
+
+Actions to support the PV Flush
+As discussed at Monday's call, every block needs to deliver a clean result for the PV Flush.
+This is a relatively short runway and we need to deliver, otherwise it can put the chip schedule in jeopardy.
+I will walk thru the below at today's Huddle.
+
+Mechanics
+Start with a fully routed, Post-DFT, recent version (links into the parent and chip, not some old version of the netlist)
+Use the "e" project environment:   source /proj/cayman/PROJ.SETUP_DE3.2022.06.000e
+Create a new track, you can use the block_eco / parent_eco templates.
+!! Important Requirement !!   add "-pv_flush" to the name of the track you start from
+For example, if I start dfx_top from "track.DE3_postdft_uniform_density_1111a"  (parent blocks need parent_eco)
+mfw setup -b dfx_top -c block_eco -n track.DE3_postdft_uniform_density_1111a-pv_flush
+Load the DB to check and fixup
+Before mLoadHandoff....   mVar SESSION(invcui.signoff.eco,dependencies) /path/to/the/invcui.postroute
+Run the invcui.signoff.eco session, stop after eco_netlist  (mConfigStep eco_netlist -stop 1)
+Run this to check, it must be clean cayman::mdc_pv_flush  (for drc, make sure all Shorts are clean, other drcs can persist for now)
+mRunStep common_dataout -end
+Then, run through these flows
+pv.signoff.pvdp    -  must finish without errors
+pv.signoff.lvsq      -  must be a clean result
+pv.signoff.genfill  -  must finish without errors
+pv.signoff.drc       -  expect errors if not 100% drc clean, PV team can help scrub this
+/proj/cayman/wa/mgalland/tools/checkPV.tcl /path/to/track   can help summarize the runs
+When you are clean (mdc_pv_flush good, pvdp/lvsq/genfill all good) then you can release your data
+Run gx.release.signoff in the pv_flush track
+This will only collect invcui.signoff_eco + pv.signoff.genfill   (no need for etm/bbm/spefs)
+ddm release . "DE3 PV Flush"
+Blocks with children
+Can clean Innovus NOW, do not wait!
+Once all of your descendants are released
+Run pvdp + lvsq
+Run genfill + drc
+Schedule
+Leaf blocks by 11/25
+Exceptions:  Mark Aubel blocks (on vacation), expect all but sdma_wrap can be done by 11/23 and then Mark finish wrap immediately when he returns
+Parent blocks by 11/30
+Grandparent blocks by 12/2
+tpb_top by 12/5
+sengine + cayman_top integration after that
