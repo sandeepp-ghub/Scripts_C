@@ -1,0 +1,8 @@
+
+cayman::remove_postfill;
+::df::process_antenna_report -filename antenna_fails_pre_antenna_fix.rpt -nets u_tpb_fis/CTS_700;
+::df::add_antenna_cells -filename  antenna_fails_pre_antenna_fix.rpt -antenna_cell ANTENNABWP210H6P51CNODLVTLL;
+place_detail -eco true;
+cayman::add_postfill;
+route_eco;
+::df::process_antenna_report -filename antenna_fails_post_antenna_fix.rpt -nets u_tpb_fis/CTS_700
