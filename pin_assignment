@@ -1,0 +1,161 @@
+##Floorplan:
+#PB wrapper size:  2883.693	x 2876.16
+#PB cluster(s) size: 2678.265	x 645.12
+#
+#PB cluster height: 645.12/26.88=24 power bays
+#PB Wrapper height: 2876.16/26.88=107 power bays
+#
+#107-(4*24)=11 extra power bays of height in pb wrapper
+#
+#4 power bays above cluster3
+#2 power bays between cluster2 and cluster1
+#5 power bays below cluster0
+#
+#PB wrapper snapshot files here: /proj/cayman/DE2/pd/snapshot/tpb_pb_wrapper
+#Please run legalize_pins after sourcing ports in a power routed db
+#
+########
+#PB cluster port placement commands:
+
+set_db assign_pins_edit_in_batch true
+#set ptn0 "tpb_pb/psum_partition_cluster_0__PSUM_CLUSTER_0_u_psum_buf_partition_cluster"
+#set ptn1 "tpb_pb/psum_partition_cluster_1__PSUM_CLUSTER_1_u_psum_buf_partition_cluster"
+#set ptn2 "tpb_pb/psum_partition_cluster_2__PSUM_CLUSTER_2_u_psum_buf_partition_cluster"
+#set ptn3 "tpb_pb/psum_partition_cluster_3__PSUM_CLUSTER_3_u_psum_buf_partition_cluster"
+###dve_client(same for all clusters):
+##set dve_client [get_db hinst:$ptn0.partition.base_pins.base_name dve_client*] .name]
+#set dve_client0 [get_db hinst:$ptn0 .hpins.base_name dve_client*]
+#set dve_client1 [get_db hinst:$ptn1 .hpins.base_name dve_client*]
+#set dve_client2 [get_db hinst:$ptn2 .hpins.base_name dve_client*]
+#set dve_client3 [get_db hinst:$ptn3 .hpins.base_name dve_client*]
+#
+#edit_pin -hinst $ptn0 -pin [lsort -dictionary -decreasing $dve_client0] -offset_start [expr 26.88*4] -offset_end [expr 26.88*3] -edge 2 -layer "M6 M8" -spread_direction clockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+#edit_pin -hinst $ptn1 -pin [lsort -dictionary -decreasing $dve_client1] -offset_start [expr 26.88*4] -offset_end [expr 26.88*3] -edge 2 -layer "M6 M8" -spread_direction clockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+#edit_pin -hinst $ptn2 -pin [lsort -dictionary -decreasing $dve_client2] -offset_start [expr 26.88*4] -offset_end [expr 26.88*3] -edge 2 -layer "M6 M8" -spread_direction clockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+#edit_pin -hinst $ptn3 -pin [lsort -dictionary -decreasing $dve_client3] -offset_start [expr 26.88*4] -offset_end [expr 26.88*3] -edge 2 -layer "M6 M8" -spread_direction clockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+
+
+##act_client:
+set_db assign_pins_edit_in_batch true
+
+#set act_client_cluster0_south_76 ""
+#set act_client_cluster0_south_76_rd [get_db hinst:$ptn0 .hpins.base_name act_client_rd_ft0_in*]
+#set act_client_cluster0_south_76_wr [get_db hinst:$ptn0 .hpins.base_name act_client_wr_ft0_in*]
+##lappend act_client_cluster0_south_76  $act_client_cluster0_south_76_wr $act_client_cluster0_south_76_rd
+#set act_client_cluster0_south_54 ""
+#set act_client_cluster0_south_54_rd [get_db hinst:$ptn0 .hpins.base_name act_client_rd_ft1_in*]
+#set act_client_cluster0_south_54_wr [get_db hinst:$ptn0 .hpins.base_name act_client_wr_ft1_in*]
+##lappend act_client_cluster0_south_54 $act_client_cluster0_south_54_wr $act_client_cluster0_south_54_rd
+#set act_client_cluster0_south_32 ""
+#set act_client_cluster0_south_32_rd [get_db hinst:$ptn0 .hpins.base_name act_client_rd_ft2_in*]
+#set act_client_cluster0_south_32_wr [get_db hinst:$ptn0 .hpins.base_name act_client_wr_ft2_in*]
+##lappend act_client_cluster0_south_32 $act_client_cluster0_south_32_wr $act_client_cluster0_south_32_rd
+#set act_client_cluster0_south_10 ""
+#set act_client_cluster0_south_10_rd [get_db hinst:$ptn0 .hpins.base_name act_client_rd_in*]
+#set act_client_cluster0_south_10_wr [get_db hinst:$ptn0 .hpins.base_name act_client_wr_in*]
+##lappend act_client_cluster0_south_10 $act_client_cluster0_south_10_wr $act_client_cluster0_south_10_rd
+#
+#
+#edit_pin -hinst $ptn0 -pin [lsort -dictionary -decreasing $act_client_cluster0_south_76_rd] -offset_start 600 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 10 -honor_constraint 1
+#edit_pin -hinst $ptn0 -pin [lsort -dictionary -decreasing $act_client_cluster0_south_76_wr] -offset_start 600 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 10 -honor_constraint 1
+#
+#edit_pin -hinst $ptn0 -pin [lsort -dictionary -decreasing $act_client_cluster0_south_54_rd] -offset_start 590 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+#edit_pin -hinst $ptn0 -pin [lsort -dictionary -decreasing $act_client_cluster0_south_54_wr] -offset_start 590 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+#
+#edit_pin -hinst $ptn0 -pin [lsort -dictionary -decreasing $act_client_cluster0_south_32_rd] -offset_start 600 -offset_end 100 -edge 3 -layer "M9 M9" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 10 -honor_constraint 1
+#edit_pin -hinst $ptn0 -pin [lsort -dictionary -decreasing $act_client_cluster0_south_32_wr] -offset_start 600 -offset_end 100 -edge 3 -layer "M9 M9" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 10 -honor_constraint 1
+#
+#edit_pin -hinst $ptn0 -pin [lsort -dictionary -decreasing $act_client_cluster0_south_10_rd] -offset_start 590 -offset_end 100 -edge 3 -layer "M9 M9" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+#edit_pin -hinst $ptn0 -pin [lsort -dictionary -decreasing $act_client_cluster0_south_10_wr] -offset_start 590 -offset_end 100 -edge 3 -layer "M9 M9" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+
+set act_client_cluster1_south_76 ""
+set act_client_cluster1_south_76_rd [get_db hinst:$ptn1 .hpins.base_name act_client_rd_ft0_in*]
+set act_client_cluster1_south_76_wr [get_db hinst:$ptn1 .hpins.base_name act_client_wr_ft0_in*]
+#lappend act_client_cluster1_south_76 $act_client_cluster1_south_76_wr $act_client_cluster1_south_76_rd
+set act_client_cluster1_south_54 ""
+set act_client_cluster1_south_54_rd [get_db hinst:$ptn1 .hpins.base_name act_client_rd_ft1_in*]
+set act_client_cluster1_south_54_wr [get_db hinst:$ptn1 .hpins.base_name act_client_wr_ft1_in*]
+#lappend act_client_cluster1_south_54 $act_client_cluster1_south_54_wr $act_client_cluster1_south_54_rd
+set act_client_cluster1_south_32 ""
+set act_client_cluster1_south_32_rd [get_db hinst:$ptn1 .hpins.base_name act_client_rd_in*]
+set act_client_cluster1_south_32_wr [get_db hinst:$ptn1 .hpins.base_name act_client_wr_in*]
+#lappend act_client_cluster1_south_32 $act_client_cluster1_south_32_wr $act_client_cluster1_south_32_rd
+
+
+edit_pin -hinst $ptn1 -pin [lsort -dictionary -decreasing $act_client_cluster1_south_76_rd] -offset_start 600 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 8 -honor_constraint 1
+edit_pin -hinst $ptn1 -pin [lsort -dictionary -decreasing $act_client_cluster1_south_54_rd] -offset_start 590 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+edit_pin -hinst $ptn1 -pin [lsort -dictionary -decreasing $act_client_cluster1_south_32_rd] -offset_start 600 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 8 -honor_constraint 1
+edit_pin -hinst $ptn1 -pin [lsort -dictionary -decreasing $act_client_cluster1_south_76_wr] -offset_start 600 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 8 -honor_constraint 1
+edit_pin -hinst $ptn1 -pin [lsort -dictionary -decreasing $act_client_cluster1_south_54_wr] -offset_start 590 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+edit_pin -hinst $ptn1 -pin [lsort -dictionary -decreasing $act_client_cluster1_south_32_wr] -offset_start 600 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 8 -honor_constraint 1
+
+
+set act_client_cluster2_south_76 ""
+set act_client_cluster2_south_76_rd [get_db hinst:$ptn2 .hpins.base_name act_client_rd_ft0_in*]
+set act_client_cluster2_south_76_wr [get_db hinst:$ptn2 .hpins.base_name act_client_wr_ft0_in*]
+#lappend act_client_cluster2_south_76 $act_client_cluster2_south_76_wr $act_client_cluster2_south_76_rd
+set act_client_cluster2_south_54 ""
+set act_client_cluster2_south_54_rd [get_db hinst:$ptn2 .hpins.base_name act_client_rd_in*]
+set act_client_cluster2_south_54_wr [get_db hinst:$ptn2 .hpins.base_name act_client_wr_in*]
+#lappend act_client_cluster2_south_54 $act_client_cluster2_south_54_wr $act_client_cluster2_south_54_rd
+
+
+edit_pin -hinst $ptn2 -pin [lsort -dictionary -decreasing $act_client_cluster2_south_76_rd] -offset_start 600 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 8 -honor_constraint 1
+edit_pin -hinst $ptn2 -pin [lsort -dictionary -decreasing $act_client_cluster2_south_54_rd] -offset_start 590 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+edit_pin -hinst $ptn2 -pin [lsort -dictionary -decreasing $act_client_cluster2_south_76_wr] -offset_start 600 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 8 -honor_constraint 1
+edit_pin -hinst $ptn2 -pin [lsort -dictionary -decreasing $act_client_cluster2_south_54_wr] -offset_start 590 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 4 -honor_constraint 1
+
+
+
+set act_client_cluster3_south_76 ""
+set act_client_cluster3_south_76_rd [get_db hinst:$ptn3 .hpins.base_name act_client_rd_in*]
+set act_client_cluster3_south_76_wr [get_db hinst:$ptn3 .hpins.base_name act_client_wr_in*]
+#lappend act_client_cluster3_south_76 $act_client_cluster3_south_76_wr $act_client_cluster2_south_76_rd
+edit_pin -hinst $ptn3 -pin [lsort -dictionary -decreasing $act_client_cluster3_south_76_rd] -offset_start 600 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 8 -honor_constraint 1
+edit_pin -hinst $ptn3 -pin [lsort -dictionary -decreasing $act_client_cluster3_south_76_wr] -offset_start 600 -offset_end 100 -edge 3 -layer "M7 M7" -spread_direction counterclockwise -fix_overlap -fixed_pin -pattern fill_layer -unit TRACK -spacing 8 -honor_constraint 1
+
+
+#####################
+delete_buffer_trees
+
+set act_client_cluster0_north_76 ""
+set act_client_cluster0_north_76_rd [get_db hinst:$ptn0 .hpins.base_name act_client_rd_ft0_out*]
+set act_client_cluster0_north_76_wr [get_db hinst:$ptn0 .hpins.base_name act_client_wr_ft0_out*]
+#lappend act_client_cluster0_north_76 $act_client_cluster0_north_76_wr $act_client_cluster0_north_76_rd
+
+set act_client_cluster0_north_54 ""
+set act_client_cluster0_north_54_rd [get_db hinst:$ptn0 .hpins.base_name act_client_rd_ft1_out*]
+set act_client_cluster0_north_54_wr [get_db hinst:$ptn0 .hpins.base_name act_client_wr_ft1_out*]
+#lappend act_client_cluster0_north_54 $act_client_cluster0_north_54_wr $act_client_cluster0_north_54_rd
+
+set act_client_cluster0_north_32 ""
+set act_client_cluster0_north_32_rd [get_db hinst:$ptn0 .hpins.base_name act_client_rd_ft2_out*]
+set act_client_cluster0_north_32_wr [get_db hinst:$ptn0 .hpins.base_name act_client_wr_ft2_out*]
+#lappend act_client_cluster0_north_32 $act_client_cluster0_north_32_wr $act_client_cluster0_north_32_rd
+
+set_pin_constraint -cell tpb_pb_partition_cluster_0 -pin " $act_client_cluster0_north_76_wr $act_client_cluster0_north_76_rd   $act_client_cluster0_north_54_wr $act_client_cluster0_north_54_rd   $act_client_cluster0_north_32_wr $act_client_cluster0_north_32_rd " -layer {M7 M9} -edge {1}
+assign_partition_pins -partitions tpb_pb_partition_cluster_0  -pins " $act_client_cluster0_north_76_wr $act_client_cluster0_north_76_rd   $act_client_cluster0_north_54_wr $act_client_cluster0_north_54_rd   $act_client_cluster0_north_32_wr $act_client_cluster0_north_32_rd " -move_fixed_pins
+
+set act_client_cluster1_north_76 ""
+set act_client_cluster1_north_76_rd [get_db hinst:$ptn1 .hpins.base_name act_client_rd_ft0_out*]
+set act_client_cluster1_north_76_wr [get_db hinst:$ptn1 .hpins.base_name act_client_wr_ft0_out*]
+#lappend act_client_cluster1_north_76 $act_client_cluster1_north_76_wr $act_client_cluster1_north_76_rd
+
+set act_client_cluster1_north_54 ""
+set act_client_cluster1_north_54_rd [get_db hinst:$ptn1 .hpins.base_name act_client_rd_ft1_out*]
+set act_client_cluster1_north_54_wr [get_db hinst:$ptn1 .hpins.base_name act_client_wr_ft1_out*]
+#lappend act_client_cluster1_north_54 $act_client_cluster1_north_54_wr $act_client_cluster1_north_54_rd
+
+set_pin_constraint -cell tpb_pb_partition_cluster_1 -pin " $act_client_cluster1_north_76_wr $act_client_cluster1_north_76_rd   $act_client_cluster1_north_54_wr $act_client_cluster1_north_54_rd " -layer {M7 M9} -edge {1}
+assign_partition_pins -partitions tpb_pb_partition_cluster_1   -pins " $act_client_cluster1_north_76_wr $act_client_cluster1_north_76_rd   $act_client_cluster1_north_54_wr $act_client_cluster1_north_54_rd " -move_fixed_pins
+
+
+set act_client_cluster2_north_76 ""
+set act_client_cluster2_north_76_rd [get_db hinst:$ptn2 .hpins.base_name act_client_rd_ft0_out*]
+set act_client_cluster2_north_76_wr [get_db hinst:$ptn2 .hpins.base_name act_client_wr_ft0_out*]
+#lappend act_client_cluster2_north_76 $act_client_cluster2_north_76_wr $act_client_cluster2_north_76_rd
+
+set_pin_constraint -cell tpb_pb_partition_cluster_2 -pin " $act_client_cluster2_north_76_wr $act_client_cluster2_north_76_rd " -layer {M7 M9} -edge {1}
+assign_partition_pins -partitions tpb_pb_partition_cluster_2 -pins " $act_client_cluster2_north_76_wr $act_client_cluster2_north_76_rd " -move_fixed_pins
+
+set_db assign_pins_edit_in_batch false
