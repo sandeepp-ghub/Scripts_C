@@ -1,0 +1,338 @@
+#You can explore various timing properties related to the timing path, net, cell, pin, arc, and clock objects using the following get_db script examples. Note that you can get a list of available properties by using .* e.g.
+
+> get_db [report_timing -collection] .*
+ 
+
+#Timing Path properties
+
+#Report the top worst failing 100 late timing paths with the endpoint and slack values.
+
+> set path_list [report_timing -collection -max_paths 100 -late]
+> get_db $path_list -if {.slack < 0.0} -foreach { puts "$obj(.slack) : $obj(.capturing_point)" }
+-1.484 : pin:chip_top/U_TIMER/r1200_reg\[12\]/D
+-1.420 : pin:chip_top/U_TIMER/r1633_reg\[12\]/D
+-1.395 : pin:chip_top/U_TIMER/r1477_reg\[12\]/D
+...
+
+Get the worst GBA and worst PBA slacks to a given endpoint.
+
+> set path [report_timing -to $pinName -collection -retime path_slew_propagation]
+> puts "GBA slack: [get_db $path .gba_slack], PBA slack: [get_db $path .slack]"
+GBA slack: -1.484, PBA slack: 0.099
+
+¿?Report the count of the unique lib cell types of all buffers/inverters in the data path of a timing path.
+
+> set path [report_timing -collection -path_type full_clock]
+> set cell_list [get_db [get_db [get_db [get_db $path .timing_points] .pin -if {.obj_type==pin}] .inst.base_cell -if {.is_buffer==true || .is_inverter==true}] .name]
+BUF_X16 BUF_X16 BUF_X16 BUF_X16 BUF_X16 BUF_X16 BUF_X16 BUF_X16 INV_X2 INV_X2 BUF_X16 BUF_X16
+ 
+
+> set count {}
+> foreach cell $cell_list { dict incr count $cell }
+> dict for {cell count} $count { puts "${cell}: $count" }                         
+BUF_X16: 10
+INV_X2: 2
+
+Find the CPPR value and CPPR branch point of a timing path.
+> set path [report_timing -collection]
+> get_db $path .cppr_adjustment
+1.076
+
+> get_db $path .cppr_branch_point.name
+m_clk__L19_I2/ZN
+
+Report the skew between the launch clock and capture clock of a timing path, considering CPPR.
+> set path [report_timing -collection]
+> get_db $path .skew
+4.501
+
+Report the list of register sinks of a clock.
+From the collection of clock network pins, filter out instances of the desired type (such as flops, latches, combinational cells, specific low power cells, and so on).
+
+> get_db [get_db [get_db clocks  */refclk -index {view func_fast_RCMAX}] .clock_network_pins -if {.obj_type == pin} ] .inst -if {.is_flop} -unique
+{inst:chip_top/TDSP_CORE_INST/DATA_BUS_MACH_INST/data_out_reg\[12\]}
+{inst:chip_top/TDSP_CORE_INST/DATA_BUS_MACH_INST/data_out_reg\[13\]}
+{inst:chip_top/U_TIMER/high_reg\[0\]}
+{inst:chip_top/U_TIMER/high_reg\[1\]}
+{inst:chip_top/U_TIMER/low_reg\[0\]}
+{inst:chip_top/U_TIMER/low_reg\[1\]}
+
+Notes:
+
+get_db command supports dual-ported object (DPO) interface which contains both the object pointer and its string format. In duel-ported string format, clock objects are expressed as  clock:<design name>/<view name>/<clock name>. Therefore, to specify the clock, use wildcard or full DPO-styled clock name such as clock:chip_top/func_slow_RCMAX/refclk.
+If wildcarding is used in the clock name, filter the clock for the view with the -index {view view1} option.
+The clock_network_pins property can return objects of either the port or pin type. To get only the instances, limit the scope to pin only.
+Fine tune the instance list return for flops/latches with the Boolean test with the is_<cell_type> property.
+More than one pin of an instance can belong to the same clock network. Use the -unique option to uniquify the final instance list.
+Find the flops receiving no clocks (how to make it view-specific).
+
+> get_db [get_db [all_registers -flops -clock_pins ]  -if {.clocks.name==""}] .name
+SPI_INST/spare_100/CK
+SPI_INST/spare_101/CK
+SPI_INST/spare_102/CK
+
+Find the number of logic depth (combinational) in a timing path.
+
+Logic levels equal the number of cell arcs in the path.
+
+> set path_col [report_timing -collection]
+> set datapath_logic_depth [get_db $path_col .num_cell_arcs]
+> puts ¿\nData Path logic depth: $datapath_logic_depth¿
+Data Path logic depth: 15.0
+
+Report delays in the launch clock path, data path, and capture clock path of the worst timing path.
+
+Get the launch clock path, data path, and capture clock path separately and inquire the path_delay property on these path segments.
+> set path [report_timing -collection -path_type full_clock]
+> set datapath_path_delay      [get_db $path .path_delay]
+> set launch_clock_path_delay  [get_db $path .launch_clock_path.path_delay]
+> set capture_clock_path_delay [get_db $path .capture_clock_path.path_delay]
+> puts [format {Launch Path Delay : %f, \
+              Data Path Delay : %f, \
+              Capture Clock Delay : %f} \
+              $launch_clock_path_delay  \
+              $datapath_path_delay \
+              $capture_clock_path_delay ]
+
+Launch Path Delay : 5.876000,  Data Path Delay : 15.510000,  Capture Clock Delay : 1.375000
+
+Note: The -path_type full_clock option is required to get clock path details.
+
+Report the cells with the cell delay exceeding a specific value (such as 1ns) in a timing path.
+
+> get_db [get_db $path_col .timing_points  -if {.delay > 1.0}] .hierarchical_name
+TDSP_CORE_INST/TDSP_CORE_GLUE_INST/p6871A/ZN TDSP_CORE_INST/TDSP_CORE_GLUE_INST/p7333D/ZN TDSP_CORE_INST/TDSP_CORE_GLUE_INST/p7551A6114/ZN TDSP_CORE_INST/TDSP_CORE_GLUE_INST/p8505A6082/ZN
+
+Find the SI crosstalk delay in a timing path ¿ split by cell delay and net delay:
+
+To find the SI delay on data path, use the total_delta_delay, total_cell_delta_delay and total_net_delta_delay properties:
+> get_db $path .total_delta_delay
+0.2568
+> get_db $path .total_cell_delta_delay
+0.2205
+> get_db $path .total_net_delta_delay
+0.0363
+
+To find the SI delay on the launch clock path and capture clock path, apply the same properties on the launch clock and capture clock path segments:
+
+> set attributes [list total_delta_delay total_net_delta_delay total_cell_delta_delay]            
+> foreach attr ${attributes} {
+   puts "Launch  Clock Path: $attr : [get_db $path .launch_clock_path.$attr]"
+   puts "Capture Clock Path: $attr : [get_db $path .capture_clock_path.$attr]"
+}
+
+Launch  Clock Path: total_delta_delay : 0.0171
+Capture Clock Path: total_delta_delay : -0.0113
+Launch  Clock Path: total_net_delta_delay : 0.0054
+Capture Clock Path: total_net_delta_delay : -0.0008
+Launch  Clock Path: total_cell_delta_delay : 0.0117
+Capture Clock Path: total_cell_delta_delay : -0.0105
+
+Identify the cell and the net with the worst SI delay in the data path¿?.
+First, find the worst SI delay due to crosstalk noise on cells and nets. Then, match these values against the ¿delta_delay¿ property values to obtain the corresponding cell/net name:
+
+> set worst_si_cell_delay [get_db $path .worst_cell_delta_delay]
+> set worst_si_net_delay  [get_db $path .worst_net_delta_delay]
+> get_db [get_db $path .timing_points -expr {$obj(.delta_delay) == ${worst_si_net_delay}} ] .pin.net
+net:chip/u_top/u_core/u_timer/FE_SCAN_N649
+
+> get_db [get_db $path .timing_points -expr {$obj(.delta_delay) == ${worst_si_cell_delay}} ] .pin.cell_name
+u_top/u_core/u_timer/hold_buffer_N649
+
+Report the Delay Mean and Delay Sigma values of each timing point of a timing path.
+> get_db $path .timing_points -foreach { puts "Delay: $obj(.pin.name) (pin),$obj(.delay_mean) (Mean), $obj(.delay_sigma) (Sigma)" }
+Delay: u_top/u_core/u_capture/r_reg_0_/CP (pin),0.0 (Mean), 0.0 (Sigma)
+Delay: u_top/u_core/u_capture/r_reg_0_/Q (pin),0.1675 (Mean), 0.0073 (Sigma)
+Delay: u_top/u_core/u_timer/foo/A (pin),0.0033 (Mean), 0.0 (Sigma)
+Delay: : u_top/u_core/u_timer/foo/Z (pin),0.135 (Mean), 0.0058 (Sigma)
+...
+
+#Net properties
+
+Get drivers and receivers (loads) of a net.
+> get_db [get_db nets $netName] .drivers.name
+ARB_INST/g330/Y
+> get_db [get_db nets $netName] .loads.name
+ARB_INST/g267/A ARB_INST/g260/A ARB_INST/g277/B1N ARB_INST/g277/A0
+
+¿?¿?Report net distribution based on the fanout receiver count divided in ranges.
+> llength [get_db nets  -if {.num_loads == 0}]
+695
+> llength [get_db nets  -if {.num_loads > 10 && .num_loads <= 50 }]
+476
+> llength [get_db nets  -if {.num_loads > 50 && .num_loads <= 100 }]
+13
+> llength [get_db nets  -if {.num_loads > 0 && .num_loads <= 10 }]
+9717
+> llength [get_db nets  -if {.num_loads > 100 }]
+1
+
+Query if a net is a clock net.
+> get_db net:$netName .is_clock
+True
+
+Check if a net is marked as dont_touch.
+
+> get_db net:$netName .dont_touch
+True
+
+Check if the clock signal through a net is used as the clock or as data downstream and report the pins/ports for each category.
+
+Query the is_clock_used_as_clock and is_clock_used_as_data pin properties and of the net receivers to find their downstream usage.
+
+> get_db net:$netName .loads -if {.is_clock_used_as_clock} -computed
+pin:chip_top/RAM_128x16_TEST_INST/CPF_LS__HIER_INST_1/CPF_LS_7_n_227/A
+
+> get_db net:$netName .loads -if {.is_clock_used_as_data} -computed
+pin:chip_top/RAM_128x16_TEST_INST/CPF_LS__HIER_INST_1/CPF_LS_7_n_227/A
+
+Note: If a clock is not propagated through pins, it will report NC (Not Computed). To get clocks propagated through the load pin and compute the new status of these attributes, use the -computed option.
+
+Cell properties
+
+Get the library name and base cell name of an instance.
+
+# get the library cell name of an instance
+> get_db inst:$instName .base_cell.name
+SDFF_X2
+
+# get the library names in libset/library/cell format
+> get_db inst:$instName .base_cell.lib_cells
+lib_cell:libset_fast/FreePDK45_lib_v1.0/SDFF_X2
+lib_cell:libset_slow/FreePDK45_lib_v1.0/SDFF_X2
+
+# report only once the .lib files associated with an instance
+> get_db -unique inst:$instName .lib_cells.library.files
+libs/liberty/FreePDK45_lib_v1.0_worst.lib
+libs/liberty/FreePDK45_lib_v1.0_typical.lib
+
+Check if an instance is marked dont_touch exclusively, at its parent level or in the library level.
+> get_db inst:$instName .dont_touch*
+Object: inst:chip_top/PLLCLK_INST
+dont_touch_sources: {{user none} {lib true} {parent false} {scan false}}
+
+Note: It shows that the instance is effectively dont_touch and it is forced from the .lib library attribute.
+
+Check if a cell has LVF data available in the library to enable SOCV analysis.
+     > get_db inst:$instName .has_lvf
+       True
+
+Detect the TIE0 and TIE1 cells in the library.
+
+First, filter out output pins of all library cells and browse for pins with the ¿.function¿ property matching the ¿1¿b0¿ or ¿1¿b1¿ expression.
+
+> get_db [get_db lib_pins  -if {.direction==out }] -expr { $obj(.function) == "1'b0" }
+lib_pin:libset_fast/FreePDK45_lib_v1.0/LOGIC0_X1/Z
+lib_pin:libset_slow/FreePDK45_lib_v1.0/LOGIC0_X1/Z
+
+> get_db [get_db lib_pins  -if {.direction==out }] -expr { $obj(.function) == "1'b1" }
+lib_pin:libset_fast/FreePDK45_lib_v1.0/LOGIC1_X1/Z
+lib_pin:libset_slow/FreePDK45_lib_v1.0/LOGIC1_X1/Z
+
+Pin properties
+
+Get slew (transition) values of a pin for rise and fall transitions.
+
+If the slew values are due to being computed through the pin, it is printed as NC. To compute values on the fly, use the -computed option with the get_db command.
+
+> get_db pin:$pinName .slew_max_*
+Object: pin:chip_top/DATA_SAMPLE_MUX_INST/g2/Y¿?
+slew_max_fall:         NC
+slew_max_rise:         NC
+
+> get_db pin:$pinName .slew_max_* -computed
+Object: pin:chip_top/DATA_SAMPLE_MUX_INST/g2/Y¿?
+slew_max_fall:         0.15
+slew_max_rise:         0.16
+
+> get_db pin:$pinName .slew_min_* -computed
+Object: pin:chip_top/DATA_SAMPLE_MUX_INST/g2/Y
+ slew_min_fall:         0.127
+ slew_min_rise:         0.107
+
+Get the minimum and maximum pin voltages across all corners.
+> get_db pin:$pinName .power_rail_voltage_m*
+  Object: pin:chip_top/DATA_SAMPLE_MUX_INST/g2/Y
+   power_rail_voltage_max:  1.62
+   power_rail_voltage_min:  1.62
+
+Get the arrival window of a pin.
+> get_db pin:$pinName .arrival_window
+m_rcc_clk {max_r_f 24.271 23.896 min_r_f 23.408 22.918}
+m_clk {max_r_f 20.792 18.211 min_r_f 8.708 8.624}
+
+Get the maximum transition and maximum capacitance of a pin.
+  > get_db pin:$pinName .max_transition
+   5.0
+  > get_db pin:$pinName .max_capacitance
+  0.008
+
+Check the constant value a pin is tied to.
+    > get_db pin:$pinName .constant_value
+    1
+
+Timing Arc properties
+
+Find the AOCV derate value and AOCV stage count to a cell arc present in the capture clock path.
+
+> get_db [get_arcs -from $instName/A -to $instName/Z] .aocv_derate_capture_clock_*  -computed
+  Object: arc:0x7f15e62e2670
+    aocv_derate_capture_clock_early_fall:  0.827
+    aocv_derate_capture_clock_early_rise:  0.827
+    aocv_derate_capture_clock_late_fall:  1.173
+    aocv_derate_capture_clock_late_rise:  1.173
+
+    > get_db [get_arcs -from $instName/A -to $instName/Z] .aocv_stage_count_capture_clock_*computed
+      Object: arc:0x7f15e62e2670
+        aocv_stage_count_capture_clock_early:  2.0
+        aocv_stage_count_capture_clock_late:  2.0
+
+Get all timing arcs of a cell and its arc type.
+
+> get_db inst:$instName .arcs -foreach { puts " $obj(.from_pin.name) -> $obj(.to_pin.name) ($obj(.timing_type))" }
+ RS3/CK -> RS3/CK (min_pulse_width)
+ RS3/CK -> RS3/D (setup_rising)
+ RS3/CK -> RS3/D (hold_rising)
+ RS3/RN -> RS3/RN (min_pulse_width)
+ RS3/CK -> RS3/RN (recovery_rising)
+ RS3/CK -> RS3/RN (removal_rising)
+ RS3/CK -> RS3/Q (rising_edge)
+ RS3/RN -> RS3/Q (clear)
+ RS3/RN -> RS3/Q (clear)
+ RS3/CK -> RS3/QN (rising_edge)
+ RS3/RN -> RS3/QN (preset)
+ RS3/RN -> RS3/QN (preset)
+12
+
+Clock properties
+
+Find the clock period of a clock in a particular analysis view.
+
+> get_db [get_db clocks $clockName -index {view default_emulate_view}] .period
+  8.0
+
+Find the clock waveform in a particular analysis view.
+> get_db [get_db clocks $clockName -index {view $viewName}] .waveform   
+  0.000000 7.500000
+
+If a clock is a generated clock, find the master clock, generated clock source, edge relationship, and master clock source pin.
+    > get_db [get_db clocks $clockName -index {view viewName1}] .is_generated
+      True
+
+    > get_db [get_db clocks $clockName -index {view $viewName}] .sources
+     hpin:chip_ic/u_top/u_core/testreg_inst/m_rcc
+   
+    > get_db [get_db clocks $clockName -index {view $viewName}] .master_clock.base_name
+      ref_clk
+
+    > get_db [get_db clocks $clockName -index {view $viewName}] .edge* 
+      Object: clock:chip_ic/viewName1/m_rcc
+        edge_shift:            no_value
+        edges:                 {{ 2 ,4 ,6 }}
+
+    > get_db [get_db clocks $clockName -index {view $viewName}] .master_source.name
+      PAD_CLOCK/Z
+
+ 
+
+https://support.cadence.com/apex/ArticleAttachmentPortal?id=a1O3w00000AE5u5EAD&pageName=ArticleContent
