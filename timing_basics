@@ -1,0 +1,43 @@
+get_db [report_timing -collection] .* 
+
+set path_list [report_timing -path_collection -max_paths 100 -late] 
+get_db $path_list -if {.slack < 0.0} -foreach {puts "$obj(.slack) : $obj(.capturing_point)"}
+
+set path [report_timing -to $pin_name -collection -retime path_slew_propagation]
+puts "GBA Slack: [get_db $path .gba_slack], PBA Slack: [get_db $path .slack]"
+
+set path [report_timing -collection -path_type full_clock]
+set cell_list [get_db [get_db [get_db [get_db $path .timing_points] .pin -if {.obj_type==pin}] .inst.base_cell -if {.is_buffer==true || .is_inverter==true}] .name]
+
+set count {}
+foreach cell $cell_list {dict incr count $cell}
+dict for {cell count} $count {puts "${cell}: $count"}
+
+get_db [get_db [get_db clocks */CLK_AXI -index {view func _setup_ssgnp0p675v125c_cworstCCwT125c}] .clock_network_pins -if {.obj_type ==pin }] .inst -if {.is_integrated_clock_gating } -unique
+
+get_db [get_db [all_registers -flops -clock_pins] -if {.clocks.name==""}] .name
+
+set path_col [report_timing -collection]
+set datapath_depth [get_db $path_col .num_cell_arcs]
+puts "\n Data Path Logic Depth"$datapath_depth"
+
+set path [report_timing -collection -path_type full_clock]
+set datapath_delay [get_db $path .path_delay]
+set launch_clock_path_delay [get_db $path .launch_clock_path.path_delay]
+set capture_clock_path_delay [get_db $path .capture_clock_path.path_delay]
+puts [format {Launch Path Delay : %f, Data Path Delay : %f, Capture Path Delay : %f} \
+$launch_clock_path_delay $datapath_path_delay $capture_clock_path_delay ]
+
+get_db [get_db $path_col .timing_points -if {.delay > 1.0}] .hierarchical_name
+
+get_db $path .total_delta_delay
+get_db $path .total_cell_delta_delay
+get_db $path .total_net_delta_delay
+
+set attributes [list total_delta_delay total_net_delta_delay total_cell_delta_delay]
+foreach attr ${attributes} {
+	puts "Launch Clock path: $attr : [get_db $path .launch_clock_path.$attr]"
+	puts "Capture clock path: $attr : [get_db $path .capture_clock_path.$attr]"
+}
+
+get_object_name [get_ports * -filter {x_coordinate > 100 && x_coordinate < 3100 && y_coordinate < 20}]
