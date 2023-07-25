@@ -1,0 +1,21 @@
+#!/bin/csh
+
+set mmmc_link=`readlink -f MMMC`
+set block_rev=`echo $PWD | rev | cut -d/ -f3 | rev`
+
+#Example: setenv TTR2_TAG    001.2023-01-05-11:20:19
+setenv TTR2_TAG    `basename ${mmmc_link} | sed -e 's/^[^\.]*\.\(.*\)$/\1/g'`
+setenv TTR2_PATHS  350000
+setenv TTR2_DESIGN `echo ${block_rev} | cut -d. -f1`
+#Glitch keeps stack dumping and causing me to re-run  Turning off
+#setenv TTR2_GLITCH 0
+setenv TTR2_AUTORUN 0
+
+echo ""
+echo "TTR2_TAG: $TTR2_TAG"
+echo "TTR2_PATHS: $TTR2_PATHS"
+echo "TTR2_DESIGN: $TTR2_DESIGN"
+echo ""
+
+#/proj/asictools/contrib/TTR2/production/latest/TTR2/ttr2.py -c $PROJ_ROOT/$PROJ_PHASE/timing/ttr2.config.py
+/proj/asictools/contrib/TTT/production/latest/TTT/TTR2/ttr2.py -c /proj/cayman/wa/seth/scripts/ttr2.config.py
