@@ -1,0 +1,107 @@
+
+source /proj/cayman/wa/seth/scripts/tmg_tools.tcl
+
+set clk_map [dict create \
+  axi clk_axi \
+  fast clk_xbar \
+]
+set port_map [dict create \
+  axi clk_axi \
+  fast clk_fast \
+]
+set design_map [dict create \
+  hbm xbar_hbm_group_32 \
+  fab xbar_fab_group \
+]
+
+set el_map [dict create \
+  hold early \
+  setup late \
+]
+
+set root_dir "/proj/cayman/wa/seth/timing/latency"
+
+set hbm_xbar_sp hbm_port_6/xbar_axi4_wout/g_speedup_f2s/dn_sb_reg_47_/CP
+set hbm_axi_ep hbm_port_6/xbar_axi4_wout/wsplit/dn_wstrb_reg_reg_15_/D
+
+set hbm_axi_sp hbm_port_7/xbar_axi4_rin/genblk1_ma_resp_hold_reg_1_/CP
+set hbm_xbar_ep hbm_port_7/xbar_axi4_rin/genblk3_g_speedup_s2f_decoupler/CDN_MBIT_dn_data_reg_48__MB_sk_data_reg_42_/D1
+
+#set fab_xbar_sp g_fab_port_0__fab_port/xbar_axi4_rout/g_speedup_f2s/dn_data_reg_231_/CP
+#set fab_axi_ep g_fab_port_0__fab_port/xbar_axi4_rout/g_qos_deco_r/up_deco_/FIFO_ENTRY_PACK_5__async_fifo_entry/dout_reg_231_/D
+
+set hbm_inst HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_0
+set fab_inst HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_0
+
+set cppr [dict create]
+set func_early_views [get_db [get_db analysis_views func_hold*] .name]
+foreach view $func_early_views {
+  dict set cppr $view [get_db [report_timing -early -collection -from [get_db pins $hbm_inst/$hbm_xbar_sp] -to [get_db pins $hbm_inst/$hbm_axi_ep] -view $view] .cppr_adjustment]
+}
+
+set func_late_views [get_db [get_db analysis_views func_setup*] .name]
+foreach view $func_late_views {
+  dict set cppr $view [get_db [report_timing -late -collection -from [get_db pins $hbm_inst/$hbm_axi_sp] -to [get_db pins $hbm_inst/$hbm_xbar_ep] -view $view] .cppr_adjustment]
+}
+
+foreach hbm_fab {fab hbm} {
+  set func_views [get_db [get_db analysis_views func*] .name]
+  foreach view $func_views {
+    regsub {^func_(setup|hold)_.*$} $view {\1} sh
+
+    set cppr_adj 0
+    if { [dict exists $cppr $view] } {
+      set cppr_adj [dict get $cppr $view]
+    }
+
+    set el [dict get $el_map $sh]
+
+    set sub_design_name [dict get $design_map $hbm_fab]
+    set fname ${root_dir}/$sub_design_name.$view.latency.sdc
+    set fh [open $fname w]
+
+    puts "# $hbm_fab - $view"
+    puts $fh "# $hbm_fab - $view"
+
+    foreach clk {axi fast} {
+      set clk_port [dict get $port_map $clk]
+      set clk_name [dict get $clk_map $clk]
+      foreach lc {launch capture} {
+        set min_max ""
+
+        if { $sh == "setup" } {
+          if { $lc == "capture" } {
+            set cppr_adder 0
+            #set cppr_adder [expr -1*$cppr_adj]
+            set min_max "min"
+          } elseif { $lc == "launch" } {
+            set cppr_adder [expr -1*$cppr_adj]
+            set min_max "max"
+          }
+        } else {
+          if { $lc == "capture" } {
+            set cppr_adder 0
+            set min_max "max"
+          } elseif { $lc == "launch" } {
+            #set cppr_adder 0
+            set cppr_adder $cppr_adj
+            set min_max "min"
+          }
+        }
+
+        foreach rf {rise fall} {
+          set val [get_clock_latency $hbm_fab 0 $clk $el $lc $view 0]
+          set cppr_val [expr $val + $cppr_adder]
+          if { $cppr_adder != 0 } {
+            puts $fh "# ($el $lc) (cppr $cppr_adder) orig $val -> cppr_adjusted $cppr_val"
+          }
+          puts $fh "#get_clock_latency $hbm_fab 0 $clk $el $lc $view 0 => $val"
+          puts $fh "set_clock_latency -source -early -$min_max -$rf $cppr_val \[get_ports {$clk_port}\] -clock $clk_name"
+          puts $fh "set_clock_latency -source -late -$min_max -$rf $cppr_val \[get_ports {$clk_port}\] -clock $clk_name"
+        }
+      }
+    }
+    close $fh
+    puts "Created $fname ..."
+  }
+}
