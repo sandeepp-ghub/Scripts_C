@@ -1,0 +1,27 @@
+set all_cells     [get_cells -hier -filter "!is_hierarchical"] ; # filter off this guy so we know hinsts are not included
+set all_macros    [all_registers -macros]
+set all_icg       [filter_collection $all_cells "is_integrated_clock_gating_cell"]
+set all_registers [remove_from_collection [remove_from_collection [all_registers] $all_macros] $all_icg]
+set all_inputs    [all_inputs -no_clocks] ; # -no_clocks valid for Innovus
+set all_outputs   [all_outputs]
+set all_rams      [filter_collection $all_cells "is_macro_cell && is_memory_cell"]
+set all_blks      [filter_collection $all_cells "is_macro_cell && !is_memory_cell"]
+set all_ips       [filter_collection $all_cells "is_macro_cell && !is_memory_cell"]
+set macros        [filter_collection $all_cells "is_macro_cell && !is_memory_cell"]
+		
+
+foreach_in_collection blk $macros {
+  set blk_name [get_db $blk .base_cell.name]
+  if {[regexp "CWG" $blk_name]} {
+    set all_blks [remove_from_collection $all_blks $blk]
+    set all_ips [remove_from_collection $all_ips $blk]
+  } elseif {[lsearch [mortar::hierinfo -children] $blk_name] < 0} {
+    set all_blks [remove_from_collection $all_blks $blk]
+  } else {
+    set all_ips [remove_from_collection $all_ips $blk]
+  }
+}
+group_path -name blk2reg -from $all_blks -to $all_registers 
+group_path -name reg2blk -from $all_registers -to $all_blks
+set_path_group_options blk2reg -early -weight 0 -effort_level low -target_slack 5 
+set_path_group_options reg2blk -early -weight 0 -effort_level low -target_slack 5
