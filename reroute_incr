@@ -1,0 +1,49 @@
+
+set eco_inv_fname "reroute_incr.eco_inv"
+
+#UPSIZE SETUP
+#
+
+set max_tpaths [report_timing -late -collection -group {reg2reg reg2icg} -nworst 100000 -max_paths 100000 -max_slack -10 -retime path_slew_propagation]
+set tot_max_paths [sizeof_collection $max_tpaths]
+
+set resize_candidates [dict create]
+set rem_candidates [dict create]
+
+set i 1
+foreach_in_collection tpath $max_tpaths {
+  if { ![expr $i % 1000] } { puts "Processing $i of $tot_max_paths ..." }
+
+  set max_slack [get_db $tpath .slack]
+
+  foreach tpoint [get_db $tpath .timing_points] {
+    set tpin [get_db $tpoint .pin]
+    set dir [get_db $tpin .direction]
+
+    set pin_name [get_db $tpin .name]
+    set inst_obj [get_db $tpin .inst]
+    set inst_name [get_db $inst_obj .name]
+    set delay [get_db $tpoint .delay]
+
+    if { $delay >= [expr -0.3*$max_slack] } {
+      if { $dir == "out" } {
+        dict set resize_candidates $inst_name $delay
+      }
+      if { $dir == "in" } {
+        dict set resize_candidates $prev_inst $prev_dly
+      }
+    }
+
+    if { $delay >= [expr -0.2*$max_slack] && [get_db $inst_obj .is_buffer]} {
+      dict set rem_candidates $inst_name $delay
+    }
+
+    set prev_inst $inst_name
+    set prev_dly $delay
+
+  }
+  incr i
+}
+
+
+
