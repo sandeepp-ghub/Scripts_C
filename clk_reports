@@ -1,0 +1,68 @@
+
+set clk_pins [list \
+  pin:xbar_top_32_0/axi_top/fab_group_3/clk_axi \
+  pin:xbar_top_32_0/axi_top/fab_group_3/clk_axi_ext \
+  pin:xbar_top_32_0/axi_top/fab_group_3/clk_fast \
+]
+
+
+foreach clk_pin_obj $clk_pins {
+  set clk_name [get_db $clk_pin_obj .name]
+
+  set driver [get_db $clk_pin_obj .net.drivers]
+  set driver_inst [get_db $driver .inst]
+  set driver_inst_name [get_db $driver_inst .name]
+  set driver_base_cell [get_db $driver_inst .base_cell.base_name]
+  set driver_name [get_db $driver .name]
+
+  set driver_i_pin [get_db pins $driver_inst_name/I]
+  set driver_2 [get_db $driver_i_pin .net.drivers]
+  set driver_2_inst [get_db $driver_2 .inst]
+  set driver_2_inst_name [get_db $driver_2_inst .name]
+  set driver_2_base_cell [get_db $driver_2_inst .base_cell.base_name]
+  set driver_2_name [get_db $driver_2 .name]
+
+  puts "$driver_2_name ($driver_2_base_cell) --> $driver_name ($driver_base_cell) --> $clk_name"
+}
+
+
+#CIF_clk_local_BUF_3_2/Z (MRVCKS20BWP210H6P51CNODULVT) --> axi_top/CIF_clk_local_buf_fab_group_3/Z (CKBD16BWP210H6P51CNODULVT) --> axi_top/fab_group_3/clk_axi
+#CIF_clk_axi_ext_BUF_3_2/Z (MRVCKS20BWP210H6P51CNODULVT) --> axi_top/CIF_clk_axi_ext_buf_fab_group_3/Z (CKBD16BWP210H6P51CNODULVT) --> axi_top/fab_group_3/clk_axi_ext
+#CIF_clk_fast_BUF_3_2/Z (MRVCKS20BWP210H6P51CNODULVT) --> axi_top/CIF_clk_fast_buf_fab_group_3/Z (CKBD16BWP210H6P51CNODULVT) --> axi_top/fab_group_3/clk_fast
+
+set fab_group_inst [get_db insts -if { .base_name == "fab_group_3" } ]
+set fab_group_inst_name [get_db $fab_group_inst .name]
+set fab_group_all_pins [get_db $fab_group_inst .pins]
+set left_pins [get_db $fab_group_all_pins -if {.base_pin.physical_pins.layer_shapes.shapes.rect.ll.x == 0.0}]
+
+set in_pins [get_db $left_pins -if { .direction == "in" && ![regexp {(clk|ijtag|DFT_CE0|WRCK|CCLK|scan|DFT)} .name] }]
+set out_pins [get_db $left_pins -if {.direction == "out" && ![regexp {(ijtag|DFT)} .name] }]
+
+set hier_name "HBM_XBAR_WRAPPER/HBM_XBAR"
+set if_name "fab_in_pins.tcl"
+set if [open $if_name w]
+puts $if "set fab_in_pins \[list \\"
+foreach in_pin_obj $in_pins {
+  set pin_name [get_db $in_pin_obj .name]
+  puts $if "  $hier_name/$pin_name \\"
+}
+puts $if "\]"
+close $if
+
+set of_name "fab_out_pins.tcl"
+set of [open $of_name w]
+puts $of "set fab_out_pins \[list \\"
+foreach out_pin_obj $out_pins {
+  set pin_name [get_db $out_pin_obj .name]
+  puts $of "  $hier_name/$pin_name \\"
+}
+puts $of "\]"
+close $of
+
+#set pi [list \
+#pin:xbar_top_32_0/axi_top/fab_group_3/clk_axi \
+#pin:xbar_top_32_0/axi_top/fab_group_3/clk_axi_ext \
+#pin:xbar_top_32_0/axi_top/fab_group_3/clk_fast \
+#pin:xbar_top_32_0/axi_top/fab_group_3/dbg_sram_wr_prot \
+#]
+
