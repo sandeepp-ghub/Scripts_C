@@ -1,0 +1,84 @@
+
+#  fab_group_3/clk_axi     - HBM_XBAR_WRAPPER/HBM_XBAR/clk_axi_local
+#  fab_group_3/clk_axi_ext - axi_clk_buf
+#  fab_group_3/clk_fast    - HBM_XBAR_WRAPPER/HBM_XBAR/clk_xbar_buf
+
+#clk_axi
+
+set blk_ck_pins [get_db pins [list \
+  axi_top/fab_group_*/clk_axi \
+  axi_top/fab_group_*/clk_axi_ext \
+  axi_top/fab_group_*/clk_fast \
+  axi_top/hbm_group_*/clk_axi \
+  axi_top/hbm_group_*/clk_axi_ext \
+  axi_top/hbm_group_*/clk_fast \
+]]
+
+set fnames [list]
+#These should have got better
+#lappend fnames "blk2reg_late.rpt"
+#These should have got worse
+#lappend fnames "reg2blk_late.rpt"
+#These should have got better
+lappend fnames "reg2blk_early.rpt"
+#These should have got worse
+lappend fnames "blk2reg_early.rpt"
+
+foreach fname $fnames {
+  lassign [split $fname "_"] group_name early_late
+  if { [file exists $fname] } {
+    file delete $fname
+    exec touch $fname
+  }
+  foreach blk_ck_pin $blk_ck_pins {
+    set pin_name [get_db $blk_ck_pin .name]
+    set split_pname [split $pin_name "/"]
+
+    set f_pfx [join [lrange $split_pname end-1 end] "_"]
+
+    set inst_obj [get_db $blk_ck_pin .inst]
+    set inst_pins [get_db $inst_obj .pins]
+
+    set core_pins [list]
+    foreach inst_pin $inst_pins {
+      set net [get_db $inst_pin .net]
+      set net_name [get_db $net .base_name]
+      if { [regexp {UNCONNECTED} $net_name] } {
+        continue
+      }
+      set drivers [get_db $net .drivers]
+      set loads [get_db $net .loads]
+
+      if {[get_db $drivers .obj_type] != "port" && [get_db $loads .obj_type] != "port" } {
+        lappend core_pins $inst_pin
+      }
+    }
+
+    set core_in_pins [get_db $core_pins -if {.direction == "in"}]
+    set core_out_pins [get_db $core_pins -if {.direction == "out"}]
+
+    set all_view_clocks [get_db -uniq [get_db $blk_ck_pin .clocks] -expr {![regexp {tessent} $obj(.base_name)]}]
+    set clk_name [get_db -uniq $all_view_clocks .base_name]
+
+    exec echo "#######################" >> $fname
+    exec echo "##  $f_pfx"            >> $fname
+    exec echo "#######################" >> $fname
+
+    puts "$group_name -> $f_pfx"
+
+    if { $early_late == "late" } {
+      if { $group_name == "blk2reg" } {
+        report_timing -path_type endpoint -group $group_name -late -from $blk_ck_pin >> $fname
+      } else {
+        report_timing -path_type endpoint -group $group_name -late -to $core_in_pins -from $clk_name >> $fname
+      }
+    } else {
+      if { $group_name == "blk2reg" } {
+        report_timing -path_type endpoint -group $group_name -early -from $blk_ck_pin >> $fname
+      } else {
+        report_timing -path_type endpoint -group $group_name -early -to $core_in_pins -from $clk_name >> $fname
+      }
+    }
+  }
+}
+
