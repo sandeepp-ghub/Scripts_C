@@ -1,0 +1,4 @@
+lmstat -c $CDS_LIC_FILE -f Innovus_CPU_Opt | grep -e 'License server status' -e 'Total of'
+lmstat -c $CDS_LIC_FILE -f Innovus_Impl_System | grep -e 'License server status' -e 'Total of'
+lmstat -c $CDS_LIC_FILE -f Conformal_Low_Power_GXL | grep -e 'License server status' -e 'Total of'
+
