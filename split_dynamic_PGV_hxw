@@ -1,0 +1,88 @@
+#!/usr/bin/tclsh
+
+if {$argc != 1} {
+  puts "USAGE: split_pgv_dynamic <adsRpt directory>"
+  return
+}
+
+set dir [lindex $argv 0]
+set fail_file [file join $dir psi_highlight_fails]
+if {![file exists $fail_file]} {
+  puts "ERROR: Unable to locate psi_highlight_fails file!"
+  return
+}
+
+set fi [open $fail_file r]
+gets $fi fl
+set top_block [lindex [split $fl] 2]
+if {[string match "hbm_xbar_wrapper_*" $top_block]} {
+  set top_block "HXW"
+} elseif {[string match "xbar_top_32_*" $top_block]} {
+  set top_block "XBT"
+} else {
+  puts "ERROR: Unrecognized top block: $top_block"
+}
+
+puts "Reading in psi_highlight_fails..."
+set viol_count 0
+array unset viols
+array set viols {}
+while {![eof $fi]} {
+  gets $fi fl
+  
+  if {[string match "set inst_name *" $fl]} {
+    set inst [lindex [split $fl] 2]
+    set line1 $fl
+    gets $fi line2
+    
+    set owner $top_block
+    if {[regexp "^HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_./" $inst]} {
+      set owner "HBM"
+    } elseif {[regexp "^HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_./" $inst]} {
+      set owner "FAB"
+    } elseif {[regexp "^HBM_XBAR_WRAPPER/HBM_XBAR/" $inst]} {
+      set owner "XBT"
+    }
+    
+    if {![info exists viols($owner)]} {
+      set viols($owner) [list]
+    }
+    lappend viols($owner) [list $line1 $line2]
+    incr viol_count
+  }
+}
+catch {close $fi}
+
+puts "Splitting $viol_count violating insts..."
+foreach owner [list "HXW" "XBT" "FAB" "HBM"] {
+  if {[info exists viols($owner)]} {
+    set fo [open [file join $dir psi_highlight_fails.$owner] w]
+    puts $fo "set ht_color         red"
+    puts $fo "set ht_pattern       dot4"
+    puts $fo "########################################################################"
+    
+    set count 0
+    set pct ""
+    array unset seen_insts
+    array set seen_insts {}
+    
+    foreach line_set $viols($owner) {
+      lassign $line_set line1 line2
+      set inst [lindex [split $line1] 2]
+      if {$pct eq ""} {
+        set pct [lindex $line1 end]
+        set pct [string range $pct 1 end-1]
+      }
+      
+      if {![info exists seen_insts($inst)]} {
+        puts $fo $line1
+        puts $fo $line2
+        incr count
+        set seen_insts($inst) 1
+      }
+    }
+    
+    puts [format "%s | %6s | %s" $owner $count $pct]
+    catch {close $fo}
+  }
+}
