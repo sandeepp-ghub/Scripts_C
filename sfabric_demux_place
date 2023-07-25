@@ -1,0 +1,175 @@
+set left_space 27
+set h_gap 7
+set v_gap 12.3
+
+set mem_w 14.331
+set mem_h 47.796
+
+set place_data {
+{2  14 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__sideband_mem/g_col_0__genblk2_mem_col/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  15 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__sideband_mem/g_col_0__genblk2_mem_col/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+
+{3  12 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_0__genblk2_mem_col/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  13 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_0__genblk2_mem_col/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  14 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_0__genblk2_mem_col/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  15 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_0__genblk2_mem_col/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  12 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_1__genblk2_mem_col/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  13 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_1__genblk2_mem_col/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  14 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_1__genblk2_mem_col/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  15 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_1__genblk2_mem_col/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  12 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_2__genblk2_mem_col/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  13 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_2__genblk2_mem_col/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  14 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_2__genblk2_mem_col/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  15 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_2__genblk2_mem_col/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  12 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_3__genblk2_mem_col/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  13 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_3__genblk2_mem_col/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  14 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_3__genblk2_mem_col/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  15 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_3__genblk2_mem_col/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  12 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_4__genblk2_mem_col/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  13 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_4__genblk2_mem_col/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  14 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_4__genblk2_mem_col/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  15 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_4__genblk2_mem_col/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  12 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_5__genblk2_mem_col/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  13 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_5__genblk2_mem_col/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  14 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_5__genblk2_mem_col/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  15 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_5__genblk2_mem_col/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  12 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_6__genblk2_mem_col/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  13 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_6__genblk2_mem_col/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  14 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_6__genblk2_mem_col/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  15 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_6__genblk2_mem_col/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 12 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_7__genblk2_mem_col/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 13 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_7__genblk2_mem_col/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 14 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_7__genblk2_mem_col/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 15 xbar_top_1x13/axi_top/xbar_fab2hbm/g_xmem_0__data_mem/g_col_7__genblk2_mem_col/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+
+{1  1 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_0/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{1  2 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{1  3 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{1  4 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{1  9 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{1  10 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{1  11 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{1  12 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_1/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{1  13 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{1  14 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{1  15 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  13 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  12 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  11 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  10 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_2/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  9 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  8 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  7 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  6 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  5 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  4 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  3 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_3/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  2 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{2  1 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  1 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  2 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  3 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  4 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  5 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_4/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  6 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  7 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  8 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  9 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  10 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{3  11 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  11 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_5/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  10 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  9 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  8 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  7 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  6 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  5 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  4 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_6/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  3 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  2 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{4  1 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  1 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  2 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  3 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  4 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_7/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  5 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  6 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  7 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  8 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  9 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  10 xbar_top_1x13/axi_top/hbm_group_0/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{5  11 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_0/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  11 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  10 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  9 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  8 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  7 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  6 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_0/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  5 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_1/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  4 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  3 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  2 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{6  1 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  1 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  2 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_1/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  3 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_2/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  4 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  5 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  6 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  7 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  8 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  9 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_2/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  10 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_3/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{7  11 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  11 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  10 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  9 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  8 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  7 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_3/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  6 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_4/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  5 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  4 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  3 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  2 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{8  1 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  1 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_4/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  2 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_5/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  3 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  4 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  5 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  6 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  7 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  8 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_5/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  9 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_6/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  10 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{9  11 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 11 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 10 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 9 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 8 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_6/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 7 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_7/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 6 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 5 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 4 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 3 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_3__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 2 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_4__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 1 xbar_top_1x13/axi_top/hbm_group_1/hbm_port_7/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_5__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+}
+
+set abut_space 1.326
+
+foreach pitem $place_data {
+  lassign $pitem row col mem
+  
+  set x [expr {$left_space + ($col - 1) * ($mem_w + $h_gap)}]
+  set y [expr {$v_gap + ($row - 1) * ($mem_h + $v_gap)}]
+  set o "my"
+  if {[expr {$col % 2}] != 0} {
+    set o "r0"
+    set x [expr {$x + $h_gap}]
+  } elseif {$col != 1} {
+    set x [expr {$x + $abut_space}]
+  }
+  
+  ::mortar::move_gate -name $mem -x_coord $x -y_coord $y -orient $o -status_fixed -no_snap
+}
