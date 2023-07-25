@@ -1,0 +1,105 @@
+#33.252 - abut
+
+set act_w [::get_db current_design .bbox.dx]
+set act_h [::get_db current_design .bbox.dy]
+
+set mem_w 31.263
+set mem_h 75.712
+
+set num_rows 24
+set num_cols 3
+
+set left_space 7.11
+set right_space 9.11
+
+set v_gap [expr {($act_h - ($mem_h * $num_rows)) / ($num_rows + 1)}]
+set h_gap [expr {($act_w - ($mem_w * $num_cols) - $left_space - $right_space) / $num_cols}]
+
+# R C Mem
+set place_data {
+{24 3 g_fab_port_7__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{24 2 g_fab_port_7__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{24 1 g_fab_port_7__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{23 3 g_fab_port_7__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{23 2 g_fab_port_7__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{23 1 g_fab_port_7__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{22 2 g_fab_port_7__fab_port/xbar_oq/g_oq_1__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{22 1 g_fab_port_7__fab_port/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+
+{21 2 g_fab_port_6__fab_port/xbar_oq/g_oq_1__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{21 1 g_fab_port_6__fab_port/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{20 3 g_fab_port_6__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{20 2 g_fab_port_6__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{20 1 g_fab_port_6__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{19 3 g_fab_port_6__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{19 2 g_fab_port_6__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{19 1 g_fab_port_6__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+
+{18 3 g_fab_port_5__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{18 2 g_fab_port_5__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{18 1 g_fab_port_5__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{17 3 g_fab_port_5__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{17 2 g_fab_port_5__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{17 1 g_fab_port_5__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{16 2 g_fab_port_5__fab_port/xbar_oq/g_oq_1__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{16 1 g_fab_port_5__fab_port/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+
+{15 2 g_fab_port_4__fab_port/xbar_oq/g_oq_1__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{15 1 g_fab_port_4__fab_port/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{14 3 g_fab_port_4__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{14 2 g_fab_port_4__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{14 1 g_fab_port_4__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{13 3 g_fab_port_4__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{13 2 g_fab_port_4__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{13 1 g_fab_port_4__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+
+{12 3 g_fab_port_3__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{12 2 g_fab_port_3__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{12 1 g_fab_port_3__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{11 3 g_fab_port_3__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{11 2 g_fab_port_3__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{11 1 g_fab_port_3__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 2 g_fab_port_3__fab_port/xbar_oq/g_oq_1__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{10 1 g_fab_port_3__fab_port/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+
+{ 9 2 g_fab_port_2__fab_port/xbar_oq/g_oq_1__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 9 1 g_fab_port_2__fab_port/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 8 3 g_fab_port_2__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 8 2 g_fab_port_2__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 8 1 g_fab_port_2__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 7 3 g_fab_port_2__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 7 2 g_fab_port_2__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 7 1 g_fab_port_2__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+
+{ 6 3 g_fab_port_1__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 6 2 g_fab_port_1__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 6 1 g_fab_port_1__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 5 3 g_fab_port_1__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 5 2 g_fab_port_1__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 5 1 g_fab_port_1__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 4 2 g_fab_port_1__fab_port/xbar_oq/g_oq_1__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 4 1 g_fab_port_1__fab_port/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+
+{ 3 2 g_fab_port_0__fab_port/xbar_oq/g_oq_1__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 3 1 g_fab_port_0__fab_port/xbar_oq/g_oq_0__output_queue/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 2 3 g_fab_port_0__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 2 2 g_fab_port_0__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 2 1 g_fab_port_0__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 1 3 g_fab_port_0__fab_port/xbar_rport/g_fifo_1__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_2__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 1 2 g_fab_port_0__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_1__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+{ 1 1 g_fab_port_0__fab_port/xbar_rport/g_fifo_0__data_staging_fifo/g_use_ram_b_ram_ram/genblk1_0__genblk2_ram/u_sms_wrapper/U_mem_sms_wrapper_int_top/U_mem}
+}
+
+foreach pitem $place_data {
+  lassign $pitem row col mem
+  
+  set x [expr {$left_space + ($col - 1) * ($mem_w + $h_gap)}]
+  set y [expr {$v_gap + ($row - 1) * ($mem_h + $v_gap)}]
+  set o "my"
+  if {$col > 1} {
+    set o "r0"
+    set x [expr {$x + $h_gap}]
+  }
+  
+  ::mortar::move_gate -name $mem -x_coord $x -y_coord $y -orient $o -status_fixed -no_snap
+}
