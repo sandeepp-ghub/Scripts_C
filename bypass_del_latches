@@ -1,0 +1,86 @@
+
+
+
+proc ::df::rem_byp_retiming_latches {args} {
+
+  set ret_val 0
+
+  set opt_eco_fname ""
+  set opt_del_list [list]
+  set opt_bypass_list [list]
+
+  ::mortar::parse_args $args {
+      {"?eco_file"               opt_eco_fname     string    1}
+      {"del_list"                opt_del_list      list      0}
+      {"bypass_list"             opt_bypass_list   list      0}
+  } {
+
+    #Only implement the delete for now
+    if { ![llength $opt_del_list] } { set ret_val 1; return }
+
+    set fh [open $opt_eco_fname w]
+
+    #set uniq [get_db -uniq pins $sps]
+    #puts "uniq: [llength $uniq]"
+    #puts ""
+    puts ""
+
+    foreach latch_inst_name $opt_del_list {
+
+      if { $latch_inst_name == "" } { continue }
+
+      puts $fh "# $latch_inst_name"
+      set latch_obj [get_db insts $latch_inst_name]
+      if { ![llength $latch_obj] } {
+        puts $fh "# ERROR! $latch_inst_name does NOT exist!"
+        continue
+      }
+
+      set latch_pins [get_db $latch_obj .pins]
+      
+      set latch_d_pin [get_db $latch_pins -if {.base_name == "D"}]
+      set latch_q_pin [get_db $latch_pins -if {.base_name == "Q"}]
+      set latch_en_pin [get_db $latch_pins -if {.base_name == "EN"}]
+
+      set latch_d_net [get_db $latch_d_pin .net.name]
+      set latch_q_net [get_db $latch_q_pin .net.name]
+      set latch_en_net [get_db $latch_en_pin .net.name]
+
+      set latch_q_loads [get_db $latch_q_pin .net.loads]
+
+      set flop_q_pin [get_db $latch_d_pin .net.drivers]
+      set flop_q_bname [get_db $flop_q_pin .base_name]
+      set flop_inst_obj [get_db $flop_q_pin .inst]
+      set flop_inst_name [get_db $flop_inst_obj .name]
+      set flop_q_net [get_db $flop_q_pin .net.name]
+
+      puts $fh "disconnect_pin -inst $latch_inst_name -net $latch_d_net -pin D"
+      puts $fh "disconnect_pin -inst $latch_inst_name -net $latch_q_net -pin Q"
+      puts $fh "disconnect_pin -inst $latch_inst_name -net $latch_en_net -pin EN"
+      puts $fh ""
+      #puts $fh "disconnect_pin -inst $flop_inst_name -net $flop_q_net -pin $flop_q_bname"
+      foreach latch_q_load $latch_q_loads {
+        set q_load_inst [get_db $latch_q_load .inst.name]
+        set q_load_bname [get_db $latch_q_load .base_name]
+
+        puts $fh "disconnect_pin -inst $q_load_inst -net $latch_q_net -pin $q_load_bname"
+        puts $fh "connect_pin -inst $q_load_inst -net $latch_d_net -pin $q_load_bname"
+        puts $fh ""
+      }
+
+      puts $fh ""
+      puts $fh "delete_inst -inst $latch_inst_name"
+      puts $fh "delete_nets $latch_q_net"
+      puts $fh ""
+      #puts $fh "connect_pin -inst $flop_inst_name -net $latch_q_net -pin $flop_q_bname"
+
+      puts $fh ""
+    }
+    #puts ""
+    #puts ""
+
+    puts "Created $opt_eco_fname ..."
+    close $fh
+  }
+  return $ret_val
+}
