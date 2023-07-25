@@ -1,0 +1,28 @@
+::mortar::echo -text "Quick place"
+set_db place_design_floorplan_mode true
+set_db route_early_global_effort_level low
+place_design
+place_detail
+
+::mortar::echo -text "Assemble"
+array unset blocks
+array set blocks {}
+foreach block [::get_db insts -if {.base_cell.base_class==block}] {
+  set cell [::get_db $block .base_cell.name]
+  if {[string match "sfabric*" $cell]} {
+    set lef [mVar LEF($cell)]
+    set db [file join [file dirname $lef] $cell]
+    set blocks($cell) $db
+  }
+}
+
+set cmd [list ::assemble_design]
+foreach b [array names blocks] {
+  puts "$b = $blocks($b)"
+  lappend cmd -block_dir $blocks($b)
+}
+::mortar::echo -text "  $cmd"
+eval $cmd
+
+::mortar::echo -text "Quick cong"
+route_early_global
