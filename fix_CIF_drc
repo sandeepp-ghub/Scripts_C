@@ -1,0 +1,51 @@
+set scbnets [get_db nets  CIF*NET*] ; #get list of SCB nets
+gui_deselect -all; select_obj $scbnets ; #select all SCB nets
+set_db selected .wires.status routed  ; # change  all wires to routed
+set_db selected .vias.status routed; #change all vias to routed
+
+set_db [get_db selected .wires -if {.layer.name == M11}] .status fixed;
+set_db [get_db selected .wires -if {.layer.name == M12}] .status fixed;
+set_db [get_db selected .wires -if {.layer.name == M13}] .status fixed;
+set_db [get_db selected .wires -if {.layer.name == M14}] .status fixed;
+set_db [get_db selected .wires -if {.layer.name == M15}] .status fixed;
+set_db [get_db selected .wires -if {.layer.name == M16}] .status fixed; #do it to M16
+set via_names [list VIA14_SCB_S20_552_stack_via_1x4 VIA13_SCB_S20_552_stack_via_2x11 VIA12_SCB_S20_stack_via_3x11 VIA13_SCB_S20_4x4 VIA12_SCB_S20_2x4 VIA14_SCB_S20_1x4 VIA1415_1cut];
+foreach i $via_names {set_db [get_db selected .vias -if {(.via_def.name == $i)}] .status fixed};
+
+delete_routes -net [get_db $scbnets .name] -shield_only ;  # delete shield only on scb nets
+set_db selected .dont_touch false  ; 
+set_db selected .skip_routing false; # change nets to route-able
+
+###### Do not use this if using it on a postroute db ########
+#set_db route_design_selected_net_only true ; # set nanoroute to route on selected nets 
+#######
+
+#cayman::remove_postfill
+route_eco     								; # call nanoroutes
+gui_deselect -all                         					
+select_routes -nets [get_nets CIF*NET*] -obj_type {wire via}
+check_connectivity -selected 
+check_drc -check_only selected         					; #check if it's clean
+#set_db route_design_selected_net_only false ; # change nanoroute back to normal
+
+gui_deselect -all; select_obj $scbnets ; #select all SCB nets
+set_db selected .wires.status fixed  ; # change  all wires to fixed
+set_db selected .vias.status fixed; #change all vias to fixed
+
+
+#Below is commands how to add shields
+source /proj/cayman/bin/cif.tcl
+cifi::set_technology 5
+cif::dsa
+cif::sn CIF*NET*
+foreach net_name [cif::gsn] {
+   ::edit_trim_routes -nets $net_name
+   ::set_route_attributes -nets $net_name -skip_routing true
+}
+cif::vcon
+cif::sn CIF*NET* 
+foreach net_ptr [cif::gs] { ::set_route_attributes -nets [cifi::net_name $net_ptr] -skip_routing false }
+route_add_shields -include_fixed -selected
+cif::vcon
+
+
