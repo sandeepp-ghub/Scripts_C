@@ -1,0 +1,85 @@
+set cmds "" 
+foreach_in_collection inst [get_cells aengine_wrap?/aengine_*__aengine_inst] {
+  set inst_name [get_object_name $inst]
+  set pin [get_pins $inst_name/DFT_CE0_TCLK]
+  regsub {/} $inst_name {_} inst_name_p
+  set loc [list [get_property $pin x_coordinate] [get_property $pin y_coordinate]]
+  lappend cmds [list create_inst -name [set tielo_inst ${inst_name_p}_tielo] -base_cell lnd_dtielo -location $loc]
+  lappend cmds [list create_net  -name [set tielo_net  ${inst_name_p}_tielo_net]]
+  lappend cmds [list connect_pin -inst $tielo_inst -pin ZN -net $tielo_net]
+  foreach p {DFT_CE0_TCLK DFT_CE0_EDT_UPDATE} {
+    lappend cmds [list disconnect_pin -inst $inst_name -pin $p]
+    lappend cmds [list connect_pin    -inst $inst_name -pin $p -net $tielo_net]
+  }
+}
+foreach cmd $cmds {
+  puts $cmd
+  eval $cmd
+}
+
+
+# Refer 
+#::create_marker -bbox {395.5395 1467.165 395.5395 1467.165} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i31n995_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 1467.669 395.5395 1467.669} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i31n994_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 1373.085 395.5395 1373.085} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i30n963_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 1373.589 395.5395 1373.589} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i30n962_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 1279.005 395.5395 1279.005} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i29n931_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 1279.509 395.5395 1279.509} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i29n930_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 1184.925 395.5395 1184.925} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i28n899_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 1185.429 395.5395 1185.429} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i28n898_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 1090.845 395.5395 1090.845} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i27n867_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 1091.349 395.5395 1091.349} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i27n866_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 996.765 395.5395 996.765} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i26n835_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 997.269 395.5395 997.269} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i26n834_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 1467.165 209.0655 1467.165} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i15n483_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 1467.669 209.0655 1467.669} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i15n482_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 1373.085 209.0655 1373.085} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i14n451_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 1373.589 209.0655 1373.589} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i14n450_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 1279.005 209.0655 1279.005} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i13n419_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 1279.509 209.0655 1279.509} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i13n418_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 1184.925 209.0655 1184.925} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i12n387_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 1185.429 209.0655 1185.429} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i12n386_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 1090.845 209.0655 1090.845} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i11n355_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 1091.349 209.0655 1091.349} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i11n354_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 996.765 209.0655 996.765} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i10n323_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 997.269 209.0655 997.269} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i10n322_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 902.685 395.5395 902.685} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i25n803_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 903.189 395.5395 903.189} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i25n802_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 808.605 395.5395 808.605} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i24n771_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 809.109 395.5395 809.109} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i24n770_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 715.029 395.5395 715.029} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i23n738_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 714.525 395.5395 714.525} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i23n739_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 620.445 395.5395 620.445} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i22n707_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 620.949 395.5395 620.949} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i22n706_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 526.365 395.5395 526.365} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i21n675_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 526.869 395.5395 526.869} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i21n674_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 432.285 395.5395 432.285} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i20n643_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 432.789 395.5395 432.789} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i20n642_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 338.205 395.5395 338.205} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i19n611_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 338.709 395.5395 338.709} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i19n610_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 244.125 395.5395 244.125} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i18n579_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 244.629 395.5395 244.629} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i18n578_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 150.045 395.5395 150.045} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i17n547_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 150.549 395.5395 150.549} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i17n546_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 55.965 395.5395 55.965} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i16n515_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {395.5395 56.469 395.5395 56.469} -desc {Sourceless net (on pin): aengine_wrap1/tpb_aengine_i16n514_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 902.685 209.0655 902.685} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i9n291_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 903.189 209.0655 903.189} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i9n290_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 808.605 209.0655 808.605} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i8n259_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 809.109 209.0655 809.109} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i8n258_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 714.525 209.0655 714.525} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i7n227_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 715.029 209.0655 715.029} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i7n226_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 620.445 209.0655 620.445} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i6n195_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 620.949 209.0655 620.949} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i6n194_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 526.365 209.0655 526.365} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i5n163_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 526.869 209.0655 526.869} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i5n162_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 432.285 209.0655 432.285} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i4n131_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 432.789 209.0655 432.789} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i4n130_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 338.709 209.0655 338.709} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i3n98_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 338.205 209.0655 338.205} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i3n99_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 244.125 209.0655 244.125} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i2n67_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 244.629 209.0655 244.629} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i2n66_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 150.045 209.0655 150.045} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i1n35_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 150.549 209.0655 150.549} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i1n34_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 55.965 209.0655 55.965} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i0n3_DFT_CE0_TCLK (1 sinks} -layer RH_TNE -tool MDC -type none
+#::create_marker -bbox {209.0655 56.469 209.0655 56.469} -desc {Sourceless net (on pin): aengine_wrap0/tpb_aengine_i0n2_DFT_CE0_EDT_UPDATE (1 sinks} -layer RH_TNE -tool MDC -type none
