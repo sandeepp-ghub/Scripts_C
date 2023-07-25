@@ -1,0 +1,611 @@
+
+
+#0122 - Added aggressive filtering to q-pin loads
+#       to avoid latching paths that are setup critical
+#0124 - fixed aggressive filtering
+#     - added multiple bookeeping methods to keep us
+#       from latching the same thing more than once
+
+#D, Q, EN
+set ::latch_base_cell_name "LNQD2BWP210H6P51CNODLVT"
+set ::data_buf_cell "BUFFD6BWP210H6P51CNODULVTLL"
+set ::ck_inv "CKND6BWP210H6P51CNODULVT"
+set ::ck_buf "DCCKBD4BWP210H6P51CNODULVT"
+set ::ck_small_buf "CKBD2BWP210H6P51CNODULVT"
+
+set ::cp_inst_bufs [dict create]
+set ::ck_buf_idx 0
+
+proc zip args {
+  foreach l $args {
+    upvar 1 $l $l
+    lappend vars [incr n]
+    lappend lmap_args $n [set $l]
+  }
+  lmap {*}$lmap_args {lmap v $vars {set $v}}
+}
+
+#
+#Returns the input pin of a buffer only if it drives
+#a fanout of 1 to an SI pin
+proc ::df::trace_si {q_pin_obj si_pin_objs} {
+  set q_pin_obj [get_db $q_pin_obj]
+  set si_pin_objs [get_db $si_pin_objs]
+
+  set si_buf_pin [list]
+
+  foreach si_pin_obj $si_pin_objs {
+    set trace_list [lreverse [get_object_name [all_fanin -to $si_pin_obj]]]
+    set start [get_db pins [lindex $trace_list 1]]
+    set end [get_db pins [lindex $trace_list end]]
+    if { ($end != $si_pin_obj) } {
+      return ""
+    }
+
+    set si_buf_pin [get_db pins [lindex $trace_list 2]]
+
+    set idx 0
+    foreach pin_obj [get_db pins $trace_list] {
+      if { $pin_obj == $q_pin_obj } {
+        set si_buf_pin [lindex $trace_list [expr $idx + 1]]
+        break
+      }
+      incr idx
+    }
+    lappend si_buf_pins $si_buf_pin
+  }
+
+  return $si_buf_pins
+}
+
+#Returns the list of pin objects which fan out to given endpoint
+proc ::df::get_fi_to_ep {q_pin_obj ep_obj} {
+
+  set q_pin_name [get_db $q_pin_obj .name]
+
+  #Cache the existing loads in a dictionary for quick lookup
+  set q_loads [get_db $q_pin_obj .net.loads]
+  set load_dict [dict create]
+  foreach q_load_obj $q_loads {
+    set load_name [get_db $q_load_obj .name]
+    dict set load_dict $load_name 1
+  }
+
+  #Grab the full fanin from every path to the endpoint
+  set trace_list [lreverse [get_object_name [all_fanin -to $ep_obj]]]
+  set fi_pin_list [list]
+
+  foreach fi_pin $trace_list {
+    if { [dict exists $load_dict $fi_pin] } {
+      lappend fi_pin_list $fi_pin
+    }
+  }
+  return $fi_pin_list
+}
+
+
+proc ::df::get_en_net {fp ck_pin_obj {uniq ""}} {
+  global cp_inst_bufs
+  global ck_buf_idx
+  global ck_buf
+  global ck_small_buf
+
+  set orig_flop_ck_net [get_db $ck_pin_obj .net]
+  set orig_flop_ck_net_name [get_db $orig_flop_ck_net .name]
+  set orig_flop_inst_name [get_db $ck_pin_obj .inst.name]
+
+  if { $uniq != "" && ![string match "_*" $uniq]} {
+    set uniq "_${uniq}"
+  }
+
+  set loc {*}[get_db $ck_pin_obj .inst.location]
+
+  set ck_buf_name ""
+  set en_net_name ""
+  set buf_ck_net_bname [get_db $orig_flop_ck_net .base_name]
+
+  if { [dict exists $cp_inst_bufs $orig_flop_inst_name] } {
+
+    set en_net_name [dict get $cp_inst_bufs $orig_flop_inst_name]
+    #regsub -all {_BUF_} $ck_buf_name "_EN_NET_" en_net_name
+    #puts $fp "SETH ck_buf_name: $ck_buf_name"
+    #puts $fp "SETH en_net_name: $en_net_name"
+  } else {
+
+    set ck_buf_name "CK_LATCH_BUF_FOR_LATCH_${buf_ck_net_bname}_${ck_buf_idx}${uniq}"
+    set ck_buf_for_flop_name "CK_LATCH_BUF_FOR_FLOP_${buf_ck_net_bname}_${ck_buf_idx}${uniq}"
+    set en_net_name "CK_LATCH_EN_NET_${buf_ck_net_bname}_${ck_buf_idx}${uniq}"
+    set flop_net_name "CK_LATCH_FLOP_NET_${buf_ck_net_bname}_${ck_buf_idx}${uniq}"
+
+    puts $fp ""
+    puts $fp "#Creating root buffer to isolate flop with latch/EN pins"
+    puts $fp "create_inst -name $ck_buf_name -base_cell $ck_buf -location \{$loc\}"
+    puts $fp "create_net -name $en_net_name"
+    puts $fp ""
+    puts $fp "#Disconnecting flop from orig net and to our new buffered net with its latch friends"
+    puts $fp "set orig_ck_net_name \[get_db $ck_pin_obj .net.name\]"
+    puts $fp "disconnect_pin -inst $orig_flop_inst_name -net \$orig_ck_net_name -pin CP"
+    #puts $fp "connect_pin -inst $orig_flop_inst_name -net $en_net_name -pin CP"
+    puts $fp ""
+    puts $fp "#Hookup first buffer -> latch AND small flop buffer"
+    puts $fp "connect_pin -inst $ck_buf_name -net \$orig_ck_net_name -pin I"
+    puts $fp "connect_pin -inst $ck_buf_name -net $en_net_name -pin Z"
+    puts $fp ""
+    puts $fp "create_inst -name $ck_buf_for_flop_name -base_cell $ck_small_buf -location \{$loc\}"
+    puts $fp "create_net -name $flop_net_name"
+    puts $fp "#Hookup second buffer -> original flop"
+    puts $fp "connect_pin -inst $ck_buf_for_flop_name -net $en_net_name -pin I"
+    puts $fp "connect_pin -inst $ck_buf_for_flop_name -net $flop_net_name -pin Z"
+    puts $fp "connect_pin -inst $orig_flop_inst_name -net $flop_net_name -pin CP"
+    puts $fp ""
+
+    #Cache this so we don't do it again
+    dict set cp_inst_bufs $orig_flop_inst_name $en_net_name
+
+    incr ck_buf_idx
+  }
+  
+  return $en_net_name
+}
+
+proc ::df::create_lu_latch_eco { args } {
+  global latch_base_cell_name
+  global data_buf_cell
+  global ck_inv
+
+  set eco_fname ""
+  set startpoints [list]
+  set exclude_qs [list]
+  set endpoints [list]
+  set uniq ""
+
+  set en_sp 0
+
+  ::mortar::parse_args $args {
+      {"?eco_file"               eco_fname      string    1}
+      {"?endpoints"              endpoints      list      1}
+      {"startpoints"             startpoints    list      0}
+      {"exclude_qs"              exclude_qs     list      0}
+      {"uniq"                    uniq           string    0}
+  } {
+
+    if { $uniq == "" } {
+      set uniq "HoldLatchECO_[exec date +%Y%m%d_%H_%M_%S]"
+    }
+
+    if { [llength $startpoints] } {
+      set en_sp 1
+    }
+
+    set tot_ports [llength $endpoints]
+
+    puts "Processing $tot_ports pins ..."
+
+    set ck_nets [dict create]
+    set fi_dict [dict create]
+
+    set could_not_latch 0
+    set i 0
+    foreach ep_obj $endpoints {
+      #puts $i of $tot_ports"
+      set ep_name [get_db $ep_obj .name]
+      set fi_clk_pins [list]
+      set fi_q_pins [list]
+      #puts -nonewline "$ep_name"
+      set afi [get_object_name [all_fanin -to $ep_obj]]
+      foreach fi $afi {
+        if { [regexp {\/Q\d*$} $fi] } {
+          #Don't filter latch these Q pins
+          if {$fi in $exclude_qs} { continue }
+
+          if { $en_sp } {
+            set sp_obj [lindex $startpoints $i]
+            set clk_pin $sp_obj
+            set sp_inst [get_db $sp_obj .inst]
+
+            set fi_pin_obj [get_db pins $fi]
+            set fi_inst [get_db $fi_pin_obj .inst]
+            if { $sp_inst == $fi_inst } {
+              lappend fi_clk_pins $clk_pin
+              lappend fi_q_pins $fi_pin_obj
+              #puts "$i : $fi_pin_obj : $ep_obj"
+              break
+            } else {
+              continue
+            }
+          } else {
+            #Standard algorithm to add clk, q pins to dict
+            set flop_inst [get_db [get_db pins $fi] .inst]
+            set clk_pin [get_db [get_db $flop_inst .pins] -if {.is_clock == true}]
+            set ck_ep_name [get_db $clk_pin .name]
+            lappend fi_clk_pins $clk_pin
+            lappend fi_q_pins [get_db pins $fi]
+          }
+        }
+      }
+      #Some Error checking to make sure we get fanins
+      if { ![llength $fi_clk_pins] || ![llength $fi_q_pins] } {
+        if { $en_sp } {
+          set sp_obj [lindex $startpoints $i]
+          puts "ERROR: $sp_obj does NOT fanin to $ep_obj"
+        } else {
+          puts "ERROR: $ep_obj has no valid fanin clk pins!"
+        }
+      } else {
+        dict set fi_dict $ep_name [list $fi_clk_pins $fi_q_pins]
+      }
+      incr i
+    }
+
+    #unique
+    #set uniq_pins [get_db [get_db -uniq pins $fi_dict] .name]
+    if { $uniq != "" && ![string match "_*" $uniq]} {
+      set uniq "_${uniq}"
+    }
+
+
+    set latch_cmd_fname $eco_fname
+    set of [open $latch_cmd_fname w]
+
+
+    puts $of ""
+
+    set eco_add_rptr_cmds [list]
+
+    set seen_q_pins [dict create]
+    set seen_fi_pins [dict create]
+
+#DEBUG
+#set ep_name sdma_grp0_macro_hbm_s_0_int_rd_arid[9]
+#set fi_info [dict get $fi_dict $ep_name]
+
+    set i 1
+    set latch_idx 0
+    dict for {ep_name fi_info} $fi_dict {
+      set ck_fi_list [lindex $fi_info 0]
+      set q_fi_list [lindex $fi_info 1]
+      if { ! [expr $i % 100] } {
+        puts $of "puts \"$i of $tot_ports ...\""
+      }
+
+      #if { [llength $ck_fi_list] <=2 }  { continue }
+      set port_obj [get_db ports $ep_name]
+      set pin_obj [get_db pins $ep_name]
+
+      set is_port 0
+      set is_pin 0
+      set obj_type ""
+      if { [llength $port_obj]} { set is_port 1; set obj_type "port" }
+      if { [llength $pin_obj]} { set is_pin 1; set obj_type "pin" }
+
+      if { $obj_type == "" } {
+        puts ""
+        puts "################### FATAL! #########################################"
+        puts "FATAL! $ep_name is not of type port or pin!"
+        puts "################### FATAL! #########################################"
+        puts ""
+        break
+      }
+
+
+      set obj_lbl "${obj_type}_name"
+
+      puts $of "#######################"
+      puts $of "#set $obj_lbl $ep_name"
+      puts $of "#######################"
+
+      if { ! [llength $ck_fi_list] } {
+        puts "$ep_name has do fanin from flops.  (Likely tie-off). Not adding LU latch"
+        continue
+      }
+      foreach ck_pin_obj $ck_fi_list {
+        set ck_net_name [get_db $ck_pin_obj .net.name]
+        #puts "SETH ck_net_name $ck_net_name"
+        if { [dict exists $ck_nets $ck_net_name] } {
+          set val [dict get $ck_nets $ck_net_name] 
+          dict set ck_nets $ck_net_name [expr $val + 1]
+        } else {
+          dict set ck_nets $ck_net_name 1
+        }
+      }
+
+
+      foreach ck_q_zip [zip ck_fi_list q_fi_list] {
+        set ck_pin [lindex $ck_q_zip 0]
+        set q_pin [lindex $ck_q_zip 1]
+        set ck_pin_name [get_db $ck_pin .name]
+        set q_pin_name [get_db $q_pin .name]
+
+        set q_pin_bname [get_db $q_pin .base_name]
+
+        set si_fanout [get_db [all_fanout -end -from $q_pin] -if {.base_name == "SI"}]
+
+        puts $of "#  Working on ck_pin: $ck_pin_name"
+        puts $of "#  -->         q_pin: $q_pin_name"
+
+        set seen_q 0
+        if { [dict exists $seen_q_pins $q_pin_name] } {
+          puts $of "#  Already latched $q_pin_name"
+          puts $of "#  Checking to see if we need connecting addtional load to latch"
+          set seen_q 1
+          #continue
+        }
+        #else { dict set seen_q_pins $q_pin_name 1 }
+
+        set ep_obj [get_db ${obj_type}s $ep_name]
+        set orig_net_obj [get_db $q_pin .net]
+        set orig_net_loads [get_db $orig_net_obj .loads]
+
+        #Check to see if there is already an existing latch
+        #If we do find one.  Populate the dictionaries with
+        #connectivy info
+        set found_existing_latch 0
+        foreach orig_load $orig_net_loads {
+          set orig_load_pins [get_db $orig_load -if {.obj_type == pin}]
+          foreach orig_load_pin $orig_load_pins {
+            set load_inst [get_db $orig_load_pin .inst]
+            if { [get_db $load_inst .base_cell.is_latch] } {
+              set found_existing_latch 1
+
+
+              set latch_base_name [get_db $load_inst .base_name]
+              set latch_q_pin [get_db $load_inst .pins -if {.base_name == "Q"}]
+              set latch_q_net_name [get_db $latch_q_pin .net.name]
+              puts $of "#  Found existing latch already connected to $q_pin_name: $latch_base_name"
+
+              dict set seen_fi_pins $orig_load_pin 1
+              set seen_q 1
+              if { ! [dict exists $seen_q_pins $q_pin_name] } {
+                set latch_info [list $latch_base_name $latch_q_net_name]
+                dict set seen_q_pins $q_pin_name $latch_info
+              }
+              #set latch_info [dict get $seen_q_pins $q_pin_name]
+              #set latch_base_name [lindex $latch_info 0]
+              #set latch_q_net_name [lindex $latch_info 1]
+
+              break
+            }
+          }
+          if { $found_existing_latch } {
+            break
+          }
+        }
+
+        #if the si pin isn't directly driven we have to clone.  V nasty
+        #Perhaps there is some mortar::trace -equiv nets I could do
+        if { [llength $si_fanout] } {
+          set si_loads [get_db $orig_net_loads -if {.base_name == "SI"}]
+          if { ! [llength $si_loads] } {
+            set si_loads [::df::trace_si $q_pin $si_fanout]
+            if { $si_loads == "" } {
+              puts $of "# Must skip latching q_pin !"
+              puts $of "#  SI_pin: [get_db $si_fanout .name]"
+              puts $of "#  is not directly driven from Q pin "
+              puts $of "#  Q_pin: $q_pin_name"
+              incr could_not_latch
+              continue
+            }
+          }
+        }
+
+        #set orig_net_drivers [get_db $orig_net_obj .drivers]
+        set orig_net_drivers $q_pin
+        set orig_net_name [get_db $orig_net_obj .name]
+
+        #set load_inst_names [get_db $orig_net_loads .inst.name]
+        #set load_pin_bnames [get_db $orig_net_loads .base_name]
+
+        #Grab details of the flop we are adding a latch to
+        #skip if there is already a latch
+        set flop_inst [get_db $q_pin .inst]
+        set flop_inst_name [get_db $flop_inst .name]
+        set flop_loc [get_db $flop_inst .location]
+
+        if { [get_db $flop_inst .base_cell.is_latch] } {
+          puts $of "# Already found a latch $flop_inst_name ... skipping"
+          continue
+        }
+
+
+        set pin_base_name [get_db $ep_obj .base_name]
+        regsub -all {[\[\]]} $pin_base_name "_" latch_name_postfix
+        if { $latch_name_postfix == ""} {
+          puts ""
+          puts "################### FATAL! #########################################"
+          puts "FATAL! Unable to create proper latch instance name based on $obj_type:$ep_name"
+          puts "ep_obj: $ep_obj"
+          puts "pin_base_name: $pin_base_name"
+          puts "################### FATAL! #########################################"
+          puts ""
+          break
+        }
+        #Filter out any Flop/Q pin loads which do NOT drive our given endpoint
+        set filtered_loads [get_db pins {*}[::df::get_fi_to_ep $q_pin $ep_obj]]
+
+        #Dont re-latch any fanin-in pins that have already been latched
+        set unseen_loads [list]
+        foreach f_load $filtered_loads {
+          if { ! [dict exists $seen_fi_pins $f_load] } {
+            lappend unseen_loads $f_load
+          } else {
+            puts $of "#    Already already put a latch on $f_load - skipping"
+          }
+        }
+
+        if { ! [llength $unseen_loads] } {
+          puts $of "#  All loads already latched - continuing to next flop"
+          puts $of ""
+          continue
+        }
+
+        set latch_base_name "eco_timing_neg_level_latch_${latch_name_postfix}_${latch_idx}${uniq}"
+        set latch_q_net_name "net_HoldFix_${latch_name_postfix}_${latch_idx}${uniq}"
+
+        #Now that we have done all our filtering we know we either need to create a new latch
+        #and connect loads
+        #OR
+        #connect new loads to an already created latch
+
+        #Latch should sit right on-top of the flop
+        set latch_loc {*}$flop_loc
+
+        #This is a buffer of eco cmds
+        #This will only get output to the eco file if we have a valid situtation to insert a latch
+        set eco_cmds ""
+
+        #If we haven't seen this Q-pin before add a latch to its output
+        #If we HAVE seen this q-pin grab the latch we should use out of the cache
+        set latch_inst_name ""
+        if { ! $seen_q } {
+          #puts $of "create_inst -name $latch_base_name -base_cell $latch_base_cell_name -location \{$latch_loc\}"
+          #puts $of "create_net -name ${latch_q_net_name}"
+          lappend eco_cmds "create_inst -name $latch_base_name -base_cell $latch_base_cell_name -location \{$latch_loc\}"
+          lappend eco_cmds "create_net -name ${latch_q_net_name}"
+          dict set seen_q_pins $q_pin_name [list $latch_base_name $latch_q_net_name]
+        } else {
+          if { [dict exists $seen_q_pins $q_pin_name] } {
+            set latch_info [dict get $seen_q_pins $q_pin_name]
+            set latch_base_name [lindex $latch_info 0]
+            set latch_q_net_name [lindex $latch_info 1]
+          } else {
+            puts $of "#ERROR! seen_q = $seen_q but $q_pin_name does NOT exist in \$seen_q_pins"
+          }
+        }
+
+        set latch_inst_name "$latch_base_name"
+
+        puts $of ""
+
+
+
+        #Double check that we only operate on loads of the q_pin that we haven't already latched
+        foreach orig_net_load $unseen_loads {
+          set found_si_load 0
+          #If there is si pins in our fanout we need to exclude them from getting latched
+          if { [llength $si_fanout] } {
+            #Loop through each original flop/Q pin load that fans out to an SI.  Exclude it
+            foreach load_si $si_loads {
+              if { [get_db $orig_net_load .name] == $load_si } {
+                puts $of "#  Not disconnecting the pin below. It is an SI pin OR drives an SI pin through a series of buffers"
+                puts $of "#  [get_db $orig_net_load .name]"
+                set found_si_load 1
+                break
+              }
+            }
+          }
+
+          #Bookeeping to keep track of this q_load fanning out to an si pin
+          dict set seen_fi_pins $orig_net_load 1
+
+          if { $found_si_load } {
+            continue
+          }
+
+          set load_inst_name [get_db $orig_net_load .inst.name]
+          set load_pin_bname [get_db $orig_net_load .base_name]
+
+#          #Disconnect orginal data net
+#          puts $of "set orig_net_name \[get_db $q_pin .net.name\]"
+#          puts $of ""
+#          puts $of "disconnect_pin -inst $load_inst_name -net \$orig_net_name -pin $load_pin_bname"
+#
+#          #connect net net to term and output of latch
+#          puts $of "connect_pin -inst $load_inst_name -net $latch_q_net_name -pin $load_pin_bname"
+#          puts $of ""
+          #Disconnect orginal data net
+          lappend eco_cmds "set orig_net_name \[get_db $q_pin .net.name\]"
+          lappend eco_cmds ""
+          lappend eco_cmds "disconnect_pin -inst $load_inst_name -net \$orig_net_name -pin $load_pin_bname"
+
+          #connect net net to term and output of latch
+          lappend eco_cmds "connect_pin -inst $load_inst_name -net $latch_q_net_name -pin $load_pin_bname"
+          lappend eco_cmds ""
+        }
+        puts $of ""
+
+
+        #if every load of the q pin fans out to an si we skip latch insertion on this q pin
+        set num_unseen_q_loads [llength $unseen_loads]
+        set si_q_load_count 0
+        foreach q_load_obj $unseen_loads {
+          if { [dict exist $seen_fi_pins $q_load_obj] } {
+            incr si_q_load_count
+          }
+        }
+        #puts $of "#si_q_load_count: $si_q_load_count"
+        #puts $of "#num_unseen_q_loads: $num_unseen_q_loads"
+
+        if { $si_q_load_count < $num_unseen_q_loads } {
+          foreach eco_line $eco_cmds {
+            puts $of $eco_line
+          }
+
+          #If haven't seen this q-pin before that means we need to
+          #hook the q-pin to the latch d-pin and hookup the latch's
+          #clock connection
+          if { ! $seen_q } {
+            #Connect the Q net of the latch to the Q pin of the latch
+            puts $of "set orig_net_name \[get_db $q_pin .net.name\]"
+            puts $of ""
+            puts $of "connect_pin -inst $latch_inst_name -net \$orig_net_name -pin D"
+            lassign $latch_loc latch_x latch_y
+            puts $of ""
+
+            #connect d-pin of latch to the orig net
+            puts $of "connect_pin -inst $latch_inst_name -net $latch_q_net_name -pin Q"
+            puts $of ""
+
+
+            #set ck_pin_net_name [get_db $ck_pin .net.name]
+            set ck_pin_net_name [::df::get_en_net $of $ck_pin $uniq]
+            puts $of "connect_pin -inst $latch_inst_name -net $ck_pin_net_name -pin EN"
+          }
+        } else {
+          puts $of "#Q pin ONLY fans out to SI pins.  No latch inserted"
+        }
+
+
+        puts $of ""
+        incr latch_idx
+      }
+      incr i
+    }
+
+
+    puts $of ""
+    puts $of "puts \"Removing FILLER\""
+    puts $of "cayman::remove_postfill"
+    puts $of ""
+    puts $of "puts \"START place_detail ...\""
+    puts $of "set new_insts \[get_db insts *eco_timing_neg_level_latch_* CK_LATCH_BUF_*\]"
+    puts $of "puts \"Legalizing \[llength \$new_insts\] new latches ...\""
+    puts $of "set_db place_detail_eco_max_distance 20"
+    puts $of "place_detail -inst \[get_db \$new_insts .name\]"
+    puts $of "puts \"END place_detail ...\""
+    puts $of ""
+
+
+
+    puts $of ""
+    #puts $of ""
+    #puts $of "# Occurances of each CK net we touch"
+    #puts $of "# Occurances Net Name"
+    #puts $of "# ---------- --------"
+    #dict for {net_name occur} [lsort -decreasing -integer -index 1 -stride 2 $ck_nets] {
+      #puts $of "# $occur $net_name"
+    #}
+
+    puts $of ""
+    puts $of "#done"
+
+    close $of
+
+    if { $could_not_latch } {
+      puts ""
+      puts "Could NOT latch $could_not_latch Q pins due to large fanouts from Q->SI!"
+      puts ""
+    }
+    puts "Created $latch_cmd_fname"
+  }
+}
+
