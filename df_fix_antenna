@@ -1,0 +1,178 @@
+proc ::df::calculate_needed_antenna_cells { args } {
+  set rc                       0
+  set opt_antenna_diff_area    0.0
+  set opt_antenna_gate_area    0.0
+  set opt_total_gate_area      0.0
+  set opt_total_diff_area      0.0
+  set opt_total_wire_area      0.0
+  
+  
+  ::mortar::parse_args $args {
+    { "antenna_diff_area"      opt_antenna_diff_area     double     1  }
+    { "antenna_gate_area"      opt_antenna_gate_area     double     1  }
+    { "total_diff_area"        opt_total_diff_area       double     1  }
+    { "total_gate_area"        opt_total_gate_area       double     1  }
+    { "total_wire_area"        opt_total_wire_area       double     1  }
+  } {
+
+    set a [expr (8000.0 * $opt_antenna_diff_area * $opt_antenna_gate_area)]
+    set b [expr (8000.0 * $opt_antenna_diff_area * $opt_total_gate_area) + (50000.0 * $opt_antenna_gate_area) + (8000.0 * $opt_total_diff_area * $opt_antenna_gate_area)]
+    set c [expr (-1.0 * $opt_total_wire_area) + (50000.0 * $opt_total_gate_area) + (8000.0 * $opt_total_diff_area * $opt_total_gate_area)]
+    set xminus [expr ((-1.0 * $b) - sqrt((($b * $b) - (4.0 * $a * $c)))) / (2.0 * $a)]
+    set xplus  [expr ((-1.0 * $b) + sqrt((($b * $b) - (4.0 * $a * $c)))) / (2.0 * $a)]
+
+    if { $xminus > 0 } {
+      set rc [expr int(ceil($xminus))]
+    } elseif { $xplus > 0 } {
+      set rc [expr int(ceil($xplus))]
+    } else {
+      set rc -1
+    }
+  }
+  return $rc
+}
+
+proc ::df::process_antenna_report { args } {
+
+  set rc               [list]
+  set opt_nets         [list]
+  set opt_filename     ""
+  set opt_antenna_cell [::get_db route_design_antenna_cell_name]
+  
+  ::mortar::parse_args $args {
+    { "nets"          opt_nets          string   1  }
+    { "filename"      opt_filename      string   1  }
+    { "antenna_cell"  opt_antenna_cell  string   0  }
+  } {
+
+    set bottom_layer      [::get_db design_bottom_routing_layer]
+    set violation_file    [format "%s/%s.clkant.viol.txt" [file normalize report] [::get_db current_design .name]]
+    set antenna_diff_area 0.0
+    set antenna_gate_area 0.0
+
+    if { $opt_antenna_cell ne "" } {
+      set antenna_cell [::get_db base_cells $opt_antenna_cell]
+      if { $antenna_cell ne "" } {
+				set antenna_pin [::get_db $antenna_cell .base_pins -if { .direction eq "in" }]
+				foreach ad [::get_db $antenna_pin .antenna_data] {
+					if { [::get_db $ad .type] eq "lib_diff_area" } {
+						set antenna_diff_area [expr ([::get_db $ad .area])]
+					} elseif { [::get_db $ad .type] eq "lib_gate_area" } {
+						set antenna_gate_area [expr ([::get_db $ad .area])]
+					}
+				}
+
+				
+				if {[::mortar::tool -version] < 22.00 && [::mortar::tool -version] < 21.16} {
+					
+					::gui_deselect -all
+					foreach netname $opt_nets {
+						set net [::get_db nets $netname]
+						set __skip_routing($net) [::get_db $net .skip_routing]
+						::set_db $net .skip_routing false
+						::select_net $netname
+					}
+					
+					set     cmd "::verifyProcessAntenna"
+					lappend cmd "-selected"
+					lappend cmd "-geomConnect"
+					lappend cmd "-report"
+					lappend cmd $violation_file
+					puts "Running: $cmd"
+					::eval_legacy $cmd
+					
+					set bad_name [format "%s_init_antenna.rpt" [::get_db current_design .name]]
+					if { [file exists $bad_name] } {
+						file rename -force $bad_name $violation_file
+					}
+					
+					foreach net [array names __skip_routing] {
+						::set_db $net .skip_routing $__skip_routing($net)
+					}
+					::gui_deselect -all
+					
+				} else {
+					set     cmd "::check_antenna"
+					lappend cmd "-nets"
+					lappend cmd $opt_nets
+					lappend cmd "-out_file"
+					lappend cmd $violation_file
+					puts "Running: $cmd"
+					eval $cmd
+				}
+				
+				if { [file exists $violation_file] } {
+					if { ! [catch {open $violation_file "r"} fid] } {
+						while { [gets $fid line] > -1 } {
+							if { [regexp {^Net } $line] } {
+								regsub {Net } $line "" netname
+							} elseif { [regexp { PIN: } $line] } {
+								regsub {: PIN:  } $line "" line
+								regsub { \(.*\) } $line "/" line
+								regsub { on.*} $line "" pinname
+							} elseif { [regexp {: Area} $line] } {
+								regsub {: } $line "" line
+								lassign [split $line] total_wire_area special_wire_area total_gate_area total_diffusion_area
+								regsub -all -- {Area}    $total_wire_area      "" total_wire_area
+								regsub -all -- {[\(\)]}  $total_wire_area      "" total_wire_area
+								regsub -all -- {G\.Area} $total_gate_area      "" total_gate_area
+								regsub -all -- {[\(\)]}  $total_gate_area      "" total_gate_area
+								regsub -all -- {D\.Area} $total_diffusion_area "" total_diffusion_area
+								regsub -all -- {[\(\)]}  $total_diffusion_area "" total_diffusion_area
+								set antenna_count [::df::calculate_needed_antenna_cells        \
+																			 -antenna_diff_area $antenna_diff_area   \
+																			 -antenna_gate_area $antenna_gate_area   \
+																			 -total_gate_area $total_gate_area       \
+																			 -total_diff_area $total_diffusion_area  \
+																			 -total_wire_area $total_wire_area]
+								set     __rc($netname) $antenna_count
+								lappend __rc_pins($netname) $pinname
+							}
+						}
+						close $fid
+
+						
+						if { ! [catch {open $opt_filename "w"} fid] } {
+							puts $fid "#"
+							puts $fid "#"
+							puts $fid "#"
+							puts $fid "namespace eval ::df            {}"
+							puts $fid "namespace eval ::df::ant_fixer {}"
+							puts $fid ""
+							puts $fid ""
+							puts $fid "set ::df::ant_fixer::antenna_cell $opt_antenna_cell"
+							puts $fid ""
+
+							foreach netname [lsort [array names __rc]] {
+								puts $fid "#"
+								puts $fid "# Antenna Cells need to fix violations for net: $netname"
+								puts $fid "#"
+								puts $fid "set ::df::ant_fixer::required_antenna_count($netname) $__rc($netname)"
+								puts $fid "set ::df::ant_fixer::required_antenna_pins($netname)  {$__rc_pins($netname)}"
+								puts $fid "#"
+								puts $fid "#"
+							}
+							close $fid
+							set rc [array get __rc]
+						} else {
+							puts "Cannot open file: $opt_filename ($fid)"
+						}
+					} else {
+						puts "Cannot open file: $violation_file ($fid)"
+					}
+				} else {
+					puts "No violation file found"
+				}
+      } else {
+				puts "Antenna cell: $opt_antenna_cell not defined"
+      }
+    } else {
+      puts "No antenna cell specified"
+    }
+    
+  }
+  
+  return $rc 
+  
+
+}
