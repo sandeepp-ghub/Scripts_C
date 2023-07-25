@@ -1,0 +1,27 @@
+set new_ceiling M6
+
+set start [clock seconds]
+set pruning 0
+foreach layer [lreverse [::get_db [::get_db layers -if {.route_index>0}] .name]] {
+  if {!$pruning && $layer eq [::df::block_ceiling]} {
+    set pruning 1
+  } elseif {$layer eq $new_ceiling} {
+    break
+  }
+  
+  if {$pruning} {
+    #Remove all power routes on this layer
+    foreach stripe [::get_db [concat [::get_db nets VDD] [::get_db nets VSS]] .special_wires -if {.layer.name==$layer}] {
+      ::delete_obj $stripe
+    }
+    
+    #Add ceiling blockage
+    ::create_route_blockage -name METH_rblk_rlm_above_ceiling -spacing 0 -rects [::get_db current_design .bbox] -layers $layer
+    
+    ::mortar::echo -text "Pruned layer: $layer"
+  }
+}
+::set_db [::get_db route_blockages METH_rblk_rlm_above_ceiling] .is_pushdown 1
+::set_db design_top_routing_layer $new_ceiling
+::df::block_ceiling -value $layer
+::mortar::echo -text "Ceiling reduced to $layer ([expr {[clock seconds] - $start}]s)."
