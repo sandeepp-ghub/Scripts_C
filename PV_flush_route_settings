@@ -1,0 +1,17 @@
+mdc::check_drc          -design_state postroute
+
+set shorts [get_db markers -if { .subtype == *Short* }]
+set nets   [lsort -unique [get_db [get_db $shorts .objects] -if {.obj_type == net && (.use == signal || .use == clock || .use == scan)}]]
+#set nets   [get_db $nets -if {.name != CIF*}] ; # hopefully CIF do not need to be hacked, but...
+set_db $nets .wires.status routed
+
+set net_name [get_db $nets .name]
+puts "[llength $net_name] nets represented in [llength $shorts] shorts"
+delete_routes -net $net_name
+foreach name $net_name {
+  set_route_attributes -nets $name -reset
+}
+
+route_eco
+
+cayman::mdc_pv_flush
