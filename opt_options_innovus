@@ -1,0 +1,20 @@
+# Old					New
+opt_drv                               opt_fix_drv
+opt_drv_with_miller_cap               opt_fix_drv_with_miller_cap
+opt_hold_allow_overlap                opt_fix_hold_allow_overlap
+opt_hold_allow_resize                 opt_fix_hold_allow_resize
+opt_hold_allow_setup_tns_degradation  opt_fix_hold_allow_setup_tns_degradation
+opt_hold_cells                        opt_fix_hold_cells
+opt_hold_ignore_path_groups           opt_fix_hold_ignore_path_groups
+opt_hold_on_excluded_clock_nets       opt_fix_hold_on_excluded_clock_nets
+opt_hold_slack_threshold              opt_fix_hold_slack_threshold
+opt_skew                              opt_useful_skew
+opt_skew_ccopt                        opt_useful_skew_ccopt
+opt_skew_delay_pre_cts                opt_useful_skew_delay_pre_cts
+opt_skew_macro_only                   opt_useful_skew_macro
+opt_skew_max_allowed_delay            opt_useful_skew_max_allowed_delay
+opt_skew_min_allowed_delay            opt_useful_skew_min_allowed_delay
+opt_skew_no_boundary                  opt_useful_skew_no_boundary
+opt_skew_post_route                   opt_useful_skew_post_route
+opt_skew_pre_cts                      opt_useful_skew_pre_cts
+opt_verbose                           opt_fix_hold_verbose
