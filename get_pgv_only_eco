@@ -1,0 +1,43 @@
+#!/usr/bin/tclsh
+
+if {$argc != 2} {
+  puts "USAGE: get_pgv_only_eco <ECO File> <PGV Inst File>"
+  return
+}
+
+lassign $argv eco_file pgv_inst_file
+
+#Get PGV insts
+array unset pgv_insts
+array set pgv_insts {}
+set fi [open $pgv_inst_file r]
+while {![eof $fi]} {
+  gets $fi fl
+  if {$fl ne ""} {
+    set pgv_insts($fl) 1
+  }
+}
+catch {close $fi}
+
+#Create refined ECO
+set kept 0
+set discarded 0
+set new_eco [file rootname $eco_file].pgv_only.tcl
+set fo [open $new_eco w]
+set fi [open $eco_file r]
+while {![eof $fi]} {
+  gets $fi fl
+  regsub -all " +" [string trim $fl] " " fl
+  set inst [string map [list \{ "" \} ""] [lindex [split $fl] 2]]
+  if {[info exists pgv_insts($inst)]} {
+    puts $fo $fl
+    incr kept
+  } elseif {$fl ne ""} {
+    incr discarded
+  }
+}
+catch {close $fi}
+catch {close $fo}
+
+puts "Kept $kept ECO actions; discarded $discarded."
+puts "Wrote PGV-only ECO: $new_eco"
