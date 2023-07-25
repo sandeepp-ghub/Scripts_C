@@ -1,0 +1,40 @@
+set script_dir [ format "%s/n5" [file dirname [file normalize [info script]]] ]
+source $script_dir/mflow_sdf_wrapper.tcl
+
+set force_update_timing 0
+
+if { [ get_db delaycal_enable_si ] == "true" } {
+  # remove si
+  set_db delaycal_enable_si false
+  set force_update_timing 1
+}
+
+#if { [  set timing_disable_parallel_arcs ] == "true" } {
+#  set_db timing_disable_parallel_arcs false
+#  set force_update_timing 1
+#}
+#
+if { $force_update_timing == 1 } {
+  puts [ format "force update timing to remove SI" ]
+  update_timing
+}
+
+set write_mmmc_sdf "true" 
+set sdf_views [ all_analysis_views ]
+set all_views [ all_analysis_views ]
+
+foreach sdf_view $sdf_views {
+  if { [ lsearch -exact $all_views $sdf_view ] >= 0 } {
+    if { $write_mmmc_sdf == "true" } {
+      mflow_sdf_wrapper -sdf_view $sdf_view -max_paths 999999 -max_slack 0 -write_sdf "false"
+    } else {
+      puts [ format "write %s sdf file" $sdf_view ]
+      mflow_sdf_wrapper -sdf_view $sdf_view -max_paths 999999 -max_slack 0 -write_sdf "true"
+    }
+  }
+}
+
+if { $write_mmmc_sdf == "true" } {
+  puts [ format "write mmmc sdf" ]
+  mflow_sdf_wrapper -write_sdf "true"
+}
