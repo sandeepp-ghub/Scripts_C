@@ -1,0 +1,259 @@
+#!/usr/bin/tclsh
+
+if {$argc < 2} {
+  puts "USAGE: live_status <out_dir> <block> \[user list\]"
+  return
+}
+
+set out_dir [lindex $argv 0]
+set blocks [list [list [lindex $argv 1] [lrange $argv 2 end]]]
+
+################################################################################################
+
+set live_window 86400
+set session_order {
+  invcui.postroute
+  invcui.route
+  invcui.postcts
+  invcui.cts
+  invcui.prects.updatedb
+  invcui.prects
+  invcui.floorplan
+}
+
+################################################################################################
+
+set current_time [clock seconds]
+set proj_root $env(PROJ_ROOT)
+set chip_rev $env(MHUB_CHIP_REVISION)
+
+################################################################################################
+
+proc get_tag_logs {tag_info} {
+  array unset seen_logs
+  array set seen_logs {}
+  set tag_logs [list]
+  if {$tag_info ne "" && [file exists $tag_info] && [file readable $tag_info]} {
+    set fi [open $tag_info r]
+    while {![eof $fi]} {
+      gets $fi fl
+      if {[string match "log=*" $fl]} {
+        set log [lindex [split $fl =] end]
+        if {$log ne ""} {
+          if {![file exists $log] && [file exists $log.gz]} {
+            set log $log.gz
+          }
+          if {[file exists $log]} {
+            if {![info exists seen_logs($log)]} {
+              lappend tag_logs $log
+              set seen_logs($log) 1
+            }
+          }
+        }
+      }
+    }
+    catch {close $fi}
+  }
+  return $tag_logs
+}
+
+proc get_log_data {log_file} {
+  global session_order
+  
+  #Get track
+  set track [file tail [file dirname [file dirname [file dirname $log_file]]]]
+  
+  #Get session
+  set session [file tail [file dirname [file dirname $log_file]]]
+  
+  #Get user
+  set user [file attributes $log_file -owner]
+  
+  #Get log origination/mtime
+  set log_name [file tail $log_file]
+  set log_time [split [string range $log_name 0 [expr {[string first . $log_name] - 1}]] _]
+  set log_htime [string range [lindex $log_time end] 0 1]:[string range [lindex $log_time end] 2 3]:[string range [lindex $log_time end] 4 5]
+  set log_otime [clock scan "$log_htime [lindex $log_time 2]/[lindex $log_time 3]/[lindex $log_time 1]"]
+  set log_mtime [file mtime $log_file]
+  
+  #Extract log data
+  set extracted_data [list]
+  set gcmd [list zgrep]
+  lappend gcmd -E "STEP-END: common_dataout|total hotspot area|Routing Overflow|\\\|reg2reg "
+  lappend gcmd $log_file
+  catch {set extracted_data [eval exec -- $gcmd]}
+  
+  #Process extracted data
+  set log_ftime ""
+  set r2r_wns ""
+  set r2r_tns ""
+  set hs_max ""
+  set hs_total ""
+  set oflow_h ""
+  set oflow_v ""
+  foreach line [split $extracted_data \n] {
+    if {[string match "*STEP-END: common_dataout*" $line]} {
+      set line_split [split $line]
+      set log_ftime [clock scan "[lindex $line_split end-1] [string range [lindex $line_split end] 0 [expr {[string first . [lindex $line_split end]] - 1}]]"]
+    } elseif {[string match "*total hotspot area*" $line]} {
+      set line_split [split $line]
+      set eq_index [lsearch -exact $line_split "="]
+      if {$eq_index > -1} {
+        set hs_data [lindex $line_split [expr {$eq_index + 1}]]
+        lassign [split $hs_data /] hs_max hs_total
+      }
+    } elseif {[string match "*Routing Overflow*" $line]} {
+      set line_split [split $line]
+      lassign $line_split skip skip oflow_h skip skip oflow_v
+    } elseif {[string match "*reg2reg*" $line]} {
+      regsub -all " +" $line "" line
+      set line_split [split $line |]
+      lassign $line_split skip skip r2r_wns r2r_tns
+    }
+  }
+  
+  #Extract DRC info
+  set drcs ""
+  set shorts ""
+  if {$session eq "invcui.cts" || $session eq "invcui.postcts" || $session eq "invcui.route" || $session eq "invcui.postroute"} {
+    set extracted_data [list]
+    set gcmd [list zgrep]
+    lappend gcmd -A19
+    lappend gcmd "By Layer and Type"
+    lappend gcmd $log_file
+    lappend gcmd |
+    lappend gcmd grep
+    lappend gcmd "Totals"
+    catch {set extracted_data [eval exec -- $gcmd]}
+    
+    set header_seen 0
+    set short_index -1
+    foreach line [split $extracted_data \n] {
+      regsub -all " +" [string trim [string range $line 1 end]] " " line
+      set line_split [split $line]
+      if {[lindex $line_split 0] eq "Totals"} {
+        if {$header_seen} {
+          if {$short_index > 0} {
+            set shorts [lindex $line_split $short_index]
+            set short_index -1
+          } else {
+            set shorts 0
+          }
+          set header_seen 0
+        }
+        set drcs [lindex $line_split end]
+      } elseif {[lindex $line_split end] eq "Totals"} {
+        set header_seen 1
+        set short_index [expr {[lsearch -exact $line_split "Short"] + 1}]
+      }
+    }
+  }
+  
+  #Get runtime
+  if {$log_ftime eq ""} {
+    #Still running?
+    set runtime "WIP([expr {round((($log_mtime - $log_otime) / 3600.0) + 0.5)}]h)"
+  } else {
+    set runtime "[expr {round((($log_ftime - $log_otime) / 3600.0) + 0.5)}]h"
+  }
+  
+  return [list $track $session $user $runtime $r2r_wns $r2r_tns $hs_max $hs_total $oflow_h $oflow_v $shorts $drcs]
+}
+
+################################################################################################
+
+#Process each block
+foreach block_data $blocks {
+  lassign $block_data block users
+  set csv_lines [list]
+  
+  puts "Processing $block..."
+  
+  #Scan all users if none specified
+  if {[llength $users] == 0} {
+    set users [glob -nocomplain -tails -types [list d l] -directory [file join $proj_root wa] *]
+  }
+  
+  #Locate candidate running logs
+  set running_logs [list]
+  foreach user $users {
+    foreach block_dir [list [file join $proj_root wa $user impl ${block}.${chip_rev}] [file join $proj_root wa $user impl ${block}]] {
+      foreach track_dir [glob -nocomplain -types [list d] -directory $block_dir *] {
+        set session_index 0
+        foreach session $session_order {
+          set found_log ""
+          foreach log [glob -nocomplain -types [list f] -directory [file join $track_dir $session logfiles] *.log{,.gz}] {
+            if {[expr {$current_time - [file mtime $log]}] < $live_window} {
+              set found_log $log
+              break
+            }
+          }
+          
+          if {$found_log ne ""} {
+            set log_name [file tail $log]
+            set log_time [split [string range $log_name 0 [expr {[string first . $log_name] - 1}]] _]
+            set log_htime [string range [lindex $log_time end] 0 1]:[string range [lindex $log_time end] 2 3]:[string range [lindex $log_time end] 4 5]
+            set log_otime [clock scan "$log_htime [lindex $log_time 2]/[lindex $log_time 3]/[lindex $log_time 1]"]
+            set log_mtime [file mtime $log]
+            
+            lappend running_logs [list [file tail $track_dir] $user $session $session_index $log_otime $log_mtime $log]
+            break
+          }
+          
+          incr session_index
+        }
+      }
+    }
+  }
+  
+  #Sort: primary by session, then by start time
+  set running_logs [lsort -increasing -index 4 $running_logs]
+  set running_logs [lsort -increasing -index 3 $running_logs]
+  
+  #Extract reference tag_info from each log
+  set logs_data [list]
+  foreach log_data $running_logs {
+    lassign $log_data track_name user session session_index log_otime log_mtime log_file
+    set gcmd [list zgrep]
+    lappend gcmd -m 1
+    lappend gcmd -E "read_db .*${block}"
+    lappend gcmd $log_file
+    set db ""
+    catch {set db [eval exec -- $gcmd]}
+    set tag_info ""
+    if {$db ne ""} {
+      foreach p [split [string map [list "\{" "" "\}" ""] $db]] {
+        if {[string match "*dataout*" $p] && [file exists $p] && [file isdirectory $p]} {
+          if {[file exists [set tag_info [file join $p .tag_info]]]} {
+            break
+          }
+        }
+      }
+    }
+    
+    lappend logs_data [concat $log_data $tag_info]
+  }
+  
+  #Extract data
+  lappend csv_lines "$block"
+  lappend csv_lines "TRACK,SESSION,USER,RUNTIME,R2R_WNS,R2R_TNS,HS_MAX,HS_TOTAL,OF_H,OF_V,SHORTS,DRCS"
+  foreach log_data $logs_data {
+    lassign $log_data track_name user session session_index log_otime log_mtime log_file tag_info
+    
+    lappend csv_lines [get_log_data $log_file]
+    foreach history_log [get_tag_logs $tag_info] {
+      lappend csv_lines [get_log_data $history_log]
+    }
+    lappend csv_lines ""
+  }
+  lappend csv_lines ""
+  
+  #Write out CSV report
+  set csv [file join $out_dir "${block}.live_status.[clock format $current_time -format %Y-%m-%d_%T].csv"]
+  set fo [open $csv w]
+  foreach line $csv_lines {
+    puts $fo [join $line ,]
+  }
+  catch {close $fo}
+  puts "Wrote: $csv ([expr {[clock seconds] - $current_time}]s)"
+}
