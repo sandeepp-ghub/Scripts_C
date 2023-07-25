@@ -1,0 +1,672 @@
+
+#D, Q, EN
+set ::latch_base_cell_name "LNQD2BWP210H6P51CNODLVT"
+set ::data_buf_cell "BUFFD6BWP210H6P51CNODULVTLL"
+set ::ck_inv "CKND10BWP210H6P51CNODULVT"
+set ::ck_buf "CKBD10BWP210H6P51CNODULVT"
+set ::ck_small_buf "CKBD4BWP210H6P51CNODULVT"
+set ::ck_net_bufs [dict create]
+set ::ck_buf_idx 0
+
+proc zip args {
+  foreach l $args {
+    upvar 1 $l $l
+    lappend vars [incr n]
+    lappend lmap_args $n [set $l]
+  }
+  lmap {*}$lmap_args {lmap v $vars {set $v}}
+}
+
+proc trace_invs {net_name {levels 2}} {
+  set orig_net $net_name
+  set net_obj [get_db nets $net_name]
+
+  set driver_in_pin ""
+  for {set i 0} {$i < $levels} {incr i} {
+    set drivers [get_db $net_obj .drivers]
+    set driver_inst [get_db $drivers .inst]
+
+    if { ! [get_db $driver_inst .is_inverter] } {
+      #puts "Error: found non-inverter from orginal net: $orig_net $i levels up the tree"
+      return ""
+    }
+    set driver_in_pin [get_db $driver_inst .pins -if {.direction == "in"}]
+    set net_obj [get_db $driver_in_pin .net]
+  }
+  return $driver_in_pin
+}
+
+proc find_common_pin {clk_pin1 clk_pin2} {
+  set eq1 [get_db [all_fanin -to $clk_pin1] -if {.direction == "in"}]
+  set eq2 [get_db [all_fanin -to $clk_pin2] -if {.direction == "in"}]
+  array unset eq
+  array set eq {}
+  foreach pin $eq2 {
+    set eq($pin) 1
+  }
+  set common_pin ""
+  foreach pin $eq1 {
+    if {[info exists eq($pin)]} {
+      set common_pin $pin
+      break
+    }
+  }
+  return $common_pin
+}
+
+proc share_icg {clk_pin1 clk_pin2} {
+  set eq1 [get_db [get_db -uniq [get_db [all_fanin -to $clk_pin1] -if {.obj_type == pin}] .inst] -if {.is_clock_gating_check == true}]
+  set eq2 [get_db [get_db -uniq [get_db [all_fanin -to $clk_pin2] -if {.obj_type == pin}] .inst] -if {.is_clock_gating_check == true}]
+  if { ![llength $eq1] || ![llength $eq2] } {
+    puts "No latches"
+    return ""
+  }
+  array unset eq
+  array set eq {}
+  foreach latch $eq2 {
+    set eq($latch) 1
+  }
+  set common_latch ""
+  foreach latch $eq1 {
+    puts "SETH testing: $latch"
+    if {[info exists eq($latch)]} {
+      puts "  --> SETH found it!"
+      set common_latch $latch
+      break
+    }
+  }
+  return $common_latch
+}
+
+#read_db /proj/cayman/wa/asiripragada/impl/sfabric_sdma_grp0_macro.1.0A/track.DE3_postdft_nov10_mxport_CKAN_placeinst_updated_constraint_spare_itr13_drv_xtalk_fix/invcui.signoff.eco/sfabric_sdma_grp0_macro.invcuidb/sfabric_sdma_grp0_macro
+
+#proc get_en_pin_net {ck_net_obj of} {
+#  global ck_nets
+#
+#  set ck_net_name [get_db $ck_net_obj .name]
+#
+#  set root_inv_pfx "ck_inst_HoldFix_latch_root_inv"
+#  set leaf_inv_pfx "ck_inst_HoldFix_latch_leaf_inv"
+#
+#  set root_idx 0
+#  set ck_net_name [get_db $ck_pin_obj .net.name]
+#  #puts "SETH ck_net_name $ck_net_name"
+#  if { [dict exists $ck_nets $ck_net_name] } {
+#    set val [dict get $ck_nets $ck_net_name] 
+#    dict set ck_nets $ck_net_name [expr $val + 1]
+#  } else {
+#    set leaf_idx 0
+#    set root_inv_name "${root_inv_pfx}_${root_idx}"
+#    set leaf_inv_name "${leaf_inv_pfx}_${leaf_idx}"
+#
+#    set inv_driver_pin [trace_invs $ck_net_name 2]  
+#    set loc [get_db $inv_driver_pin .inst.location]
+#
+#    puts $of "create_inst $root_inv_name -base_cell $ck_inv -location \{$loc\}"
+#
+#    dict set ck_nets $ck_net_name 1
+#
+#    incr root_idx
+#  }
+#
+#}
+
+
+proc create_inv_tree_ccopt {args} {
+  for { set i 0 } { $i < [llength $args] } { incr i } {
+    set name [lindex $args $i]
+    if { [string match "-*" $name] } {
+      set options($name) [lindex $args [expr $i + 1]]
+      incr i
+    }
+  }
+  #puts [array get options]
+  #if {[info exists options(-max_trans)]} {set target_max_trans $options(-max_trans)} {set target_max_trans 150ps}
+  #if {[info exists options(-max_fanout)]} {set max_fanout $options(-max_fanout)} {set max_fanout 100 }
+  if {[info exists options(-roots)]} {set roots $options(-roots)} {puts "Missing roots of buffer tree. Exit" return}
+  #if {[info exists options(-buffer_cells)]} {set buffer_cells $options(-buffer_cells)} {set buffer_cells "*"}
+  #if {[info exists options(-inverter_cells)]} {set inverter_cells $options(-inverter_cells)} {set inverter_cells "*"}
+  #if {[info exists options(-use_inverters)]} {set use_inverters $options(-use_inverters)} {set use_inverters 0}
+
+  set buffer_cells ""
+  set inverter_cells "CKND10BWP210H6P51CNODULVT"
+  set target_max_trans 65
+  set max_fanout 16
+  set use_inverters 1
+
+  #Before the script
+  write_cts_config full_cts_config.tcl
+  reset_cts_config 
+
+  foreach r $roots {
+    create_clock_tree -name $r -source $r
+    #foreach [get_db clock_trees .sinks ] {set_db $s cts_sink_type stop } 
+    delete_clock_trees *
+    delete_skew_groups *
+  }
+
+  foreach r $roots {
+    create_clock_tree -name $r -source $r
+  }
+  set_db cts_buffer_cells $buffer_cells
+  set_db cts_inverter_cells $inverter_cells 
+  set_db cts_use_inverters $use_inverters
+  set_db cts_target_max_transition_time $target_max_trans
+  set_db cts_max_fanout $max_fanout
+
+  set_db cts_balance_mode cluster
+
+  set_db cts_force_cluster_only true
+  set_db cts_clustering_downsizing true
+
+  set_db cts_inst_name_prefix BTS_ccopt_ 
+  set_db cts_net_name_prefix BTS_ccopt_
+
+  set_db extract_rc_engine pre_route
+  set_db extract_rc_effort_level low
+ 
+  set_db cts_update_clock_latency false
+  report_clock_trees -summary -out_file existing_buffer_tree.rep
+  delete_clock_tree_drivers
+
+  clock_design 
+
+  report_clock_trees -summary -out_file new_buffer_tree.rep
+  reset_clock_tree_routing_state
+  #foreach n [get_clock_tree_nets] { eval_legacy {dbset [dbget top.nets.name $n -p].isCTSClock 0} }
+  #foreach n [get_clock_tree_nets] {
+    #set_db [get_db nets $n] .is_cts_clock 0
+  #}
+  reset_cts_config
+
+  #Read back in cts config
+  read_cts_config full_cts_config.tcl
+}
+
+
+#Returns the input pin of a buffer only if it drives
+#a fanout of 1 to an SI pin
+proc trace_si {q_pin_obj si_pin_obj} {
+  set q_pin_obj [get_db $q_pin_obj]
+  set si_pin_obj [get_db $si_pin_obj]
+  set trace_list [lreverse [get_object_name [all_fanin -to $si_pin_obj]]]
+  set start [get_db pins [lindex $trace_list 1]]
+  set end [get_db pins [lindex $trace_list end]]
+  if { ($start != $q_pin_obj || $end != $si_pin_obj) } {
+    return ""
+  }
+
+  set si_buf [get_db pins [lindex $trace_list 2]]
+
+  foreach pin_obj [get_db pins $trace_list] {
+    set inst [get_db $pin_obj .inst]
+    if { [get_db $inst .is_sequential] } { continue }
+    #Dont do inv type repeaters for now
+    if { ![get_db $inst .is_buffer] } { return "" }
+
+    #Now on output pins check for a fanout of 1
+    #This verifies there is no branching logic
+    set dir [get_db $pin_obj .direction]
+    if { $dir == "out" } {
+      set loads [get_db $pin_obj .net.loads]
+      if { [llength $loads] > 1 } { return ""}
+    }
+  }
+  return $si_buf
+}
+
+#This traces to early!!
+#proc get_en_net {fp ck_pin_obj} {
+#  global ck_net_bufs
+#  global ck_buf_idx
+#  global ck_buf
+#  set late_ck_net_name [get_db $ck_pin_obj .net.name]
+#  set early_i_pin [trace_invs $late_ck_net_name 2]
+#  if { $early_i_pin == "" } {
+#    set early_i_pin [get_db $ck_pin_obj .net.drivers]
+#  }
+#  set loc {*}[get_db $early_i_pin .inst.location]
+#  set pre_buf_ck_net [get_db $early_i_pin .net]
+#  set pre_buf_ck_net_name [get_db $pre_buf_ck_net .name]
+#
+#  set ck_buf_name ""
+#  set en_net_name ""
+#  if { [dict exists $ck_net_bufs $pre_buf_ck_net] } {
+#    set ck_buf_name [dict get $ck_net_bufs $pre_buf_ck_net]
+#    regsub -all {_BUF_} $ck_buf_name "_EN_NET_" en_net_name
+#    #puts $fp "SETH ck_buf_name: $ck_buf_name"
+#    #puts $fp "SETH en_net_name: $en_net_name"
+#  } else {
+#    set pre_buf_ck_net_bname [get_db $pre_buf_ck_net .base_name]
+#    set ck_buf_name "TMP_CK_LATCH_BUF_${pre_buf_ck_net_bname}_${ck_buf_idx}"
+#    set en_net_name "TMP_CK_LATCH_EN_NET_${pre_buf_ck_net_bname}_${ck_buf_idx}"
+#
+#    puts $fp ""
+#    puts $fp "#Creating temporary root buffer to attatch latch/EN pins"
+#    puts $fp "create_inst -name $ck_buf_name -base_cell $ck_buf -location \{$loc\}"
+#    puts $fp "create_net -name ${en_net_name}"
+#    puts $fp "connect_pin -inst $ck_buf_name -net $pre_buf_ck_net_name -pin I"
+#    puts $fp "connect_pin -inst $ck_buf_name -net $en_net_name -pin Z"
+#    puts $fp ""
+#
+#    #Cache this so we don't do it again
+#    dict set ck_net_bufs $pre_buf_ck_net $ck_buf_name
+#
+#    incr ck_buf_idx
+#  }
+#  return $en_net_name
+#}
+
+proc get_en_net {fp ck_pin_obj} {
+  global cp_inst_bufs
+  global ck_buf_idx
+  global ck_buf
+
+  set orig_flop_ck_net [get_db $ck_pin_obj .net]
+  set orig_flop_ck_net_name [get_db $orig_flop_ck_net .name]
+  set orig_flop_inst_name [get_db $ck_pin_obj .inst.name]
+
+  set loc {*}[get_db $ck_pin_obj .inst.location]
+
+  set ck_buf_name ""
+  set en_net_name ""
+  set buf_ck_net_bname [get_db $orig_flop_ck_net .base_name]
+
+  if { [dict exists $cp_inst_bufs $orig_flop_inst_name] } {
+
+    set en_net_name [dict get $cp_inst_bufs $orig_flop_inst_name]
+    #regsub -all {_BUF_} $ck_buf_name "_EN_NET_" en_net_name
+    #puts $fp "SETH ck_buf_name: $ck_buf_name"
+    #puts $fp "SETH en_net_name: $en_net_name"
+  } else {
+
+    set ck_buf_name "CK_LATCH_BUF_FOR_LATCH_${buf_ck_net_bname}_${ck_buf_idx}"
+    set en_net_name "CK_LATCH_EN_NET_${buf_ck_net_bname}_${ck_buf_idx}"
+
+    puts $fp ""
+    puts $fp "#Creating root buffer to isolate flop with latch/EN pins"
+    puts $fp "create_inst -name $ck_buf_name -base_cell $ck_buf -location \{$loc\}"
+    puts $fp "create_net -name $en_net_name"
+    puts $fp ""
+    puts $fp "#Disconnecting flop from orig net and to our new buffered net with its latch friends"
+    puts $fp "set orig_ck_net_name \[get_db $ck_pin_obj .net.name\]"
+    puts $fp "disconnect_pin -inst $orig_flop_inst_name -net \$orig_ck_net_name -pin CP"
+    puts $fp "connect_pin -inst $orig_flop_inst_name -net $en_net_name -pin CP"
+    puts $fp ""
+    puts $fp "connect_pin -inst $ck_buf_name -net \$orig_ck_net_name -pin I"
+    puts $fp "connect_pin -inst $ck_buf_name -net $en_net_name -pin Z"
+    puts $fp ""
+
+    #Cache this so we don't do it again
+    dict set cp_inst_bufs $orig_flop_inst_name $en_net_name
+
+    incr ck_buf_idx
+  }
+  
+  return $en_net_name
+}
+
+proc create_lu_latch_eco { eco_fname endpoints } {
+  global latch_base_cell_name
+  global data_buf_cell
+  global ck_inv
+
+  set tot_ports [llength $endpoints]
+
+  puts "Processing $tot_ports pins ..."
+
+  set ck_nets [dict create]
+  set fi_dict [dict create]
+
+  set could_not_latch 0
+  set i 1
+  foreach ep_obj $endpoints {
+    #puts $i of $tot_ports"
+    set ep_name [get_db $ep_obj .name]
+    set fi_clk_pins [list]
+    set fi_q_pins [list]
+    #puts -nonewline "$ep_name"
+    set afi [get_object_name [all_fanin -to $ep_obj]]
+    foreach fi $afi {
+      if { [regexp {\/Q\d*$} $fi] } {
+        #lappend fi_dict $fi
+        set flop_inst [get_db [get_db pins $fi] .inst]
+        set clk_pin [get_db [get_db $flop_inst .pins] -if {.is_clock == true}]
+        set ck_ep_name [get_db $clk_pin .name]
+        if { ! [regexp {fifo_pop_ptr_scr|fifo_push_ptr_scr} $ck_ep_name] } {
+          lappend fi_clk_pins $clk_pin
+          lappend fi_q_pins [get_db pins $fi]
+        }
+      }
+    }
+    #dict set pin_info $ep_name q_fanin_list $fi_dict
+    dict set fi_dict $ep_name [list $fi_clk_pins $fi_q_pins]
+    incr i
+  }
+
+  #unique
+  #set uniq_pins [get_db [get_db -uniq pins $fi_dict] .name]
+
+
+  set latch_cmd_fname $eco_fname
+  set of [open $latch_cmd_fname w]
+
+
+  puts $of ""
+
+  set eco_add_rptr_cmds [list]
+
+  set seen_q_pins [dict create]
+
+#DEBUG
+#set ep_name sdma_grp0_macro_hbm_s_0_int_rd_arid[9]
+#set fi_info [dict get $fi_dict $ep_name]
+
+  set i 1
+  dict for {ep_name fi_info} $fi_dict {
+    set ck_fi_list [lindex $fi_info 0]
+    set q_fi_list [lindex $fi_info 1]
+    if { ! [expr $i % 100] } {
+      puts $of "puts \"$i of $tot_ports ...\""
+    }
+
+    #if { [llength $ck_fi_list] <=2 }  { continue }
+    set port_obj [get_db ports $ep_name]
+    set pin_obj [get_db pins $ep_name]
+
+    set is_port 0
+    set is_pin 0
+    set obj_type ""
+    if { [llength $port_obj]} { set is_port 1; set obj_type "port" }
+    if { [llength $pin_obj]} { set is_pin 1; set obj_type "pin" }
+
+    if { $obj_type == "" } {
+      puts ""
+      puts "################### FATAL! #########################################"
+      puts "FATAL! $ep_name is not of type port or pin!"
+      puts "################### FATAL! #########################################"
+      puts ""
+      break
+    }
+
+
+    set obj_lbj "${obj_type}_name"
+
+    puts $of "#######################"
+    puts $of "#set $obj_lbl $ep_name"
+    puts $of "#######################"
+
+    if { ! [llength $ck_fi_list] } {
+      puts "$ep_name has do fanin from flops.  (Likely tie-off). Not adding LU latch"
+      continue
+    }
+    foreach ck_pin_obj $ck_fi_list {
+      set ck_net_name [get_db $ck_pin_obj .net.name]
+      #puts "SETH ck_net_name $ck_net_name"
+      if { [dict exists $ck_nets $ck_net_name] } {
+        set val [dict get $ck_nets $ck_net_name] 
+        dict set ck_nets $ck_net_name [expr $val + 1]
+      } else {
+        dict set ck_nets $ck_net_name 1
+      }
+    }
+
+    #puts $of "#set ck_fi_list \[list \\"
+    #foreach ck_fi $ck_fi_list {
+      #puts $of "#  $ck_fi \\"
+    #}
+    #puts $of "#\]"
+
+    set latch_idx 0
+    foreach ck_q_zip [zip ck_fi_list q_fi_list] {
+      set ck_pin [lindex $ck_q_zip 0]
+      set q_pin [lindex $ck_q_zip 1]
+      set ck_pin_name [get_db $ck_pin .name]
+      set q_pin_name [get_db $q_pin .name]
+
+      set q_pin_bname [get_db $q_pin .base_name]
+
+      set si_fanout [get_db [all_fanout -end -from $q_pin] -if {.base_name == "SI"}]
+
+      puts $of "#  Working on ck_pin: $ck_pin_name"
+      puts $of "#  -->         q_pin: $q_pin_name"
+
+      if { [dict exists $seen_q_pins $q_pin_name] } {
+        puts $of "#  Already latched $q_pin_name"
+        puts $of "#  Skipping ..."
+      } else {
+        dict set seen_q_pins $q_pin_name 1
+      }
+
+      set ep_obj [get_db ports $ep_name]
+#      set iobuf_net_obj [get_db $pin_obj .net]
+#      set iobuf_net_loads [get_db $iobuf_net_obj .loads]
+#
+#      set iobuf_net_drivers [get_db $iobuf_net_obj .drivers]
+#      set iobuf_net_name [get_db $iobuf_net_obj .name]
+#
+#      set iobuf_inst [get_db $iobuf_net_drivers .inst]
+#      if { ! [regexp {encIOBuf} [get_db $iobuf_inst .name]] } {
+#        puts "$ep_name is not driven by an encIOBuf.  (Likely tie-off). Not adding LU latch"
+#        continue
+#      }
+      #set iobuf_input_pin [get_db [get_db $iobuf_net_drivers .inst.pins] -if {.direction == in}]
+
+      #set orig_net_obj [get_db $iobuf_input_pin .net]
+      #set orig_net_loads $iobuf_input_pin
+      set orig_net_obj [get_db $q_pin .net]
+      set orig_net_loads [get_db $orig_net_obj .loads]
+
+      #if the si pin isn't directly driven we have to clone.  V nasty
+      #Perhaps there is some mortar::trace -equiv nets I could do
+      if { [llength $si_fanout] } {
+        set load_si [get_db $orig_net_loads -if {.base_name == "SI"}]
+        if { ! [llength $load_si] } {
+          set load_si [trace_si $q_pin $si_fanout]
+          if { $load_si == "" } {
+            puts $of "# Must skip latching q_pin !"
+            puts $of "#  SI_pin: [get_db $si_fanout .name]"
+            puts $of "#  is not directly driven from Q pin "
+            puts $of "#  Q_pin: $q_pin_name"
+            incr could_not_latch
+            continue
+          }
+        }
+      }
+
+      #set orig_net_drivers [get_db $orig_net_obj .drivers]
+      set orig_net_drivers $q_pin
+      set orig_net_name [get_db $orig_net_obj .name]
+
+      #set load_inst_names [get_db $orig_net_loads .inst.name]
+      #set load_pin_bnames [get_db $orig_net_loads .base_name]
+
+      set flop_inst [get_db $q_pin .inst]
+      set flop_inst_name [get_db $flop_inst .name]
+      set flop_loc [get_db $flop_inst .location]
+
+      #if { [llength $orig_net_loads] > 1 } {
+        #puts "ERROR net for $ep_name has [llength $orig_net_loads] loads!"
+        #foreach orig_net_load $orig_net_loads {
+          #puts "  [get_db $orig_net_load .name]"
+        #}
+        #return
+      #}
+
+      #set orig_net_term_locations [concat [get_db $orig_net_loads .location] [get_db $orig_net_drivers .location]]
+      #set data_pin_centroid [::mortar::get_centroid -points $orig_net_term_locations]
+
+      #set ck_pin [lindex $ck_fi_list 0]
+
+      #set ck_insts [get_db $ck_fi_list .inst]
+      #set ck_insts_loc [get_db $ck_insts .location]
+
+      #set hier_path [join [lrange [split [get_db $ck_pin .inst.name] "/"] 0 end-1] "/"]
+
+      set pin_base_name [get_db $ep_obj .base_name]
+      regsub -all {[\[\]]} $pin_base_name "_" latch_name_postfix
+      if { $latch_name_postfix == ""} {
+        puts ""
+        puts "################### FATAL! #########################################"
+        puts "FATAL! Unable to create proper latch instance name based on $obj_type:$ep_name"
+        puts "################### FATAL! #########################################"
+        puts ""
+        break
+      }
+      set latch_base_name "eco_timing_neg_level_latch_${latch_name_postfix}_${latch_idx}"
+      set latch_q_net_name "net_HoldFix_${latch_name_postfix}_${latch_idx}"
+
+      #set pin_loc {*}[get_db $pin_obj .location]
+      #lassign {*}$pin_loc pin_x pin_y
+      #set xbt_buf_loc [list [expr $pin_x - 8] $pin_y]
+
+
+      #set latch_loc [::mortar::get_centroid -points $ck_insts_loc]
+      set latch_loc {*}$flop_loc
+
+      puts $of "create_inst -name $latch_base_name -base_cell $latch_base_cell_name -location \{$latch_loc\}"
+      puts $of "create_net -name ${latch_q_net_name}"
+
+      #pin:hbm_xbar_wrapper_0/HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_31__hbm_xbar_clk_rd_regslice/AXI_SLICE_LOGIC_0__genblk1_rd_if_axi3_regslice/SYN6/A2
+      #pin:hbm_xbar_wrapper_0/HBM_XBAR_WRAPPER/HBM_XBAR/hbm_rd31_rvalid
+
+
+      set latch_inst_name "$latch_base_name"
+      #set latch_EN_port_name "$latch_inst_name/EN"
+      #set latch_D_port_name "$latch_inst_name/D"
+      #set latch_Q_port_name "$latch_inst_name/Q"
+
+      #Connect the Q net of the latch to every load it drives
+      puts $of ""
+      #puts $of "disconnect_pin -inst $flop_inst_name -net $orig_net_name -pin $q_pin_bname"
+      #puts $of "connect_pin -inst $flop_inst_name -net $latch_d_net_name -pin $q_pin_bname"
+      foreach orig_net_load $orig_net_loads {
+        if { [llength $si_fanout] } {
+          if { $orig_net_load == $load_si } {
+            puts $of "#  Not disconnecting: it is an SI pin OR drives an SI pin through a series of buffers"
+            puts $of "#  [get_db $orig_net_load .name]"
+            continue
+          }
+        }
+
+        set load_inst_name [get_db $orig_net_load .inst.name]
+        set load_pin_bname [get_db $orig_net_load .base_name]
+
+        #Disconnect orginal data net
+        puts $of ""
+        puts $of "disconnect_pin -inst $load_inst_name -net $orig_net_name -pin $load_pin_bname"
+
+        #connect net net to term and output of latch
+        puts $of "connect_pin -inst $load_inst_name -net $latch_q_net_name -pin $load_pin_bname"
+        puts $of ""
+      }
+      puts $of ""
+
+      #Connect the Q net of the latch to the Q pin of the latch
+      puts $of "connect_pin -inst $latch_inst_name -net $orig_net_name -pin D"
+      lassign $latch_loc latch_x latch_y
+      #set q_buf_loc [list [expr $latch_x+3] $latch_y]
+      #lappend eco_add_rptr_cmds "eco_add_repeater -name inst_HXW2XBT_HoldFix_BUF_${latch_name_postfix} -cells $data_buf_cell -pins $port_name -location \{$q_buf_loc\}"
+      puts $of ""
+
+      #connect d-pin of latch to the orig net
+      puts $of "connect_pin -inst $latch_inst_name -net $latch_q_net_name -pin Q"
+      puts $of ""
+
+
+      #set ck_pin_net_name [get_db $ck_pin .net.name]
+      set ck_pin_net_name [get_en_net $of $ck_pin]
+      puts $of "connect_pin -inst $latch_inst_name -net $ck_pin_net_name -pin EN"
+
+
+      puts $of ""
+      incr i
+      incr latch_idx
+    }
+  }
+
+  #puts $of "puts \"START eco_add_repeater ...\""
+  #puts $of ""
+  #puts $of "set_db eco_honor_dont_touch false"
+  #puts $of "set_db eco_honor_dont_use false"
+  #puts $of "set_db eco_honor_fixed_status false"
+  #puts $of "set_db eco_refine_place false"
+  #puts $of "set_db eco_update_timing false"
+  #puts $of "set_db eco_check_logical_equivalence true"
+  #puts $of "set_db eco_batch_mode true"
+  #puts $of ""
+  #foreach cmd $eco_add_rptr_cmds {
+  #  puts $of "$cmd"
+  #}
+  #puts $of ""
+  #puts $of "set_db eco_honor_dont_touch false"
+  #puts $of "set_db eco_honor_dont_use false"
+  #puts $of "set_db eco_honor_fixed_status false"
+  #puts $of "set_db eco_refine_place false"
+  #puts $of "set_db eco_update_timing false"
+  #puts $of "set_db eco_check_logical_equivalence true"
+  #puts $of "set_db eco_batch_mode false"
+  #puts $of "puts \"DONE eco_add_repeater ...\""
+
+  puts $of ""
+  puts $of "puts \"Removing FILLER\""
+  puts $of "cayman::remove_postfill"
+  puts $of ""
+  puts $of "puts \"START place_detail ...\""
+  puts $of "set new_insts \[get_db insts *eco_timing_neg_level_latch_* CK_LATCH_BUF_*\]"
+  puts $of "puts \"Legalizing \[llength \$new_insts\] new latches ...\""
+  puts $of "set_db place_detail_eco_max_distance 20"
+  puts $of "place_detail -inst \[get_db \$new_insts .name\]"
+  puts $of "puts \"END place_detail ...\""
+  puts $of ""
+  #puts $of "#GLOBAL ROUTE?"
+  #puts $of ""
+  #puts $of "#Re-routing clock_nets"
+  #puts $of "puts \"START clock route ...\""
+  #puts $of "::df::clk::cleanup_route"
+  #puts $of "puts \"DONE clock route ...\""
+
+  #puts $of "set root_bufs \[get_db insts TMP_CK_LATCH_BUF*\]"
+  #puts $of "puts \"Building INV trees on \[llength \$root_bufs\] root buffers\""
+  #puts $of "set root_buf_z \[get_db \$root_bufs .pins -if {.direction == out}\]"
+  #puts $of "create_inv_tree_ccopt -roots \[get_db \$root_buf_z .name\]"
+
+
+  puts $of ""
+  #puts $of ""
+  #puts $of "# Occurances of each CK net we touch"
+  #puts $of "# Occurances Net Name"
+  #puts $of "# ---------- --------"
+  #dict for {net_name occur} [lsort -decreasing -integer -index 1 -stride 2 $ck_nets] {
+    #puts $of "# $occur $net_name"
+  #}
+
+  puts $of ""
+  puts $of "#done"
+
+  close $of
+
+  if { $could_not_latch } {
+    puts ""
+    puts "Could NOT latch $could_not_latch Q pins due to large fanouts from Q->SI!"
+    puts ""
+  }
+  puts "Created $latch_cmd_fname"
+}
+
+
+#auto populate the right_out_ports
+#set south_side_ports [get_db ports -if {.location.y == 0}]
+#set south_out_ports [get_db $south_side_ports -if {.direction == out}]
+
+#set latch_cmd_fname "south_latch_eco.tcl"
+#create_lu_latch_eco $latch_cmd_fname $south_out_ports
+
+
+#mSource $latch_cmd_fname
+
+#mVar FLOW(pnr_dataout_include) [list lef def_fp tcl_floorplan tcl_ports tcl_physcells tcl_placement spef def]
+#mRunStep common_dataout
+
+#mRunStep setup_views
+#mRunStep configure_timing
