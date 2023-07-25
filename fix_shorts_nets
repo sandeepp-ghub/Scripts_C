@@ -1,0 +1,50 @@
+proc get_nets_from_violations {{skip_pg_net 1} {in_file {}}} {
+  set n_list {}
+  set fd ""
+
+  if {[string length $in_file] > 0} {
+    set fd [open $in_file w]
+  }
+
+  foreach mkr [get_db markers -if {.subtype=="*_Short"}] {
+    set msg [get_db $mkr .message]
+    if {[regexp {Regular Wire of Net (\S+)} $msg junk str1] || [regexp {Regular Via of Net (\S+)} $msg junk str1]} {
+      if {$skip_pg_net == 0 || !(([get_db [get_db nets $str1] .is_power] || [get_db [get_db nets $str1] .is_ground]) || [get_db [get_db nets $str1] .is_clock]) } {
+        lappend n_list $str1
+      }
+    }
+    regsub {Regular Wire of Net} $msg {} next_msg
+    if {[regexp {Regular Wire of Net (\S+)} $next_msg junk str2] || [regexp {Regular Wire of Net (\S+)} $next_msg junk str2]} {
+      if {$skip_pg_net == 0 || !(([get_db [get_db nets $str2] .is_power] || [get_db [get_db nets $str2] .is_ground]) || [get_db [get_db nets $str2] .is_clock]) } {
+        lappend n_list $str2
+      }
+    }
+  }
+
+  set n_list [lsort -unique $n_list]
+
+  if {$fd != ""} {
+    puts $fd $n_list
+    close $fd
+  }
+
+  return $n_list
+}
+
+delete_drc_markers
+
+check_drc -check_short_only -limit 40000
+
+set viol_nets [get_nets_from_violations]
+
+set_db [get_db nets $viol_nets] .top_preferred_layer [get_db layers M12]
+set_db [get_db nets $viol_nets] .bottom_preferred_layer [get_db layers M8]
+delete_routes -net $viol_nets
+set_route_attributes -nets [get_db nets $viol_nets] -preferred_routing_layer_effort high
+
+route_design
+
+# Use below to avoid run times
+#set_db route_design_diode_insertion_for_clock_nets false
+#set_db route_design_detail_fix_antenna false
+
