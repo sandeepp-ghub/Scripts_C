@@ -1,0 +1,19 @@
+alias eco_settings "set_db eco_update_timing false;set_db eco_honor_dont_touch false;set_db eco_honor_dont_use false;set_db eco_honor_fixed_status false;set_db eco_refine_place false;set_db eco_batch_mode true"
+
+alias reset_eco_settings "set_db eco_batch_mode false;set_db eco_update_timing true;set_db eco_refine_place true;set_db eco_honor_dont_touch true;set_db eco_honor_dont_use true;set_db eco_honor_fixed_status true"
+OR
+reset_db eco_batch_mode
+
+set_db route_design_with_timing_driven false
+set_db route_design_with_si_driven false
+set_db opt_hold_target_slack -0.999
+set_db opt_setup_target_slack -0.999
+set_db opt_power_effort none
+
+
+Make sure that -batchMode is set to false before saving the design. If it is set to true, any other setEcoMode commands will not be observed. setEcoMode commands such as -refinePlace and -updateTiming should always be set prior to, or at the same time as, setting -batchMode true. If any changes to the setEcoMode settings are required, user needs to exit batch mode first.
+
+## Important Note
+Make sure that you exit batch mode (setEcoMode -batchMode false) prior to running timing analysis. Otherwise, report_timing will report the following:
+No constrained timing paths found.
+Paths may be unconstrained (try '-unconstrained' option).
