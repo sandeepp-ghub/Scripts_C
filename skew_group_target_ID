@@ -1,0 +1,10 @@
+proc report_skew_groups_target_ids { } {
+    puts "\n INFO >> checking design [get_db current_design .name]\n"
+    puts " INFO >> checking target insertion delays on skew groups\n"
+    set check_skew_groups [get_db skew_groups .name]
+    foreach skew_group $check_skew_groups {
+        puts " INFO >> checking target insertion delays on skew group : $skew_group : [get_db skew_group:$skew_group .cts_skew_group_target_insertion_delay]"
+    }
+    puts "\n INFO >> checked [ llength $check_skew_groups ] skew groups"
+    puts "\n INFO >> skew groups target insertion delay checks completed\n"
+}
