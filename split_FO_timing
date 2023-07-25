@@ -1,0 +1,90 @@
+# USAGE
+#eval_legacy {source /proj/cayman/wa/shiriyurputt/scripts/split_FO_1}
+#eval_legacy {split_wire_with_buf_file ./net_FO CKBD2BWP210H6P51CNODULVT}
+# source split_net_eco.tcl 
+proc split_wire_with_buf_file {in_file buff} {
+
+   global vars
+
+   set file [open split_net_eco.tcl w]
+   puts $file "   ##for ECO settings" 
+   puts $file "setPlaceMode -place_detail_preserve_routing true"
+   puts $file "setPlaceMode -place_detail_remove_affected_routing false"
+   puts $file "setEcoMode -refinePlace false"
+   puts $file "setEcoMode -updateTiming false"
+   ##OPT for clock nets and dont touch nets pl. comment if not needed 
+   puts $file "setEcoMode -honorDontTouch false -honorDontUse false -honorFixedStatus false -prefixName MK_SPLIT_ECO -refinePlace false -updateTiming false"
+
+   set file_r [open $in_file r]
+   while { ![eof $file_r] } {
+      set line [gets $file_r]
+      set keys [split [string trim $line]]
+      set net [lindex $keys 0]
+      ##puts $net
+
+      deselectAll
+
+      if {[dbFindNetsByName  $net] != ""} {
+         set fan_out [expr [dbNetNrTerm [dbGetNetByName $net]] -1]
+
+         if { $fan_out == 1 } {
+            puts " ##==> INFO #** fanout is 1 for NET = $net buffer added by bisecting the net at almost center of net using relativeDistToSink 0.5   ** \n"
+            puts $file " ##==> INFO #***** fanout is 1 for NET =  $net buffer added by bisecting the net at almost center of net using relativeDistToSink 0.5   ** \n"
+            puts $file  "ecoAddRepeater -net $net -cell $buff -relativeDistToSink 0.5"
+         } else {
+            puts " ##==> INFO #***** fanout is greater then 1 $net  buffer added for multi fanout net by splitting at mean point  ** \n"
+            puts $file "##==> INFO #***** fanout is greater then 1 $net buffer added for multi fanout net by splitting at mean point ** \n  "
+            print "fanout is greater then 1 $net "
+
+            deselectAll
+            selectNet $net
+            
+            set driveTerm [dbGet [dbGet -p1 selected.allTerms.isOutput 1].name]
+            set recvTerms  [dbGet [dbGet -p1 selected.allTerms.isInput 1].name]
+            set numInTerms [llength $recvTerms]
+            
+            set index 0
+            foreach recvTerm $recvTerms {
+               set totwire 0
+            
+               deselectAll
+               editSelect -from_pin $driveTerm -to_pin $recvTerm
+               foreach wire [dbGet -p selected.objType wire] {
+                  if {$wire!="0x0"} {
+                     set totwire [expr $totwire+[dbDBUToMicrons [dbWireLen $wire]]]
+                  }
+               }
+               set vars(net_${index}) $recvTerm
+               set vars(len_${index}) $totwire
+               puts "Total length from $driveTerm to $recvTerm is $totwire"
+               incr index
+            }
+puts "source split_net_eco.tcl"
+            deselectAll
+            
+            set long_wire 0
+            for {set index 0} {$index < $numInTerms} {incr index} {
+               if {$vars(len_${index}) > $long_wire} {
+                  set long_wire $vars(len_${index})
+               }
+            }
+            
+            set half_way [expr $long_wire / 2]
+            set req_terms ""
+            for {set index 0} {$index < $numInTerms} {incr index} {
+               if {$vars(len_${index}) > $half_way} {
+puts  $vars(net_${index})
+                  lappend req_terms  $vars(net_${index})
+               }
+            }
+            puts $file "set results \[ecoAddRepeater -cell $buff -term \{$req_terms\}\]"
+         }
+      }
+   }
+   puts $file " refinePlace  "
+   puts $file "setNanoRouteMode -routeWithEco true"
+   puts $file "globalDetailRoute"
+   close $file
+   close $file_r
+}
+
