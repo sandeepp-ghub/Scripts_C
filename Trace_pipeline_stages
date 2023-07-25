@@ -1,0 +1,654 @@
+proc inst_dist {arg1 arg2} {
+  # Find and report locations:
+  set inst1_pt [lindex [dbGet [dbGet -p top.insts.name $arg1].pt] 0]
+  set inst1_x [lindex $inst1_pt 0]
+  set inst1_y [lindex $inst1_pt 1]
+  set inst2_pt [lindex [dbGet [dbGet -p top.insts.name $arg2].pt] 0]
+  set inst2_x [lindex $inst2_pt 0]
+  set inst2_y [lindex $inst2_pt 1]
+  set x_dist [expr $inst1_x - $inst2_x]
+  if {$x_dist < 0} {set x_dist [expr -1 * $x_dist]}
+  set y_dist [expr $inst1_y - $inst2_y]
+  if {$y_dist < 0} {set y_dist [expr -1 * $y_dist]}
+  set dis [expr $x_dist + $y_dist]
+  return $dis
+}
+
+proc port_inst_dist {arg1 arg2} {
+  # Find and report locations:
+  set inst1_pt [lindex [dbGet [dbGet -p top.terms.name $arg1].pt] 0]
+  set inst1_x [lindex $inst1_pt 0]
+  set inst1_y [lindex $inst1_pt 1]
+  set inst2_pt [lindex [dbGet [dbGet -p top.insts.name $arg2].pt] 0]
+  set inst2_x [lindex $inst2_pt 0]
+  set inst2_y [lindex $inst2_pt 1]
+  set x_dist [expr $inst1_x - $inst2_x]
+  if {$x_dist < 0} {set x_dist [expr -1 * $x_dist]}
+  set y_dist [expr $inst1_y - $inst2_y]
+  if {$y_dist < 0} {set y_dist [expr -1 * $y_dist]}
+  set dis [expr $x_dist + $y_dist]
+  return $dis
+}
+
+
+proc Is_Port_InstPin {port} {
+  if {[dbGet top.terms.name $port]!=0x0} {
+	return 1
+   } elseif {[dbGet top.insts.instTerms.name $port ]!= 0x0} {
+	return 0
+   } else {
+    puts "Port/InstPin : $port --> Invalid Port/InstPin"
+   }
+}
+
+
+proc trace_distance1 {in_net} {
+  set found 1
+  set output_pins [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isOutput 1 -p].name]
+  set out_pin [lindex $output_pins 0]
+  set instance1 [dbget [dbget top.insts.instTerms.name $out_pin -p2].name]
+  set prev_instance $instance1
+
+  while {$found} {
+    regsub -all "{" $in_net "" in_net
+    regsub -all "}" $in_net "" in_net
+    set input_pins [dbget -e [dbget [dbget top.nets.name $in_net -p].instTerms.isInput 1 -p].name]
+
+    if {$input_pins == ""} {
+	set endport [dbget [dbget top.nets.name $in_net -p].terms.name ]
+   	regsub -all "{" $endport "" endport
+   	regsub -all "}" $endport "" endport
+	set found2 1
+
+	while {$found2 } {
+		set inv [dbget [dbget top.insts.name $prev_instance -p].cell.isInverter]
+  		set buf [dbget [dbget top.insts.name $prev_instance -p].cell.isBuffer]
+
+
+		if {(($buf) || ($inv))} {
+  			set in_net [dbget [dbget [dbget top.insts.name $prev_instance -p].instTerms.isInput 1 -p].net.name]
+  			set in_pin [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isOutput 1 -p].name]
+  			set prev_instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+			set found2 1
+  		} else {
+			set found2 0
+			break
+		}
+	}
+
+	set end_flop_dis [port_inst_dist $endport $prev_instance]   
+	set endport_pt [dbGet [dbGet top.terms.name $endport -p1 ].pt]
+	regsub -all "{" $endport_pt "" endport_pt
+	regsub -all "}" $endport_pt "" endport_pt
+
+  	puts "$prev_instance --> $endport : $end_flop_dis : $endport_pt"
+	#Anup puts "--$count1---------------------------------------------------------------------------------"
+	break
+	incr count1
+    }
+
+    regsub -all "{" $input_pins "" input_pins
+    regsub -all "}" $input_pins "" input_pins
+    set count 0
+    set inputs [llength $input_pins]
+    while {$count < $inputs} {
+      set in_pin [lindex $input_pins $count]
+      set instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+      set inv [dbget [dbget top.insts.name $instance -p].cell.isInverter]
+      set buf [dbget [dbget top.insts.name $instance -p].cell.isBuffer]
+      set cell [dbget [dbget top.insts.name $instance -p].cell.name]
+      if {(($buf) || ($inv) || ([regexp "DFF"  $cell]))} {
+     	set dis [inst_dist $prev_instance $instance]
+	if {[regexp "DFF"  $cell]} {
+      		puts "$prev_instance --> $instance : $dis"
+	}
+        set in_net [dbget [dbget [dbget top.insts.name $instance -p].instTerms.isOutput 1 -p].net.name]
+        set prev_instance $instance
+        set found 1
+        break
+      } else {
+        set found 0
+        incr count
+      }
+    }
+  }
+  return $endport
+}
+
+
+
+proc trace_distance {port} {
+  #selectIOPin $port
+  set instance ""
+  set in_pin ""
+  set in_net ""
+
+  if {[Is_Port_InstPin $port]} {
+  	set in_net [get_object_name [get_nets -of $port] ] 
+  	set in_pin [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isInput 1 -p].name]
+  	set instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+   } elseif {![Is_Port_InstPin $port]} {
+  	set in_net [get_object_name [get_nets -of $port] ] 
+  	set in_pin [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isOutput 1 -p].name]
+  	set instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+   } else { puts "Invalide port/pin" }
+
+  set found0 1
+
+  while {$found0} { 
+  	set inv [dbget [dbget top.insts.name $instance -p].cell.isInverter]
+  	set buf [dbget [dbget top.insts.name $instance -p].cell.isBuffer]
+   if {(($buf) || ($inv))} {
+  	set in_net [dbget [dbget [dbget top.insts.name $instance -p].instTerms.isOutput 1 -p].net.name]
+  	set in_pin [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isInput 1 -p].name]
+  	set instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+	set found0 1 
+    } else { 
+	set found0 0
+ 	break
+    }
+  }
+
+   set in_net [dbget [dbget [dbget top.insts.name $instance -p].instTerms.isOutput 1 -p].net.name]
+   set found 1
+   #Anup set output_pins [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isOutput 1 -p].name]
+   #Anup set out_pin [lindex $output_pins 0]
+   set instance1 $instance 
+   set instancex $instance1 
+  
+
+if {[Is_Port_InstPin $port]} {
+   set start_flop_dis [port_inst_dist $port $instance1]
+ } elseif {![Is_Port_InstPin $port]} {
+   set start_flop_dis [inst_dist $port $instance1]
+ }  else { puts "Invalid port/pin !!!" }
+ 
+   puts "Startpoint:$port"
+   puts "=================================Fanout1========================================================"
+   set prev_instance $instance1
+   set endx ""
+
+if {[Is_Port_InstPin $port]} {
+	set startport_pt [dbGet [dbGet top.terms.name $port -p1 ].pt]
+	regsub -all "{" $startport_pt "" startport_pt
+	regsub -all "}" $startport_pt "" startport_pt
+} elseif {![Is_Port_InstPin $port]} {
+	set startport_pt [dbGet [dbGet top.insts.instTerms.name $port -p1].pt]
+	regsub -all "{" $startport_pt "" startport_pt
+	regsub -all "}" $startport_pt "" startport_pt
+} else { puts "Invalid port" }
+
+  while {$found} {
+    regsub -all "{" $in_net "" in_net
+    regsub -all "}" $in_net "" in_net
+    set input_pins [dbget -e [dbget [dbget top.nets.name $in_net -p].instTerms.isInput 1 -p].name]
+    set count 0
+    set count1 1
+
+    if {$input_pins == ""} {
+	set endport [dbget [dbget top.nets.name $in_net -p].terms.name ]
+   	regsub -all "{" $endport "" endport
+   	regsub -all "}" $endport "" endport
+
+	set found1 1
+ 	while {$found1} { 
+		set inv [dbget [dbget top.insts.name $prev_instance -p].cell.isInverter]
+  		set buf [dbget [dbget top.insts.name $prev_instance -p].cell.isBuffer]
+
+		if {(($buf) || ($inv))} {
+  			set in_net [dbget [dbget [dbget top.insts.name $prev_instance -p].instTerms.isInput 1 -p].net.name]
+  			set in_pin [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isOutput 1 -p].name]
+  			set prev_instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+			set found1 1
+  		} else {
+			set found1 0
+			break
+		}
+          }
+		
+	set end_flop_dis [port_inst_dist $endport $prev_instance]   
+	set endport_pt [dbGet [dbGet top.terms.name $endport -p1 ].pt]
+	regsub -all "{" $endport_pt "" endport_pt
+	regsub -all "}" $endport_pt "" endport_pt
+  	puts "$prev_instance --> $endport : $end_flop_dis : $endport_pt"
+	puts "-----------------------------------------------------------------------------------------------------------"
+	break
+    }
+
+    regsub -all "{" $input_pins "" input_pins
+    regsub -all "}" $input_pins "" input_pins
+    set inputs [llength $input_pins]
+
+	while {$count1 < $inputs } {
+	set in_pin1 [lindex $input_pins $count1]
+	set instance1 [dbget [dbget top.insts.instTerms.name $in_pin1 -p2].name]
+      	set dis [inst_dist $prev_instance $instance1]
+        puts "$port --> $instancex : $start_flop_dis : $startport_pt "
+      	puts "$prev_instance --> $instance1 : $dis"
+	set prev_instance $instance
+ 	set in_net1 [dbget [dbget [dbget top.insts.name $instance1 -p].instTerms.isOutput 1 -p].net.name]
+    	regsub -all "{" $in_net1 "" in_net1
+   	regsub -all "}" $in_net1 "" in_net1
+	set end [trace_distance1 $in_net1]
+	puts "--------------------------------Fanout[expr $count1 + 1 ]---------------------------------------------------"
+        lappend endx $end 
+ 	incr count1
+	}
+catch {
+    while {$count < $inputs} {
+      set in_pin [lindex $input_pins $count]
+      set instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+      set inv [dbget [dbget top.insts.name $instance -p].cell.isInverter]
+      set buf [dbget [dbget top.insts.name $instance -p].cell.isBuffer]
+      set cell [dbget [dbget top.insts.name $instance -p].cell.name]
+      if {(($buf) || ($inv) || ([regexp "DFF"  $cell]))} {
+      	set dis [inst_dist $prev_instance $instance]
+	if {[regexp "DFF"  $cell]} {
+                puts "$port --> $instancex : $start_flop_dis : $startport_pt"
+      		puts "$prev_instance --> $instance : $dis"
+	}
+        set in_net [dbget [dbget [dbget top.insts.name $instance -p].instTerms.isOutput 1 -p].net.name]
+	set prev_instance $instance
+        set found 1
+        break
+      } else {
+        set found 0
+        incr count
+      }
+    }
+   }
+  }
+  puts "Endpoint:{$endport} $endx"
+  #return $instance
+}
+
+proc find_pipe_distance {Mylist} {
+	set y_point ""
+	set x1 ""
+	set y1 ""
+	set x2 ""
+	set y2 ""
+	set pline_stages ""
+	set x_diff ""
+	set y_diff ""
+	set total_x_y ""
+	set pipe_dist_reqd ""
+	set x1 [lindex [lindex $Mylist 0] 6]
+	set y1 [lindex [lindex $Mylist 0] 7]
+	set y_point [expr [llength $Mylist] - 1]
+	set x2 [lindex [lindex $Mylist $y_point] 6]
+	set y2 [lindex [lindex $Mylist $y_point] 7]
+	#set pline_stages [expr [llength $Mylist] - 1]
+	set pline_stages [expr [llength $Mylist]]
+	set x_diff [expr abs ($x2 - $x1)]
+	set y_diff [expr abs ($y2 - $y1)]
+	set total_x_y [expr $x_diff + $y_diff]
+	set pipe_dist_reqd [expr $total_x_y/$pline_stages]
+	return $pipe_dist_reqd
+}
+
+
+
+proc linecount {file} {
+        set i 0
+        set fid [open $file r]
+        while {[gets $fid line] > -1} {incr i}
+        close $fid
+        return $i
+}
+
+proc trace_path {in_net} {
+  set found 1
+  #deselectAll
+  set output_pins [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isOutput 1 -p].name]
+  set out_pin [lindex $output_pins 0]
+  set instance1 [dbget [dbget top.insts.instTerms.name $out_pin -p2].name]
+  selectInst $instance1
+  while {$found} {
+    regsub -all "{" $in_net "" in_net
+    regsub -all "}" $in_net "" in_net
+    set input_pins [dbget -e [dbget [dbget top.nets.name $in_net -p].instTerms.isInput 1 -p].name]
+
+    if {$input_pins == ""} {
+	set endport [dbget [dbget top.nets.name $in_net -p].terms.name ]
+	selectIOPin [lindex $endport 0]
+	puts "Endport : [lindex $endport 0]"
+	break
+    }
+
+    regsub -all "{" $input_pins "" input_pins
+    regsub -all "}" $input_pins "" input_pins
+    set count 0
+    set inputs [llength $input_pins]
+    while {$count < $inputs} {
+      set in_pin [lindex $input_pins $count]
+      set instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+      set inv [dbget [dbget top.insts.name $instance -p].cell.isInverter]
+      set buf [dbget [dbget top.insts.name $instance -p].cell.isBuffer]
+      set cell [dbget [dbget top.insts.name $instance -p].cell.name]
+      if {(($buf) || ($inv) || ([regexp "DFF"  $cell]))} {
+	#Debug puts "$buf --> $inv --> $cell --> $instance"
+        selectNet $in_net
+        selectInst $instance
+        set in_net [dbget [dbget [dbget top.insts.name $instance -p].instTerms.isOutput 1 -p].net.name]
+	selectNet $in_net
+        set found 1
+        break
+      } else {
+        set found 0
+        incr count
+      }
+    }
+  }
+  highlight [dbGet selected]
+  return $instance
+}
+
+proc trace_path_port {port} {
+  selectIOPin $port
+  set in_net [get_object_name [get_nets -of $port] ] 
+  selectNet $in_net 
+  set in_pin [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isInput 1 -p].name]
+  set instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+  set in_net [dbget [dbget [dbget top.insts.name $instance -p].instTerms.isOutput 1 -p].net.name]
+  set found 1
+  #deselectAll
+  set output_pins [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isOutput 1 -p].name]
+  set out_pin [lindex $output_pins 0]
+  set instance1 [dbget [dbget top.insts.instTerms.name $out_pin -p2].name]
+  selectInst $instance1
+
+  while {$found} {
+    regsub -all "{" $in_net "" in_net
+    regsub -all "}" $in_net "" in_net
+    #set input_pins [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isInput 1 -p].name]
+    set input_pins [dbget -e [dbget [dbget top.nets.name $in_net -p].instTerms.isInput 1 -p].name]
+
+    if {$input_pins == ""} {
+	set endport [dbget [dbget top.nets.name $in_net -p].terms.name ]
+	selectIOPin [lindex $endport 0]
+	break
+    }
+
+    regsub -all "{" $input_pins "" input_pins
+    regsub -all "}" $input_pins "" input_pins
+    set count 0
+    set count1 1
+    set inputs [llength $input_pins]
+
+	while {$count1 < $inputs } {
+	set in_pin1 [lindex $input_pins $count1]
+	set instance1 [dbget [dbget top.insts.instTerms.name $in_pin1 -p2].name]
+ 	set in_net1 [dbget [dbget [dbget top.insts.name $instance1 -p].instTerms.isOutput 1 -p].net.name]
+    	regsub -all "{" $in_net1 "" in_net1
+   	regsub -all "}" $in_net1 "" in_net1
+	trace_path $in_net1 
+ 	incr count1
+	}
+catch {
+    while {$count < $inputs} {
+      set in_pin [lindex $input_pins $count]
+      set instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+      set inv [dbget [dbget top.insts.name $instance -p].cell.isInverter]
+      set buf [dbget [dbget top.insts.name $instance -p].cell.isBuffer]
+      set cell [dbget [dbget top.insts.name $instance -p].cell.name]
+      if {(($buf) || ($inv) || ([regexp "DFF"  $cell]))} {
+        selectNet $in_net
+        selectInst $instance
+        set in_net [dbget [dbget [dbget top.insts.name $instance -p].instTerms.isOutput 1 -p].net.name]
+	selectNet $in_net
+        set found 1
+        break
+      } else {
+        set found 0
+        incr count
+      }
+    }
+   }
+  }
+  highlight [dbGet selected]
+  #return $instance
+}
+
+
+proc trace_path_pin {pin} {
+  set in_net [get_object_name [get_nets -of $pin] ] 
+  selectNet $in_net 
+  set found 1
+  set output_pins [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isOutput 1 -p].name]
+  set out_pin [lindex $output_pins 0]
+  set instance1 [dbget [dbget top.insts.instTerms.name $out_pin -p2].name]
+  selectInst $instance1
+
+  while {$found} {
+    regsub -all "{" $in_net "" in_net
+    regsub -all "}" $in_net "" in_net
+    #set input_pins [dbget [dbget [dbget top.nets.name $in_net -p].instTerms.isInput 1 -p].name]
+    set input_pins [dbget -e [dbget [dbget top.nets.name $in_net -p].instTerms.isInput 1 -p].name]
+
+    if {$input_pins == ""} {
+	set endport [dbget [dbget top.nets.name $in_net -p].terms.name ]
+	selectIOPin [lindex $endport 0]
+	break
+    }
+
+
+    regsub -all "{" $input_pins "" input_pins
+    regsub -all "}" $input_pins "" input_pins
+    set count 0
+    set count1 1
+    set inputs [llength $input_pins]
+
+	while {$count1 < $inputs } {
+	set in_pin1 [lindex $input_pins $count1]
+	set instance1 [dbget [dbget top.insts.instTerms.name $in_pin1 -p2].name]
+ 	set in_net1 [dbget [dbget [dbget top.insts.name $instance1 -p].instTerms.isOutput 1 -p].net.name]
+    	regsub -all "{" $in_net1 "" in_net1
+   	regsub -all "}" $in_net1 "" in_net1
+	trace_path $in_net1 
+ 	incr count1
+	}
+catch {
+    while {$count < $inputs} {
+      set in_pin [lindex $input_pins $count]
+      set instance [dbget [dbget top.insts.instTerms.name $in_pin -p2].name]
+      set inv [dbget [dbget top.insts.name $instance -p].cell.isInverter]
+      set buf [dbget [dbget top.insts.name $instance -p].cell.isBuffer]
+      set cell [dbget [dbget top.insts.name $instance -p].cell.name]
+      if {(($buf) || ($inv) || ([regexp "DFF"  $cell]))} {
+        selectNet $in_net
+        selectInst $instance
+        set in_net [dbget [dbget [dbget top.insts.name $instance -p].instTerms.isOutput 1 -p].net.name]
+	selectNet $in_net
+        set found 1
+        break
+      } else {
+        set found 0
+        incr count
+      }
+    }
+   }
+  }
+  highlight [dbGet selected]
+}
+
+
+#source /dpc/tsmc_project20/frankjs/Broadcom_7-nm/EC376064/kanup/Atlas2_placement_Testcase_24Feb/stns_intf_rit_top_2402_fplan/input_port.rpt
+#source /dpc/tsmc_project20/frankjs/Broadcom_7-nm/EC376064/kanup/Atlas2_placement_Testcase_24Feb/stns_intf_rit_top_2402_fplan/Golden_script/trace_distance_anup0502.tcl
+#source /dpc/tsmc_project20/frankjs/Broadcom_7-nm/EC376064/kanup/Atlas2_placement_Testcase_24Feb/stns_intf_rit_top_2402_fplan/Golden_script/Rel_03MAY2020/trace_path_modify.tcl
+
+proc pipeline_tracer { args } {
+ parse_proc_arguments -args $args result 
+ 
+ set report 0 
+ set highlight 0
+ set input_list 0
+
+ foreach argname [array name result ] {
+  set $argname $result($argname)
+   	if {[llength $args] <=2} {
+	 	 puts "Enter the option -report or -highlight or -report -highlight"
+		 set input_list 1
+  		}
+	if {[llength $args]==3} {
+		switch $argname {
+ 			-report {
+				puts "In report"
+	 			set report 1
+  				} 
+ 			-highlight {
+				puts "In highlight"
+	 			set highlight 1
+ 	 			}  		
+			}
+	}
+   	if {[llength $args] >= 4} {
+		 set report 1 
+	 	 set highlight 1
+  		}
+
+ }
+
+
+if {$input_list} {
+	#puts "Along with input_list, please keep other option to dump out the report"
+}
+
+if {$report} {
+
+report_resource -start "reporting" 
+
+if {[file exist pipeline_distance_details.rpt]} {
+	puts "[rm pipeline_distance_details.rpt]"         
+ }
+
+if {[file exist pipeline_path_summary.csv]} {
+	puts "[rm pipeline_path_summary.csv]"         
+ }
+
+set filename  "pipeline_distance_details.rpt"
+set filename1 "pipeline_path_summary.csv"
+
+#touch $filename
+
+report_resource -start trace_distance 
+
+foreach p ${-input_list}  {
+	puts [catch {[redirect $filename { [trace_distance $p] } -append ]}]
+}
+
+report_resource -end trace_distance
+
+##
+set input_file [open $filename r]
+set output_file [open $filename1 w+]
+
+set Mylist ""
+set num 0 
+#set file_length [eval wc -l sample_3.rpt]
+set tol_limit_percent "10"
+set tol_limit ""
+
+set file_length [linecount $filename]
+
+
+	while {[gets $input_file line] >= 0} {
+	incr num
+	if {$num ==1} {
+		puts $output_file "Status;Startpoint;Endpoint;Actual Distance;Required Distance"
+	}
+	if {[regexp "Startpoint" $line]} {
+		puts $output_file "============================================================================================================================================="
+		continue
+	}
+	if {[regexp "Endpoint" $line]} {
+		continue
+	}
+	if {[regexp "===" $line] || [regexp "\-\-\-" $line]} {
+		if {[llength $Mylist] > 0} {
+			set pipe_dist_reqd [find_pipe_distance $Mylist]
+			 
+			foreach a $Mylist {
+				set man_dist [lindex $a 4]
+				#puts "$man_dist"
+				set diff [expr abs ($pipe_dist_reqd - $man_dist)]
+				#set tol_limit [expr 10 % $pipe_dist_reqd]
+				set tol_limit [expr ($tol_limit_percent*$pipe_dist_reqd)/100]
+				if {$diff <= $tol_limit} {
+				#puts $output_file "=================================================================================================================="
+				puts $output_file "Pass;[lindex $a 0] -> [lindex $a 2];$man_dist;$pipe_dist_reqd"
+			} else {
+				puts $output_file "Fail;[lindex $a 0] -> [lindex $a 2];$man_dist;$pipe_dist_reqd"
+			}
+			}
+			puts $output_file "----------------------------------------------------------------------------------------------------------"
+	}
+	set Mylist ""
+	continue
+	
+  }
+
+  if {[llength $line] <= 0} {
+    continue
+  }
+  lappend Mylist $line
+
+ if {$file_length == $num} {
+   if {[llength $Mylist] > 0} {
+		set pipe_dist_reqd [find_pipe_distance $Mylist]
+		foreach a $Mylist {
+				set man_dist [lindex $a 4]
+				set diff [expr abs ($pipe_dist_reqd - $man_dist)]
+				set tol_limit [expr 10 % $pipe_dist_reqd]
+				if {$diff <= $tol_limit} {
+				puts $output_file "=================================================================================================================="
+				puts $output_file "Pass;[lindex $a 0] -> [lindex $a 2];$man_dist;$pipe_dist_reqd"
+			} else {
+				puts $output_file "Fail;[lindex $a 0] -> [lindex $a 2];$man_dist;$pipe_dist_reqd"
+			}
+			}
+
+	}
+ }
+  
+  #incr num
+
+}
+
+close $input_file
+close $output_file
+report_resource -end "reporting" 
+} ; #end of report 
+
+if {$highlight} {
+
+report_resource -start "highlighting" 
+
+foreach p ${-input_list}  {
+	puts "Input : $p"
+	if {[Is_Port_InstPin $p ]} {
+	puts "highligting port:$p ....." 
+	puts "[trace_path_port $p]" 
+ 	} elseif {![Is_Port_InstPin $p]} {
+	puts "highligting pin:$p ... "
+	puts "[trace_path_pin $p]" 
+	} else { puts "Invalid port/pin list" } 
+}
+
+report_resource -end "highlighting" 
+
+} ; #end of highlight 
+
+} ; #end of pipeline_tracer proc
+
+
+define_proc_arguments pipeline_tracer -info "to_analyze pipeline path" -define_args { 
+ {-input_list "list of input port/pin " "" string required} 
+ {-report "Generating reports for given input_list " "" bool optional}
+ {-highlight "Highlight the input_list in gui " "" bool optional}
+}
+
+#eval_legacy {source /proj/cayman/wa/shiriyurputt/scripts/pipe_tracer}
+#eval_legacy {pipeline_tracer -help}
+#eval_legacy {pipeline_tracer -input_list unit_TPB0_SUB_TEST_ftin_bisr_mode_srv  -highlight}
+
