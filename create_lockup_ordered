@@ -1,0 +1,19 @@
+proc ::create_lockup_ordered {def_in def_out} {
+  set fi [open $def_in r]
+  set fo [open $def_out w]
+  set last_line ""
+  while {![eof $fi]} {
+    gets $fi fl
+    if {[string match "*+ STOP *lockup_latch*" $fl]} {
+      #Inject ORDERED segment
+      set latch [lindex [split [string trim $fl]] 2]
+      puts $fo "  + ORDERED"
+      puts $fo "$last_line"
+      puts $fo "      $latch ( IN D ) ( OUT Q ) ( BITS 0 )"
+    }
+    puts $fo $fl
+    set last_line $fl
+  }
+  catch {close $fi}
+  catch {close $fo}
+}
