@@ -1,0 +1,40 @@
+#D2D pass-out ports
+set base_ymin 1074
+set base_ymax 1253
+
+set d2ds {
+{0 17310.72}
+{1 14891.52}
+{2 12472.32}
+{3 10053.12}
+{4 7257.6}
+{5 4838.4}
+{6 2419.2}
+{7 0}
+}
+
+array unset assigned_ports
+array set assigned_ports {}
+foreach d2d $d2ds {
+  lassign $d2d num coord
+  set port_name1 d2d_*_m_${num}_*
+  set port_name2 d2d_*_s_${num}_*
+  set ports [::get_db [::get_db ports -if {.name==$port_name1 || .name==$port_name2}] .name]
+  foreach port $ports {
+    set assigned_ports($port) 1
+  }
+  ::mortar::echo -text "d2d_${num}_ports = [llength $ports]"
+  ::create_pin_group -name d2d_${num}_ports -opt_order -pins $ports
+  ::create_pin_guide -pin_group d2d_${num}_ports -layers [list M6 M8 M10 M12] -area [list -1 [expr {$coord + $base_ymin}] 1 [expr {$coord + $base_ymax}]]
+}
+
+#Everything else
+set ports [list]
+foreach port [::get_db ports .name] {
+  if {![info exists assigned_ports($port)]} {
+    lappend ports $port
+  }
+}
+::mortar::echo -text "misc_ports = [llength $ports]"
+::create_pin_group -name misc_ports -opt_order -pins $ports
+::create_pin_guide -pin_group misc_ports -layers [list M6 M8 M10 M12] -area {-1 9709 1 10074}
