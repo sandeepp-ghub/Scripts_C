@@ -1,0 +1,115 @@
+
+proc split_wire_with_buf_file {in_file buff} {
+
+   global vars
+
+   set file [open split_net_eco.tcl w]
+   puts $file " ############################################################################### "    
+   puts $file " # CADENCE COPYRIGHT NOTICE                                                    # "
+   puts $file " # September 2014 Cadence Design Systems, Inc. All rights reserved.            # "
+   puts $file " #                                                                             # "
+   puts $file " # This script is AEWare, provided as an example of how to perform specialized # "
+   puts $file " # tasks within SoC Encounter.  It is not supported via the Cadence Hotline    # "
+   puts $file " # nor the CCR system.                                                         # "
+   puts $file " #                                                                             # "
+   puts $file " # This work may not be copied, re-published, uploaded, or distributed in any  # "
+   puts $file " # way, in any medium, whether in whole or in part, without prior written      # "
+   puts $file " # permission from Cadence.                                                    # "
+   puts $file " #                                                                             # "
+   puts $file " # This work is Cadence intellectual property and may under no circumstances   # "
+   puts $file " # be given to third parties, neither in original nor in modified versions,    # "
+   puts $file " # without explicit written permission from Cadence                            # "
+   puts $file " #                                                                             # "
+   puts $file " # The information contained herein is the proprietary and confidential        # "
+   puts $file " # information of Cadence or its licensors, and is supplied subject to, and    # "
+   puts $file " # may be used only by Cadence's customers in accordance with, a previously    # "
+   puts $file " # executed license and maintenance agreement between Cadence and its          # "
+   puts $file " # customer.                                                                   # "
+   puts $file " ############################################################################### "
+   puts $file "                                                                                "    
+   puts $file " ##############################################################################" 
+   puts $file " ##############################################################################" 
+   puts $file " ##  TESTCASE:      DTMF 13.2" 
+   puts $file "\n "
+   puts $file "   ##for ECO settings" 
+   puts $file "setPlaceMode -place_detail_preserve_routing true"
+   puts $file "setPlaceMode -place_detail_remove_affected_routing false"
+   puts $file "setEcoMode -refinePlace false"
+   puts $file "setEcoMode -updateTiming false"
+   ##OPT for clock nets and dont touch nets pl. comment if not needed 
+   puts $file "setEcoMode -honorDontTouch false -honorDontUse false -honorFixedStatus false -prefixName MK_SPLIT_ECO -refinePlace false -updateTiming false"
+
+   set file_r [open $in_file r]
+   while { ![eof $file_r] } {
+      set line [gets $file_r]
+      set keys [split [string trim $line]]
+      set net [lindex $keys 0]
+      ##puts $net
+
+      deselectAll
+
+      if {[dbFindNetsByName  $net] != ""} {
+         set fan_out [expr [dbNetNrTerm [dbGetNetByName $net]] -1]
+
+         if { $fan_out == 1 } {
+            puts " ##==> INFO #** fanout is 1 for NET = $net buffer added by bisecting the net at almost center of net using relativeDistToSink 0.5   ** \n"
+            puts $file " ##==> INFO #***** fanout is 1 for NET =  $net buffer added by bisecting the net at almost center of net using relativeDistToSink 0.5   ** \n"
+            puts $file  "ecoAddRepeater -net $net -cell $buff -relativeDistToSink 0.5"
+         } else {
+            puts " ##==> INFO #***** fanout is greater then 1 $net  buffer added for multi fanout net by splitting at mean point  ** \n"
+            puts $file "##==> INFO #***** fanout is greater then 1 $net buffer added for multi fanout net by splitting at mean point ** \n  "
+            print "fanout is greater then 1 $net "
+
+            deselectAll
+            selectNet $net
+            
+            set driveTerm [dbGet [dbGet -p1 selected.allTerms.isOutput 1]]
+            set recvTerms [dbGet [dbGet -p1 selected.allTerms.isInput 1]]
+            set numInTerms [llength $recvTerms]
+            
+            set index 0
+            foreach recvTerm $recvTerms {
+               set totwire 0
+            
+               deselectAll
+               selectNetP2P $driveTerm $recvTerm
+               foreach wire [dbGet -p selected.objType wire] {
+                  if {$wire!="0x0"} {
+                     set totwire [expr $totwire+[dbDBUToMicrons [dbWireLen $wire]]]
+                  }
+               }
+               set vars(net_${index}) $recvTerm
+               set vars(len_${index}) $totwire
+               puts "Total length from [dbGet $driveTerm.name] to [dbGet $recvTerm.name] is $totwire"
+               incr index
+            }
+puts "source split_net_eco.tcl"
+            deselectAll
+            
+            set long_wire 0
+            for {set index 0} {$index < $numInTerms} {incr index} {
+               if {$vars(len_${index}) > $long_wire} {
+                  set long_wire $vars(len_${index})
+               }
+            }
+            
+            set half_way [expr $long_wire / 2]
+            set req_terms ""
+            for {set index 0} {$index < $numInTerms} {incr index} {
+               if {$vars(len_${index}) > $half_way} {
+                  lappend req_terms [dbGet $vars(net_${index}).name]
+               }
+            }
+            puts $file "set results \[ecoAddRepeater -cell $buff -term \{$req_terms\}\]"
+         }
+      }
+   }
+   puts $file " refinePlace  "
+   puts $file "setNanoRouteMode -routeWithEco true"
+   puts $file "globalDetailRoute"
+   close $file
+   close $file_r
+}
+
+
+
