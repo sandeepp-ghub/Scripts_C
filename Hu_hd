@@ -1,0 +1,375 @@
+mortar::source /proj/asictools/m1dpe/sandbox/common/flow/tcl/cif.tclz
+cifi::set_technology 5
+
+proc currenttime {} {
+   set currenttime [exec date +%Y_%m%d_%H%M%S]
+   return $currenttime
+}
+
+proc offdisplay {} {
+ # gui_delete_objs -shape
+   set_layer_preference block -stipple brick
+   set_layer_preference allM16 -stipple brick
+   set_layer_preference allM17 -stipple brick
+   set_layer_preference node_layer -is_visible 0
+   set_layer_preference node_power -is_visible 0
+   set_layer_preference node_net -is_visible 0
+   set_layer_preference node_partition -is_visible 0
+   set_layer_preference node_floorplan -is_visible 0
+   set_layer_preference node_row -is_visible 0
+   set_layer_preference node_blockage -is_visible 0
+   set_layer_preference node_cell -is_visible   0
+   set_layer_preference node_module -is_visible 0
+   set_layer_preference coverCell -is_visible 0
+   set_layer_preference violation -is_visible 0
+   set_layer_preference node_bump -is_visible 0
+   set_layer_preference term      -is_visible 1
+   set_layer_preference phyCell -is_visible 0
+}
+
+
+proc select_scbnets {} {
+   gui_deselect -all
+   set scbnets [get_db [get_db [get_db insts -if {.base_cell.name==MRVCKS*}] .pins */Z] .net]
+   select_obj $scbnets
+}
+
+
+proc sn { n } {
+  set nets [get_db nets $n]
+  gui_deselect -all
+  select_obj $nets
+}
+
+proc sc { c } {
+  set cells [get_db insts $c]
+  gui_deselect -all
+  select_obj $cells
+}
+
+proc sp { p } {
+  set pins [get_db pins $p]
+  gui_deselect -all
+  select_obj $pins
+}
+
+#########################################################
+#082415 HND Write placement records to a file           #
+#########################################################
+
+proc copyPlacementToTcl { filename } {
+set gates [get_db [get_db selected -if {.obj_type==inst}] .name]
+  foreach g $gates {
+     set  gx  [::mortar::get_gate_attribute -name $g -x_coord]
+     set  gy  [::mortar::get_gate_attribute -name $g -y_coord]
+     set  gh  [::mortar::get_gate_attribute -name $g -height]
+     set  go  [::mortar::get_gate_attribute -name $g -orient]
+     set  gn  [::mortar::get_gate_attribute -name $g -gate_name]
+     set  gp  [::mortar::get_gate_attribute -name $g -gate_ptr]
+     set  gu  [::mortar::get_gate_attribute -name $g -is_unplaced]
+     set  gp  [::mortar::get_gate_attribute -name $g -is_placed]
+     set  gf  [::mortar::get_gate_attribute -name $g -is_fixed]
+     set  gsf [::mortar::get_gate_attribute -name $g -is_softfixed]
+     if {$gp == 1} {set place "-status_placed"}; if {$gf == 1} {set place "-status_fixed"}; if {$gsf == 1} {set place "-status_softfixed"}; if {$gp == 0 && $gf == 0 && $gsf == 0} {set place ""}
+     if {$gh > 1} {set snap -no_snap} else {set snap ""}
+     lappend info [format "%-15s %-15s %10.3f %-15s %10.3f %-15s %-10s %-15s %-10s %-10s %-10s" "::mortar::move_gate" "-x_coord" "$gx" "-y_coord" "$gy" "-orient" "$go" "-name" "$gn" "$place" "$snap"]
+  }
+  set outfile [open $filename "w"]
+  foreach in $info {
+    puts $outfile $in
+  }
+  close $outfile
+}
+
+
+proc snapS20togrid  { cb } {
+  set c $cb
+  if {[llength $c]} {
+  lassign [lindex [get_db [get_db insts $c] .location] 0] cx cy
+  lassign [cifi::cell_snap_S20_grid $cx $cy] gridx gridy
+  puts "Snap $c from [list $cx $cy] to [list $gridx $gridy]"
+  ::mortar::move_gate -x_coord $gridx  -y_coord  $gridy -orient  r0 -name  $c -status_fixed -no_snap
+  } else {
+    puts "Please only puts S20 to move"
+  }
+}
+
+proc snapS5togrid {cb} {
+  set c $cb
+  if {[llength $c]} {
+  lassign [lindex [get_db [get_db insts $c] .location] 0] cx cy
+  lassign [cifi::cell_snap_S5_grid $cx $cy] gridx gridy orient
+  puts "Snap $c from [list $cx $cy] to [list $gridx $gridy]"
+  ::mortar::move_gate -x_coord $gridx  -y_coord  $gridy -orient  r0 -name  $c -status_fixed  -no_snap
+  } else {
+    puts "Please only puts S5 to move"
+  }
+}
+
+proc snapCKB16togrid {cb} {
+  set c $cb
+  if {[llength $c]} {
+  lassign [lindex [get_db [get_db insts $c] .location] 0] cx cy
+  lassign [cifi::cell_snap_CKBD16_grid $cx $cy orient] gridx gridy orient
+  puts "Snap $c from [list $cx $cy] to [list $gridx $gridy]"
+  ::mortar::move_gate -x_coord $gridx  -y_coord  $gridy -orient  r0 -name  $c -status_fixed  -no_snap
+  } else {
+    puts "Please only puts S5 to move"
+  }
+}
+
+
+
+
+proc winon {} {gui_show}
+proc winoff {} {gui_hide}
+
+
+
+proc FitInst { cell args } {
+ set delta 2
+ if {[llength [get_db insts $cell]]==1} {
+  gui_deselect -all;
+  sc $cell
+  set area [get_db selected .bbox]
+  set lx [expr [lindex [lindex $area 0] 0] - $delta]
+  set ly [expr [lindex [lindex $area 0] 1] - $delta]
+  set hx [expr [lindex [lindex $area 0] 2] + $delta]
+  set hy [expr [lindex [lindex $area 0] 3] + $delta]
+  gui_zoom -rect [list $lx $ly $hx $hy]
+ } else {puts "$cell does NOT exist, try again"}
+}
+
+proc FitNet { net args } {
+ set delta 5
+ if {[llength [get_db nets ${net}]]==1} {
+  sn $net
+  set area [get_db selected .bbox]
+  set lx [expr [lindex [lindex $area 0] 0] - $delta]
+  set ly [expr [lindex [lindex $area 0] 1] - $delta]
+  set hx [expr [lindex [lindex $area 0] 2] + $delta]
+  set hy [expr [lindex [lindex $area 0] 3] + $delta]
+  gui_zoom -rect [list $lx $ly $hx $hy]
+  gui_highlight -color red  [get_db nets .name $net] -pattern solid
+ } else {puts "$net does NOT exist, try again"}
+}
+
+
+
+
+
+#########################################################
+#082415 HND Report and set list of selection to a var   #
+#########################################################
+
+proc makeListSelection { args } {
+                set      opt_all       0
+                set      opt_nets      0
+                set      opt_gates     0
+                set      opt_pins      0
+                set      opt_ports     0
+
+::mortar::parse_args $args {
+                {     all     opt_all      boolean    }
+                {     nets    opt_nets     boolean    }
+                {     gates   opt_gates    boolean    }
+                {     pins    opt_pins     boolean    }
+                {     ports   opt_ports    boolean    }
+} {
+
+   set makeListSelection       ""
+   set makeListSelection_nets  ""
+   set makeListSelection_gates ""
+   set makeListSelection_pins  ""
+   set makeListSelection_ports  ""
+
+   set selected [get_db selected]
+
+   if {[llength $selected] <= 0} {echo "Please select an object"
+   } else {
+       foreach ptr $selected {
+         set objtype  [get_db $ptr .obj_type]
+
+         if [regexp ^pin        [lindex $objtype 0]] {append makeListSelection_pins  " " [lindex [get_db $ptr .name] 0]}
+         if [regexp ^port       [lindex $objtype 0]] {append makeListSelection_ports " " [lindex [get_db $ptr .name] 0]}
+         if [string equal inst  [lindex $objtype 0]] {append makeListSelection_gates " " [lindex [get_db $ptr .name] 0]}
+         if [regexp ^(net)      [lindex $objtype 0]] {append makeListSelection_nets  " " [lindex [get_db $ptr .name] 0]}
+         if [regexp ^(wire)     [lindex $objtype 0]] {append makeListSelection_nets  " " [lindex [get_db $ptr .net.name] 0]}
+       }
+
+       if {${opt_pins}}  {foreach in [lsort -u $makeListSelection_pins]  {append makeListSelection " " $in}}
+       if {${opt_ports}} {foreach in [lsort -u $makeListSelection_ports] {append makeListSelection " " $in}}
+       if {${opt_gates}}  {foreach in [lsort -u $makeListSelection_gates] {append makeListSelection " " $in}}
+       if {${opt_nets}}   {foreach in [lsort -u $makeListSelection_nets]  {append makeListSelection " " $in}}
+
+
+       if {${opt_all}}   {
+                      foreach in $makeListSelection_pins  {append makeListSelection " " $in}
+                      foreach in $makeListSelection_ports {append makeListSelection " " $in}
+                      foreach in $makeListSelection_gates {append makeListSelection " " $in}
+                      foreach in $makeListSelection_nets  {append makeListSelection " " $in}
+       }
+   }
+   return [lsort -u $makeListSelection]
+  }
+}
+
+
+
+
+proc writeSelectedToFile { args } {
+ set filename ""
+ ::mortar::parse_args $args {
+   { filename filename  string 1}
+ } {
+      set info ""
+      set list [get_db selected .name]
+      foreach in $list {
+        lappend info $in
+      }
+      set outfile [open $filename "w"]
+      foreach in $info {
+        puts $outfile $in
+      }
+      close $outfile
+   }
+}
+
+
+
+
+
+
+proc SelectNetPinsGraphically {} {
+##developed to be able to select input pins in an area selected by mouse of a net
+
+
+puts "########################################"
+puts ""
+puts "Click and drag the interested area"
+puts ""
+puts "########################################"
+  set nets [makeListSelection -nets]
+
+  if {[llength $nets] == 1 && ![regexp ^(VDD|VSS|VCS) $nets]} {
+
+     set ma [gui_get_box]
+     lassign $ma x1 y1 x2 y2; set xs [lsort -increasing [list $x1 $x2]]; set ys [lsort -increasing [list $y1 $y2]]
+     lassign $xs lx hx
+     lassign $ys ly hy
+
+     set sptrs [get_db selected .load_pins]
+     set selected_ptrs ""
+     foreach sptr $sptrs {
+        set px [get_db $sptr .location.x]
+        set py [get_db $sptr .location.y]
+        if {${lx} <= $px && ${hx} >= $px && ${ly} <= $py && ${hy} >= $py} {
+            append selected_ptrs " " $sptr
+        }
+     }
+     if {[llength ${selected_ptrs}] > 0} {
+        set pins [get_db ${selected_ptrs} .name]
+        gui_deselect -all
+        select_pin $pins
+        get_db ${selected_ptrs} .name
+     } else {puts "Please select a region that has sink pins, please call \"GetNetPinsGraphically\" command again "}
+   } else {echo "This proc only work on 1 net other than PWR/GND, please select only 1 valid net"}
+}
+
+
+
+
+
+proc reportWirePercentage { n } {
+ regsub -all {\{} $n {} n;regsub -all {\}} $n {} n;
+ if {[get_db nets .name $n] =="" || [regexp ^(GND|VSS|VCS) $n]} {puts "\(E\): Please specify a valid net other than PWR/GND"
+ } else {
+    set net_name $n
+    set net_ptr [get_db nets ${net_name}]
+    set total_length 0
+    set layers [list M13 C45 K6789 H01 G23 LB]
+    set M24   0
+    set M510  0
+    set M1112 0
+    set M1314 0
+    set M1516 0
+    set RVAP 0
+    set totalwires 0
+    set fo [llength [get_db ${net_ptr} .load_pins]]
+    set source [get_db ${net_ptr} .driver_pins.name]
+    set parent [get_db ${net_ptr} .driver_pins.inst.name]
+    regsub -all {\{} $parent {} parent;regsub -all {\}} $parent {} parent;
+
+    if [string match "" $source] {
+      #set parentlib  [lindex [::dbGet [::dbGet $net_ptr.terms].name] 0]
+      set parentlib [lindex [get_db ${net_ptr} .driver_ports.name] 0]
+    } else {
+      #set parentlib [lindex [dbInstCellName [dbget -e -p top.insts.name $parent]] 0]
+      set parentlib [get_db [get_db ${net_ptr}] .driver_pins.inst.base_cell.name]
+    }
+
+    #set steiner_length [expr {[::dbGet $net_ptr.box_sizex] + [::dbGet $net_ptr.box_sizey]}]
+    set steiner_length [expr [get_db ${net_ptr} .bbox.length] + [get_db ${net_ptr} .bbox.width]]
+
+
+    ##### 092115 HND added driver cap and netcap ############################################
+    set tl [get_db ${net_ptr} .top_preferred_layer.name]
+    set bl [get_db ${net_ptr} .bottom_preferred_layer.name]
+    set wc [get_db ${net_ptr} .route_rule.name]
+    if [string match "" $wc] {set wc default}
+
+    #########################################################################################
+    set isitfixed 0; set isitrouted 0
+    if {[llength [get_db ${net_ptr} .wires]] > 0} {
+
+     foreach seg_ptr [get_db ${net_ptr} .wires] {
+
+        set layer  [get_db ${seg_ptr} .layer.name]
+        set routestatus [get_db ${seg_ptr} .status ]
+        set length [get_db ${seg_ptr} .length]
+
+        if       [regexp ^(fixed)  $routestatus] {set isitfixed  [expr $isitfixed + $length]
+        } elseif [regexp ^(routed) $routestatus] {set isitrouted [expr $isitrouted + $length]
+        }
+
+        set totalwires [expr $totalwires + $length]
+        if       [regexp ^(M2|M3|M4) $layer]           {set  M24   [expr $M24 + $length]
+        } elseif [regexp ^(M5|M6|M7|M8|M9|M10) $layer] {set  M510  [expr $M510 + $length]
+        } elseif [regexp ^(M11|M12) $layer]            {set  M1112 [expr $M1112 + $length]
+        } elseif [regexp ^(M13|M14) $layer]            {set  M1314 [expr $M1314 + $length]
+        } elseif [regexp ^(M15|M16) $layer]            {set  M1516 [expr $M1516 + $length]
+        } elseif [regexp ^(RV|AP) $layer]              {set  RVAP  [expr $RVAP + $length]
+        }
+     }
+    } else { set totalwires 0.0001}
+    set M24per [expr ${M24}/${totalwires} * 100]
+    set M510per [expr ${M510}/${totalwires} * 100]
+    set M1112per [expr ${M1112}/${totalwires} * 100]
+    set M1314per [expr ${M1314}/${totalwires} * 100]
+    set M1516per [expr ${M1516}/${totalwires} * 100]
+    set RVAPper [expr ${RVAP}/${totalwires} * 100]
+    set ratio [expr ${totalwires} / ${steiner_length}]
+    set FP   [format "%.2f" [expr ${isitfixed}/${totalwires} * 100]]
+    set RP   [format "%.2f" [expr ${isitrouted}/${totalwires} * 100]]
+    set reportWirePercentage ""
+#    append reportWirePercentage [format "%4s %5s %5.2f %5s %5.2f %5s %5.2f %5s %5.2f %5s %5.2f %5s %5.2f %5s %5s %8s %6s %10s %10s %5s %5.2f %5s %5.2f %5s %5.2f %5s %5.2f %5s %5.2f %5s %20s %5s %-20s"  "L%:" "Mx:" "${Mper}" "Cx:" "${Cper}" "Kx:" "${Kper}" "Hx:" "${Hper}" "Gx:" "${Gper}" "LB:" "${Lper}" "FO:" "$fo" "BT_Layers:" "${bl}|${tl}" "Wirecode:" "$wc" " Wired_L(um):" "${totalwires}" "Est_L(um):" "${steiner_length}" "ScenicRatio:" "${ratio}" "Fixed%" "${FP}" "Routed%" "${RP}" "Driver:" "$parentlib" "Net:" "$n"]
+    append reportWirePercentage [format "%4s %5s %5.2f %5s %5.2f %5s %5.2f %5s %5.2f %5s %5.2f %5s %5.2f %5s %5s %8s %6s %10s %10s %5s %5.2f %5s %5.2f %5s %5.2f %5s %5.2f %5s %5.2f %5s %20s %5s %-20s"  "L%:" "M24:" "${M24per}" "M510:" "${M510per}" "M1112:" "${M1112per}" "M1314:" "${M1314per}" "M1516:" "${M1516per}" "RVAP:" "${RVAPper}" "FO:" "$fo" "BT_Layers:" "${bl}|${tl}" "Wirecode:" "$wc" " Wired_L(um):" "${totalwires}" "Est_L(um):" "${steiner_length}" "ScenicRatio:" "${ratio}" "Fixed%" "${FP}" "Routed%" "${RP}" "Driver:" "$parentlib" "Net:" "$n"]
+    return $reportWirePercentage
+  }
+}
+
+
+
+proc selectGatesInFile { filename } {
+ gui_deselect -all
+ set infile [open $filename "r"]
+ while {[gets $infile line] >= 0} {
+#    if {[llength $line] > 0} {selectInst $line}
+    if {[llength $line] > 0} {select_obj [get_db insts $line]}
+ }
+ close $infile
+}
+
+
+
+
