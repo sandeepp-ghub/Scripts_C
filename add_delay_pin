@@ -1,0 +1,81 @@
+# Description   : This procedure is intended to add a certain amount of delay on a target pin.
+# The CCOpt engine is normally used to build clock trees. However, it can also be used to add a specific delay on a data path (not necessarily the reg2reg path). A common approach is to constrain a data path using set_max_delay or set_min_delay. While individual set_max_delay and set_min_delay constraints will be honored during the setup/hold optimization, it is not possible to set both min and max delay constraints at the same time.
+#
+# In this type of situation, you can use CCOpt to build a dummy "clock tree" on the desired data path. This script lets you specify a target delay and control the prefix name (by default, "DELAY") of the buffer/delay cell instances that will be added by the script. The delay value should be in ns and correspond to the default setup analysis view delay corner.
+#
+# In case the driver of the specified (to) pin is driving other instances, the script will only add the desired delay to the specified pins. Nevertheless, one buffer might be added on the other pins, which could cause a small timing change on other paths.
+#
+# /////////////////////////////////////////////////////////////////////////////
+
+define_proc user_add_delay_to_instance_pin -description "This procedure is intended to add a certain amount of delay on a target pin." \
+    {
+    { to_pin      ""        -to_pin        string required "Specify the instance pin on which delay need to be added" }
+    { delay       ""        -delay         float  required "Specify the delay amount to be added (in ns)"             }
+    { prefix      "DELAY"   -prefix        string optional "Specify prefix to be used for the added net and cells"    }
+    } \
+{
+
+
+
+  set driver [get_db  [get_db pins -if { .name == $to_pin }] .net.drivers.name]
+  set ignore_pin_list [get_db [ get_db pins -if { .name == $to_pin }] .net.loads -if { .name != $to_pin }]
+
+  ### Back up previous ccopt config 
+  set ccopt_backup_config_dir [exec mktemp] ; # This is creating a file, but we need a directory
+  exec rm -rf $ccopt_backup_config_dir      ; # Delete the file to create a directory instead
+  exec mkdir -p $ccopt_backup_config_dir
+  write_cts_config $ccopt_backup_config_dir
+
+  ### Back up other parameter modified by the script
+  set save(cts_primary_delay_corner)  [get_db cts_primary_delay_corner ]
+  set save(cts_inst_name_prefix)      [get_db cts_inst_name_prefix     ]
+  set save(cts_net_name_prefix)       [get_db cts_net_name_prefix      ]
+  set save(cts_route_clock_tree_nets) [get_db cts_route_clock_tree_nets]
+  set save(cts_update_clock_latency)  [get_db cts_update_clock_latency ]
+  set save(cts_post_route_enable)     [get_db cts_post_route_enable    ]
+  set save(cts_post_route_repair_drv) [get_db cts_post_route_repair_drv]
+
+  set_db cts_primary_delay_corner  [get_db [get_db analysis_views -if {.is_setup_default == true}] .delay_corner.name]
+  set_db cts_inst_name_prefix      $prefix
+  set_db cts_net_name_prefix       $prefix
+  set_db cts_route_clock_tree_nets false
+  set_db cts_update_clock_latency  false
+  set_db cts_post_route_enable     false
+  set_db cts_post_route_repair_drv false
+
+  delete_clock_tree_spec
+  ### All other pins driven by the same driver will be put early 
+  ### in the clocktree by a difference of $delay compared to the pin we want to delay
+  foreach p $ignore_pin_list {
+    set_db $p .cts_pin_insertion_delay $delay
+  }
+  set_db [get_db pins -if { .name == $to_pin }] .cts_sink_type stop
+
+  create_clock_tree -name dummy     -source  $driver -no_skew_group 
+  create_skew_group -name dummy_grp -sources $driver -sinks [concat $to_pin [ get_db $ignore_pin_list .name ] ]
+  ### Set the target insertion delay to be added for this "clocktree"
+  set_db skew_groups .cts_skew_group_target_insertion_delay ${delay}ns
+  
+  clock_design
+  delete_clock_tree_spec
+
+  ### Restore ccopt spec
+  read_cts_config $ccopt_backup_config_dir
+  exec rm -rf $ccopt_backup_config_dir
+
+  ### Restore db setting
+  foreach option [array names save] {
+    eval "set_db $option $save($option)"
+  }
+}
+
+# Usage
+
+#user_add_delay_to_instance_pin [-help] -delay <float> [-prefix <string>] -to_pin <string>
+
+#-help                # Prints out the command usage
+#-delay <float>       # Specify the delay amount to be added (in ns) (float, required)
+#-prefix <string>     # Specify prefix to be used for the added net and cells (string, optional)
+#-to_pin <string>     # Specify the instance pin on which delay need to be added (string, required)
+
+#innovus 3> user_add_delay_to_instance_pin -delay 5.0 -to_pin flop01/SI 
