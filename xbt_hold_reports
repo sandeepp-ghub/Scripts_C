@@ -1,0 +1,54 @@
+
+source /proj/cayman/wa/seth/scripts/utils.tcl
+::set_multi_cpu_usage -keep_license true
+
+#LEFT
+set left_pins [get_db hpins [f2l /proj/cayman/wa/seth/timing_ecos/hbm_xbar_wrapper_0/xbt_left_in_pins.txt]]
+
+set tot_pins [llength $left_pins]
+puts "Processing $tot_pins LEFT pins ..."
+
+set fh [open "xbt_left_viol_pins.txt" w]
+set i 1
+foreach left_pin $left_pins {
+  if { ! [expr $i % 100] } {
+    puts "Processing $i of $tot_pins ..."
+  }
+  set tpath [report_timing -early -collection -through $left_pin]
+  if { ! [sizeof_collection $tpath] } { continue }
+  set slack [get_db $tpath .slack]
+  if { $slack < -75 } {
+    puts $fh [get_db $left_pin .name]
+  }
+
+  #puts "SETH : $slack"
+  #if { $i > 10 } { break }
+  incr i
+}
+close $fh
+
+
+#RIGHT
+set right_pins [get_db hpins [f2l /proj/cayman/wa/seth/timing_ecos/hbm_xbar_wrapper_0/xbt_right_in_pins.txt]]
+
+set tot_pins [llength $right_pins]
+puts "Processing $tot_pins RIGHT pins ..."
+
+set fh [open "xbt_right_viol_pins.txt" w]
+set i 1
+foreach right_pin $right_pins {
+  if { ! [expr $i % 100] } {
+    puts "Processing $i of $tot_pins ..."
+  }
+  set tpath [report_timing -early -collection -through $right_pin]
+  if { ! [sizeof_collection $tpath] } { continue }
+  set slack [get_db $tpath .slack]
+  if { $slack < -75 } {
+    puts $fh [get_db $right_pin .name]
+  }
+
+  #puts "SETH : $slack"
+  #if { $i > 10 } { break }
+  incr i
+}
+close $fh
