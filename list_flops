@@ -1,0 +1,170 @@
+
+
+set iports [list \
+  port:hbm_xbar_wrapper_0/unit_xbar_top_32_SHD_TEST_spare_sub2shd[0] \
+]
+set oports [list \
+  port:hbm_xbar_wrapper_0/unit_xbar_top_32_SHD_TEST_spare_shd2sub[1] \
+  port:hbm_xbar_wrapper_0/unit_xbar_top_32_SHD_TEST_spare_shd2sub[2] \
+]
+
+set bound_flops [list]
+
+proc list_fanin {obj {d 1}} {
+  set fi_objs $obj
+  puts "LEVEL 0:"
+  foreach print_fi_obj $fi_objs {
+    puts "  $print_fi_obj"
+  }
+  for {set i 1} {$i <= $d} {incr i} {
+    set fi [all_fanin -startpoints_only -to $fi_objs]
+    if { ! [sizeof_collection $fi] } { break }
+
+    set fi_pins [get_db pins [get_object_name $fi]]
+    set fi_ports [get_db ports [get_object_name $fi]]
+
+    set all_fi_objs [concat {*}$fi_pins {*}$fi_ports]
+    puts "LEVEL ${i}:"
+    foreach print_fi_obj $all_fi_objs {
+      puts "  $print_fi_obj"
+    }
+    set fi_insts [get_db $fi_pins .inst]
+    if { ! [llength $fi_insts] } { break }
+
+    set all_fi_pins [get_db $fi_insts .pins]
+    if { ! [llength $all_fi_pins] } { break }
+
+    set filtered_fi_pins [get_db $all_fi_pins -if {.direction==in&&.is_clock==false&&.is_async==false&&.is_clear==false&&.is_preset==false}]
+    if { ! [llength $filtered_fi_pins] } { break }
+    foreach f $filtered_fi_pins {
+      puts "SETH [get_db $f .name]"
+    }
+
+    set fi_objs [get_db $filtered_fi_pins -expr { ![regexp {(SI|SE|CP)} $obj(.base_name)] }]
+  }
+}
+
+list_fanin $oports 2
+
+#????
+#set fo [all_fanout -end -from $iports ]; puts ""; set new_pins [get_db $fo .inst.pins -if {.is_clock==true}]
+#set fo [all_fanout -end -from $new_pins ]; puts ""; set new_pins [get_db [get_db $fo -if {.is_data==true&&.is_clear==false&&![regexp {SI$} .base_name]}] .inst.pins -if {.is_clock==true}]
+#pl [get_db $new_pins .inst.name]
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p1/i_erg_init_trig/flop_0__u_din_q/dout_reg_0_
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p1/i_erg_init_trig/flop_1__u_din_q/dout_reg_0_
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p2/i_erg_init_trig/flop_0__u_din_q/dout_reg_0_
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p2/i_erg_init_trig/flop_1__u_din_q/dout_reg_0_
+
+
+#set fi [all_fanin -startpoints_only -to $oports ]; pc $fi; puts ""; set new_pins [get_db $fi .inst.pins -if {.is_data==true&&.is_clear==false&&![regexp {SI$} .base_name]}]
+#set fi [all_fanin -startpoints_only -to $new_pins ]; pc $fi; puts ""; set new_pins [get_db $fi .inst.pins -if {.is_data==true&&.is_clear==false&&![regexp {SI$} .base_name]}]
+#pl [get_db $new_pins .inst.name]
+#outputs
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p1/i_erg_uncerr/flop_1__u_din_q/dout_reg_0_
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p1/i_erg_corerr/flop_1__u_din_q/dout_reg_0_
+
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p1/i_erg_uncerr/flop_0__u_din_q/dout_reg_0_
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p1/i_erg_corerr/flop_0__u_din_q/dout_reg_0_
+
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p2/i_erg_uncerr/flop_1__u_din_q/dout_reg_0_
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p2/i_erg_corerr/flop_1__u_din_q/dout_reg_0_
+
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p2/i_erg_uncerr/flop_0__u_din_q/dout_reg_0_
+HBM_XBAR_WRAPPER/sms_shdsrv_if_pipe_xbar_top_p2/i_erg_corerr/flop_0__u_din_q/dout_reg_0_
+
+
+set in_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_*_c1_int_DFT_EDTIN*]
+
+#set in_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_0_c1_int_DFT_EDTIN[2] HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_0_c1_int_DFT_EDTIN[1]]
+#set in_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_1_c1_int_DFT_EDTIN[1]]
+
+set out_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_*_c1_int_DFT_EDTOUT[1]]
+
+set target_group [get_db groups GRP_SSN_ssn_scan_host_*_inst]
+set target_center [get_rect [get_db $target_group .rects] -center]
+lassign $target_center t_x t_y
+
+set pin_center [::mortar::get_centroid [get_db $in_pins .location]]
+lassign $pin_center p_x p_y
+set p_x [format "%.2f" $p_x]
+set p_y [format "%.2f" $p_y]
+
+set steps 4
+set y_incr [format "%.2f" [expr ($t_y - $p_y) / $steps]]
+
+set base_group_name ssh_DFT_IN_PIPE
+
+delete_obj [get_db gui_rects]
+for {set i 1} { $i <= $steps } { incr i } {
+  set name ${base_group_name}_${i}
+  set fi [all_fanin -startpoints_only -to $in_pins ]
+  #pc $fi
+  puts ""
+  set curr_inst_names [get_db $in_pins .inst.name]
+  set bounded_names [lmap a $curr_inst_names { string cat "^" $a "$" }]
+  set names_expr [join $bounded_names "|"]
+
+  set fi_insts [get_db $fi .inst -if { [regexp {PIPE} .name] && ![regexp $names_expr .name]}]
+
+  set comp_insts [mint_compress [get_db $fi_insts .name]]
+  #set comp_insts [get_db $fi_insts .name]
+  set in_pins [get_db $fi_insts .pins -if {.is_data==true&&.is_clear==false&&![regexp {SI$} .base_name]}]
+
+  set r_x $t_x
+  set r_y [expr $i * $y_incr + $p_y]
+  set region_area [list \
+    [expr $r_x - 50] \
+    [expr $r_y - 30] \
+    [expr $r_x + 50] \
+    [expr $r_y + 30] \
+  ]
+
+  puts "create_group -type region -rects \{$region_area\} -name $name"
+  puts "update_group -name $name -add -obj \[get_db insts $comp_insts\]"
+
+  create_gui_shape -layer 100 -rect $region_area
+}
+
+
+#####DFT_OUT PINS
+set out_pins [get_db pins HBM_XBAR_WRAPPER/HBM_XBAR/xbar_top_32_*_c1_int_DFT_EDTOUT*]
+
+set pin_center [::mortar::get_centroid [get_db $out_pins .location]]
+lassign $pin_center p_x p_y
+set p_x [format "%.2f" $p_x]
+set p_y [format "%.2f" $p_y]
+
+set steps 4
+set y_incr [format "%.2f" [expr ($t_y - $p_y) / $steps]]
+
+set base_group_name ssh_DFT_IN_PIPE
+delete_obj [get_db gui_rects]
+for {set i 1} { $i <= $steps } { incr i } {
+  set name ${base_group_name}_${i}
+  set fo [all_fanout -end -from $out_pins ]
+  #pc $fo
+  puts ""
+  set curr_inst_names [get_db $out_pins .inst.name]
+  set bounded_names [lmap a $curr_inst_names { string cat "^" $a "$" }]
+  set names_expr [join $bounded_names "|"]
+
+  set fo_insts [get_db $fo .inst -if { [regexp {PIPE} .name] && ![regexp $names_expr .name]}]
+
+  set comp_insts [mint_compress [get_db $fo_insts .name]]
+  #set comp_insts [get_db $fo_insts .name]
+  set out_pins [get_db $fo_insts .pins -if {.is_clock==true&&![regexp {E$} .base_name]}]
+
+  set r_x $t_x
+  set r_y [expr $i * $y_incr + $p_y]
+  set region_area [list \
+    [expr $r_x - 50] \
+    [expr $r_y - 30] \
+    [expr $r_x + 50] \
+    [expr $r_y + 30] \
+  ]
+
+  puts "create_group -type region -rects \{$region_area\} -name $name"
+  puts "update_group -name $name -add -obj \[get_db insts $comp_insts\]"
+
+  create_gui_shape -layer 100 -rect $region_area
+}
