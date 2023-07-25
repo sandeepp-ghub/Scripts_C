@@ -1,0 +1,56 @@
+#add 3 buffers to axi_clock for both fab
+#
+#add 4 buffers to axi_clock for both hbm
+#get rid of all set_max_delay - doesn't appear to be working
+
+#original group_paths from xbar->axi and axi->xbar
+group_path -name xbar2axi -from [get_clocks {clk_xbar}] -to [get_clocks {clk_axi}]
+group_path -name axi2xbar -to [get_clocks {clk_xbar}] -from [get_clocks {clk_axi}]
+
+#orginal hold pad relaxation
+set_path_group_options xbar2axi -weight 3 -early -slack_adjustment 0.100
+set_path_group_options axi2xbar -weight 3 -early -slack_adjustment 0.100
+
+
+#FAB - failing xbar->axi by -46.6 ps.  axi_clk will be pushed
+#out by 50ps but update_io_latency will negate this when doing
+#setup optimization.  However in the parent WE WILL SEE this 50ps
+#skew , so we need to add this into the push
+if { [mVar DESIGN] == "xbar_fab_group" } {
+  #only fails from xbar2axi at -46.3ps, there are a few xbar2xbar, easy fixes
+  #There was no clk_axi push in xbar so this essentially 0's out but
+  #I'd still like some opt here
+  set_path_group_options xbar2axi -weight 3 -late -slack_adjustment -0.020
+
+  #axi2xbar currently had no fails but because this is going to get worse
+  set_path_group_options axi2xbar -weight 3 -late -slack_adjustment -0.020
+} elseif { [mVar DESIGN] == "xbar_hbm_group_32" } {
+  #This included a axi_clk pushout of 90ps - launch side
+  #Changing this to 60ps on the launchside 90/6 = 15ps
+  
+  #in hbm see axi->xbar fails by -32.3ps
+  #33ps + 30ps = 60ps
+  set_path_group_options xbar2axi -weight 3 -late -slack_adjustment -0.060
+  #in hbm see xbar->axi fails by -71.3ps
+  #75ps - 30ps = 45ps
+  set_path_group_options axi2xbar -weight 3 -late -slack_adjustment -0.045
+}
+
+#new attempt to make the tool work harder on io
+set_path_group_options pi2reg -late -slack_adjustment -0.200 -effort_level high
+set_path_group_options reg2po -late -slack_adjustment -0.200 -effort_level high
+
+
+#-weight <integer>
+#Defines the optimization priority. For the default path groups, the
+#software assigns weights in the following manner:
+#
+#For high-effort path groups - the software assigns a weight of "1"
+#to reg2cgate and "2" to reg2reg.
+#
+#All low-effort path groups are assigned a default weight of "0".
+#
+#You can assign any value to this parameter ( 0 to INT_MAX). There is
+#no upper limit. The software looks at the relative priority of the
+#weights for each path group -  the  higher
+#the number, the higher the weight.
