@@ -1,0 +1,46 @@
+source /proj/mkit/pkgs/minfra/mPkg/latest/mflow_mortar/mPkgUtil
+
+deselect_obj -all
+
+set all_latch_insts [get_db insts eco_timing_neg_level_latch_*]
+
+set latch_dist [dict create]
+foreach li $all_latch_insts {
+
+  set q_pin [get_db $li .pins -if {.base_name == "Q"}]
+
+  set latch_loc [get_db $li .location]
+  set latch_name [get_db $li .name]
+
+  lassign {*}$latch_loc latch_loc_x latch_loc_y
+  foreach ql [get_db $q_pin .net.loads] {
+    set load_loc [get_db $ql .location]
+    lassign {*}$load_loc load_loc_x load_loc_y
+    set dist [expr abs($latch_loc_x - $load_loc_x) + abs($latch_loc_y - $load_loc_y)]
+    dict set latch_dist $latch_name $dist
+    #if { $dist >= 200 } {
+      #select_obj $li
+    #}
+  }
+}
+
+mortar::numeric_histogram -data [dict values $latch_dist]
+
+
+
+proc sel_latches {dist} {
+  global latch_dist
+
+  deselect_obj -all
+  dict for {lname ldist} [lsort -decreasing -real -index 1 -stride 2 $latch_dist] {
+    if { $ldist < $dist } {
+      break
+    }
+    select_obj [get_db insts $lname]
+  }
+
+  set num_latches [llength [get_db selected]]
+  puts ""
+  puts "$num_latches latches drive more than $dist"
+  puts ""
+}
