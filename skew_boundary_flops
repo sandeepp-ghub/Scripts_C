@@ -1,0 +1,42 @@
+proc skew__out_bndry_flops { name ck_src ports_out pin_out_dly } {
+    set out_flops {}
+    foreach port $ports_out {
+        set starts [ all_fanin -to $port -start   -view func:max1_setup_ssgnpmax1vm40c_cworstCCwTm40c ]
+        foreach_in_collection start $starts {
+            if  { [get_db $start  .obj_type] eq "pin" && [ get_db $start .inst.is_flop ]  } {
+                #puts "pins :: [ get_db $start .name ]"
+                lappend out_flops [get_db [ get_db $start .inst.pins -if { .is_clock_used_as_clock } ] .name ]
+            }
+        }
+        set out_flopu [ lsort -unique $out_flops ]
+    }
+ 
+ 
+ 
+create_skew_group -name $name -constrains all -source $ck_src -exclusive_sinks $out_flopu
+set_db skew_group:${name}  .cts_skew_group_target_insertion_delay $pin_out_dly
+ 
+}
+ 
+set pins { pin1 pin2}
+skew__out_bndry_flops  gti_to_x2 sclk $pins <float>
+skew__out_bndry_flops  gti_to_x2 sclk $pins min ( min sometimes caused internal problems, depending on the core timing and number of exc flops)
+
+#Similar for in bound:
+ 
+proc skew__in_bndry_flops { name ck_src ports_in pin_ins_dly  } {
+    set in_flops {}
+    set pin_ins_dly
+    foreach port $ports_in {
+        set ends [ all_fanout -from $port -endpoints_only  -view func:max1_setup_ssgnpmax1vm40c_cworstCCwTm40c ]
+        foreach_in_collection end $ends {
+            if  { [get_db $end  .obj_type] eq "pin" && [ get_db $end .inst.is_flop ]  } {
+                set cinst [ get_db $end .inst]
+                lappend in_flops [get_db [ get_db $cinst .pins -if { .is_clock_used_as_clock && .direction == in} ] .name ]
+            }
+        }
+        set in_flopu [ lsort -unique $in_flops ]
+    }
+create_skew_group -name $name -constrains all -source $ck_src -exclusive_sinks $in_flopu
+set_db skew_group:${name}  .cts_skew_group_target_insertion_delay $pin_ins_dly
+}
