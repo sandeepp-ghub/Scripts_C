@@ -1,0 +1,14 @@
+set PWD [exec pwd]
+set_db generate_special_via_ignore_drc false
+eval_legacy {source /proj/cayman/wa_004/vravikumar/impl/PowerGridAugmentation/PGA.tcl}
+
+eval_legacy {run_auto_reinforce_pg \
+-reinforce_pg_nets {VDD} \
+-reinforce_pg_uda RPG \
+-reinforce_pg_boxes_file /mrvl2g/cayman_extvol04/cayman/cayman/wa_004/pkamat/impl/tpb_aseq_aengine_wrapper.1.0A/track.DE3.postDFT_01032023_P3_signoff_eco26/bbox.txt \
+-reinforce_pg_honor_critical_paths false \
+-reinforce_pg_cleanup_drc true \
+-reinforce_pg_user_layers {{M10 M9 M11 1} {M11 M10 M12 1} {M12 M11 M13 1} {M13 M12 M14 1}} \
+}
+
+cd $PWD
