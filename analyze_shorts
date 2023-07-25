@@ -1,0 +1,143 @@
+
+source /proj/cayman/wa/seth/tools.tcl
+
+
+#set mrkrs [get_db markers -if {.subtype == Metal_Short}]
+#set short_area {356.487 5539.2735 439.8865 5561.832}
+set short_area {600.4705 1307.939 681.284 1473.4145}
+set mrkrs [get_db [get_obj_in_area -obj_type marker -areas $short_area] -if {.subtype == Metal_Short}]
+
+set from_insts [list]
+set to_insts [list]
+set from_inst_w_grp 0
+set from_inst_wo_grp 0
+
+set from_groups [list]
+set to_groups [list]
+set to_inst_w_grp 0
+set to_inst_wo_grp 0
+
+set i 0
+foreach mrkr $mrkrs {
+  set short_nets [get_db [get_db $mrkr .objects] -if {.obj_type == net}]
+  #puts "SETH [llength $short_nets] short_nets"
+  foreach short_net $short_nets {
+    if { [get_db $short_net .is_clock] } { continue }
+    if { [get_db $short_net .is_power] } { continue }
+    if { [get_db $short_net .is_ground] } { continue }
+    if { [regexp {SCAN} [get_db $short_net .base_name]] } { continue }
+    if { [regexp {_SE_} [get_db $short_net .base_name]] } { continue }
+    #puts "SETH $short_net"
+
+
+    set loads [get_db $short_net .loads]
+    set fi [get_object_name [all_fanin -only_cells -to $loads]]
+    set fi_insts [get_db [get_db insts $fi] -if {.base_cell.name == *MUX*} ]
+    #puts "SETH: [llength $fi_pins] fanin_pins"
+    foreach fi_inst $fi_insts {
+      set fi_name [get_db $fi_inst .name]
+      if { [regexp {tessent} $fi_name] } { continue }
+      set grp [get_db $fi_inst .group.name]
+      if { $grp != "" } {
+        lappend from_groups $grp
+        incr from_inst_w_grp
+        continue
+      } else {
+        incr from_inst_wo_grp
+      }
+      lappend from_insts $fi_name
+#      set bname [get_db $fi_inst .base_name]
+#      if { [regexp {CDN_MBIT} $bname] } {
+#
+#        #puts "  MB--> $fi_name"
+#        regsub -all {CDN_MBIT_} $bname "" nocdn_bname
+#        regsub -all {_MB_} $nocdn_bname ":" nocdn_bname
+#        #puts "    $nocdn_bname"
+#
+#        set parts [split $fi_name "/"]
+#        set hier_part [lrange $parts 0 end-1]
+#        set mb_regs [split $nocdn_bname ":"]
+#        #set mb_regs [regexp -all -inline -- {^(?!_MB_).*$} $nocdn_bname]
+#        foreach mb_reg $mb_regs {
+#          set single_name [join [concat {*}$hier_part $mb_reg] "/"]
+#          #puts "  MB--> $single_name"
+#          regsub -all {_\d+_$} $single_name "_x_" glob_name
+#          lappend from_insts $glob_name
+#          #puts "    glob --> $glob_name"
+#        }
+#      } else {
+#        #puts "  $fi_name"
+#        regsub -all {_\d+_$} $fi_name "_x_" glob_name
+#        lappend from_insts $glob_name
+#      }
+    }
+
+    set drivers [get_db $short_net .drivers]
+    set fo [get_object_name [all_fanout -only_cells -from $drivers]]
+    #set fo_pins [get_db pins $fo]
+    set fo_insts [get_db [get_db insts $fo]  -if {.base_cell.name == *MUX*} ]
+    #puts "SETH: [llength $fo_pins] fanout_pins"
+    foreach fo_inst $fo_insts {
+      set fo_name [get_db $fo_inst .name]
+      if { [regexp {tessent} $fo_name] } { continue }
+      if { [regexp {ANT} $fo_name] } { continue }
+      set grp [get_db $fo_inst .group.name]
+      if { $grp != "" } {
+        lappend to_groups $grp
+        incr to_inst_w_grp
+        continue
+      } else {
+        incr to_inst_wo_grp
+      }
+      lappend to_insts $fo_name
+#      set bname [get_db $fo_inst .base_name]
+#      if { [regexp {CDN_MBIT} $bname] } {
+#
+#        #puts "  MB--> $fo_name"
+#        regsub -all {CDN_MBIT_} $bname "" nocdn_bname
+#        regsub -all {_MB_} $nocdn_bname ":" nocdn_bname
+#        #puts "    $nocdn_bname"
+#
+#        set parts [split $fo_name "/"]
+#        set hier_part [lrange $parts 0 end-1]
+#        set mb_regs [split $nocdn_bname ":"]
+#        #set mb_regs [regexp -all -inline -- {^(?!_MB_).*$} $nocdn_bname]
+#        foreach mb_reg $mb_regs {
+#          set single_name [join [concat {*}$hier_part $mb_reg] "/"]
+#          #puts "  MB--> $single_name"
+#          regsub -all {_\d+_$} $single_name "_x_" glob_name
+#          lappend to_insts $glob_name
+#          #puts "    glob --> $glob_name"
+#        }
+#      } else {
+#        #puts "  $fo_name"
+#        regsub -all {_\d+_$} $fo_name "_x_" glob_name
+#        lappend to_insts $glob_name
+#      }
+    }
+
+    #set drivers [get_db $short_net .drivers]
+    #set fo [get_object_name [all_fanout -end -from $loads]]
+    #puts "SETH: $fo"
+  }
+  incr i
+  if { $i > 2000 } { break }
+}
+
+puts ""
+puts "FROM INSTS: w/ grp: $from_inst_w_grp w/o grp: $from_inst_wo_grp"
+plc $from_insts
+
+puts ""
+puts "FROM GROUPS:"
+plc $from_groups
+puts ""
+
+puts ""
+puts "TO INSTS: w/ grp: $to_inst_w_grp w/o grp: $to_inst_wo_grp"
+plc $to_insts
+
+puts ""
+puts "TO GROUPS:"
+plc $to_groups
+puts ""
