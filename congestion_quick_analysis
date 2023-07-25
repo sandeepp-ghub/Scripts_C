@@ -1,0 +1,6 @@
+::mortar::echo -text "Quick cong"
+set_db place_design_floorplan_mode true
+set_db route_early_global_effort_level low
+place_design
+place_detail
+route_early_global
