@@ -1,0 +1,108 @@
+
+report_timing -group reg2reg -path_type summary
+
+set non_clone_insts [get_db insts -expr { [regexp {\/AXI_RST_EXTD_MULTICYCLE_NSR\/} $obj(.name)] }
+set non_clone_insts [get_db $non_clone_insts -if {.is_buffer == false}]
+
+set colors [list white green orange yellow]
+
+foreach i [list 0 1 2 3] {
+  if { $i == 0 } {
+    set sp_inst [get_db insts hbm_xbar_wrapper_1/HBM_XBAR_WRAPPER/AXI_RST_EXTD_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_]
+  } else {
+    set sp_inst [get_db insts hbm_xbar_wrapper_1/HBM_XBAR_WRAPPER/AXI_RST_EXTD_MULTICYCLE_NSR_clone${i}_id0${i}/reset_extend_n_d_reg/dout_reg_0_]
+  }
+  set sp_cp [get_db pins [get_db $sp_inst .name]/CP]
+  set fo [all_fanout -end -from $sp_cp]
+  set num_fo [sc $fo]
+
+  deselect_obj -all
+  set fo_insts [get_db $fo .inst]
+  set_db selected $fo_insts
+
+  set color [lindex $colors $i]
+  gui_highlight [get_db selected] -color $color
+
+  set_layer_preference layer_${color} -color $color -stipple Slash
+  set all_inst_bbox [get_computed_shapes [get_db $fo_insts .bbox] BBOX]
+  create_gui_shape -layer layer_${color} -rect $all_inst_bbox
+
+  puts "$sp_inst $num_fo $color"
+
+}
+
+pl [get_db groups *rstxtnd*]
+
+foreach g [get_db groups *rstxtnd*] {
+  set mem [get_db $g .members]
+  set num_mem [llength $mem]
+  puts "$g -> $num_mem"
+  plc $mem
+}
+
+###############################################################
+#      Path 1: VIOLATED (-94.3 ps) Recovery Check with Pin HBM_XBAR_WRAPPER/hbm_xbar_reg_access/HBM_CFG_EP/CFGBUS_APB_EP/APB_REQUEST_STAGING_apb_pselx_stage_reg/dout_reg_0_/CP->CD
+#               View: func_setup_ssgnp0p675v125c_rcworstCCwT125c
+#              Group: reg2reg
+#         Startpoint: (R) HBM_XBAR_WRAPPER/AXI_RST_EXTD_OVERRIDE_OUT_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_/CP
+#              Clock: (R) axi_clk_buf
+#           Endpoint: (F) HBM_XBAR_WRAPPER/hbm_xbar_reg_access/HBM_CFG_EP/CFGBUS_APB_EP/APB_REQUEST_STAGING_apb_pselx_stage_reg/dout_reg_0_/CD
+#
+
+set bad_extend_insts [get_db insts -expr { [regexp {\/AXI_RST_EXTD_OVERRIDE_OUT_MULTICYCLE_NSR\/} $obj(.name)] }]
+set bad_extend_insts [get_db $bad_extend_insts -if {.is_buffer == false && .is_inverter == false}]
+
+set all_bad_bbox [get_computed_shapes [get_db $bad_extend_insts .bbox] BBOX]
+set color purple
+
+set_layer_preference layer_${color} -color $color -stipple Slash
+create_gui_shape -layer layer_${color} -rect $all_bad_bbox
+
+set bad_fo [all_fanout -end -from pin:HBM_XBAR_WRAPPER/AXI_RST_EXTD_OVERRIDE_OUT_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_/CP]
+set bad_fo_insts [get_db $bad_fo .inst]
+set stripped [lsearch -inline -all -not -exact $bad_fo_insts inst:hbm_xbar_wrapper_1/HBM_XBAR_WRAPPER/HBM_XBAR]
+
+set all_bad_fo_bbox [get_computed_shapes [get_db $bad_fo_insts .bbox] BBOX]
+set color cyan
+set_layer_preference layer_${color} -color $color -stipple Slash
+set_db selected $bad_fo_insts
+gui_highlight [get_db selected] -color $color
+#create_gui_shape -layer layer_${color} -rect $all_bad_fo_bbox
+
+set rst_ex_hinsts [get_db hinsts -expr {[regexp {HBM_XBAR_WRAPPER/[^/]+_RST_EXTD_.*NSR$} $obj(.name)]}]
+
+#@innovus 222> plc $rst_ex_hinsts
+#hinst:hbm_xbar_wrapper_1/HBM_XBAR_WRAPPER/AXI_RST_EXTD_MULTICYCLE_NSR
+#hinst:hbm_xbar_wrapper_1/HBM_XBAR_WRAPPER/AXI_RST_EXTD_OVERRIDE_OUT_MULTICYCLE_NSR
+#hinst:hbm_xbar_wrapper_1/HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_31:0__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR
+
+
+set rst_ext_groups [get_db groups *rstxtnd*]
+#group:hbm_xbar_wrapper_1/rstxtnd_80
+#group:hbm_xbar_wrapper_1/rstxtnd_60
+#group:hbm_xbar_wrapper_1/rstxtnd_40
+#group:hbm_xbar_wrapper_1/rstxtnd_20
+foreach g $rst_ext_groups {
+  set rect [get_db $g .rects]
+  puts "$g $rect"
+  create_gui_shape -layer 100 -rect $rect
+}
+
+
+plc [get_db hinsts -expr { [regexp {HBM_XBAR_WRAPPER/u_hbm_fis_cn_wrapper/u_fis_cntrl/u_bh_rst_extender.*} $obj(.name)] }]
+plc [get_db hinsts -expr { [regexp {HBM_XBAR_WRAPPER/u_hbm_fis_cn_wrapper/u_fis_cntrl/u_bh_rst_extender.*} $obj(.name)] }]
+
+
+set xbar_inst inst:hbm_xbar_wrapper_1/HBM_XBAR_WRAPPER/HBM_XBAR
+
+set xbar_bbox [get_db $xbar_inst .overlap_rects]
+set xbar_box_grown [get_computed_shapes $xbar_bbox SIZEY 500]
+set design_bbox [get_db designs .boundary.bbox]
+
+set lr_rects [get_computed_shapes $design_bbox ANDNOT $xbar_box_grown]
+
+foreach r $lr_rects {
+  lassign [get_rect -center $r] cx cy
+  puts "set cx $cx"
+}
+
