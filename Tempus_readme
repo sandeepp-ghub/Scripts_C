@@ -1,0 +1,206 @@
+##########################
+# Running ECO on Cayman
+##########################
+
+# To run parent eco, you will need to issue "mfw setup" from your impl dir. Here is an example:
+mfw setup -c parent_eco -b tpb_array_sequencer -n DE3_Eco_8Nov -release DE3.PNR.release.signoff.2022_11_06_04_24_13/
+
+# There is also a flow dir under the track dir, which contains the track config file for that specific track:
+# Following the TOM instructions
+# Adding a child and parent blocks meta.tcl to track_config. Here are some example
+mSource /proj/cayman/release/tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster.1.0A/DE3.PNR.release.signoff.2022_10_31_04_55_21/metadata/tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster.meta.tcl
+mSource /proj/cayman/release/tpb_array_sequencer_sbuf_rd_rsp_cluster.1.0A/DE3.PNR.release.signoff.2022_10_31_05_01_38/metadata/tpb_array_sequencer_sbuf_rd_rsp_cluster.meta.tcl
+mSource /proj/cayman/release/tpb_array_sequencer.1.0A/DE3.PNR.release.signoff.2022_11_06_04_24_13/metadata/tpb_array_sequencer.meta.tcl
+
+# Under the track dir, you can find all of the job requirements and session dirs
+set batch_queue "normal"
+set batch_cpu   4 ; 
+set batch_mem  400
+set batch_mem_ecodb 800
+
+# Batch requirements
+mVar SESSION(tempuscui.signoff.sta,sgq) "${batch_queue}:${batch_mem}m:${batch_cpu}c"
+mVar SESSION(tempuscui.signoff.ecodb,sgq) "${batch_queue}:${batch_mem_ecodb}m:${batch_cpu}c"
+
+# Batch requirements
+mVar TRACK(sessions) "tempuscui.signoff.sta" -lappend
+mVar TRACK(sessions) "tempuscui.signoff.ecodb" -lappend
+
+# Tempus session overrrides
+mVar SESSION(tempuscui.signoff.sta,tooloption) " |& tee stdout.log"
+mVar SESSION(eco,tooloption) "-keep_open func_setup_ssgnp0p675v0c_cworstCCwT0c func_setup_ssgnp0p675v0c_rcbestCCbT0c capt_setup_ssgnp0p675v0c_cworstCCwT0c shift_hold_ssgnp0p675v0c_cworstCCw0c func_hold_ssgnp0p675v0c_cworstCCw0c |& tee stdout.log"
+mVar SESSION(tempuscui.signoff.ecodb,tooloption) "-eco -keep_open func_setup_ssgnp0p675v0c_cworstCCwT0c func_setup_ssgnp0p675v0c_rcbestCCbT0c capt_setup_ssgnp0p675v0c_cworstCCwT0c shift_hold_ssgnp0p675v0c_cworstCCw0c func_hold_ssgnp0p675v0c_cworstCCw0c |& tee stdout.log"
+
+# Have to un-define LEF reference here, as the child block is being treated as an optimizable entity, not a static unchanging design
+mVar LEF(tpb_array_sequencer_sbuf_rd_rsp_cluster) ""
+mVar LEF(tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster) ""
+
+
+#SPECIFY HIER VARIABLEs
+# Put the names of the child cells that you WANT the flow to be able to reach in and optimize here.
+mVar HIER(tpb_array_sequencer) [list tpb_array_sequencer_sbuf_rd_rsp_cluster tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster ]
+
+#User has to make choices here that are linked to what kind of optimization they are runnin
+      1. Optimize everthing across all levels of heirarchy, 
+           (In which case, set BOTH inter and intra variables to an empty list)
+      2. Optimize the paths OTHER than the flop-to-flop paths within the child blocks
+          (In which case, set the inter variable to the child cell list, and set intra variable to empty list)
+      3. Optimize ONLY the flop-to-flop paths within the child blocks
+          (In which case, set the intra variable to the child cell list, and set inter variable to empty list)
+
+mVar tempus_opt_signoff_inter_partition_child_cell_list {}
+mVar tempus_opt_signoff_intra_partition_child_cell_list {tpb_array_sequencer_sbuf_rd_rsp_cluster tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster}
+
+
+# SPECIFY CORNERS TO SCENARIOS VARS
+mVar SCENARIOS(signoff) {
+      func_setup_ssgnp0p675v0c_cworstCCwT0c
+    func_setup_ssgnp0p675v0c_rcbestCCbT0c
+    capt_setup_ssgnp0p675v0c_cworstCCwT0c
+    shift_hold_ssgnp0p675v0c_cworstCCw0c
+    func_hold_ssgnp0p675v0c_cworstCCw0c
+}
+mVar SCENARIOS(signoff.leak) {
+    func_setup_ssgnp0p675v0c_cworstCCwT0c
+    func_setup_ssgnp0p675v0c_rcbestCCbT0c
+    capt_setup_ssgnp0p675v0c_cworstCCwT0c
+}
+mVar SCENARIOS(signoff.dyn) {
+    func_setup_ssgnp0p675v0c_cworstCCwT0c
+    func_setup_ssgnp0p675v0c_rcbestCCbT0c
+    capt_setup_ssgnp0p675v0c_cworstCCwT0c
+}
+mVar SCENARIOS(eco) {
+     func_setup_ssgnp0p675v0c_cworstCCwT0c
+    func_setup_ssgnp0p675v0c_rcbestCCbT0c
+    capt_setup_ssgnp0p675v0c_cworstCCwT0c
+    shift_hold_ssgnp0p675v0c_cworstCCw0c
+    func_hold_ssgnp0p675v0c_cworstCCw0c
+}
+
+# TAA 052522 - if this is zero, non-high-cap eco is run.  If this is 1, high-cap eco is run
+mVar FLOW(sta_enable_high_capacity_eco) 1
+
+# variable that must be defined as part of 2022.09.000 flow. 
+mVar FLOW(sta_eco_pba_effort) medium
+
+#CHOOSE WHAT KIND OF OPTIMIZATION TO RUN.
+# IMPORTANT: READ ABOVE NOTE ON OPTIMIZATION TYPES VS. HEIRARCHY LEVELS
+mVar FLOW(sta_eco_actions) [list xtalk setup hold drv]
+ 
+
+#Go to the build dir's tempuscui.signoff.sta directory, 
+    a. Replace OR MERGE the following tcl files with your own custom files
+
+# user.tcl
+# 2022.09.000 gets around beta feature for high capacity mode 
+# 2022.09.000 sets leakage and dynamic options to set_analysis_view 
+
+puts "ECO FLOW DEBUG: adding the sourcing 2022.9 and 2022.12 preamble step here"; 
+
+source /proj/mkit/pkgs/mflow/tempuscui/2022.09.000/step/ecodb_init ; 
+source /proj/mkit/pkgs/mflow/tempuscui/2022.09.000/step/signoff_gen_eco_db ; 
+
+source /proj/mkit/tsmc005/2022.12.000/mFlow/flow/tempuscui/step/eco_run ; 
+source /proj/mkit/tsmc005/2022.12.000/mFlow/flow/tempuscui/proc/mSessionStartHook_start  ; 
+# There's some kind of MMMC triggering bug in this file, temp bug fix is below
+# source /proj/mkit/tsmc005/2022.12.000/mFlow/flow/tempuscui/proc/writeViewDef ; 
+source /proj/cayman/wa/thelvey/overrides/writeViewDef ; 
+
+
+# Conf.tcl
+mConfigStep signoff_read_context -skip 1
+mConfigStep signoff_gen_etm -skip 1
+mConfigStep signoff_gen_context -skip 1
+mConfigStep signoff_gen_bbm -skip 1
+mConfigStep signoff_gen_tdb -skip 0
+mConfigStep signoff_gen_eco_db -skip 0
+mConfigStep signoff_gen_xtop_eco_db -skip 1
+
+if {[info exist ::env(CMMC)] && $::env(CMMC) == 1} {
+  mConfigStep signoff_mrvl_clock_tran -skip 0
+  mConfigStep signoff_mrvl_data_tran  -skip 0
+  mConfigStep signoff_gen_tdb         -skip 1
+}
+
+mConfigStep signoff_report_power    -skip 0 ; # added by m1dpe
+mConfigStep signoff_save_session    -skip 1 ; # added by m1dpe
+mConfigStep signoff_mrvl_clock_tran -skip 0 ; # added by m1dpe
+mConfigStep signoff_mrvl_data_tran  -skip 0 ; # added by m1dpe
+mConfigStep signoff_gen_tdb         -skip 1 ; # added by m1dpe
+#mConfigStep signoff_report_xtalk -skip 1 ; # added by m1dpe
+
+mConfigStep signoff_gen_eco_db  -pre \
+{ 
+    puts "ECO FLOW DEBUG: actual signoff_gen_eco_db prefix code starting running"
+    set_db opt_signoff_enable_high_capacity_eco true
+    set_db opt_signoff_inter_partition [mVar tempus_opt_signoff_inter_partition_child_cell_list] 
+    set_db opt_signoff_intra_partition [mVar tempus_opt_signoff_intra_partition_child_cell_list]  
+    # ideally only run below if power optimization is active ; 
+    if { [mVar -exists FLOW(sta_eco_actions)] && [regexp {power|(dynamic&leakage)} [mVar FLOW(sta_eco_actions)]] } { 
+	eval_legacy {set_eco_opt_mode -power_aware true} 
+    } 
+    puts "ECO FLOW DEBUG: actual signoff_gen_eco_db prefix code done running" 
+} 
+
+
+#Turn off MFWRUN_CHECK_CONF in the terminal you are running things in:
+   setenv MFWRUN_CHECK_CONF 0
+
+# execute "mfw run"
+
+# When done, note the FULL PATH to the produced ECO.00X directory add to track_config
+
+mVar mECO_SETTINGS(DB) { 
+     /mrvl2g/cayman_extvol02/cayman/cayman/wa_002/nchandrashek/impl/tpb_array_sequencer.1.0A/track.DE3_Eco_8Nov/tempuscui.signoff.sta/ECO.002.2022-11-09-04:23:20
+} 
+
+# Go to the build dir's tempuscui.signoff.ecodb directory, 
+    a. Replace the following tcl files
+        
+# User.tcl
+
+# 2022.09.000 gets around beta feature for high capacity mode 
+# 2022.09.000 sets leakage and dynamic options to set_analysis_view 
+
+puts "ECO FLOW DEBUG: adding the sourcing 2022.9 and 2022.12 preamble step here"; 
+
+source /proj/mkit/pkgs/mflow/tempuscui/2022.09.000/step/ecodb_init ; 
+source /proj/mkit/pkgs/mflow/tempuscui/2022.09.000/step/signoff_gen_eco_db ; 
+
+source /proj/mkit/tsmc005/2022.12.000/mFlow/flow/tempuscui/step/eco_run ; 
+source /proj/mkit/tsmc005/2022.12.000/mFlow/flow/tempuscui/proc/mSessionStartHook_start  ; 
+# There's some kind of MMMC triggering bug in this file, temp bug fix is below
+#      source /proj/mkit/tsmc005/2022.12.000/mFlow/flow/tempuscui/proc/writeViewDef ; 
+source /proj/cayman/wa/thelvey/overrides/writeViewDef ; 
+
+# Conf.tcl
+
+mConfigStep eco_setup -pre \
+{ 
+    puts "ECO FLOW DEBUG: actual eco_setup prefix code starting running"
+
+    set_db opt_signoff_enable_high_capacity_eco true
+
+    set_db opt_signoff_inter_partition [mVar tempus_opt_signoff_inter_partition_child_cell_list] 
+    set_db opt_signoff_intra_partition [mVar tempus_opt_signoff_intra_partition_child_cell_list]  
+
+    if { [mVar -exists FLOW(sta_eco_actions)] && [regexp {power|(dynamic&leakage)} [mVar FLOW(sta_eco_actions)]] } { 
+	eval_legacy {set_eco_opt_mode -power_aware true} 
+    } 
+
+    puts "ECO FLOW DEBUG: starting deleting blockages to create locations where new paths to be placed"
+    set blockagesToDelete [get_db place_blockages  defObstructName]
+    delete_obj  $blockagesToDelete
+    puts "ECO FLOW DEBUG: done deleting blockages to create locations where new paths to be placed"
+
+    puts "ECO FLOW DEBUG: actual eco_setup prefix code done running" 
+} 
+
+#Turn off MFWRUN_CHECK_CONF in the terminal you are running things in:
+   setenv MFWRUN_CHECK_CONF 0
+
+# execute "mfw run"
+
+# After the run is done, inspect the tempuscui.signoff.ecodb/dataout directory.
+/mrvl2g/cayman_extvol02/cayman/cayman/wa_002/nchandrashek/impl/tpb_array_sequencer.1.0A/track.DE3_Eco_8Nov/tempuscui.signoff.ecodb/dataout
