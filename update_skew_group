@@ -1,0 +1,10 @@
+# Remove sinks from main CLK_AXI group
+foreach sg [::get_db skew_groups] {
+  if { [regexp {/m1dpx/cif} [::get_db $sg .name]] } { 
+            foreach a [get_db $sg .sinks_active] { 
+                 set pin [get_db $a .name]
+                 update_skew_group -skew_group CLK_AXI_buf/func -add_ignore_pins $pin 
+                 }
+              }
+}
+
