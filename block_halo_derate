@@ -1,0 +1,49 @@
+proc halo_derate {module_name file_name} {
+  set_message -severity info -id TCLCMD-1725
+  
+  set prefixes [list ""]
+
+  # get instances
+  if {[get_object_name [current_design]] eq $module_name} {
+    puts "top level: $module_name"
+  } else {
+    puts "not top level $module_name"
+    set cprefixes [get_cells -hier -filter ref_lib_cell_name==$module_name]
+    if {[sizeof_collection $cprefixes] == 0} {
+      puts "couldn't find any $module_name"
+      return
+    } else {
+      set pp [get_object_name $cprefixes]
+      foreach p $pp {
+        lappend prefixes "$p/"
+      }
+    }
+  }
+
+  # get nets
+
+  set hdl1 [open "$file_name" r]
+  while {1} {
+    set line [gets $hdl1]
+    if { [eof $hdl1] } { close $hdl1 ; break }
+    if {[regexp {will impact extraction: (\S+)\}} $line match net]} {
+      foreach pre $prefixes {
+        set fnet ${pre}${net}
+        set cnet [get_nets $fnet -quiet]
+        if {[sizeof_collection $cnet]} {
+          puts "\n### $line"
+          puts "set_timing_derate 0.7 -early -net $fnet"
+          puts "set_timing_derate 1.3 -late -net $fnet"
+          set_timing_derate 0.7 -early -net $fnet
+          set_timing_derate 1.3 -late -net $fnet
+        } else {
+          puts "ERROR: didn't find net $fnet"
+        }
+      }
+    }
+  }
+}
+
+puts "This script will apply a +/-30% derate to nets in the block halo"
+puts "usage:"
+puts "halo_derate module_name ..../invcui.signoff.audit/report/mdc/block_halo.viol.gz"
