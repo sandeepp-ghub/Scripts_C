@@ -1,0 +1,60 @@
+proc report_slack_of_cell_type {cell {report "XX"}} {
+  if {$report eq "XX"} {
+    set report ${::mSTA_SETTINGS(tag)}.core.rpt
+  }
+  redirect $report {
+    set cores [get_cells -hier -filter ref_lib_cell_name=~$cell]
+
+    set_message -suppress -id TCLCMD-1469
+    if {[regexp setup [all_analysis_views]]} {
+      set ipins [get_pins -of_objects $cores -filter direction==in]
+      #    echo "[sizeof_collection $ipins] input pins"
+      foreach_in_collection ipin $ipins {
+        set path [report_timing -to $ipin -retime path_slew_propagation -collection]
+        set slack [get_property $path slack]
+        if {$slack eq ""} {
+          set slack "N/A"
+        }
+        echo "input_setup $slack [get_object_name $ipin]"
+      }
+      set ipins [get_pins -of_objects $cores -filter direction==out]
+      #    echo "[sizeof_collection $ipins] output pins"
+      foreach_in_collection ipin $ipins {
+        set path [report_timing -from $ipin -retime path_slew_propagation -collection]
+        set slack [get_property $path slack]
+        if {$slack eq ""} {
+          set slack "N/A"
+        }
+        echo "output_setup $slack [get_object_name $ipin]"
+      }
+    }
+
+    if {[regexp hold [all_analysis_views]]} {
+      set ipins [get_pins -of_objects $cores -filter direction==in]
+      #    echo "[sizeof_collection $ipins] input pins"
+      foreach_in_collection ipin $ipins {
+        set path [report_timing -early -to $ipin -retime path_slew_propagation -collection]
+        set slack [get_property $path slack]
+        if {$slack eq ""} {
+          set slack "N/A"
+        }
+        echo "input_hold $slack [get_object_name $ipin]"
+      }
+      set ipins [get_pins -of_objects $cores -filter direction==out]
+      #    echo "[sizeof_collection $ipins] output pins"
+      foreach_in_collection ipin $ipins {
+        set path [report_timing -early -from $ipin -retime path_slew_propagation -collection]
+        set slack [get_property $path slack]
+        if {$slack eq ""} {
+          set slack "N/A"
+        }
+        echo "output_hold $slack [get_object_name $ipin]"
+      }
+    }
+
+
+
+
+    set_message -unsuppress -id TCLCMD-1469
+  }
+}
