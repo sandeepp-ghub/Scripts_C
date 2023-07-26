@@ -1,0 +1,172 @@
+# changelog for cayman space:
+#   default to 25 max waivers
+
+
+# you can add this script as a post callback on the SOM Timing step.
+# ::df::parm df,post_callback {source /home/thelvey/Public/dflow/tempus_filter_cap_slew.tcl } {step=SOM_Timing_Execute}
+
+# this script will gather all failing pins from the cap slew report.
+# It will then report violations for those pins in each view.
+# for corners with fails, it will check the slack in those view and provide a set of filtered reports for each view.
+
+#This script must be run from the same session that generated the cap/slew file"
+
+# todo - enhance this to make one call to report timing instead of many.
+# todo - make the output format behave with TTR.
+
+if {![expr {![catch {package present zlib}]}]} {package require zlib}
+
+proc filter_cap_slew_file {infile {max_waivers 25}} {
+  regsub {.gz$} $infile {} outfile
+  regsub {$} $outfile {.filtered} outfile
+  
+  mortar::echo "writing filtered results to $outfile"
+  if { [catch {open "$outfile" "w"} hdl2] } {
+    mortar::echo -error -prefix tempus_filter_cap_slew.tcl -text "Couldn't open $hdl2 for writing."
+  }
+
+  set pins [list]
+
+  #  if { [catch {open "| gunzip -c $infile" "r"} hdl] } {
+  #    mortar::echo -error -prefix tempus_filter_cap_slew.tcl -text "Couldn't open $infile for reading."
+  #  }
+  if {[regexp \.gz\$ $infile]} {
+    set hdl [open $infile r]
+    zlib push gunzip $hdl
+  } else {
+    set hdl [open $infile r]
+  }
+
+  set type "xxx"
+  set waiver_count 0
+  
+  while {![eof $hdl]} {
+    set line [gets $hdl]
+    if {[regexp {Check type : (\S+)} $line match type1]} {
+      set type $type1
+      puts $hdl2 "$line"
+      continue
+    }
+
+    #    #completely skip the min caps
+    #    if {$type eq "min_capacitance"} {
+    ##      puts $hdl2 "$line"
+    #      continue
+    #    }
+
+    #to deal with b15 views, different report format
+    if {[regexp { [A-Z-] } $line]} { 
+      regsub -all { [A-Z-] } $line " "  line; 
+      set pin [lindex $line 0]; set req [lindex $line 1]; set act [lindex $line 2]; set sla [lindex $line 3];  
+      set view [lindex $line end]; 
+    } elseif {![regexp {^\s+(\S+)\s+([0-9]\S+)\s+([0-9]\S+)\s+(-[0-9]\S+)\s+(\S+)$} $line match pin req act sla view]} {
+      if {$line ne ""} {
+        puts $hdl2 "$line # fix: couldn't parse"
+      }
+      continue
+    }
+
+    set ppin [get_pins $pin -quiet]
+    if {[sizeof_collection $ppin] == 0} {
+      set ppin [get_ports $pin]
+    }
+    if {[sizeof_collection $ppin] == 0} {
+      puts $hdl2 "$line # fix: couldn't find $pin"
+      continue
+    }
+
+    set net  [get_object_name [get_nets -of_objects $ppin]]
+    set clok [get_property $ppin is_clock_used_as_clock -view $view]
+
+    if {$clok} {
+      puts $hdl2 "$line # fix: (must fix - clock) net: $net"
+      continue
+    } elseif {$type eq "min_capacitance"} {
+      # if the cell type is stdcell, completely ignore.
+      set cc [get_cells -of_objects $ppin]
+      set rlcn [get_property $cc ref_lib_cell_name]
+      if {[regexp {A9PP84T} $rlcn]} {
+        continue
+      }
+    }
+
+    #    set slack_max [get_property $ppin slack_max -view $view]
+    #    set slack_min [get_property $ppin slack_min -view $view]
+    # removed [get_attr $ppin full_name]
+    set slack_max [get_property [report_timing -max_slack 900 -retime path_slew_propagation -collection -late  -through $ppin  -view $view] slack]
+    set slack_min [get_property [report_timing -max_slack 900 -retime path_slew_propagation -collection -early -through $ppin  -view $view] slack]
+    if {$req ne "0.000*" && $req != 0} {set percent_over [expr (($act - $req) / $req) * 100 ]} else {set percent_over 9999}
+    #   set slack_min_pba [get_property [report_timing -retime aocv_path_slew_propagation -collection -early -through $ppin -view $view] slack]
+    if {$slack_min eq ""} {set slack_min 9999}
+    if {$slack_max eq ""} {set slack_max 9999}
+    if {$slack_min eq "INFINITY"} {set slack_min 9999}
+    if {$slack_max eq "INFINITY"} {set slack_max 9999}
+    # in case we report multiple paths due to group mode
+    set slack_max [lindex [lsort -real -increasing $slack_max] 0]
+    set slack_min [lindex [lsort -real -increasing $slack_min] 0]
+    
+    
+    #rules:
+    #max tran:
+    #1) < 25 % over limit and slack is > 2x the violation.
+    #2) < 50 % over limit and slack is infinite
+
+    #max cap:
+    #3) < 10% over the limit and > 100ps slack
+
+    #min cap:
+    #4) < 50% under the limit.
+    
+    if {$waiver_count > $max_waivers} {
+      puts $hdl2 "$line # fix: Reached limit of $max_waivers waivers"
+    } elseif {$type eq "max_transition"} {
+      #rule #1
+      if {($percent_over < 25) && (($sla * 2) + $slack_max > 0) && (($sla * 2) + $slack_min) > 0} {
+        puts  $hdl2 "$line # waive: (< 25% fail with slew/slack > 2X arrival slack   late: $slack_max slack early: $slack_min percent: $percent_over)"
+        incr waiver_count
+        #rule #2
+      } elseif {($percent_over < 50) && ($slack_max == 9999) && ($slack_min == 9999)} {
+        puts  $hdl2 "$line # waive: (< 50% fail with infinite slack   late: $slack_max slack early: $slack_min percent: $percent_over)"
+        incr waiver_count
+      } else {
+        puts $hdl2 "$line # fix: (slack late: $slack_max slack early: $slack_min percent: $percent_over) net: $net"
+      }
+    } elseif {$type eq "max_capacitance"} {
+      # rule #3
+      if {$percent_over < 10 && $slack_max > 100 && $slack_min > 100} {
+        puts  $hdl2 "$line # waive: (< 10% fail with 100ps positive slack   late: $slack_max slack early: $slack_min percent: $percent_over)"
+        incr waiver_count
+      } else {
+        puts $hdl2 "$line # fix: (slack late: $slack_max slack early: $slack_min percent: $percent_over) net: $net"
+      }
+    } elseif {$type eq "min_transition"} {
+      puts $hdl2 "$line # fix: or review - these are often sdc or IP issues"
+    } elseif {$type eq "min_capacitance"} {
+      # if the cell type is stdcell, completely ignore.  <- moved this earlier in the proc
+      if {$percent_over > -30} {
+        #rule 4
+        puts $hdl2 "$line # waive: (min cap fail less than 30 percent)"
+      } else {
+        puts $hdl2 "$line # fix: or ignore (min cap) (slack late: $slack_max slack early: $slack_min  percent: $percent_over) net: $net"
+      }
+    } else {
+      puts $hdl2 $line
+    }
+  }
+  if {$waiver_count > $max_waivers} {
+    mortar::echo -error -text "Processed more than 1000 waivers.  We recommend you do a round of fixes to reduce the number."
+    mortar::echo -error -text "This script can run for a long time if the number of fails is too hight."
+  }
+  close $hdl
+  close $hdl2
+} ; # proc
+
+
+
+set dir "./report"
+if { [mortar::tool -name -is {Tempus}] && [llength [all_analysis_views]] > 1 } {
+  set dir "./MMMC.${::mSTA_SETTINGS(tag)}/report"
+}
+set design [get_db current_design .name]
+
+echo "usage filter_cap_slew_file ${dir}/${design}.cap_slew.gba.gz"
