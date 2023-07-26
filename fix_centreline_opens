@@ -1,0 +1,346 @@
+
+set design_name [get_db designs .name]
+
+
+set CIF_FAST_BAT 1
+set CIF_SKIP_REMOVE 1
+source /proj/cayman/bin/cif.tcl
+cifi::set_technology 5
+
+source /proj/cayman/wa/seth/scripts/check_cif_drcs.tcl
+source /proj/cayman/wa/seth/tools.tcl
+
+delete_violation_markers -tool Verify
+cif::dsa 
+cif::sn CIF_*_NET_*
+set custom_net_names [cif::gsn]
+cif::dsa 
+select_routes -nets $custom_net_names -obj_type {wire via}
+check_connectivity -selected
+
+set dangle_markers [get_db markers -if {.type == connectivity && .subtype == ConnectivityAntenna}]
+
+set good_via6_def_name "NR_VIA7_VSINGLECUT58_HV"
+
+foreach mrkr $dangle_markers {
+
+  set net_obj [get_db $mrkr .objects]
+  set net_name [get_db $net_obj .name]
+
+  #if { $net_name == "CIF_clk_local_NET_3_3" } { continue }
+  if { $net_name == "CIF_CWGDSK_NET_0_1" } { continue }
+
+  lassign {*}[get_db $mrkr .bbox] mrkr_x mrkr_y
+
+  set mrkr_box [list \
+    [expr $mrkr_x - 0.210] \
+    [expr $mrkr_y - 1.0*0.210] \
+    [expr $mrkr_x + 0.210] \
+    [expr $mrkr_y + 1.5*0.210] \
+  ]
+
+  if { [llength [get_db gui_rects]] } { delete_obj [get_db gui_rects] }
+  #create_gui_shape -layer 100 -rect $mrkr_box
+
+  set inst [get_obj_in_area -areas $mrkr_box -obj_type {inst}]
+  #Only continue if we are sitting ontop of a sector buffer
+  set inst [get_db $inst -expr {[regexp {^CIF.*buf.*} $obj(.base_name)]}]
+  if { ! [llength $inst] } {
+    continue
+  }
+
+  #Don't do anything if we are sitting on top of a ClkPad cell
+  set inst_name [get_db $inst .name]
+  if { [regexp {ClkPad} $inst_name] } {
+    puts "ClkPad found continuing on"
+    continue
+  }
+
+  #Final check that we are on top of a sector buffer
+  set base_cell_name [get_db $inst .base_cell.base_name]
+  if { ! [regexp {^CKBD} $base_cell_name] } {
+    continue
+  }
+
+  set all_routes [get_obj_in_area -obj_type {wire via patch_wire} -areas $mrkr_box -enclosed_only]
+  set bad_routes [get_db $all_routes -if {.net.name == $net_name }]
+
+  set bad_wires [get_db $bad_routes -if {.obj_type == wire || .obj_type == patch_wire}]
+  set bad_vias [get_db $bad_routes -if {.obj_type == via}]
+
+  #Only get M3 and below
+  set bad_wires [get_db $bad_wires -if {.layer.route_index < 5}]
+
+  #Only get VIA2 and below
+  set bad_vias [get_db $bad_vias -if {.via_def.cut_layer.cut_index < 4}]
+
+  delete_obj $bad_wires
+  delete_obj $bad_vias
+
+  set all_patch_wires [get_obj_in_area -obj_type {patch_wire} -areas $mrkr_box]
+  if { [llength $all_patch_wires] } {
+    delete_obj $all_patch_wires
+  }
+
+  set other_vias [get_db [get_obj_in_area -obj_type {via} -areas $mrkr_box] \
+                    -if {.net.name == $net_name && .via_def.name != $good_via6_def_name}]
+  if { [llength $other_vias] } {
+    delete_obj $other_vias
+  }
+
+  set good_via [get_db [get_obj_in_area -obj_type {via} -areas $mrkr_box] \
+                    -if {.net.name == $net_name && .via_def.name == $good_via6_def_name}]
+  if { [llength $good_via] } {
+    set good_lower_r [get_db $good_via .bottom_rects]
+    set good_upper_r [get_db $good_via .top_rects]
+    set good_via_box [get_computed_shapes [list $good_lower_r $good_upper_r] BBOX]
+
+    set other_wires [get_db [get_obj_in_area -obj_type {wire} -areas $good_via_box] \
+                         -if {.layer.route_index < 7 && .net.name == $net_name}]
+    if { [llength $other_wires] } {
+      delete_obj $other_wires
+    }
+  }
+
+
+  set all_routes [get_obj_in_area -obj_type {wire} -areas $mrkr_box -layers M2]
+
+  set m2_wire [get_db $all_routes -if {.net.name == $net_name}]
+  if { ! [llength $m2_wire] } { continue }
+
+  set m2_rect [get_db $m2_wire .rect]
+  set m2_llx [get_rect -llx $m2_rect]
+  set m2_urx [get_rect -urx $m2_rect]
+
+  set all_pins [get_obj_in_area -obj_type {pin} -areas $mrkr_box -layers M1]
+
+  set m1_pin [get_db $all_pins -if {.net.name == $net_name}]
+
+  set m1_inst [get_db $m1_pin .inst]
+  set m1_phys_pin [get_db $m1_pin .base_pin.physical_pins.layer_shapes.shapes.rect]
+
+  set m1_rect [get_transform_shapes -inst $m1_inst -local_pt $m1_phys_pin]
+  set m1_llx [get_rect -llx $m1_rect]
+  set m1_urx [get_rect -urx $m1_rect]
+
+  #set via1_obj [get_db $all_vias -if {.via_def.cut_layer.name == VIA1}]
+  #set via1_top_encl [get_db $via1_obj .top_rects]
+  #set via1_top_llx [get_rect -urx $via1_top_encl]
+  #set via1_top_urx [get_rect -urx $via1_top_encl]
+
+  set_db edit_wire_layer_horizontal {M2}
+  set_db edit_wire_layer_vertical {M1}
+
+  set_db edit_wire_nets $net_name
+
+  if { $m1_urx > $m2_urx } {
+    set diff [convert_dbu_to_um [convert_um_to_dbu [expr $m1_urx - $m2_urx]]]
+    set_db edit_wire_nets $net_name
+    set_db selected $m2_wire
+    puts "net: $net_name --> edit_resize_routes -direction x -offset $diff -side high -keep_center_line auto"
+    edit_resize_routes -direction x -offset $diff -side high -keep_center_line auto
+  }
+
+  set via1_obj [get_db [get_obj_in_area -layer VIA1 -obj_type {via} -areas $m2_rect] \
+                   -if {.net.name == $net_name}]
+
+  if { ! [llength $via1_obj] } {
+    set_db edit_wire_nets $net_name
+    set insct [get_computed_shapes $m1_rect AND $m2_rect]
+    if { ! [llength $insct] } {
+      continue
+    }
+    set cen [get_rect $insct -center]
+
+    set_db edit_wire_via_cut_layer {VIA1}
+    set_db edit_wire_via_type regular
+    set_db edit_wire_via_create_by {viacell}
+    set_db edit_wire_via_cell_name {VIA12_1cut_BW20_UW20_BL170}
+
+    puts "net: $net_name --> edit_create_via $cen"
+    edit_create_via $cen
+
+  }
+
+#  if { $m1_llx < $m2_llx } {
+#    set diff [convert_dbu_to_um [convert_um_to_dbu [expr $m1_llx - $m2_llx]]]
+#    set_db edit_wire_nets $net_name
+#    puts "net: $net_name --> edit_resize_routes -direction x -offset $diff -side low -keep_center_line auto"
+#    edit_resize_routes -direction x -offset $diff -side low -keep_center_line auto
+#  }
+
+  set_db edit_wire_nets {}
+}
+
+delete_violation_markers -tool Verify
+cif::dsa 
+cif::sn CIF_*_NET_*
+set custom_net_names [cif::gsn]
+cif::dsa 
+select_routes -nets $custom_net_names -obj_type {wire via}
+check_connectivity -selected
+
+set dangle_markers [get_db markers -if {.type == connectivity && .subtype == ConnectivityAntenna}]
+
+#set_db edit_wire_nets CIF_clk_local_NET_3_3
+#set_db edit_wire_create_crossover_vias false
+#set_db edit_wire_snap false
+#
+#set_db edit_wire_layer_horizontal {M11}
+#set_db edit_wire_layer_vertical {M11}
+#
+#edit_add_route_point {293.0305 142.149}
+#edit_end_route_point {293.034 142.149}
+#
+#edit_add_route_point {293.0305 142.149}
+#edit_end_route_point {293.0305 142.16}
+
+
+
+#foreach mrkr $dangle_markers {
+#
+#  set net_obj [get_db $mrkr .objects]
+#  set net_name [get_db $net_obj .name]
+#
+#  lassign {*}[get_db $mrkr .bbox] mrkr_x mrkr_y
+#
+#  set mrkr_box [list \
+#    [expr $mrkr_x - 0.210] \
+#    [expr $mrkr_y - 1.0*0.210] \
+#    [expr $mrkr_x + 0.210] \
+#    [expr $mrkr_y + 1.5*0.210] \
+#  ]
+#
+#  if { [llength [get_db gui_rects]] } { delete_obj [get_db gui_rects] }
+#  create_gui_shape -layer 100 -rect $mrkr_box
+#
+#  #set m10_obj [get_db [get_obj_in_area -obj_type {patch_wire} -layer {M10} -areas $mrkr_box]
+#
+#  set_db edit_wire_via_snap_to_intersection false
+#  set_db edit_wire_snap false
+#  set_db edit_wire_via_auto_snap false
+#  set_db edit_wire_drc_on false
+#  set_db edit_wire_create_crossover_vias false
+#
+#
+#  set all_wires [get_db [get_obj_in_area -obj_type {wire} -areas $mrkr_box] \
+#                  -if {.net.name == $net_name && .layer.route_index > 4 && .layer.route_index < 16}]
+#  set all_vias [get_db [get_obj_in_area -obj_type {via}  -areas $mrkr_box] \
+#                  -if {.net.name == $net_name && .via_def.cut_layer.cut_index > 3}]
+#  set all_patch [get_db [get_obj_in_area -obj_type {patch_wire} -areas $mrkr_box] \
+#                  -if {.net.name == $net_name}]
+#  delete_obj $all_wires
+#  delete_obj $all_vias
+#  delete_obj $all_patch
+#
+#  set m15_encl [get_db [get_obj_in_area -obj_type {wire} -areas $mrkr_box] \
+#                  -if {.net.name == $net_name  && .layer.route_index == 16 && .rect.area < 40}]
+#  delete_obj $m15_encl
+#
+#  set search_box [get_computed_shapes {283.5375 197.127 287.5875 202.555} SIZE 0.8]
+#  deselect_obj -all
+#  select_routes -area $search_box -nets CIF_clk_local_NET_4_3 -obj_type {wire via}
+#
+#  # track2um -layer M14 -num [um2track -layer M14 -um 142.121]
+#  #source: 287.5245 197.19
+#  #Dest: 292.692 141.918
+#  edit_copy 5.1675 -55.272 -net CIF_clk_local_NET_3_3
+#  edit_move_routes y -4.9255
+#  edit_resize_routes -direction y -offset -4.9255 -side high -keep_center_line 1
+#
+#  
+#}
+
+#edit_resize_routes -direction x -offset 0.0585 -side high -keep_center_line 0
+
+#  set m10_obj [get_db [get_obj_in_area -obj_type {patch_wire} -layer {M10} -areas $mrkr_box] \
+#                  -if {.net.name == $net_name}]
+#  set m10_rect [get_db $m10_obj .rect]
+#
+#  set via10_obj [get_db [get_obj_in_area -obj_type {via} -layer {VIA10} -areas $mrkr_box] \
+#                  -if {.net.name == $net_name}]
+#  set via10_loc [get_db $via10_obj .location]
+#  lassign {*}$via10_loc via10_x via10_y
+#
+#  set m11_obj [get_db [get_obj_in_area -obj_type {wire} -layer {M11} -areas $mrkr_box] \
+#                -if {.net.name == $net_name}]
+#  set m11_rect [get_db $m11_obj .rect]
+#  set m11_loc [get_rect $m11_rect -center]
+#  lassign $m11_loc m11_x m11_y
+#
+#  set_db edit_wire_nets $net_name
+#
+#  set_db selected $m11_obj
+#  edit_resize_routes -no_connection 1 -direction y -side low -offset -0.012
+#
+#  set via9_obj [get_db [get_obj_in_area -obj_type {via} -layer {VIA9} -areas $mrkr_box] \
+#                  -if {.net.name == $net_name}]
+#  set via9_loc [get_db $via9_obj .location]
+#  lassign {*}$via9_loc via9_x via9_y
+#
+#  set via9_bot_rect [get_db $via9_obj .bottom_rects]
+#  set v9_cen [get_rect $via9_bot_rect -center]
+#  lassign $v9_cen v9_cen_x v9_cen_y
+#  lassign {*}$via9_bot_rect v9_llx v9_lly v9_urx v9_ury
+#
+#  #delete_obj $via10_obj
+#
+#  #set diff [convert_dbu_to_um [convert_um_to_dbu [expr $via10_x - $m11_x]]]
+#
+#  set_db edit_wire_nets $net_name
+#  set_db edit_wire_via_snap_to_intersection false
+#  set_db edit_wire_snap false
+#  set_db edit_wire_via_auto_snap false
+#  set_db edit_wire_drc_on false
+#  set_db edit_wire_create_crossover_vias false
+#
+#  set_db edit_wire_layer_horizontal {M10}
+#  set_db edit_wire_layer_vertical {M9}
+#
+#  edit_add_route_point [list $v9_cen_x $v9_lly]
+#  edit_end_route_point [list $v9_cen_x $v9_ury]
+#
+#
+#  #set_db selected $via10_obj
+#  #edit_move_routes -dx $diff -dy 0.0
+#  #set via_insct [get_computed_shapes $m10_rect AND $m11_rect]
+#  #set via_pt [get_rect -center $via_insct]
+#
+#  #set_db edit_wire_layer_horizontal {M10}
+#  #set_db edit_wire_layer_vertical {M11}
+#  #set_db edit_wire_via_cut_layer {VIA10}
+#  #set_db edit_wire_via_cell_name {0x0}
+#  #set_db edit_wire_via_cell_name {NR_clock_vp_m1m4_1x_m5m10_2x_m11m16_5x_VIA11_1x2_HV_H}
+#  #edit_create_via 293.0355 142.162
+#  #edit_create_via {*}$via_pt
+#
+#  #move_obj -direction left -distance 0.0015 -selected
+#  #edit_move_routes -dx -0.0015 -dy -0.002
+#
+#
+#}
+#
+#set_db edit_wire_nets {}
+#set_db edit_wire_via_snap_to_intersection true
+#set_db edit_wire_via_auto_snap true
+#set_db edit_wire_snap true
+#set_db edit_wire_drc_on true
+
+
+# set_db edit_wire_nets CIF_clk_local_NET_3_3
+# edit_update_route_rule -from clock_m1m4_1x_m5m10_2x_m11m16_8x -to Defaul
+#edit_update_via -net CIF_clk_local_NET_3_3 -from NR_clock_m1m4_1x_m5m10_2x_m11m16_8x_VIA11_1x4_HV_HE -selected -via_columns 2 -via_rows 1
+#edit_update_via -net CIF_clk_local_NET_3_3 -selected -via_columns 1 -via_rows 2
+#edit_move_routes -dx 0.0035 -dy 0.0
+#set m10_patch [get_obj_in_area -obj_type {path_wire} -layer M10 -areas $last_area]
+#set_db selected $m10_patch
+#edit_move_routes -dx -0.0275 -dy 0.0
+
+#set_db edit_wire_keep_via true
+#set_db edit_wire_snap false
+#set_db edit_wire_drc_on false
+#set_db edit_wire_via_auto_snap false
+#set_db edit_wire_via_snap_to_intersection false
+#
+#set_db edit_wire_snap_end_to manufacturing_grid
+#set_db edit_wire_snap_objects_to_track {}
