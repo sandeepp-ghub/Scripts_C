@@ -1,0 +1,106 @@
+proc ::df::report_pba { {dir {xx}} } {
+  if {$dir eq "xx"} {
+    set dir "./report"
+    if { [mortar::tool -name -is {Tempus}] && [llength [all_analysis_views]] > 1 } {
+      set dir "./MMMC.${::mSTA_SETTINGS(tag)}/report"
+    }
+  }
+
+  if {![file exist $dir]} {file mkdir $dir}
+  set design [get_db current_design .name]
+
+  mortar::echo "Generating PBA reports..."
+
+  # reset this from the tdb step.
+  set_db timing_report_group_based_mode false
+
+  report_constraint -drv_violation_type [list max_capacitance max_transition] -all_violators > "${dir}/${design}.cap_slew.gba.gz"
+
+  set setup_views [all_analysis_views -type setup];
+  set setup_views [lsearch -all -inline $setup_views *_setup_* ]
+  set hold_views [all_analysis_views -type hold];
+  set hold_views [lsearch -all -inline $hold_views *_hold_* ]
+
+  set ver [regsub {^(\d\d\.\d\d).*} [get_db program_version] {\1}]
+  if {$ver >= 21.12 && [get_db program_short_name] eq "tempus"} {
+    echo "newer ipba reporting"
+    report_timing -late -split_delay -max_slack [mVar FLOW(sta_report_max_slack)] -nworst 1 -max_paths [mVar FLOW(sta_report_max_paths)] -path_type full_clock \
+        -retime path_slew_propagation -retime_mode   exhaustive \
+        > "${dir}/${design}.rptTmg.pba.late.gz"
+    report_timing -early -split_delay -max_slack [mVar FLOW(sta_report_max_slack)] -nworst 1 -max_paths [mVar FLOW(sta_report_max_paths)] -path_type full_clock \
+        -retime path_slew_propagation -retime_mode   exhaustive \
+        > "${dir}/${design}.rptTmg.pba.early.gz"
+  } else {
+    echo "older ipba reporting"
+    foreach view $setup_views {
+      report_timing -late -split_delay -max_slack [mVar FLOW(sta_report_max_slack)] -nworst 1 -max_paths [mVar FLOW(sta_report_max_paths)] -path_type full_clock \
+          -retime path_slew_propagation -retime_mode   exhaustive \
+          > "${dir}/${design}.rptTmg.pba.late.${view}.gz"
+    }
+    foreach view $hold_views {
+      report_timing -early -split_delay -max_slack [mVar FLOW(sta_report_max_slack)] -nworst 1 -max_paths [mVar FLOW(sta_report_max_paths)] -path_type full_clock \
+          -retime path_slew_propagation -retime_mode   exhaustive \
+          > "${dir}/${design}.rptTmg.pba.early.${view}.gz"
+    }
+  }
+
+
+
+  set i 0
+  foreach view $setup_views {
+    if {$i == 0} {
+      report_min_pulse_width -path_type summary -violation_only -view $view > "${dir}/${design}.mpw.gba.gz"
+    } else {
+      report_min_pulse_width -path_type summary -violation_only -view $view >> "${dir}/${design}.mpw.gba.gz"
+    }
+    incr i
+  }
+  if {[llength $setup_views] > 0} {
+    report_timing -split_delay -max_slack [mVar FLOW(sta_report_max_slack)] -nworst 1 -max_paths [mVar FLOW(sta_report_max_paths)] -check_type clock_period -path_type full_clock \
+        -view $setup_views \
+        > "${dir}/${design}.clock_tests.gba.gz"
+  }
+
+#  check_timing -check_only clock_expected -verbose > "${dir}/${design}.check_timing_rpt.gz"
+  check_timing -verbose > "${dir}/${design}.check_timing_rpt.gz"
+
+  # generate test_timing check timing report
+
+  set testscan_view "";
+  set aviews [get_db [get_db analysis_views -if {(.is_hold == true || .is_setup == true)}] .name]
+
+  foreach aview $aviews {
+    if { [regexp "shift.*hold" $aview] != -1 } {
+      set testscan_view $aview;
+    };
+  };
+  if { $testscan_view ne "" } {
+    if { ( [set scan_pins [get_pins -hierarchical [list */SI* */I  ] -quiet ]] ne "" ) } {
+      check_timing -type endpoints -verbose -view $testscan_view $scan_pins -check_only {uncons_endpoint} \
+          > "${dir}/${design}.tt_check_timing.gz"
+    }
+  }
+
+
+  # checking uncertainty with msta code.  Proc defined below
+  ::df::mtCheckUncertainty
+
+  # TTR support
+  mortar::echo "Linking latest log to reports dir for TTR support."
+
+  set logfile [get_db log_file]
+  if {![regexp {^/} $logfile]} {
+    if { [mortar::tool -name -is {Tempus}] && [llength [all_analysis_views]] > 1 } {
+      set logfile "./$logfile"
+    } else {
+      set logfile "../$logfile"
+    }
+    set logfile [file normalize $logfile]
+  }
+  set log_in_rpt [file join $dir latest_log];
+  file delete -force $log_in_rpt;
+  file link $log_in_rpt $logfile
+
+  mortar::echo "End TTR support."
+
+};# report_pba
