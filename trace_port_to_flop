@@ -1,0 +1,59 @@
+
+
+set cnt 0
+proc recurse_to_flop {net_obj} {
+  global cnt
+  incr cnt
+  if { $cnt > 100 } {
+    break
+  }
+  set ret_list [list]
+  set net_drivers [get_db $net_obj .drivers]
+  foreach driver_obj $net_drivers {
+    #puts "  SETH $driver_obj"
+    if {[get_db $driver_obj .obj_type] == "port"} {
+      #return [get_db $driver_obj .name]
+      lappend ret_list [get_db $driver_obj .name]
+    } elseif {[get_db $driver_obj .obj_type] == "pin"} {
+      set pin_inst [get_db $driver_obj .inst]
+      set base_class [get_db $pin_inst .base_cell.base_class]
+      if { $base_class == "block" } {
+        #return [get_db $driver_obj .name]
+        lappend ret_list [get_db $driver_obj .name]
+      } else {
+        if { [get_db $pin_inst .is_sequential] == true } {
+          set ck_pin [get_db [get_db $pin_inst .pins] -if {.is_clock == true}]
+          lappend ret_list [get_db $ck_pin .name]
+          if { [get_db $pin_inst .is_latch] == true } {
+            set inp_pins [get_db [get_db $pin_inst .pins] -if {.direction == "in" && .is_clock == false}]
+            foreach inp_pin $inp_pins {
+              set new_net_obj [get_db $inp_pin .net]
+              #return [recurse_to_flop $new_net_obj]
+              lappend ret_list {*}[recurse_to_flop $new_net_obj]
+            }
+          }
+        } else {
+          set inp_pins [get_db [get_db $pin_inst .pins] -if {.direction == "in"}]
+          foreach inp_pin $inp_pins {
+            set new_net_obj [get_db $inp_pin .net]
+            #return [recurse_to_flop $new_net_obj]
+            lappend ret_list {*}[recurse_to_flop $new_net_obj]
+          }
+        }
+      }
+    }
+  }
+  return $ret_list
+}
+
+proc trace_port_to_flop {port_name} {
+  set net_obj [get_db [get_db ports $port_name] .net]
+  set flop_list [recurse_to_flop $net_obj]
+  return $flop_list
+}
+
+proc trace_fi {net_obj {levels 1}} {
+}
+
+proc trace_fo {net_obj {levels 1}} {
+}
