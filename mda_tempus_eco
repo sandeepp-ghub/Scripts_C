@@ -1,0 +1,185 @@
+# -*-Tcl-*-
+# ----------------------------------------------------------------------------------------------------------------------------------------------------------
+# Copyright (c) (2021) Marvell. All rights reserved.
+# The following file is subject to the limited use license agreement by and between Marvell and you, your employer or other entity on behalf of whom you act.
+# In the absence of such license agreement the following file is subject to Marvell's standard Limited Use License Agreement
+# ----------------------------------------------------------------------------------------------------------------------------------------------------------
+mCreateStep eco_run -body {
+
+  set i 0
+
+  set_db opt_signoff_fix_hold_allow_setup_optimization false
+  set_db opt_signoff_fix_hold_allow_setup_tns_degrade false
+  set_db opt_signoff_resize_inst [mVar FLOW(sta_eco_size_inst)]
+  set_db opt_signoff_add_load [mVar FLOW(sta_eco_add_load)]
+  set_db opt_signoff_hold_xtalk_delta_threshold [mVar FLOW(sta_eco_xtalk_delta_threshold)] 
+  set_db opt_signoff_setup_xtalk_delta_threshold [mVar FLOW(sta_eco_xtalk_delta_threshold)] 
+  set_db opt_signoff_hold_xtalk_slack_threshold [mVar FLOW(sta_eco_xtalk_slack_threshold)]
+  set_db opt_signoff_setup_xtalk_slack_threshold [mVar FLOW(sta_eco_xtalk_slack_threshold)]
+  set_db opt_signoff_swap_inst [mVar FLOW(sta_eco_swap_inst)]
+  set_db opt_signoff_add_inst [mVar FLOW(sta_eco_add_inst)]
+  set_db opt_signoff_buffer_cell_list [mVar FLOW(sta_eco_buf_list)]
+  set_db opt_signoff_load_cell_list [mVar FLOW(sta_eco_load_cell_list)]
+  set_db opt_signoff_clock_cell_list [mVar FLOW(sta_eco_clock_cell_list)]
+
+  ### Adding Hierarchical ECO support
+  mEnableHierEco
+  
+  puts "\n\nMDA: Starting custom eco recipe script"
+
+ if {[llength [mGetModules]] > 1 && [file exist eco_partition.txt]} {
+	set_db opt_signoff_partition_list_file ./eco_partition.txt   ;# list of partitions module name
+        set_db opt_signoff_optimize_replicated_modules true
+        eval_legacy {set_eco_opt_mode -supportRotatedBlock true} 
+  }
+ 
+  if { [mVar -exist SCENARIOS(post.dyn)] && ([lsearch [allAnalysisViews] [mVar SCENARIOS(post.dyn)]]!=-1) } {
+    set_db power_dynamic_power_view [mVar SCENARIOS(post.dyn)]
+  }
+  if { [mVar -exist SCENARIOS(post.leak)] && ([lsearch [allAnalysisViews] [mVar SCENARIOS(post.leak)]]!=-1) } {
+    set_db power_leakage_power_view [mVar SCENARIOS(post.leak)]
+  }
+
+  if { [string is double -strict [mVar FLOW(sta_eco_drv_margin)]] } { set_db opt_signoff_drv_margin [mVar FLOW(sta_eco_drv_margin)] }
+
+  if { [string is double -strict [mVar FLOW(sta_eco_hold_margin)]] } { set_db opt_signoff_hold_target_slack [mVar FLOW(sta_eco_hold_margin)] }
+  if { [string is true [mVar FLOW(sta_eco_opt_seq)]] } { set_db opt_signoff_optimize_sequential_cells true }
+  if { [string length [mVar FLOW(sta_eco_prefix)]]} { set_db opt_signoff_prefix [mVar FLOW(sta_eco_prefix)] }
+  set_db opt_signoff_optimize_core_only [mVar FLOW(sta_eco_core_only)]
+  set_db opt_signoff_routing_congestion_aware [mVar FLOW(sta_eco_cong_aware)]
+  set_db opt_signoff_along_route_buffering [mVar FLOW(sta_eco_onroute)]
+  set_db opt_signoff_allow_skewing [mVar FLOW(sta_eco_allow_skewing)]
+  set_db opt_signoff_legal_only [string equal [mVar FLOW(sta_eco_physical_mode)] "open_site"]
+
+  if { [llength [mVar FLOW(sta_eco_dont_use)]] } {
+    if { [mVar FLOW(sta_eco_paradime_flow)] } {
+      distribute_command "set_dont_use \[get_lib_cells -quiet {[mVar FLOW(sta_eco_dont_use)]}]"
+    } else {
+      set_dont_use [get_lib_cells -quiet [mVar FLOW(sta_eco_dont_use)]]
+    }
+  }
+  if { [llength [mVar FLOW(sta_eco_dont_touch)]] } {
+    foreach elem [mVar FLOW(sta_eco_dont_touch)] {
+      if { [llength [set to [split $elem :]]] == 2 } {
+        set objtype [lindex $to 0]
+        set objname [lindex $to 1]
+      } else {
+        set objtype cells
+        set objname $elem
+      }
+      if { [mVar FLOW(sta_eco_paradime_flow)] } {
+        distribute_command "set_dont_touch \[get_$objtype -quiet $objname]"
+      } else {
+        set_dont_touch [get_$objtype -quiet $objname]
+      }
+    }
+  }
+  
+  if {[mVar -exist FLOW(sta_eco_honor_infile_attr)] && [mVar FLOW(sta_eco_honor_infile_attr)]} {
+	mInfo "Honoring dont touch nets and cells  size_only attribute from INFILE or TCL HANDOFF"
+	cuiApplyDontTouchInsts
+	cuiApplyDontTouchNets
+	cuiApplySizeOnly
+  }
+  if { ! [string is false [mVar FLOW(sta_eco_pba)]] && ([mVar FLOW(sta_eco_pba)] ne "none") } {
+    set_db opt_signoff_retime path_slew_propagation
+    set_db opt_signoff_max_paths [mVar FLOW(sta_eco_pba_max_paths)]
+    set_db opt_signoff_nworst [mVar FLOW(sta_eco_pba_nworst)]
+    set_db opt_signoff_max_slack [mVar FLOW(sta_eco_pba_max_slack)]
+  }
+
+# MDA - pass ctrl vars
+  set setup_pass 1; set hold_pass 1;
+
+  foreach action [mVar FLOW(sta_eco_actions)] {
+    set preAction ""
+    set clkfix [lindex [split $action "_"] 0]
+    if {$clkfix eq "clock"} {
+      set preAction "clock_"
+      set action [lindex [split $action "_"] end]
+      set_db opt_signoff_fix_clock_drv true
+    }
+
+     if { [string is double -strict [mVar FLOW(sta_eco_setup_margin)]] } {
+           if { ( $action eq "hold" ) && ( [mVar FLOW(sta_eco_setup_margin)] < 0.0 ) } {
+       	      set_db opt_signoff_fix_hold_allow_setup_tns_degrade true
+           } elseif { ( $action eq "hold" ) && ( [mVar FLOW(sta_eco_setup_margin)] > 0.0 ) } {
+           set_db opt_signoff_fix_hold_allow_setup_optimization true
+           } else {
+          set_db opt_signoff_setup_target_slack [mVar FLOW(sta_eco_setup_margin)]
+           }
+       }
+
+    if {$action eq "xtalk"} {set_db opt_signoff_fix_xtalk true}
+    set_db opt_signoff_eco_file_prefix dataout/[mVar DESIGN].[mVar SESSION(tool)].[mVar SESSION(stage)].${i}_$preAction$action
+    if { ! [mVar -exist FLOW(sta_eco_prefix)] || ! [llength [mVar FLOW(sta_eco_prefix)]]} { 
+      set_db opt_signoff_prefix eco$i
+    }
+    eco_settings $i
+
+ 
+    
+    if { [lsearch {area power leakage dynamic drv setup hold xtalk} $action] != -1 } {
+      mPuts -logid M1DP-TEMPUS-ECO-INFO "eco_opt_design -$preAction$action"
+      get_db -category opt_signoff *
+      set cmdAction $action
+      if {$action eq "xtalk"} {set cmdAction drv}
+      
+      if {($action eq "hold") && ($hold_pass == 1)} {
+        puts "\n\nMDA: Performing hold fix pass 1 without add_inst\n\n"
+	set_db opt_signoff_eco_file_prefix dataout/[mVar DESIGN].[mVar SESSION(tool)].[mVar SESSION(stage)].${hold_pass}_$preAction$action
+        mVar FLOW(sta_eco_add_inst) 0
+	set_db opt_signoff_add_inst [mVar FLOW(sta_eco_add_inst)]
+	set_db opt_signoff_fix_hold_allow_setup_tns_degrade false
+      } elseif {($action eq "hold") && ($hold_pass == 2)} {
+        puts "\n\nMDA: Performing hold fix pass 2 with add_inst and with allow setup degradation\n\n"
+	set_db opt_signoff_eco_file_prefix dataout/[mVar DESIGN].[mVar SESSION(tool)].[mVar SESSION(stage)].${hold_pass}_$preAction$action
+        mVar FLOW(sta_eco_add_inst) 1
+	
+	set_db opt_signoff_add_inst [mVar FLOW(sta_eco_add_inst)]
+	set_db opt_signoff_fix_hold_allow_setup_tns_degrade true
+      } elseif {($action eq "setup") && ($setup_pass == 1)} { 
+        puts "\n\nMDA: Performing setup fix pass 1 without allow ELVT\n\n"
+	set_db opt_signoff_eco_file_prefix dataout/[mVar DESIGN].[mVar SESSION(tool)].[mVar SESSION(stage)].${setup_pass}_$preAction$action
+	mVar FLOW(sta_eco_dont_use) "G* *CK* *D20* *D24* DCAP* DEL* ANTENNA* TIE* CMPE* BUFT* *ELVT"
+	set_dont_use [get_lib_cells -quiet [mVar FLOW(sta_eco_dont_use)]]
+      } elseif {($action eq "setup") && ($setup_pass == 2)} {
+        puts "\n\nMDA: Performing setup fix pass 2 with allow ELVT\n\n"
+	set_db opt_signoff_eco_file_prefix dataout/[mVar DESIGN].[mVar SESSION(tool)].[mVar SESSION(stage)].${setup_pass}_$preAction$action
+	puts "\n\nMDA: trying to unhide ELVT\n\n"
+	set_dont_use [get_lib_cells -quiet "*ELVT"] false
+	
+	mVar FLOW(sta_eco_dont_use) "G* *CK* *D20* *D24* DCAP* DEL* ANTENNA* TIE* CMPE* BUFT*"
+	set_dont_use [get_lib_cells -quiet [mVar FLOW(sta_eco_dont_use)]]
+      }
+      
+      # MANUALLY TRANSLATE (ERROR-11): Argument '-quiet' for command 'redirect' has no common UI definition and is removed, contact Cadence for support. 
+      redirect -tee {eval opt_signoff -$cmdAction} > report/${i}_$preAction${action}.log
+      if { [mVar FLOW(sta_eco_paradime_flow)] } {
+         distribute_command "redirect {report_analysis_summary} > ${i}_analysis_summary.rpt"
+      }
+      # MANUALLY TRANSLATE (ERROR-11): Argument '-quiet' for command 'redirect' has no common UI definition and is removed, contact Cadence for support. 
+      if { [string is true [mVar FLOW(sta_eco_report_stats)]] } {
+        if { [mVar FLOW(sta_eco_paradime_flow)] } {
+          distribute_command -views [lindex [allAnalysisViews] 0] {set_db distributed_mmmc_disable_reports_auto_redirection 1}
+
+          distribute_command -views [lindex [allAnalysisViews] 0] "redirect {mReportDesignStats [mVar MTECH(process)]} > $::env(PWD)/report/${i}_$preAction${action}.stats"
+          distribute_command -views [lindex [allAnalysisViews] 0] {set_db distributed_mmmc_disable_reports_auto_redirection 0}
+        } else {
+          redirect {mReportDesignStats [mVar MTECH(process)]} > report/${i}_$preAction${action}.stats
+        }
+      }
+      
+      if {$action eq "setup"} {puts "\nMDA: incrementing setup pass cnt from $setup_pass\n"; set setup_pass [expr $setup_pass+1]};
+      if {$action eq "hold"}  {puts "\nMDA: incrementing hold pass cnt from $hold_pass\n"; set hold_pass [expr $hold_pass+1]};
+      
+    } else {
+      mPuts -logid M1DP-TEMPUS-ECO-WARN "Skipping $preAction$action action"
+    }
+  }
+} \
+-doc {
+  iterates on the various eco action defined in FLOW(sta_actions)
+} \
+-owner bbourgin
+# vim: ft=tcl
