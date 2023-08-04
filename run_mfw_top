@@ -1,0 +1,62 @@
+#!/bin/csh
+
+# execute in a track (feel free to copy/modify as needed)
+
+#pushd invcui.import    ; mfw run ; popd
+#pushd invcui.floorplan        ; mfw run ; popd ; wait_on_file invcui.floorplan/dataout/HANDOFF
+pushd invcui.prects           ; mfw run ; popd ; wait_on_file invcui.prects/dataout/HANDOFF
+pushd invcui.cts              ; mfw run ; popd ; wait_on_file invcui.cts/dataout/HANDOFF
+
+pushd tempuscui.cts.etmgen    ; mfw run ; popd ;
+pushd tempuscui.prects.etmgen ; mfw run ; popd ;
+
+pushd invcui.postcts          ; mfw run ; popd ; wait_on_file invcui.postcts/dataout/HANDOFF
+pushd invcui.route            ; mfw run ; popd ; wait_on_file invcui.route/dataout/HANDOFF
+pushd invcui.postroute        ; mfw run ; popd ; wait_on_file invcui.postroute/dataout/HANDOFF
+
+pushd invcui.signoff.qrcprep ; mfw run ; popd
+pushd invcui.signoff.pgvprep ; mfw run ; popd
+
+wait_on_file invcui.signoff.qrcprep/dataout/HANDOFF
+pushd qrc.signoff.spef      ; mfw run ; popd
+pushd qrc.signoff.em        ; mfw run ; popd
+
+wait_on_file qrc.signoff.spef/dataout/HANDOFF
+pushd tempuscui.signoff.etmgen ; mfw run ; popd
+#pushd tempuscui.signoff.sta    ; mfw run ; popd
+pushd invcui.signoff.embbmgen  ; mfw run ; popd
+
+wait_on_file invcui.signoff.pgvprep/dataout/HANDOFF
+pushd qrc.signoff.pgv  ; mfw run ; popd
+wait_on_file qrc.signoff.pgv/dataout/HANDOFF
+pushd pgv.signoff.static.top  ; mfw run ; popd
+pushd pgv.signoff.dynamic.top ; mfw run ; popd
+
+wait_on_file qrc.signoff.em/dataout/HANDOFF
+wait_on_file invcui.signoff.embbmgen/dataout/HANDOFF
+pushd pgv.signoff.signalEM.top ; mfw run ; popd
+
+pushd lec.floorplan.clp ; mfw run ; popd
+pushd lec.signoff.clp ; mfw run ; popd
+
+
+wait_on_file tempuscui.prects.etmgen/dataout/HANDOFF
+pushd gx.release.prects       ; mfw run ; popd
+wait_on_file tempuscui.cts.etmgen/dataout/HANDOFF
+pushd gx.release.cts       ; mfw run ; popd
+
+pushd pv.signoff.pvdp    ; mfw run ; popd
+wait_on_file -verbose pv.signoff.pvdp/dataout/HANDOFF
+pushd pv.signoff.lvsq    ; mfw run ; popd
+pushd pv.signoff.genfill ; mfw run ; popd
+wait_on_file -verbose pv.signoff.genfill/dataout/HANDOFF
+pushd pv.signoff.drc     ; mfw run ; popd
+pushd pv.signoff.cnod     ; mfw run ; popd
+pushd pv.signoff.ant     ; mfw run ; popd
+
+pushd tempuscui.signoff.sta    ; mfw run ; popd
+wait_on_file tempuscui.signoff.etmgen/dataout/HANDOFF
+wait_on_file pv.signoff.drc/dataout/HANDOFF
+pushd gx.release.signoff       ; mfw run ; popd
+
+exit
