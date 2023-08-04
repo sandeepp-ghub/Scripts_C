@@ -1,0 +1,437 @@
+set_db eco_batch_mode false
+delete_routes -type special -status routed -shapes stripe -sub_class tile_pgv_bolster
+delete_routes -type special -status routed -sub_class tile_pgv_bolster
+###M3 routing
+###Creating M3 blockage over via_ladder VIA34 cut shapes
+set all_rects ""
+foreach via [get_db [get_db nets -if {.is_power == false && .is_ground == false && .is_clock == false}] .vias -if {.via_def.name ==  NR_VIA3_1x2_HH_HE || .via_def.name == NR_Stack_Via_LEF_DEFAULT_V34* || .via_def.name == VIA23_1cut_BW20_UW20} ] {
+	foreach rect [get_db $via .cut_rects] {
+		lappend all_rects $rect 
+	}
+}
+
+
+delete_obj [get_db route_blockages PG_Bolster_temp_blockage_* ]
+set i 0
+foreach rect $all_rects {
+set bbox [ get_computed_shapes "$rect" SIZEY 0.2] 
+create_route_blockage -name PG_Bolster_temp_blockage_${i} -layers { M3 } -rects "$bbox"
+incr i
+}
+
+
+
+
+
+    set circuit_row_perimeter [::df::__get_circuit_row_perimeter]
+    set core_box [get_computed_shapes $circuit_row_perimeter BBOX] 
+    set core_box_llx [lindex [lindex $core_box 0] 0]
+    set core_box_lly [lindex [lindex $core_box 0] 1]
+    set core_box_urx [lindex [lindex $core_box 0] 2]
+    set core_box_ury [lindex [lindex $core_box 0] 3]
+    set bbox_llx [get_db current_design .bbox.ll.x]
+    set bbox_lly [get_db current_design .bbox.ll.y]
+    set bbox_urx [get_db current_design .bbox.ur.x]
+    set bbox_ury [get_db current_design .bbox.ur.y]
+
+
+          set M3_width       0.020
+          set M3_spacing     0.022
+          set M3_pitch       0.042
+
+          # M3 power routing must be inside the core boundary
+          # Want to reduce by the 0.124u in y, which is the adjust made for stopping the M1 (i.e. 0.210 - the 0.086 required extension)
+          set M3_polygon [get_computed_shapes -output rect $circuit_row_perimeter SIZEY -0.124]   
+ 	  set M1_power_pitch 0.612
+
+set M3_power_pitch 0.969
+set M3_power_pitch_2x [expr {$M3_power_pitch *2}]
+set offset_VDD 0.1075
+set offset_VSS 0.0645
+            # Slightly different values than H280 since widths and pitches are different
+            set M3_VDD_start [expr {($M3_power_pitch * 1) + ($M3_pitch * 3) - ($M3_width / 2.0) + $offset_VDD }]
+            set M3_VSS_start [expr {$M3_VDD_start + ($M3_power_pitch / 2.0) - $offset_VSS }]   
+   
+        set M3_stop $core_box_urx
+
+        set_db add_stripes_stacked_via_bottom_layer M2
+        set_db add_stripes_stacked_via_top_layer M3
+
+        # Since rails routed in pairs below, need to include spacing value (defined as center to center above)
+        # NOTE - since can't use stapling nets style anymore, as explained above, this would not be needed. However, I can use this
+        # exact value to determine the start points of the right hand rails, so keeping this variable for that reason
+        set M3_pair_spacing [expr {$M3_pitch * 3}]
+
+        # Below are all required to get it to align correctly (needed for stripes or pillars)
+        # Also need to make sure snap_wire_center_to_grid grid option is used
+        set_db generate_special_via_allow_wire_shape_change true
+        # Even though the default is false and we have not changed from default, we still need to explicitly set this private
+        # setting now or the structure will be all messed up
+        set_db add_stripes_keep_pitch_after_snap false
+
+
+set primary_power_name [get_db current_design .PRIMARY_POWER_NET]
+set primary_ground_name [get_db current_design .PRIMARY_GROUND_NET]
+
+          eval "add_stripes \
+            -layer M3 \
+            -width $M3_width \
+	    -spacing 0.904 \
+            -set_to_set_distance $M3_power_pitch_2x \
+            -direction vertical \
+            -start $M3_VDD_start \
+            -stop $M3_stop \
+            -snap_wire_center_to_grid grid \
+            -nets \{$primary_power_name $primary_power_name \} \
+            -area \{$M3_polygon\} \
+	    -user_class tile_pgv_bolster  \
+          "
+ eval "add_stripes \
+            -layer M3 \
+            -width $M3_width \
+	    -spacing 0.988 \
+            -set_to_set_distance $M3_power_pitch_2x \
+            -direction vertical \
+            -start $M3_VSS_start \
+            -stop $M3_stop \
+            -snap_wire_center_to_grid grid \
+            -nets \{$primary_ground_name $primary_ground_name \} \
+            -area \{$M3_polygon\} \
+	    -user_class tile_pgv_bolster \
+"
+
+
+
+set VSS_mask1_wires [get_db [get_db nets VSS] .special_wires -if {.mask == 1 && .layer.name == M3 && .user_class!= tile_pgv_bolster} ]
+set VDD_mask1_wires [get_db [get_db nets VDD] .special_wires -if {.mask == 1 && .layer.name == M3 && .user_class!= tile_pgv_bolster} ]
+set VSS_mask2_wires [get_db [get_db nets VSS] .special_wires -if {.mask == 2 && .layer.name == M3 && .user_class!= tile_pgv_bolster} ]
+set VDD_mask2_wires [get_db [get_db nets VDD] .special_wires -if {.mask == 2 && .layer.name == M3 && .user_class!= tile_pgv_bolster} ]
+
+set bbox [get_computed_shapes [get_db $VSS_mask1_wires .rect] SIZEX 0.044 SIZEY 0.044]
+set bolster_M3_stripes_mask2 ""
+foreach wire [get_db [get_obj_in_area -areas $bbox -obj_type special_wire] -if  {.user_class== tile_pgv_bolster}] {
+	lappend bolster_M3_stripes_mask2 $wire
+}
+set_db $bolster_M3_stripes_mask2 .mask 2
+
+set bbox [get_computed_shapes [get_db $VDD_mask1_wires .rect] SIZEX 0.044 SIZEY 0.044]
+set bolster_M3_stripes_mask2 ""
+foreach wire  [get_db [get_obj_in_area -areas $bbox -obj_type special_wire] -if  {.user_class== tile_pgv_bolster}] {
+	lappend bolster_M3_stripes_mask2 $wire
+}
+set_db $bolster_M3_stripes_mask2 .mask 2
+
+
+set bbox [get_computed_shapes [get_db $VSS_mask2_wires .rect] SIZEX 0.044 SIZEY 0.044]
+set bolster_M3_stripes_mask1 "" 
+foreach wire [get_db [get_obj_in_area -areas $bbox -obj_type special_wire] -if  {.user_class== tile_pgv_bolster}] {
+	lappend bolster_M3_stripes_mask1 $wire
+}
+set_db $bolster_M3_stripes_mask1 .mask 1
+
+set bbox [get_computed_shapes [get_db $VDD_mask2_wires .rect] SIZEX 0.044 SIZEY 0.044]
+set bolster_M3_stripes_mask1 "" 
+foreach wire [get_db [get_obj_in_area -areas $bbox -obj_type special_wire] -if  {.user_class== tile_pgv_bolster}] {
+	lappend bolster_M3_stripes_mask1 $wire
+}
+set_db $bolster_M3_stripes_mask1 .mask 1
+
+
+select_obj [get_db  [get_db nets VSS VDD ] .special_wires -if { .user_class == tile_pgv_bolster}]
+select_obj [get_db  [get_db nets VSS VDD ] .special_wires -if { .layer.name == M2}]
+
+set_db generate_special_via_disable_via_merge false
+set_db generate_special_via_allow_wire_shape_change false
+set_db generate_special_via_ignore_design_boundary true
+set_db generate_special_via_keep_existing_via keep_with_new_via
+set_db generate_special_via_opt_cross_via true
+
+update_power_vias -user_class tile_pgv_bolster  -add_vias 1 -bottom_layer M2 -top_layer M3 -nets "$primary_power_name $primary_ground_name" -selected_wires 1
+
+deselect_obj -all
+
+#restore
+set_db generate_special_via_disable_via_merge false
+set_db generate_special_via_allow_wire_shape_change true
+set_db generate_special_via_ignore_design_boundary false
+set_db generate_special_via_keep_existing_via remove
+set_db generate_special_via_opt_cross_via false
+#delete_routes -type special -status routed -shapes stripe -sub_class tile_pgv_bolster
+#
+delete_obj [get_db route_blockages PG_Bolster_temp_blockage_* ]
+
+mdc::check_drc -design_state postroute
+
+route_eco
+route_eco -fix_drc
+
+mdc::check_drc -design_state postroute
+####################################################################################################################################
+###M4 routing
+set cpp [get_db [get_db sites -if {.name==core}] .size.x]
+set crh [get_db [get_db sites -if {.name==core}] .size.y]
+ set M4_width       0.020
+ set M4_spacing     0.022
+ set M4_pitch       0.042
+ # M4 power pitch designed to overlay M2, so every 2 circuit rows (2 x 0.210u = 0.420u)
+ set M4_power_pitch [expr {$crh * 2}]
+ 
+ # M4 power routing must be inside the core boundary
+ set M4_polygon [get_computed_shapes $circuit_row_perimeter -output rect]
+ 
+ # Must be 0.208 rather than the 0.202 in order to meet the min area rule when width is 0.020
+ set M4_staple_length 0.208 
+ 
+ # Since VDD M0 is the lower rail, will add VDD for M4 first
+ # M4 VDD needs to start on the center of the first M0 VDD rail
+ set M4_VDD_start [expr {$core_box_lly + $crh - ($M4_width / 2.0) }]
+ 
+ # M4 VSS needs to start on the center of the first M0 VSS rail
+ # NOTE: Need this value for use in later code
+ set M4_VSS_start [expr {$M4_VDD_start + $crh}]
+ set M4_stop $core_box_ury
+
+# set_db add_stripes_stacked_via_bottom_layer M3
+# set_db add_stripes_stacked_via_top_layer M3
+#
+# set_db add_stripes_stapling_nets_style side_to_side
+#
+#          eval "add_stripes \
+#            -stapling {$M4_staple_length M3} \
+#            -layer M4 \
+#            -width $M4_width \
+#            -spacing [expr {$M4_power_pitch / 2.0}] \
+#            -set_to_set_distance $M4_power_pitch \
+#            -direction horizontal \
+#            -start $M4_VDD_start \
+#            -stop $M4_stop \
+#            -nets \{$primary_ground_name $primary_power_name \} \
+#            -area \{$M4_polygon\} \
+#	    -user_class tile_pgv_bolster  \
+#            "
+#
+
+
+
+set firstrow_rects_VSS [get_db [get_db  [get_db nets VSS ] .special_wires -if {  .layer.name == M4 && .rect.ur.y < 1.28  }] .rect]
+set firstrow_rects_VDD [get_db [get_db  [get_db nets VDD ] .special_wires -if {  .layer.name == M4 && .rect.ur.y < 1.07  }] .rect]
+
+
+set firstcol_rects_VSS [get_db [get_db  [get_db nets VSS ] .special_wires -if {  .layer.name == M4 && .rect.ur.x < 1.32  }] .rect.ll.y]
+set firstcol_rects_VDD [get_db [get_db  [get_db nets VDD ] .special_wires -if {  .layer.name == M4 && .rect.ur.x < 1.75  }] .rect.ll.y]
+
+
+
+set llength_rects_VSS [llength $firstrow_rects_VSS]
+set merged_2_BBOXs_VSS ""
+for {set i 0} {$i < $llength_rects_VSS} {incr i 2} {
+	set j [expr $i+1]
+	set bbox {*}[get_computed_shape "{[lindex $firstrow_rects_VSS $i]} {[lindex $firstrow_rects_VSS $j]}" BBOX]
+	lappend merged_2_BBOXs_VSS $bbox
+}
+
+
+set llength_rects_VDD [llength $firstrow_rects_VDD]
+set merged_2_BBOXs_VDD ""
+for {set i 0} {$i < $llength_rects_VDD} {incr i 2} {
+	set j [expr $i+1]
+	set bbox {*}[get_computed_shape "{[lindex $firstrow_rects_VDD $i]} {[lindex $firstrow_rects_VDD $j]}" BBOX]
+	lappend merged_2_BBOXs_VDD $bbox
+}
+
+foreach y_row  $firstcol_rects_VSS {
+	foreach rect $merged_2_BBOXs_VSS {
+		set bbox "{ [lindex $rect 0] $y_row [lindex $rect 2] [expr $y_row + $M4_width]}"
+		set CMD "create_shape -net  VSS -rect $bbox -user_class tile_pgv_bolster -layer M4 -shape stripe"
+		eval $CMD
+}
+}
+
+
+foreach y_row  $firstcol_rects_VDD {
+	foreach rect $merged_2_BBOXs_VDD {
+		set bbox "{ [lindex $rect 0] $y_row [lindex $rect 2] [expr $y_row + $M4_width]}"
+		set CMD "create_shape -net  VDD -rect $bbox -user_class tile_pgv_bolster -layer M4 -shape stripe"
+		eval $CMD
+}
+}
+
+deselect_obj -all
+set VSS_wires ""
+set VSS_orig_M4 ""
+
+foreach wire [get_db [get_db nets VSS] .special_wires -if { .layer.name == M4 && .user_class== tile_pgv_bolster} ] {
+	lappend VSS_wires $wire
+}
+foreach wire [get_db [get_obj_in_area -obj_type special_wire -areas [get_db $VSS_wires .rect]] -if { .layer.name == M4 && .user_class!= tile_pgv_bolster}] {
+	lappend VSS_orig_M4 $wire
+}
+set VSS_mask [get_db  -u $VSS_orig_M4 .mask]
+
+
+set VDD_wires ""
+set VDD_orig_M4 "" 
+foreach wire [get_db [get_db nets VDD] .special_wires -if { .layer.name == M4 && .user_class== tile_pgv_bolster} ] {
+	lappend VDD_wires $wire 
+}
+foreach wire [get_db [get_obj_in_area -obj_type special_wire -areas [get_db $VDD_wires .rect]] -if { .layer.name == M4 && .user_class!= tile_pgv_bolster}] {
+	lappend VDD_orig_M4 $wire
+}
+set VDD_mask [get_db  -u $VDD_orig_M4 .mask]
+
+
+
+set CMD "set_db \$VSS_wires .mask $VSS_mask"
+eval $CMD
+
+set CMD "set_db \$VDD_wires .mask $VDD_mask"
+eval $CMD
+
+deselect_obj -all
+
+select_obj [get_db  [get_db nets VSS VDD ] .special_wires -if { .layer.name == M3 && .user_class == tile_pgv_bolster}]
+select_obj [get_db  [get_db nets VSS VDD ] .special_wires -if { .layer.name == M4 && .user_class == tile_pgv_bolster}]
+#llength [get_db  [get_db nets VDD ] .special_vias -if { .via_def.name == VIAGEN34* && .user_class == tile_pgv_bolster}]
+#llength [get_db  [get_db nets VSS ] .special_vias -if { .via_def.name == VIAGEN34* && .user_class == tile_pgv_bolster}]
+
+set_db generate_special_via_disable_via_merge false
+set_db generate_special_via_allow_wire_shape_change false
+set_db generate_special_via_ignore_design_boundary true
+set_db generate_special_via_keep_existing_via keep_with_new_via
+set_db generate_special_via_opt_cross_via true
+
+update_power_vias -user_class tile_pgv_bolster  -add_vias 1 -bottom_layer M3 -top_layer M4 -nets "$primary_power_name $primary_ground_name" -selected_wires 1
+
+deselect_obj -all
+
+#restore
+set_db generate_special_via_disable_via_merge false
+set_db generate_special_via_allow_wire_shape_change true
+set_db generate_special_via_ignore_design_boundary false
+set_db generate_special_via_keep_existing_via remove
+set_db generate_special_via_opt_cross_via false
+
+###delete M4 shapes which cannot be connected to M3
+
+set delete_shapes_M4 ""
+set M4_shapes_with_via34 ""
+foreach wire [get_db  [get_db nets {VSS VDD}]  .special_wires -if { .layer.name == M4 && .user_class == tile_pgv_bolster}] {
+set bbox [get_db $wire .rect]
+set objects [get_db [ get_obj_in_area -obj_type special_via -areas $bbox] -if {(.net.name == VSS || .net.name == VDD)  && .via_def.name == VIAGEN34* && .user_class == tile_pgv_bolster}]
+
+if { ![llength $objects] } {
+lappend delete_shapes_M4 $wire
+} else {
+lappend M4_shapes_with_via34 $wire
+}
+
+}
+
+delete_obj $delete_shapes_M4
+
+###############################################################################
+#Delete shorting stubs
+#set delete_shapes_M4 ""
+#set M4_shapes_with_via34 ""
+#foreach wire [get_db  [get_db nets {VSS VDD}]  .special_wires -if { .layer.name == M4 && .user_class == tile_pgv_bolster}] {
+#set bbox [get_db $wire .rect]
+#set objects [get_db [ get_obj_in_area -obj_type via -areas $bbox ] -if { (.net.name != VSS || .net.name != VDD)  && (.via_def.name == NR_Stack_Via_LEF_DEFAULT_V45_*  )}]
+#
+#if { [llength $objects] } {
+#lappend delete_shapes_M4 $wire
+#
+#}
+#}
+#
+#delete_obj $delete_shapes_M4
+#
+#set delete_shapes_M4 ""
+#set M4_shapes_with_via34 ""
+#foreach wire [get_db  [get_db nets {VSS VDD}]  .special_wires -if { .layer.name == M4 && .user_class == tile_pgv_bolster}] {
+#set bbox [get_db $wire .rect]
+#set objects [get_db [ get_obj_in_area -obj_type via -areas $bbox  ] -if { (.net.name != VSS || .net.name != VDD)  && ( .via_def.name == VIA34_1cut_BW20_UW20 )}]
+#
+#if { [llength $objects] } {
+#lappend delete_shapes_M4 $wire
+#
+#}
+#}
+
+
+##delete M4 shapes creating shorts
+#delete_obj $delete_shapes_M4
+
+#delete_routes -type special -status routed -shapes stripe -sub_class tile_pgv_bolster
+#delete_routes -type special -status routed -sub_class tile_pgv_bolster
+#
+
+#NR_Stack_Via_LEF_DEFAULT_V45_*
+#VIA34_1cut_BW20_UW20
+deselect_obj -all
+mdc::check_drc -design_state postroute
+
+
+set delete_shapes_M4 ""
+foreach mkr [get_db current_design .markers -if {.subtype == Metal_Short}] {
+set bbox [get_db $mkr .bbox]
+set objects [get_db [ get_obj_in_area -obj_type special_wire -areas $bbox] -if {(.net.name == VSS || .net.name == VDD)  && .layer.name == M4 && .user_class == tile_pgv_bolster}]
+if { [llength $objects] } {
+lappend delete_shapes_M4 $objects
+
+}
+
+
+}
+select_obj [get_db $delete_shapes_M4]
+delete_obj [get_db $delete_shapes_M4]
+
+
+
+################################################################################
+#fix PVIA violations
+mdc::check_pvia
+
+set missing_via_stripes ""
+
+foreach mkr [get_db current_design .markers -if {.subtype == MissingVia}] {
+set bbox [get_db $mkr .bbox]
+set objects [get_db [ get_obj_in_area -obj_type special_wire -areas $bbox] -if {(.net.name == VSS || .net.name == VDD)  && .layer.name == M3 && .user_class == tile_pgv_bolster}]
+if { [llength $objects] } {
+lappend missing_via_stripes $objects
+
+}
+
+
+}
+
+deselect_obj  -all
+select_obj $missing_via_stripes
+edit_resize_routes -direction y -offset 0.035 -side {high} -no_connection 1 -keep_center_line auto
+edit_resize_routes -direction y -offset -0.035 -side {low} -no_connection 1 -keep_center_line auto
+
+
+
+deselect_obj -all
+
+select_obj [get_db  [get_db nets VSS VDD ] .special_wires -if { .layer.name == M2 }]
+select_obj [get_db  [get_db nets VSS VDD ] .special_wires -if { .layer.name == M3 && .user_class == tile_pgv_bolster}]
+
+set_db generate_special_via_disable_via_merge false
+set_db generate_special_via_allow_wire_shape_change false
+set_db generate_special_via_ignore_design_boundary true
+set_db generate_special_via_keep_existing_via keep_with_new_via
+set_db generate_special_via_opt_cross_via true
+
+update_power_vias -user_class tile_pgv_bolster  -add_vias 1 -bottom_layer M2 -top_layer M3 -nets "$primary_power_name $primary_ground_name" -selected_wires 1
+
+deselect_obj -all
+
+#restore
+set_db generate_special_via_disable_via_merge false
+set_db generate_special_via_allow_wire_shape_change true
+set_db generate_special_via_ignore_design_boundary false
+set_db generate_special_via_keep_existing_via remove
+set_db generate_special_via_opt_cross_via false
+
+mdc::check_pvia
+##trim remaining violating stripes
