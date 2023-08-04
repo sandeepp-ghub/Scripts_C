@@ -1,0 +1,30 @@
+
+mortar::read_file_to_list -file /proj/cayman/wa/maubel/impl/sdma_wrap.1.0A/track.pnr.DE3.postdft.ecod.noecf.1129/invcui.postcts.timing/report/pp2.r -list slist
+
+set_db eco_honor_dont_touch false
+set_db eco_honor_dont_use false
+set_db eco_honor_fixed_status false
+set_db eco_refine_place false
+set_db eco_update_timing false
+set_db eco_batch_mode true
+
+foreach inst $slist {
+
+  set ctype [get_db [get_db insts $inst] .base_cell.name]
+
+#  puts "$inst $ctype"
+
+  if {![regexp ".*ULVT$" $ctype]}  {
+     puts "Change $inst from $ctype to ULVT"
+     incr cnt
+
+     set nstr [string range $ctype 0 [expr [string last "NOD" $ctype]+2]]ULVT
+
+     puts "New: $nstr"
+     eco_update_cell -insts $inst -cells $nstr
+  }
+
+}
+
+
+set_db eco_batch_mode false
