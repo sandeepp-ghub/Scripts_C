@@ -1,0 +1,29 @@
+proc gtd_hilite_path { args } {
+
+
+    set results(-clock) false
+    parse_proc_arguments -args $args results
+
+
+    eval "report_timing $results(-rt_args)  -output_format gtd > temp.gtd_paths"
+    read_timing_debug_report temp.gtd_paths
+    gui_gtd_highlight_timing_report -all
+    if { $results(-clock) } {
+        set_layer_preference gtdObj -color {#ffffff #ff0000 #ffc0cb #ffff00 #ffd700 #00ff00 #006400 #1dd8e6 #00008b}
+        gui_redraw
+        puts "showing clock"
+    }
+    #exec rm temp.gtd_paths
+    eval "report_timing $results(-rt_args)"
+
+
+
+}
+
+define_proc_arguments gtd_hilite_path -info "hilights path using timing debugger" \
+    -define_args \
+    {
+        {-rt_args "report_timing args" "params" string {required }}
+        {-clock   "show clock path" "params" boolean {optional }}
+    }
+
