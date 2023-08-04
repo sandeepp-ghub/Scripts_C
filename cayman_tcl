@@ -1,0 +1,1597 @@
+namespace eval ::cayman {
+  variable ns_info
+
+  if { [info commands ::mortar::init] eq "" } {
+    if { [info exists ::env(MORTAR_QUIET)] } {
+      set prev $::env(MORTAR_QUIET)
+      set ::env(MORTAR_QUIET) 1
+    }
+    source /proj/mkit/pkgs/minfra/mPkg/latest/mflow_mortar/mPkgUtil
+    if { [info exists ::env(MORTAR_QUIET)] } {
+      set ::env(MORTAR_QUIET) $prev
+    }
+  }
+
+  proc hinsts_by_size { args } {
+    set num 25
+    set min_insts 100
+    mortar::parse_args $args {
+      { "num" num       integer }
+      { "min" min_insts integer }
+    } {
+      set data ""
+      set skipped 0
+      foreach hinst [get_db hinsts] {
+        set num_insts [llength [get_db $hinst .insts]]
+        if { $num_insts < $min_insts } { incr skipped ; continue }
+        lappend data [list $hinst $num_insts]
+      }
+      puts "[llength $data] hinsts ($skipped skipped), showing top $num sorted by tree insts"
+      set data [lsort -decreasing -real -index 1 $data]
+      for {set i 0} {$i < $num} {incr i} {
+        lassign [lindex $data $i] hinst insts
+        puts [format "%8d %s (%s)" $insts [get_db $hinst .name] [get_db $hinst .module.name]]
+      }
+    }
+  }
+
+  proc rams_7to5 { args } {
+    set opt_get    0
+    set opt_report 0
+    mortar::parse_args $args {
+      { "get"    opt_get    boolean }
+      { "report" opt_report boolean }
+    } {
+      variable ns_info
+
+      # Sunda to Cayman for DE0, may not be accurate for "final"
+      set ns_info(memmap,sacrls0g4l1p1024x104m1b1w1c0p0d0r1rm3sdrw10) saculs0g4u1p1024x104m2b2w1c0p0d0r1rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,sacrls0g4l1p128x70m2b1w1c1p0d0r1rm3sdrw10)   saculs0g4l1p128x70m2b1w1c0p0d0r1rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,sacrls0g4l1p2048x33m4b2w1c0p0d0r1rm3sdrw10)  saculs0g4u1p2048x33m4b2w1c0p0d0r1rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,sacrls0g4l1p2048x33m4b2w1c0p1d0r1rm3sdrw00)  saculs0g4l1p2048x33m4b2w1c0p1d0r1rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,sacrls0g4l1p256x208m1b1w1c0p0d0r1rm3sdrw10)  saculs0g4l1p256x208m2b1w1c1p0d0r1rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,sacrls0g4l1p256x208m1b1w1c0p1d0r1rm3sdrw00)  saculs0g4l1p256x208m2b1w1c1p1d0r1rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,sacrls0g4l1p256x21m4b1w0c0p0d0r1rm3sdrw10)   sacrls0g4l1p256x22m2b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sacrls0g4l1p512x84m2b1w1c0p0d0r1rm3sdrw10)   saculs0g4l1p512x84m2b1w1c0p0d0r1rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,sacrls0g4l1p64x92m2b1w1c1p0d0r1rm3sdrw10)    sacrls0g4l1p64x92m2b1w1c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sacrls0g4s1p64x37m4b1w1c0p0d0r1rm3sdrw10)    sacrls0g4l1p64x38m2b1w1c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p1024x256m2b2w0c1p0d0r1rm3sdrw10) sasuls0g4u2p1024x256m4b2w0c1p0d0r2rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p1024x256m2b2w1c1p0d0r1rm3sdrw10) sasuls0g4u2p1024x256m4b2w1c1p0d0r2rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p1024x32m4b1w0c0p0d0r1rm3sdrw10)  saculs0g4u2p1024x32m4b2w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p1024x8m4b1w1c0p0d0r1rm3sdrw10)   saculs0g4u2p1024x8m4b2w1c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p1024x99m4b1w0c1p0d0r1rm3sdrw10)  sasuls0g4u2p1024x99m4b2w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p128x101m4b1w0c1p0d0r1rm3sdrw10)  saculs0g4l2p128x102m2b1w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p128x256m2b1w0c1p0d0r1rm3sdrw10)  sacrls0g4l2p128x256m1b2w0c1p0d0r1rm4rw00zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p128x33m4b1w0c0p0d0r1rm3sdrw10)   saculs0g4l2p128x34m2b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p128x42m2b1w0c0p0d0r1rm3sdrw10)   saculs0g4l2p128x42m2b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p128x80m2b1w0c0p0d0r1rm3sdrw10)   saculs0g4u2p128x80m2b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p128x93m4b1w0c1p0d0r1rm3sdrw10)   saculs0g4u2p128x94m2b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p16x150m2b1w0c1p0d0r1rm3sdrw10)   saculs0g4l2p16x150m2b1w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p16x66m2b1w0c0p0d0r1rm3sdrw10)    saculs0g4l2p16x66m2b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p256x128m2b1w0c0p0d0r1rm3sdrw10)  saculs0g4l2p256x128m2b1w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p256x132m2b1w0c1p0d0r1rm3sdrw10)  saculs0g4u2p256x132m2b1w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p256x132m2b1w1c1p0d0r1rm3sdrw10)  saculs0g4u2p256x132m2b1w1c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p256x13m4b1w0c0p0d0r1rm3sdrw10)   saculs0g4l2p256x13m4b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p256x256m2b1w0c1p0d0r1rm3sdrw10)  sacrls0g4l2p256x256m1b4w0c1p0d0r1rm4rw00zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p32x134m2b1w0c1p0d0r1rm3sdrw10)   saculs0g4l2p32x134m2b1w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p32x43m4b1w0c0p0d0r1rm3sdrw10)    saculs0g4l2p32x44m2b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p512x33m4b1w0c0p0d0r1rm3sdrw10)   saculs0g4u2p512x33m4b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p64x132m2b1w1c1p0d0r1rm3sdrw10)   saculs0g4l2p64x132m2b1w1c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p64x218m2b1w0c1p0d0r1rm3sdrw10)   sacrls0g4l2p64x220m1b1w0c1p0d0r1rm4rw00zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4l2p64x43m4b1w0c0p0d0r1rm3sdrw10)    saculs0g4l2p64x44m2b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4s2p256x142m2b1w0c1p0d0r1rm3sdrw10)  saculs0g4u2p256x142m2b1w0c1p1d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4s2p64x132m2b1w0c1p0d0r1rm3sdrw10)   saculs0g4l2p64x132m2b1w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4s2p64x132m2b1w0c1p1d0r1rm3sdrw00)   saculs0g4u2p64x132m2b1w0c1p1d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4s2p64x144m2b1w1c1p0d0r1rm3sdrw10)   saculs0g4l2p64x144m2b1w1c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4s2p64x154m2b1w0c1p0d0r1rm3sdrw10)   saculs0g4l2p64x154m2b1w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4s2p64x17m4b1w0c0p0d0r1rm3sdrw10)    saculs0g4l2p64x18m2b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saculs0g4u2p256x70m2b1w1c1p0d0r1rm3sdrw10)   saculs0g4l2p256x70m2b1w1c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sadrls0g4l2p16x212m1b1w0c1p0d0r1rm3sdrw10)   saculs0g4u2p16x212m2b1w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sadrls0g4l2p64x140m1b1w0c0p0d0r1rm3sdrw10)   saculs0g4u2p64x140m2b1w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sadrls0g4l2p64x256m1b1w0c1p0d0r1rm3sdrw10)   sacrls0g4l2p64x256m1b1w0c1p0d0r1rm4rw00zh0h0ms0mg0
+      set ns_info(memmap,sadrls0g4s2p32x256m1b1w0c1p0d0r1rm3sdrw10)   sacrls0g4l2p32x256m1b1w0c1p0d0r1rm4rw00zh0h0ms0mg0
+      set ns_info(memmap,sadrls0g4s2p512x116m2b4w0c1p0d0r1rm3sdrw10)  saculs0g4u2p512x116m2b2w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sadrls0g4s2p512x160m2b4w0c1p0d0r1rm3sdrw10)  sasuls0g4u2p512x160m4b1w0c1p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sadrls0g4s2p64x74m2b1w0c1p0d0r1rm3sdrw10)    saculs0g4u2p64x74m2b1w0c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sadrls0g4u2p256x138m2b4w1c1p1d0r1rm3sdrw00)  saculs0g4u2p256x138m2b1w1c1p1d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sadrls0g4u2p64x70m2b1w1c0p0d0r1rm3sdrw10)    saculs0g4u2p64x70m2b1w1c0p0d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,saduls0g4l1p2048x137m4b2w1c1p1d0r1rm3sdrw01) saduls0g4l1p2048x137m4b2w1c1p1d0r2rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,saduls0g4s1p512x113m4b1w1c1p0d0r1rm3sdrw11)  saculs0g4l1p512x114m2b1w1c0p0d0r1rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,sasrls0g4l1p1024x144m2b2w1c1p0d0r1rm3sdrw10) saduls0g4u1p1024x144m4b2w1c1p0d0r2rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,sassls0g4u1p2048x137m4b2w1c1p0d0r1rm3sdrw11) saduls0g4u1p2048x137m4b4w1c1p0d0r2rm4rw01e10zh0h0ms0mg0
+      set ns_info(memmap,sasuls0g4l2p256x141m4b1w0c1p1d0r1rm3sdrw00)  saculs0g4u2p256x142m2b1w0c1p1d0r1rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sasuls0g4u2p1024x132m4b4w0c1p0d0r2rm3sdrw10) sasuls0g4u2p1024x132m4b2w0c1p0d0r2rm4rw00e10zh0h0ms0mg0
+      set ns_info(memmap,sasrls0g4l1p768x144m2b2w1c1p0d0r1rm3sdrw10)  saduls0g4u1p1024x144m4b2w1c1p0d0r2rm4rw01e10zh0h0ms0mg0 ; # tpb_sb_partition_cluster, change from Sunda
+
+      # build the list of memories in the memcache to determine what is (a) not found or (b) extra and not in the map list
+      #   /proj/cayman/memcache/synopsys/*/*/*/sa*
+      array set maxlen {old 10 new 10}
+
+      array unset memcache
+      foreach dir [glob /proj/cayman/memcache/synopsys/*/*/*/sa*] {
+        set memcache([set new [file tail $dir]]) 0
+        if { [set strlen [string length $new]] > $maxlen(new) } { set maxlen(new) $strlen }
+      }
+      foreach key [array names ns_info memmap,*] {
+        set old [lindex [split $key ,] e]
+        if { [set strlen [string length $old]] > $maxlen(old) } { set maxlen(old) $strlen }
+      }
+
+      set lines ""
+      lappend lines [format "%4s%-${maxlen(old)}s -> %-${maxlen(new)}s (%s)" "" "N7 Memory" "N5 Memory" "In Memcache?"]
+      set iter 0
+      foreach key [lsort -dictionary [array names ns_info memmap,*]] {
+        set old [lindex [split $key ,] e]
+        set new $ns_info(memmap,$old)
+        if { [info exists memcache($new)] } {
+          #puts "Found N5 memory $new in the memcache"
+          set memcache($new) 1
+          set installed "Yes"
+        } else {
+          #puts "!!! Cannot find N5 memory $new in the memcache !!!"
+          set installed "!!No!!"
+        }
+        lappend lines [format "%2d. %-${maxlen(old)}s -> %-${maxlen(new)}s %s" [incr iter] $old $new $installed]
+      }
+
+      lappend lines ""
+      lappend lines "Memories in the memcache but not the N7 mapping list; might be new on the project"
+      set found 0
+      foreach new [lsort -dictionary [array names memcache]] {
+        if { $memcache($new) == 0 } {
+          set found 1
+          lappend lines "  $new"
+        }
+      }
+      if { !$found } { lappend lines "  None" }
+    }
+
+    if { $opt_report } {
+      foreach line $lines { puts $line }
+    } elseif { $opt_get } {
+      return [array get ns_info memmap,*]
+    }
+  }
+
+
+  proc report_reset_extenders { args } {
+    set rptdir        [df::current -report_dir]
+    set opt_timing    1
+    set opt_placement 1
+    set multiplot     0
+
+    set opt_cloning 0
+    set opt_primary 0
+
+    mortar::parse_args $args {
+      { "dir"       rptdir        string  }
+      { "timing"    opt_timing    boolean }
+      { "placement" opt_placement boolean }
+      { "multiplot" multiplot     boolean }
+      {}
+      { "cloning"   opt_cloning boolean }
+      { "primary"   opt_primary boolean }
+    } {
+      # highlight reset extender fanout and timing
+      set colors [list cyan yellow lime pink orange blue]
+      set num_colors [llength $colors]
+      set idx 0
+      foreach color $colors {
+        set_layer_preference ResetExtender${idx}_bbox -stipple none  -color $color
+        set_layer_preference ResetExtender${idx}_sink -stipple solid -color $color
+        incr idx
+      }
+
+
+      gui_delete_objs -all
+
+      set lines ""
+
+      set cmd [list get_reset_extenders]
+      if { $opt_cloning } {
+        lappend cmd -cloning
+        if { $opt_primary } {
+          lappend cmd -primary
+        }
+      }
+      if { [set hinsts [eval $cmd]] eq "" } {
+        mortar::echo "No reset extenders"
+        return ""
+      }
+
+      set driver_pins ""
+
+      set plots ""
+      set off_layers {node_inst node_module node_cell node_blockage node_floorplan node_partition node_power node_overlay node_track node_net node_route node_layer node_bump node_grid node_misc}
+      set on_layers  {stdRow guiMarker customObj}
+
+      set iter 0
+      foreach grp $hinsts {
+        foreach hinst [lindex $grp 0] {
+          set hinst_name [get_db $hinst .name]
+
+          set idx [expr $iter%$num_colors]
+
+          set net [get_db [get_db hports $hinst_name/reset_n_out] .hnet.net]
+          set pin [get_db $net .drivers]
+          lappend driver_pins $pin
+
+          lassign [lindex [get_db $pin .location] 0] x0 y0
+
+          if { $pin eq "" } {
+            set fo ""
+          } else {
+            if { [set fo [all_fanout -from $pin -endpoints_only -only_cells]] ne "" } {
+              set fo [filter_collection $fo is_sequential]
+            }
+          }
+
+          if { [set num_fo [sizeof_collection $fo]] == 0 } {
+            mortar::echo -error -text "Reset extender has zero fanout: $hinst_name"
+            set noninverting ""
+            set    inverting ""
+          } else {
+            if { $opt_placement } {
+              set color [lindex $colors $idx]
+
+              set rects ""
+              set maxdist      0
+              set maxdist_inst ""
+              set distances    ""
+              foreach_in_collection inst $fo {
+                set inst_name [get_property $inst full_name]
+                set inst [get_db insts $inst_name]
+                set bbox [lindex [get_db $inst .bbox] 0]
+                lappend rects $bbox
+                create_gui_shape -layer ResetExtender${idx}_sink -rect $bbox -width 3
+                set center [mortar::__get_object_center $inst]
+                #gui_add_marker -color $color -name $inst_name -point $center -type star
+                lassign $center cx cy
+                set dist [expr {sqrt(pow($cx-$x0,2) + pow($cy-$y0,2))}]
+                lappend distances [format "%.1f" $dist]
+                if { $maxdist_inst eq "" || $dist > $maxdist } {
+                  set maxdist      [format "%.1f" $dist]
+                  set maxdist_inst $inst_name
+                }
+              }
+
+              #gui_add_marker -color $color -name [get_db $pin .name] -point [get_db $pin .location] -type x
+              gui_add_marker -color white -name [get_db $pin .name] -point [get_db $pin .location] -type x
+
+              set bbox [get_computed_shapes $rects BBOX]
+              lassign [lindex $bbox 0] bllx blly burx bury
+              set bbox_area [format "%0.3f" [expr ($burx-$bllx)*($bury-$blly)/1e6]]
+
+              create_gui_shape -layer ResetExtender${idx}_bbox -rect $bbox -width 2
+              if { $multiplot } {
+                regsub -all {/} $hinst_name {-SLASH-} plot_name
+                lappend plots [::mortar::__create_plot -dir $rptdir -prefix "[mortar::current_design].reset_extender.$plot_name" -off_layer $off_layers -on_layer $on_layers -view "place"]
+                gui_delete_objs -all ; # clean for next iteration and when finished
+              }
+            }
+
+            if { $opt_timing } {
+              set coll [report_timing -through $pin -collection -max_paths 25]
+              set wslk [get_property [index_collection $coll 0] slack]
+            }
+
+            if { $opt_placement } {
+              set avgdist [format "%.1f" [expr [::tcl::mathop::+ {*}$distances]/double([llength $distances])]]
+            }
+
+            set noninverting [mortar::trace_repower -ptr $net -noninv_sink_pins]
+            set    inverting [mortar::trace_repower -ptr $net -inv_sink_pins]
+          }
+
+          lappend lines "$hinst_name ([get_db $hinst .module.name])"
+          lappend lines "    Net: [get_db $net .name]"
+          lappend lines "    Pin: [get_db $pin .name]"
+          lappend lines "  Sinks: $num_fo ([llength $noninverting] Non-Inverting, [llength $inverting] Inverting)"
+          if { $num_fo > 0 && $opt_timing } {
+            lappend lines "  Slack: $wslk ([get_property [get_property [index_collection $coll 0] endpoint] full_name])"
+            lappend lines "         (top 25) [get_property $coll slack]"
+          }
+          if { $num_fo > 0 && $opt_placement } {
+            lappend lines "  Color: $color"
+            lappend lines "   bbox: [lindex $bbox 0]"
+            lappend lines "         $bbox_area mm2"
+            lappend lines "   Dist: $maxdist max ($maxdist_inst)"
+            lappend lines "         $avgdist avg"
+            lappend lines "         (top 25) [lrange [lsort -decreasing -real $distances] 0 24]"
+          }
+          lappend lines ""
+
+          incr iter
+        }
+      }
+
+
+      if { $opt_placement && !$multiplot } {
+        mortar::plot_options -size {1920 1024}
+        set plots [::mortar::__create_plot -dir $rptdir -prefix "[mortar::current_design].reset_extender" -off_layer $off_layers -on_layer $on_layers -view "place"]
+      }
+
+      mortar::write_list_to_file $lines [set rpt [file join $rptdir "[mortar::current_design].reset_extender.rpt"]]
+
+      foreach line $lines {
+        puts $line
+      }
+
+      if { $opt_placement } {
+        if { !$multiplot } {
+          mortar::echo "To delete the gui shapes: gui_delete_objs -all"
+        }
+        foreach plot $plots {
+          mortar::echo "display $plot"
+        }
+      }
+      mortar::echo "Textual report: $rpt"
+
+      if { $opt_timing } {
+        report_timing -through $driver_pins -path_type full_clock -nets -max_paths 25000 > [set timing_rpt [file join $rptdir "[mortar::current_design].reset_extender.tarpt.gz"]]
+        mortar::echo "Timing report: $timing_rpt"
+      }
+
+      return $plots
+    }
+  }
+
+  proc get_reset_extenders { args } {
+    set cloning 0
+    set primary 0
+    mortar::parse_args $args {
+      { "cloning" cloning boolean 0 {return the list of primary and clones, default returns all hinsts}}
+      { "primary" primary boolean 0 {return the list of primary, default returns all hinsts}}
+    } {
+
+
+      if { $cloning } {
+        source $::env(PROJ_ROOT)/$::env(PROJ_PHASE)/pd/reset_extender_clones.tcl
+        if { $clone_extenders eq "" } {
+          return [list "" ""]
+        }
+
+        set hinsts_found    ""
+        set hinsts_notfound ""
+
+        set cid 0 ; # unique marker, consistent with
+        set hinsts ""
+        foreach {name clones} $clone_extenders {
+          set hinst [get_db hinsts $name]
+          if { $hinst eq "" } {
+            lappend hinsts_notfound $name
+            continue
+          }
+
+          set h_found $hinst
+
+          # only return primary extenders, no clones
+          if { $primary } {
+            lappend hinsts_found $h_found
+            continue
+          }
+
+          set primary [get_db $hinst .name]
+          for {set i 1} {$i <= $clones} {incr i} {
+            set cid_str [format "%02d" [incr cid]]
+            set clone_name ${primary}_clone${i}_id${cid_str}
+            set hinst [get_db hinsts $clone_name]
+            if { $hinst eq "" } {
+              lappend hinsts_notfound $clone_name ; # flat list since no reason to group
+              continue
+            }
+            lappend h_found $hinst
+          }
+          lappend hinsts_found $h_found ; # list of lists so we know which primary the clones go together with
+        }
+        return [list $hinsts_found $hinsts_notfound]
+      } else {
+        return [get_db hinsts -if {.module.name == AP_RESET_EXTEND*}] ; # all extenders
+      }
+    }
+  }
+
+  # foreach clk [lsort -uniq [get_object_name [get_clocks]]] {
+  #   cayman::highlight_clock_domain $clk
+  #   gui_dump_picture clock_domain.$clk.png -format png
+  # }
+  proc highlight_clock_domain { args } {
+    set opt_clock ""
+    mortar::parse_args $args {
+      { "?clock" opt_clock string 1 }
+    } {
+      mortar::echo -timestamp -text "Gathering pins..."
+      set clock_pins [get_pins -hier -filter "is_clock_used_as_clock"]
+      set coll ""
+      set total 0
+      mortar::echo -timestamp -text "Checking for clock $opt_clock..."
+      foreach_in_collection pin $clock_pins {
+        incr total
+        if { [lsearch [get_object_name [get_property $pin clocks]] $opt_clock] < 0 } { continue }
+        append_to_collection coll [get_cells -of_object $pin]
+      }
+      mortar::echo -timestamp -text "[sizeof_collection $coll]/$total pins contain clock '$opt_clock'"
+
+      gui_clear_highlight
+      gui_highlight $coll -color lime -pattern dot4
+
+      return $coll
+    }
+  }
+
+  proc highlight { args } {
+    set opt_pattern "grid"
+    mortar::parse_args $args {
+      { "insts"   opt_insts   list   }
+      { "hinsts"  opt_hinsts  list   }
+      { "pattern" opt_pattern string }
+    } {
+      set design [mortar::current_design]
+
+      set insts  ""
+      set hinsts ""
+
+      # set view "func_setup_ssgnp0p675v0c_cworstCCwT0c"
+      # read_db /proj/cayman/wa/bkillampalli/impl/tpb_interconnect.1.0A/track.ic_predft_de2v2_0220_fast/invcui.route/dataout/tpb_interconnect -setup_views $view -hold_views $view -leakage_view $view -dynamic_view $view
+      # grep tree= /proj/cayman/wa/bkillampalli/impl/tpb_interconnect.1.0A/track.ic_predft_de2v2_0220_fast/invcui.route/report/tpb_interconnect.logical.hierarchy.rpt | awk '{print $5,$2}' | cut -f 2 -d = | sort -nr | head -25
+      # grep tree= /proj/cayman/wa/bkillampalli/impl/tpb_interconnect.1.0A/track.ic_predft_de2v2_0220_fast/invcui.postroute/report/tpb_interconnect.logical.hierarchy.rpt | awk '{print $5,$2}' | cut -f 2 -d = | sort -nr | head -25
+
+      switch $design {
+        dfx_top {
+          lappend hinsts pvt_0 ; # 37k
+          lappend hinsts pvt_1 ; # 23k
+          lappend hinsts dfx   ; # 32k
+        }
+        hbm_ctrl {
+          # 500k total
+          lappend hinsts "HBM_CTRL_TOP/sdram_lb_ps1/fastinit/fastsdram" ; # 136543 HBM_CTRL_TOP/sdram_lb_ps1/fastinit/fastsdram
+          lappend hinsts "HBM_CTRL_TOP/sdram_lb_ps0/fastinit/fastsdram" ; # 137379 HBM_CTRL_TOP/sdram_lb_ps0/fastinit/fastsdram
+          lappend hinsts "HBM_CTRL_TOP/sdram_lb_ps0/mpfe_top"           ; #  87350 HBM_CTRL_TOP/sdram_lb_ps0/mpfe_top
+          lappend hinsts "HBM_CTRL_TOP/sdram_lb_ps1/mpfe_top"           ; #  87505 HBM_CTRL_TOP/sdram_lb_ps1/mpfe_top
+          lappend hinsts "HBM_CTRL_TOP/sdram_csr"                       ; #  33239 HBM_CTRL_TOP/sdram_csr
+          lappend hinsts "HBM_CTRL_TOP/sdram_lb_ps0/mt_top"             ; #  23416 HBM_CTRL_TOP/sdram_lb_ps0/mt_top
+          lappend hinsts "HBM_CTRL_TOP/sdram_lb_ps1/mt_top"             ; #  23449 HBM_CTRL_TOP/sdram_lb_ps1/mt_top
+        }
+        simple_mac {
+          for {set i 0} {$i < 256} {incr i} {
+            lappend insts "reg_mac_reg\[$i\]\[*\]"
+          }
+        }
+        sdma_arith {
+          lappend hinsts "u_sdma_arith/CCE_u_cce_top"
+          lappend hinsts "u_sdma_arith/CME_u_crypto_crc_app_top"
+          lappend hinsts "u_sdma_arith/DRE_u_dre_top"
+          lappend hinsts "u_sdma_arith/tdma_rob_32k"
+          lappend hinsts "u_sdma_arith/u_ap_udma_top_wrapper"
+          lappend hinsts "u_sdma_arith/u_notific_top"
+          lappend hinsts "u_sdma_arith/u_sdma_app_mux"
+          lappend hinsts "u_sdma_arith/u_sdma_sprot"
+        }
+        tpb_array_xbus_pre_tile {
+          lappend hinsts "XBUS_PRE_0__TPB_ARRAY_XBUS_PRE"
+          lappend hinsts "XBUS_PRE_1__TPB_ARRAY_XBUS_PRE"
+          lappend hinsts "XBUS_PRE_2__TPB_ARRAY_XBUS_PRE"
+          lappend hinsts "XBUS_PRE_3__TPB_ARRAY_XBUS_PRE"
+        }
+        tpb_dve_bank_half {
+          for {set i 0} {$i < 16} {incr i} {
+            #for {set j 0} {$j < 7} {incr j} {
+            #  lappend hinsts "u_channels/channel_gen_${i}__u_dve_channel/slice_gen_${j}__dve_u_slice"
+            #}
+            #lappend hinsts "u_channels/channel_gen_${i}__u_dve_channel/slice_gen_7__dve_last_slice_u_slice"
+            lappend hinsts "u_channels/channel_gen_${i}__u_dve_channel"
+          }
+        }
+        tpb_interconnect_axi_domain {
+          lappend hinsts XBAR_TOP_16/axi_top/xbar_fab2hbm
+          lappend hinsts XBAR_TOP_16/axi_top/hbm_group_0
+          lappend hinsts XBAR_TOP_16/axi_top/hbm_group_1
+          lappend hinsts XBAR_TOP_16/axi_top/xbar_hbm2fab
+          lappend hinsts XBAR_TOP_16/axi_top/fab_group_0
+          lappend hinsts XBAR_TOP_16/axi_top/fab_group_1
+        }
+        tpb_interconnect {
+          lappend hinsts tpb_interconnect_axi_domain ; # 4854383
+          lappend hinsts tpb_interconnect_axi_domain/XBAR_TOP_16 ; # 3883555
+          lappend hinsts tpb_interconnect_axi_domain/XBAR_TOP_16/axi_top ; # 3883491
+          lappend hinsts u_tpb_fis ; # 1897491
+          lappend hinsts tpb_interconnect_axi_domain/XBAR_TOP_16/axi_top/xbar_fab2hbm ; # 942543
+          lappend hinsts tpb_interconnect_axi_domain/XBAR_TOP_16/axi_top/xbar_hbm2fab ; # 921924
+          lappend hinsts tpb_interconnect_axi_domain/u_tpb_from_sengine_fabric_wrapper ; # 578006
+          lappend hinsts tpb_interconnect_axi_domain/XBAR_TOP_16/axi_top/hbm_group_? ; # 511272
+          #lappend hinsts tpb_interconnect_axi_domain/XBAR_TOP_16/axi_top/hbm_group_0 ; # 509258
+          lappend hinsts tpb_interconnect_axi_domain/XBAR_TOP_16/axi_top/fab_group_? ; # 341316
+          #lappend hinsts tpb_interconnect_axi_domain/XBAR_TOP_16/axi_top/fab_group_0 ; # 337258
+          lappend hinsts tpb_interconnect_cdc ; # 289929
+        }
+        tpb_pb_partition_cluster_0 -
+        tpb_pb_partition_cluster_1 -
+        tpb_pb_partition_cluster_2 -
+        tpb_pb_partition_cluster_3 {
+          for {set i 0} {$i < 32} {incr i} {
+            lappend hinsts "psum_partition_${i}__u_psum_buf_partition"
+          }
+        }
+        tpb_pseq_pengine_wrapper {
+          lappend hinsts "tpb_pseq_pengine/u_compute_cluster"        ; # 651237
+          lappend hinsts "tpb_pseq_pengine/u_compute_cluster/nic400_cc/compute_cluster_fabric/u_nic400compute_cluster" ; # 165740
+          lappend hinsts "tpb_pseq_pengine/xtensa_sequencer_wrapper" ; # 227277
+          lappend hinsts "tpb_pseq_pengine/nic400_2x7"               ; #  64596
+        }
+        tpb_sb_wrapper {
+					lappend hinsts "tpb_sb/tpb_sb_apb/u_axi_act_pipe"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_1__u_axi_pool_pipe"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_0__u_axi_pool_pipe"
+					lappend hinsts "tpb_sb/tpb_sb_apb/u_axi_dve_pipe"
+					lappend hinsts "tpb_sb/tpb_sb_apb/u_axi_act_pipe/AXI_SLICE_LOGIC_7__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_0__u_axi_pool_pipe/AXI_SLICE_LOGIC_7__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/u_axi_act_pipe/AXI_SLICE_LOGIC_0__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/u_axi_act_pipe/AXI_SLICE_LOGIC_6__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/u_axi_act_pipe/AXI_SLICE_LOGIC_5__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/u_axi_act_pipe/AXI_SLICE_LOGIC_4__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/u_axi_act_pipe/AXI_SLICE_LOGIC_3__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/u_axi_act_pipe/AXI_SLICE_LOGIC_2__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/u_axi_act_pipe/AXI_SLICE_LOGIC_1__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_1__u_axi_pool_pipe/AXI_SLICE_LOGIC_7__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_1__u_axi_pool_pipe/AXI_SLICE_LOGIC_6__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_1__u_axi_pool_pipe/AXI_SLICE_LOGIC_5__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_1__u_axi_pool_pipe/AXI_SLICE_LOGIC_4__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_1__u_axi_pool_pipe/AXI_SLICE_LOGIC_3__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_1__u_axi_pool_pipe/AXI_SLICE_LOGIC_2__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_1__u_axi_pool_pipe/AXI_SLICE_LOGIC_1__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_0__u_axi_pool_pipe/AXI_SLICE_LOGIC_6__genblk1_ap_axi3_regslice"
+					lappend hinsts "tpb_sb/tpb_sb_apb/genblk4_0__u_axi_pool_pipe/AXI_SLICE_LOGIC_5__genblk1_ap_axi3_regslice"
+				}
+        tpb_sb_partition_sub_cluster {
+          # by group and partition
+          for {set i 0} {$i < 2} {incr i} {
+            for {set j 0} {$j < 4} {incr j} {
+              lappend hinsts "partition_group_${i}__tpb_sb_partition_group/partition_${j}__genblk1_sb_partition"
+            }
+          }
+          # by partition
+          #for {set j 0} {$j < 4} {incr j} {
+          #  lappend hinsts "partition_group_*__tpb_sb_partition_group/partition_${j}__genblk1_sb_partition"
+          #}
+          # by bank
+          #for {set j 0} {$j < 16} {incr j} {
+          #  lappend hinsts "partition_group_*__tpb_sb_partition_group/partition_*__genblk1_sb_partition/bank_${j}__sbuf_mem"
+          #}
+        }
+        tpb_sb_partition_sub_cluster_with_arb {
+          # by group and partition
+          for {set i 0} {$i < 2} {incr i} {
+            for {set j 0} {$j < 4} {incr j} {
+              lappend hinsts "partition_group_${i}__tpb_sb_partition_group/partition_${j}__genblk1_sb_partition"
+            }
+          }
+          # by partition
+          #for {set j 0} {$j < 4} {incr j} {
+          #  lappend hinsts "partition_group_*__tpb_sb_partition_group/partition_${j}__genblk1_sb_partition"
+          #}
+          # by bank
+          #for {set j 0} {$j < 16} {incr j} {
+          #  lappend hinsts "partition_group_*__tpb_sb_partition_group/partition_*__genblk1_sb_partition/bank_${j}__sbuf_mem"
+          #}
+        }
+        tpb_sb_partition_sub_cluster_with_arb_and_rfifo {
+          # by group and partition
+          for {set i 0} {$i < 2} {incr i} {
+            for {set j 0} {$j < 4} {incr j} {
+              lappend hinsts "partition_group_${i}__tpb_sb_partition_group/partition_${j}__genblk1_sb_partition"
+            }
+          }
+          # by partition
+          #for {set j 0} {$j < 4} {incr j} {
+          #  lappend hinsts "partition_group_*__tpb_sb_partition_group/partition_${j}__genblk1_sb_partition"
+          #}
+          # by bank
+          #for {set j 0} {$j < 16} {incr j} {
+          #  lappend hinsts "partition_group_*__tpb_sb_partition_group/partition_*__genblk1_sb_partition/bank_${j}__sbuf_mem"
+          #}
+        }
+        Xm_CAYMAN_NX_TIEXtsubsystem {
+          lappend hinsts "Core0/Xttop/ScalarPipe/TIE"            ; #  441034
+          lappend hinsts "Core0/Xttop/InstFetch"                 ; #  118153
+          lappend hinsts "Core0/Xttop/InstFetch/BranchPredictor" ; #   69116
+          lappend hinsts "Core0/Xttop/ScalarPipe/Debug"          ; #   46758
+          lappend hinsts "Core0/Xttop/LoadStore"                 ; #   44501
+          lappend hinsts "Core0/ICache"                          ; #   23032
+          lappend hinsts "Core0/InstTCM"                         ; #   17588
+          lappend hinsts "CoreConnect"                           ; #   16355
+          lappend hinsts "CoreConnect/AXIInterconnect"           ; #   16318
+        }
+        Xm_cayman_Q7Xtsubsystem {
+          lappend hinsts "Core0/Xttop/VectorPipe/TIEVectorPipe/TIEVectorPipe_gr/TIESlicedVectorPipegr_slice0" ; # 668605 (Xm_cayman_Q7TIESlicedVectorPipegr_slice0_0_Xm_cayman_Q7Xtsubsystem)
+          lappend hinsts "Core0/Xttop/VectorPipe/TIEVectorPipe/TIEVectorPipe_gr/TIESlicedVectorPipegr_slice1" ; # 658392 (Xm_cayman_Q7TIESlicedVectorPipegr_slice1_0_Xm_cayman_Q7Xtsubsystem)
+          lappend hinsts "Core0/Xttop/VectorPipe/TIEVectorPipe/TIEVectorPipe_gr/TIESlicedVectorPipegr_slice2" ; # 642298 (Xm_cayman_Q7TIESlicedVectorPipegr_slice2_0_Xm_cayman_Q7Xtsubsystem)
+          lappend hinsts "Core0/Xttop/VectorPipe/TIEVectorPipe/TIEVectorPipe_gr/TIESlicedVectorPipegr_slice3" ; # 639260 (Xm_cayman_Q7TIESlicedVectorPipegr_slice3_0_Xm_cayman_Q7Xtsubsystem)
+          lappend hinsts "Core0/Xttop/ScalarPipe"     ; # 438866 (Xm_cayman_Q7ScalarPipe_0_Xm_cayman_Q7Xtsubsystem)
+          lappend hinsts "Core0/Xttop/LoadStore/SGE"  ; # 246384 (Xm_cayman_Q7SGE_0_Xm_cayman_Q7Xtsubsystem)
+          lappend hinsts "Core0/Xttop/LoadStore/iDMA" ; # 241149 (Xm_cayman_Q7iDMA_0_Xm_cayman_Q7Xtsubsystem)
+          lappend hinsts "Core0/Xttop/InstFetch"      ; # 236925 (Xm_cayman_Q7InstFetch_0_Xm_cayman_Q7Xtsubsystem)
+          lappend hinsts "Core0/DataTCM"              ; # 153284 (Xm_cayman_Q7DataTCM_0_Xm_cayman_Q7Xtsubsystem)
+          lappend hinsts "Core0/Xttop/MemoryStaging"  ; # 138747 (Xm_cayman_Q7MemoryStaging_0_Xm_cayman_Q7Xtsubsystem)
+        }
+        default { }
+      }
+
+      # argument overrides
+      if { [info exists opt_insts]  } { set insts  $opt_insts  }
+      if { [info exists opt_hinsts] } { set hinsts $opt_hinsts }
+
+      set colors {red blue green yellow magenta cyan lightpink purple teal olive plum navy pink lime orange brown lightblue gold chocolate lightgreen maroon salmon violet darkcyan royalblue darkgreen tomato chartreuse wheat deepskyblue darkorange darkred}
+      set num_colors [llength $colors]
+
+      # sort hinsts by size
+      set lst ""
+      foreach name $hinsts {
+        set hinst [get_db hinsts $name]
+        lappend lst [list $hinst [llength [get_db $hinst .insts]]]
+      }
+
+      gui_clear_highlight
+
+      set iter 0
+      foreach sl [lsort -integer -index 1 -decreasing $lst] {
+        lassign $sl hinst num
+        set color [lindex $colors [expr $iter%$num_colors]]
+        puts [format "HINST: %6d %10s %s" $num $color [get_db $hinst .name]]
+        gui_highlight $hinst -color $color -pattern $opt_pattern
+        incr iter
+      }
+
+      set iter 0
+      foreach name $insts {
+        set dpo [get_db insts $name]
+        set num [llength $dpo]
+        set color [lindex $colors [expr $iter%$num_colors]]
+        puts [format "INSTS: %6d %10s %s" $num $color $name]
+        gui_highlight $dpo -color $color -pattern $opt_pattern
+        incr iter
+      }
+
+    }
+  }
+
+  proc report_ports { args } {
+    mortar::parse_args $args {
+    } {
+      array unset portmap
+      foreach p [get_db ports] {
+        set dir [get_db $p .direction]
+        if { [set bus [get_db $p .bus]] ne "" } {
+          set name [get_db $bus .name]
+          if { ![info exists portmap($name)] } {
+            set portmap($name,msb) [get_db $bus .msb]
+            set portmap($name,lsb) [get_db $bus .lsb]
+            set portmap($name,dir) $dir
+          }
+        } else {
+          set portmap([get_db $p .name],scalar) 1
+          set portmap([get_db $p .name],dir)    $dir
+        }
+      }
+      set lines ""
+      foreach key [lsort [array names portmap *,scalar]] {
+        lassign [split $key {,}] name undef
+        lappend lines [format "%3s %-8s %s" $portmap($name,dir) "--" $name]
+      }
+      lappend lines ""
+      foreach key [lsort [array names portmap *,msb]] {
+        lassign [split $key {,}] name undef
+        lappend lines [format "%3s %-8s %s" $portmap($name,dir) "$portmap($name,msb):$portmap($name,lsb)" $name]
+      }
+      mortar::write_list_to_file $lines [set f [pwd]/ports.[get_db current_design .name].rpt]
+      puts $f
+    }
+  }
+
+  # generic tracer defined by level and stop-point (celltype)
+  proc trace_logic { args } {
+    set opt_backward 0
+    set opt_levels   1
+    set opt_stop     {^(sa[cdgs]|T1|T6)}
+    set opt_flat     1 ; # return a flat list instead of nested list of lists from the DFS
+
+    mortar::parse_args $args {
+      { "?name"      opt_name     string  1 }
+      { "levels"     opt_levels   integer   }
+      { ".backward"  opt_backward boolean   }
+      { "stop_cells" opt_stop     string    }
+      { "flat"       opt_flat     boolean   }
+    } {
+      array unset seen_pin
+      proc __do_trace { pin {d 0} {l 0} } {
+        upvar seen_pin   seen_pin
+        upvar opt_stop   opt_stop
+        upvar opt_levels opt_levels
+        upvar opt_flat   opt_flat
+
+        set pin_name [get_object_name $pin]
+
+        # prevent loop-back
+        if { [info exists seen_pin($pin_name)] } { return "" }
+        set seen_pin($pin_name) 1
+
+        if { $l > $opt_levels } { return "" }
+
+
+        set rc ""
+        if { $d == 0 } {
+          set net [get_nets -quiet -of_objects $pin]
+          array unset seen
+
+          foreach_in_collection sink [get_property $net load_pins] {
+            lappend rc [get_object_name $sink]
+            if { [get_property $sink object_type] eq "pin" } {
+              set inst [get_cells -of_objects $sink]
+              if { ![regexp $opt_stop [get_property $inst ref_name]] } {
+                # trace outputs
+                foreach_in_collection opin [get_pins -of_objects $inst -filter "direction == out"] {
+                  if { $opt_flat } {
+                    lappend rc {*}[__do_trace $opin $d [expr $l+1]] ; # single flat list
+                  } else {
+                    lappend rc    [__do_trace $opin $d [expr $l+1]] ; # nested list of lists
+                  }
+                }
+              }
+            }
+          }
+        } else {
+          # backward
+          mortar::echo -error -text "Backward tracing is not implemented yet, ask Mike if you need this"
+        }
+        return $rc
+      }
+      set rc $opt_name
+      lappend rc {*}[__do_trace $opt_name $opt_backward]
+      return $rc
+    }
+  }
+
+  # tclsh
+  #   source /proj/cayman/bin/cayman.tcl
+  #   cayman::validate_msets
+  proc validate_msets { args } {
+    mortar::parse_args $args {
+    } {
+      foreach f [list \
+										 "$::env(PROJ_ROOT)/techset/$::env(PROJ_TECHSET_VERSION)/ip.techset.tcl" \
+										 "$::env(PROJ_ROOT)/memset/$::env(PROJ_MEMSET_VERSION)/ip.memset.tcl" \
+										 "$::env(PROJ_ROOT)/ipset/$::env(PROJ_IPSET_VERSION)/ip.ipset.tcl" \
+										] {
+        array unset IPSRC
+        if { ![file exists $f] } {
+          mortar::echo -error -text "Cannot find $f"
+          continue
+        }
+
+        source $f
+
+        set good 0
+        set bad  0
+        foreach ip [lsort -dictionary [array names IPSRC]] {
+          # to validate some side install from the dropbox before overlaying
+          #if { [regexp memcache $IPSRC($ip)] } {
+          #  regsub {/proj} $IPSRC($ip) {/mrvl2/artemisdropbox/precatoria2} IPSRC($ip)
+          #}
+
+          if { [file exists $IPSRC($ip)] } {
+            incr good
+          } else {
+            mortar::echo -error -text "Cannot find $ip file $IPSRC($ip)"
+            incr bad
+          }
+        }
+        mortar::echo "$good good, $bad bad from $f"
+      }
+    }
+  }
+
+  proc drive_strength_histogram { args } {
+    set all_insts [get_cells -hier -filter "!is_hierarchical"]
+    set hist ""
+    for {set i 0} {$i < 20} {incr i} {
+      set key "D${i}"
+      if { [set num [sizeof_collection [filter_collection $all_insts "ref_name =~ *D${i}BWP2?0H6P5?*"]]] > 0 } {
+        lappend hist $key $num
+      }
+    }
+    mortar::textual_histogram $hist -showval -showtotal -pct -header "Drive Num_Instances"
+  }
+
+  # Design Compiler
+  proc get_designs_recursive { design {print 1} } {
+
+    set designs ""
+    set lines   ""
+    proc __walk_down { d {lvl 0} } {
+      upvar designs designs
+      upvar lines   lines
+
+      current_design $d
+
+      append_to_collection designs [current_design]
+      #lappend designs $d
+      set indent [string repeat " " [expr 3*$lvl]]
+      lappend lines "${indent}$d"
+
+      array unset hier_designs
+      foreach_in_collection inst [get_cells -filter "is_hierarchical"] {
+        set hier_designs([get_attribute $inst ref_name]) 1
+      }
+      foreach child_design [array names hier_designs] {
+        __walk_down $child_design [expr $lvl+1]
+      }
+    }
+
+    set original_design [current_design]
+    __walk_down $design
+    current_design $original_design
+
+    if { $print } {
+      foreach line $lines {
+        puts $line
+      }
+    }
+
+    return $designs
+  }
+
+
+  # returns an array where the variables are the keys
+  proc import_designset { designset } {
+    array unset data
+
+    set f [file join $::env(PROJ_ROOT) "designset" $designset "DESIGNSET.tcl"]
+    if { [file exists $f] } {
+      puts "Loading designset: $f"
+      source $f
+      foreach v [list \
+                     DESIGNSET_CHIP_REVISION \
+                     DESIGNSET_TOP_MODULE \
+                     DESIGNSET_NAME \
+                     DESIGNSET_IPSET \
+                     DESIGNSET_TECHSET \
+                     DESIGNSET_MEMSET \
+                     DESIGNSET_ASSIGNMENTS \
+                    ] {
+        if { [info exists $v] } {
+          set data($v) [subst $$v]
+          unset $v
+        }
+      }
+    } else {
+      mortar::echo -error -text "Cannot find designset $designset"
+    }
+    return [array get data]
+  }
+
+  # builds a designset on the fly
+  proc faux_designset { args } {
+    set design ""
+    set execute 1
+    set depth  0 ; # infinite
+    mortar::parse_args $args {
+      { "?designset" designset string 1 }
+      { "?design"    design    string   }
+      { "execute"    execute   boolean  }
+      { "depth"      depth     integer  }
+    } {
+      if { $design eq "" } { set design [mVar DESIGN] }
+
+      proc __get_hier_order { design {lvl 0} } {
+        upvar depth depth
+
+        if { $depth > 0 && $lvl > $depth } { return }
+
+        set rc $design
+
+        set children [lsort -uniq [mortar::hierinfo -design $design -children]]
+        foreach child $children {
+          lappend rc {*}[__get_hier_order $child [expr $lvl+1]]
+        }
+        return $rc
+      }
+
+      mortar::echo "Working from designset $designset"
+
+      set order [lreverse [__get_hier_order $design]] ; # bottoms-up that suports a depth (should mortar::hierinfo support -depth?)
+      mortar::echo "Hierarchy order for $design: $order"
+
+      array set ds_info [import_designset $designset]
+      if { ![info exists ds_info(DESIGNSET_ASSIGNMENTS)] } {
+        mortar::echo -error -text "Cannot find DESIGNSET_ASSIGNEMNTS, processes likely to fail!"
+        return
+      }
+
+      set original_design $design
+      foreach design $order {
+        set idx [lsearch $ds_info(DESIGNSET_ASSIGNMENTS) $design]
+
+        if { $idx < 0 } {
+          mortar::echo -error -text "Cannot find $design in $designset, processes may fail!"
+        }
+
+        set children [lsort -uniq [mortar::hierinfo -children -design $design]]
+        set ::__faux_designset_design   $design
+        set ::__faux_designset_children $children
+
+        set release [lindex $ds_info(DESIGNSET_ASSIGNMENTS) [expr $idx+1]]
+        set meta_tcl $::env(PROJ_ROOT)/release/$design.$::env(MHUB_CHIP_REVISION)/$release/metadata/$design.meta.tcl
+        if { ![file exists $meta_tcl] } {
+          mortar::echo -error -text "Cannot find $meta_tcl, processes may fail!"
+        }
+        set ::__faux_designset_meta_tcl $meta_tcl
+
+        puts "set HIER($design) {$children}"
+        puts "mSource $meta_tcl"
+        if { $execute } {
+          namespace eval :: {
+            puts "Sourcing the $__faux_designset_meta_tcl for $__faux_designset_design with children: $__faux_designset_children"
+            if { $__faux_designset_children ne "" } {
+              mVar LIBSET(designset,all_libs) $__faux_designset_children -lappend ; # is this correct?  keep building as we ascend the hierarchy
+            }
+
+            set HIER($__faux_designset_design) $__faux_designset_children
+            mSource $__faux_designset_meta_tcl
+
+            foreach v {HIER SPEF VERILOG IPSPEC LIBSET} {
+              if { [info exists $v] } {
+                parray $v
+              } else {
+                puts "Cannot find $v"
+              }
+            }
+          }
+        }
+        unset ::__faux_designset_design
+        unset ::__faux_designset_children
+        unset ::__faux_designset_meta_tcl
+      } ; # foreach design
+
+      # if DESIGN changed then it is likely that our design was not really found in the designset
+      if { [set current_design [mVar DESIGN]] ne $original_design } {
+        mVar DESIGN $original_design
+        mortar::echo -error -text "The current design changed from $original_design to $current_design, setting it back to [mVar DESIGN]"
+      }
+
+    }
+  }
+
+  proc report_unconstrained_ports { args } {
+    set iter 0
+    foreach_in_collection port [get_ports -filter "!is_clock_used_as_clock"] {
+      set slk [get_property $port slack_max -view func_setup_ssgnp0p675v0c_cworstCCwT0c]
+      if { $slk == INFINITY } {
+        if { [set dir [get_property $port direction]] eq "in" } {
+          set points [all_fanout -from $port -endpoints_only -only_cells]
+        } else {
+          set points [all_fanin -to $port -startpoints_only -only_cells]
+        }
+        set num_points [sizeof_collection [filter_collection $points "is_sequential"]]
+        if { $num_points > 0 } {
+          puts [format "%5d. %6s %2d %s" [incr iter] $dir $num_points [get_object_name $port]]
+        }
+      }
+    }
+  }
+
+  proc esd_connect { args } {
+    set ESD_insts [get_db insts -if {.base_cell.base_name == CORESD_0P75V_M15V_H* || .base_cell.base_name == CORESD_VDD_SENSE_M15V_H28W40}]
+    if { [get_db $ESD_insts] != "" } {
+      foreach ESD_inst $ESD_insts {
+        puts "Connecting VDD_ESD and VSS_ESD pins for [get_db $ESD_inst .name]..."
+        if { [mortar::current_design] eq "ring_pll" } {
+          connect_pin -inst [get_db $ESD_inst .name] -net VDDVI01 -pin VDD_ESD
+        } else {
+          connect_pin -inst [get_db $ESD_inst .name] -net VDD -pin VDD_ESD
+        }
+        connect_pin -inst [get_db $ESD_inst .name] -net VSS -pin VSS_ESD
+      }
+    } else {
+      puts "No CORESD intances found!"
+    }
+  }
+
+  proc remove_postfill { args } {
+    # taken from /proj/asictools/m1dpe/2022.02.000e/common/flow/invcui/step/add_fill
+    mCmd delete_all_cell_padding
+    #delete prefilled fillers
+    mCmd delete_filler -prefix FILLER
+    mCmd delete_filler -prefix EDI_FILL
+
+    set propname "FLOW_ADDED_POSTFILL"
+    set_db current_design .$propname 0 ; # so the add_fill wants to add
+  }
+  proc add_postfill { args } {
+    set force 0
+    mortar::parse_args $args {
+      { "force" force boolean }
+    } {
+      if { $force } {
+        set propname "FLOW_ADDED_POSTFILL"
+        set_db current_design .$propname 0 ; # so the add_fill wants to add
+      }
+
+      mRunStep add_fill
+    }
+  }
+
+  proc buffer_perimeter_pre { } {
+    proc __is_edge_spaced { libcell } {
+      foreach {wcard spacing} [mVar FLOW(m1dpe_edge_spacing)] {
+        if { [string match $wcard $libcell] } { return 1 }
+      }
+      return 0
+    }
+
+    set ::buffer_perimeter_pre ""
+    set ::buffer_perimeter_post ""
+
+    #set edge_name ${name}_iobuf
+    set edge_name edge_spacing_iobuf ; # single name for all buffers so input and output buffers are also spaced, not just inputs to inputs, etc
+    set vert 0.210
+    set horz 0.561
+    #
+    lappend ::buffer_perimeter_pre [list set_cell_edge_spacing ${edge_name}_H ${edge_name}_H -spacing $horz]
+    lappend ::buffer_perimeter_pre [list set_cell_edge_spacing ${edge_name}_V ${edge_name}_V -spacing $vert]
+    #
+    lappend ::buffer_perimeter_post [list delete_cell_edge_spacing ${edge_name}_H ${edge_name}_H]
+    lappend ::buffer_perimeter_post [list delete_cell_edge_spacing ${edge_name}_V ${edge_name}_V]
+
+    foreach type {ibuff obuff cbuff} {
+      set name [mVar LIBCELL($type)]
+      if { [__is_edge_spaced $name] } {
+        puts "$name is already edge spaced"
+        continue
+      }
+
+      mortar::echo "Apply edge spacing for $name as $edge_name H ($horz) and V ($vert)"
+      lappend ::buffer_perimeter_pre [list set_cell_edge_type -cell $name -reset]
+      lappend ::buffer_perimeter_pre [list set_cell_edge_type -cell $name -top    ${edge_name}_V]
+      lappend ::buffer_perimeter_pre [list set_cell_edge_type -cell $name -bottom ${edge_name}_V]
+      lappend ::buffer_perimeter_pre [list set_cell_edge_type -cell $name -left   ${edge_name}_H]
+      lappend ::buffer_perimeter_pre [list set_cell_edge_type -cell $name -right  ${edge_name}_H]
+      lappend ::buffer_perimeter_post [list set_cell_edge_type -cell $name -reset]
+    }
+
+    foreach cmd $::buffer_perimeter_pre {
+      puts $cmd
+      eval $cmd
+    }
+    unset ::buffer_perimeter_pre
+  }
+  proc buffer_perimeter_post { args } {
+    set dont_touch 1
+    set fix_place  0
+    mortar::parse_args $args {
+      { "dont_touch" dont_touch boolean }
+      { "fix_place"  fix_place  boolean }
+    } {
+      set insts [get_db insts *_IencIOBuf]
+
+      proc __db_metric_stats { dpo key msg } {
+        array unset arr
+        foreach v [get_db $dpo .$key] {
+          if { [info exists arr($v)] } {
+            incr arr($v)
+          } else {
+            set arr($v) 1
+          }
+        }
+        mortar::echo -text $msg
+        foreach v [lsort [array names arr]] {
+          mortar::echo -text [format "%7d %s" $arr($v) $v]
+        }
+      }
+
+      if { $dont_touch } {
+        mortar::echo "Dont Touch [llength $insts] IO buffers"
+        __db_metric_stats $insts dont_touch "Dont Touch before applying dont_touch"
+        set_dont_touch $insts
+        #set_db $insts .dont_touch true ; # necessary?
+        __db_metric_stats $insts dont_touch "Dont Touch after applying dont_touch"
+      }
+
+      if { $fix_place } {
+        mortar::echo "Fix Place [llength $insts] IO buffers"
+        __db_metric_stats $insts place_status "Dont Touch before applying place_status=fixed"
+        set_db $insts .place_status fixed ; # should be soft fixed which is perhaps good enough or should we hard fix?
+        __db_metric_stats $insts place_status "Dont Touch before applying place_status=fixed"
+      }
+
+      if { [info exists ::buffer_perimeter_post] } {
+        foreach cmd $::buffer_perimeter_post {
+          puts $cmd
+          eval $cmd
+        }
+        unset ::buffer_perimeter_post
+      }
+    }
+  }
+
+  proc eco_check { args } {
+    mortar::parse_args $args {
+      { "?files" files list 1 }
+    } {
+      set rc 0
+      foreach f $files {
+        set found    0
+        set notfound 0
+        foreach line [mortar::read_file_to_list $f] {
+          if { [regexp {(pin|hpin|port):[^\}]+} $line match] } {
+            if { [regexp ECO $match] } { continue }
+            if { [catch {get_db $match} crc] } {
+              incr notfound
+              puts "Cannot find $match"
+            } else {
+              incr found
+            }
+          }
+        }
+        puts "$found found, $notfound notfound from $f"
+        incr rc $notfound
+      }
+      return $rc
+    }
+  }
+
+  proc is_pgcover_required { {design ""} } {
+    set cmd [list mortar::hierinfo -attributes]
+    if { $design ne "" } { lappend cmd -design $design }
+    set require_pgcover [expr {[lsearch [eval $cmd] "pgcover=1"] >= 0}]
+  }
+  proc is_pgcover_def { def } {
+    # large file, mortar::read_file_to_list may return too much so we want to loop line by line
+    set fp [mortar::fopen $def]
+    while { [gets $fp line] >= 0 } {
+      # string match is like 10x faster than regexp
+      #if { [regexp { AP .*_PGCOVER$} $line] } {}
+      if { [string match {*_PGCOVER} $line] } {
+        return 1
+      } elseif { $line eq "END SPECIALNETS" } {
+        break
+      }
+    }
+    mortar::fclose $fp
+
+    return 0
+  }
+
+  proc boundary_flop_clock_latency { args } {
+    set coll ""
+    mortar::parse_args $args {
+      { "coll" coll string 0 {Custom collection of ports} }
+    } {
+      if { $coll eq "" } {
+        set coll [get_ports -filter "!is_clock_used_as_clock && !is_clock_used_as_data"]
+      }
+
+      set arrivals ""
+      foreach_in_collection p $coll {
+        switch [get_property $p direction] {
+          "in"  { set input 1 }
+          "out" { set input 0 }
+          default { continue }
+        }
+        if { $input } {
+          #set flops [all_fanout -from $p -only_cells -endpoints_only]
+          set pins [all_fanout -from $p -endpoints_only]
+        } else {
+          #set flops [all_fanin -to $p -only_cells -startpoints_only]
+          set pins [all_fanin -to $p -startpoints_only]
+        }
+        #set flops [filter_collection $flops "is_sequential"]
+
+        # find arrival time to the clock pin on each flop
+        foreach_in_collection pin $pins {
+          #if { [set pin [get_pins -of_objects $inst -filter "name == CP" -quiet]] eq "" } { continue }
+          if { [set a [get_property $pin arrival_max]] ne "NA" } {
+            lappend arrivals $a
+          }
+        }
+        #puts $arrivals
+      }
+      return $arrivals
+    }
+  }
+
+  proc output_clock_latency { args } {
+    set output_clocks [get_ports -filter "direction == out && is_clock_used_as_clock"]
+    mortar::echo "Found [sizeof_collection $output_clocks] output clocks"
+
+    set arrival "999.9"
+    foreach_in_collection clk $output_clocks {
+      # last one is the output port
+      foreach_in_collection tp [get_property [report_timing -to $clk -unconstrained -collection] timing_points] {
+        set arrival [get_property $tp arrival]
+      }
+      mortar::echo [format "  %5.1f %s" $arrival [get_property $clk full_name]]
+    }
+  }
+
+
+  # cayman::mdc_lvs_flush
+  proc mdc_lvs_flush { args } {
+    mortar::parse_args $args {
+    } {
+      mdc::run_checks -check_list {place endcap welltap macro_spacing filler_cell power_connectivity connectivity drc} -design_state "postroute"
+    }
+  }
+
+
+  # compare timing between two views
+  proc correlate_timing { args } {
+    set views ""
+    set paths 1000
+    set pg    ""
+    set print 0
+
+    mortar::parse_args $args {
+      { "views" views list 1 }
+      { "paths" paths integer }
+      { "pg"    pg    string }
+      { "print" print boolean }
+    } {
+      lassign $views view1 view2
+
+      set cmd [list report_timing -collection -view $view1 -max_paths $paths]
+      if { $pg ne "" } {
+        lappend cmd -path_group $pg
+      }
+      puts $cmd
+
+      set data ""
+      foreach_in_collection path [eval $cmd] {
+        set endp [get_object_name [get_property $path endpoint]]
+        set stpt [get_object_name [get_property $path startpoint]]
+        set slk  [get_property $path slack]
+
+        if { $stpt eq "" } {
+          mortar::echo -error -text "Cannot find startpoint for $endp"
+          continue
+        }
+        lappend data $endp $stpt $slk
+      }
+
+      set diffs ""
+      foreach {endp stpt slk_view1} $data {
+        set path [report_timing -collection -view $view2 -from $stpt -to $endp]
+        set slk  [get_property $path slack]
+        set diff [expr $slk_view1 - $slk]
+        lappend diffs $diff
+        if { $print } {
+          puts [format "%7s - %7s = %7s  %s" $slk_view1 $slk $diff $endp]
+        }
+      }
+      return $diffs
+    }
+  }
+
+  # find cases where the HBM PHY does not connect thru the bridge
+  proc hbm_phy_without_feedthrough { args } {
+    array unset stats
+    foreach t {inout no_net not_pin not_bridge good} {
+      set stats($t) 0
+    }
+
+    set bridge "hbm_dfi_bridge_wrapper"
+    set phy    "dwc_hbmphy_top_ew"
+
+    set inst [get_cells -hier -filter "ref_name == $phy"]
+    set pins [get_pins -of_objects $inst]
+    foreach_in_collection pin $pins {
+      set pin_name  [get_property $pin name]
+      set net       [get_nets -of_objects $pin -quiet]
+      set direction [get_property $pin direction]
+
+      if { ![regexp {^(in|out)$} $direction] } {
+        incr stats($direction)
+        #puts "Skipping $direction pin $pin_name"
+        continue
+      }
+
+      if { $net eq "" } {
+        incr stats(no_net)
+        #puts "Skipping $pin_name ($direction) has no nets"
+        continue
+      }
+
+      if { $direction eq "in" } {
+        set connected_pins [get_property $net driver_pins]
+      } elseif { $direction eq "out" } {
+        set connected_pins [get_property $net load_pins]
+      }
+
+      foreach_in_collection p $connected_pins {
+        set otype [get_property $p object_type]
+
+        #if { [get_property $p direction] eq "inout" } {
+        #  continue
+        #}
+
+        if { $otype ne "pin" } {
+          incr stats(not_pin)
+          puts "$pin_name ($direction) has a sink that is not a pin but $otype, [get_object_name $p]"
+          continue
+        }
+        set inst      [get_cells -of_objects $p]
+        set inst_name [get_property $inst full_name]
+        set cell_name [get_property $inst ref_name]
+        if { $cell_name ne $bridge && $cell_name ne $phy } {
+          incr stats(not_bridge)
+          puts "$pin_name ($direction) is connected to $cell_name ($inst_name), not $bridge or $phy"
+          continue
+        }
+        incr stats(good)
+      }
+    }
+    parray stats
+  }
+
+}
+
+
+# FIXME: included in a future mortar release (2022.06)
+namespace eval ::mortar { }
+proc ::mortar::clone_hinst { args } {
+  set opt_execute 1
+  mortar::parse_args $args {
+    { "from"    opt_from   string 1 {Name or pointer of the original hinst to clone} }
+    { "name"    opt_name   string 1 {Name of the new hinst} }
+    {}
+    { "parent"  opt_parent string 0 {Hierarchy in which the new hinst will reside, default is the logical top level} }
+    { "execute" opt_execute boolean 0 {When false only report what would be done and do not actually do it} }
+  } {
+    if { [mortar::tool -name -is Innovus] } {
+      if { ![string match {hinst:*} $opt_from] } {
+        set opt_from [get_db hinsts $opt_from]
+      }
+      if { [set module [get_db $opt_from .module.name]] eq "" } {
+        mortar::echo -error -text "Cannot find module from $opt_from"
+        return ""
+      }
+
+
+      # by default assume the new hinst is in the same parent hierarchy as the original guy
+      if { ![info exists opt_parent] } {
+        set parent     [get_db $opt_from .parent]
+        if { $parent eq [get_db current_design] } {
+          set opt_parent ""
+        } else {
+          set opt_parent [get_db $parent .module.name]
+        }
+      }
+      set parent_name [get_db $opt_from .parent.name]
+
+      set cmd [list create_hinst -module $module -name $opt_name]
+      if { $opt_parent eq "" } {
+        set hinst_name $opt_name
+      } else {
+        lappend cmd -parent $opt_parent
+        set hinst_name [join [list $parent_name $opt_name] {/}]
+      }
+
+      mortar::echo $cmd
+      if { $opt_execute } {
+        set hinst [eval $cmd]
+      } else {
+        set hinst ""
+      }
+
+      set cmds ""
+      foreach pin [get_db [get_db $opt_from .hports] -if {.direction == in}]  {
+        set pinname [get_db $pin .base_name]
+        set netname [get_db $pin .hnet.net.name]
+        lappend cmds [list connect_hpin -hinst $hinst_name -net $netname -pin_name $pinname]
+      }
+      #set id [format "%06.0f" [expr rand()*1000000]]
+      foreach pin [get_db [get_db $opt_from .hports] -if {.direction == out}]  {
+        set pinname [get_db $pin .base_name]
+        set netname ${opt_name}_${pinname}
+        # FIXME: to do it right we want to create a new local net in the hierarchy, but then need to know the parent inst such that the connect_hpin -net uses that full path and not the local name
+        #if { $opt_parent eq "" } {
+        #  lappend cmds [list create_net -name $netname] ; # top level
+        #} else {
+        #  lappend cmds [list create_net -name $netname -module $opt_parent] ; # inside a sub-module
+        #}
+        lappend cmds [list create_net -name $netname]
+        lappend cmds [list connect_hpin -hinst $hinst_name -net $netname -pin_name $pinname]
+      }
+
+      foreach cmd $cmds {
+        mortar::echo $cmd
+        if { $opt_execute } {
+          eval $cmd
+        }
+      }
+
+      return $hinst
+    } else {
+      mortar::unsupported_tool "clone_hinst"
+    }
+  }
+}
+proc ::mortar::redistribute_sinks { args } {
+  set opt_execute 1
+  mortar::parse_args $args {
+    { "sources" opt_sources list    1 }
+    { "sinks"   opt_sinks   list    1 }
+    {}
+    { "execute" opt_execute boolean 0 }
+  } {
+    set cmds ""
+
+    array unset srcloc
+    array unset srcnet
+
+    if { [llength $opt_sources] < 2 } {
+      mortar::echo -warning -text "Less than 2 sources, no redistribution necessary"
+      return ""
+    }
+
+    mortar::echo "Initial fanout distribution:"
+    foreach src $opt_sources {
+      set net [get_db $src .net]
+      set srcloc($src) [lindex [get_db $src .location] 0]
+      set srcnet($src) [get_db $net .name]
+      mortar::echo [format "" [llength [get_db $net .loads]] []]
+    }
+    foreach snk $opt_sinks {
+      lassign [lindex [get_db $snk .location] 0] x y
+      set mindist 0.0
+      set minsrc  ""
+      # set src [mortar::find_closest $snk $opt_sources]
+      foreach src [array names srcloc] {
+        lassign $srcloc($src) x0 y0
+        set dist [expr {sqrt(pow($x-$x0,2) + pow($y-$y0,2))}]
+        if { $minsrc eq "" || $dist < $mindist } {
+          set minsrc  $src
+          set mindist $dist
+        }
+      }
+      set instname [get_db $snk .inst.name]
+      set pinname  [get_db $snk .base_name]
+      lappend cmds [list ::connect_pin -inst $instname -pin $pinname -net $srcnet($minsrc)]
+    }
+    if { $opt_execute } {
+      foreach cmd $cmds {
+        eval $cmd
+      }
+    }
+    return $cmds
+  } {
+    Connect each sink to the closest source pin
+
+    Assumptions
+      - Source and Sink pins have a valid location
+      - Logical equivalence is assumed, not checked
+  }
+}
+
+proc ::mortar::report_ports { args } {
+  variable ns_info
+
+  set opt_dir    $ns_info(report_dir)
+  set opt_coll   ""
+  set opt_maxpin 5
+
+  mortar::parse_args $args {
+    { "dir"      opt_dir    string  }
+    { "coll"     opt_coll   string  }
+    { "max_pins" opt_maxpin integer }
+  } {
+    # inputs, outputs, then sort and show
+    #    fanout
+    #    location
+    #    sink pin, cell type, location
+    # port input|output 45,56 {sink1/pin1 BUF 45.3 100,500 sink2/pin2 BUF 34.4 100,500}
+    set coll ""
+    append_to_collection coll [sort_collection -dictionary [get_ports -filter "direction == in"] full_name]
+    append_to_collection coll [sort_collection -dictionary [get_ports -filter "direction == out"] full_name]
+    append_to_collection coll [sort_collection -dictionary [get_ports -filter "direction == inout"] full_name]
+
+    set maxlen [mortar::strlen [::get_property $coll full_name] -max]
+
+    set lines ""
+    lappend lines [format "%-${maxlen}s %4s %-17s %5s %s" "port" "type" "     location" "#pins" "pin_details"]
+    lappend lines [string repeat "-" 120]
+
+    foreach_in_collection port $coll {
+      set type [::get_property $port direction]
+      set xloc [::get_property $port x_coordinate]
+      set yloc [::get_property $port y_coordinate]
+      set net  [get_nets -of_objects $port -quiet]
+
+      # FIXME: inout?
+      switch $type {
+        "in"    { set pin_type "load_pins"   }
+        "out"   { set pin_type "driver_pins" }
+        default { set pin_type "load_pins" }
+      }
+
+      set pin_data ""
+
+      set pins     [::get_property $net $pin_type]
+      set num_pins [sizeof_collection $pins]
+
+      if { $net eq "" } {
+        set pin_data "no_net"
+      } elseif { $num_pins == 0 } {
+        set pin_data "no_pins"
+      } else {
+        set iter 0
+        foreach_in_collection pin $pins {
+          if { [incr iter] >= $opt_maxpin } {
+            lappend pin_data "... truncated after $opt_maxpin ..."
+            break
+          }
+
+          set x [::get_property $pin x_coordinate]
+          set y [::get_property $pin y_coordinate]
+          set dist [expr {sqrt(pow($x-$xloc,2) + pow($y-$yloc,2))}]
+
+          if { [::get_property $pin object_type] eq "port" } {
+            set cell_type ""
+          } else {
+            set inst [get_cells -of_objects $pin]
+            set cell_type [::get_property $inst ref_name]
+          }
+          lappend pin_data [format "%s %s %0.1f %.3f,%.3f" [::get_property $pin full_name] $cell_type $dist $x $y]
+        }
+      }
+      set num_pins [sizeof_collection $pins]
+      lappend lines [format "%-${maxlen}s %4s %8.3f,%8.3f %5d %s" [::get_property $port full_name] $type $xloc $yloc $num_pins $pin_data]
+    }
+    mortar::write_list_to_file -list $lines -file [set outf [file join $opt_dir "[mortar::current_design].ports.rpt.gz"]]
+    mortar::echo "Generated ports report to $outf"
+    return $outf
+  }
+}
+proc ::mortar::report_constant_icg_enable { args } {
+  variable ns_info
+
+  set opt_dir    $ns_info(report_dir)
+  set opt_coll   ""
+
+  mortar::parse_args $args {
+    { "dir"  opt_dir    string  0 {Directory to write the report} }
+    { "coll" opt_coll   string  0 {Collection of ports, default is all ports} }
+  } {
+    if { $opt_coll eq "" } {
+      set icgs [get_cells -hier -filter is_integrated_clock_gating_cell]
+      set coll [get_pins -of_objects $icgs -filter {is_clock_gating_enable}]
+    } else {
+      set coll $opt_coll
+    }
+    set const_lo [filter_collection $coll {constant_value == 0}]
+    set const_hi [filter_collection $coll {constant_value == 1}]
+
+    lappend lines ""
+    set str "[sizeof_collection $coll] ICGs with [sizeof_collection $const_lo] constant-low Enable and [sizeof_collection $const_hi] constant-high Enable"
+    mortar::echo $str
+    lappend lines $str
+    lappend lines "Constant Low:"
+    if { [sizeof_collection $const_lo] == 0 } {
+      lappend lines "  none"
+    } else {
+      foreach_in_collection pin $const_lo {
+        mortar::echo "  [::get_property $pin full_name]"
+      }
+    }
+    lappend lines "Constant High:"
+    if { [sizeof_collection $const_hi] == 0 } {
+      lappend lines "  none"
+    } else {
+      foreach_in_collection pin $const_hi {
+        mortar::echo "  [::get_property $pin full_name]"
+      }
+    }
+
+    mortar::write_list_to_file -list $lines -file [set outf [file join $opt_dir "[mortar::current_design].constant_icg_enable.rpt.gz"]]
+    mortar::echo "Generated constant_icg_enable report to $outf"
+    return $outf
+  }
+}
