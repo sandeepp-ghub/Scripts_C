@@ -1,0 +1,20 @@
+
+
+puts "\n\nMDA: trying to enable ELVT for setup fixing\n\n"
+
+set_dont_use [get_lib_cells -quiet "*ELVT"] false
+
+mVar FLOW(sta_eco_dont_use) "G* *CK* *D20* *D24* DCAP* DEL* ANTENNA* TIE* CMPE* BUFT*"
+#mVar LIBCELL(pnr_dontuse)  "G* *CK* *D20* *D24* DCAP* DEL* ANTENNA* TIE* BUFT* AN*D16* ND*D16* NR*D16* OR*D16* BUFFSKRD18* SDFSYNC* DCCK* MRV* *NODELVT"
+mVar LIBCELL(pnr_dontuse)  "G* *CK* *D20* *D24* DCAP* DEL* ANTENNA* TIE* BUFT* AN*D16* ND*D16* NR*D16* OR*D16* BUFFSKRD18* SDFSYNC* DCCK* MRV*"
+
+set_dont_use [get_lib_cells -quiet [mVar FLOW(sta_eco_dont_use)]]
+set_dont_use [get_lib_cells -quiet [mVar LIBCELL(pnr_dontuse)]]
+
+puts "\n\nMDA: setting parm to allow setup_tns_degrade\n\n"
+
+set_db opt_signoff_fix_hold_allow_setup_tns_degrade true
+
+puts "\n\nMDA: Querying parm\n\n"
+
+puts "MDA: [get_db opt_signoff_fix_hold*]"
