@@ -1,0 +1,43 @@
+
+puts "\n\nMDA: creating channel blockages for placement step.\n"
+
+create_place_blockage -name PB_mda1 -area 1.64750 19.13100 6.29250 4463.18100 -type hard
+create_place_blockage -name PB_mda2 -area 722.25250 18.84400 742.68500 4463.27950 -type hard
+create_place_blockage -name PB_mda3 -area 1458.91300 18.98750 1494.65350 4463.40000 -type hard
+create_place_blockage -name PB_mda4 -area 2210.73150 19.17500 2227.23800 4463.07400 -type hard
+create_place_blockage -name PB_mda5 -area 6.28450 3319.81650 2925.60200 3385.80050 -type hard
+create_place_blockage -name PB_mda6 -area 6.30700 1096.37200 2924.35500 1168.21600 -type hard
+# delete_obj -obj place_blockage:mda_*
+
+set_db place_global_timing_effort none
+set_db place_global_cong_effort   low
+set_db place_global_reorder_scan false
+
+set_db design_flow_effort standard
+set_db design_power_effort low
+set_db design_flow_effort  express
+
+set_db opt_useful_skew false
+set_db opt_useful_skew_pre_cts false
+set_db opt_useful_skew_ccopt   none
+
+set_db opt_power_effort none
+
+set_db opt_setup_target_slack 0.0
+set_db opt_multi_bit_flop_opt true
+
+
+puts "\n\nMDA: Performing placement only.\n\n"
+
+place_design
+
+puts "\n\nMDA: Placement completed."
+puts "\n\MDA: Deleting placement blockages for optimization.\n"
+
+delete_obj [get_db place_blockages PB_*]
+
+puts "\n\nMDA: Performing opt_design only.\n"
+
+opt_design -pre_cts -report_prefix mdaopt -report_dir report
+
+puts "\n\nMDA: Optimization has completed\n\n"
