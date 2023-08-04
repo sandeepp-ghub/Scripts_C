@@ -1,0 +1,16 @@
+
+
+set ilist [get_db [get_db insts -if {.base_cell.name==CKLNQD10*}] .name]
+
+
+foreach item $ilist {
+#  puts $item
+  set itype [get_db [get_db insts $item] .base_cell.name]
+  regsub -all "CKLNQD10" $itype "CKLNQD6"  newtype
+#  puts "eco_update_cell -inst $item -cells  $newtype; #$itype"
+  eco_update_cell -inst $item -cells  $newtype
+
+}
+
+
+
