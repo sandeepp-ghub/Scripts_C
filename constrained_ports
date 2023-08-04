@@ -1,0 +1,57 @@
+
+
+set banned_clk_list { WRCK_buf tessent_ssh0_shift_capture_clock_gated tessent_ssh0_shift_capture_clock_div tessent_ssh0_shift_capture_clock_gated tessent_ssh0_shift_capture_clock_div TCK tessent_tck tessent_ssh0_test_clock_gated tessent_ssh0_test_clock_div  }
+set fp [ open input_port_clocks.txt w ]
+foreach_in_collection input_ports [all_inputs -no_clocks] {
+    lassign [ lindex [ get_db $input_ports .location ] 0 ] x y
+   set full_name [get_object_name $input_ports]
+   foreach_in_collection end_pins [all_fanout -from $full_name -endpoints_only -view func_setup_ssgnp0p675v0c_cworstCCwT0c] {
+    set clock_list {}
+#    foreach my_clock [get_db [get_pins -of_objects [get_cells -of_objects [get_pins $end_pins]] -filter "is_clock == true"] .clocks] {
+#       set my_clock_fullname [get_db $my_clock .base_name]
+#       lappend clock_list $my_clock_fullname
+#    }
+
+    set non_data_pins { RESET SET CD WRSTN RB SDN SB E TE }
+
+    foreach end_pin $end_pins {
+        # obj_type here since some ports were found
+        if { [get_db $end_pin .obj_type ] eq "pin" } {
+            set base_pin_name [ get_db $end_pin .lib_pins.base_name ]
+            set clock_names [get_db [ get_db [get_db $end_pin .inst.pins. -if { .is_clock } ] .clocks -index { view func_setup_ssgnp0p675v0c_cworstCCwT0c } ] .base_name ]
+            foreach clk_name $clock_names {
+
+                if { [ lsearch -exact $banned_clk_list  $clk_name ]  < 0 } {
+                    if { [ get_db $end_pin .is_data ] eq "true" &&  [ lsearch -exact  $non_data_pins $base_pin_name ] < 0 && [get_db $end_pin .inst.is_macro ] ne "true" } {
+                        #lappend clock_list $clock_name
+                        # or get flops with clock
+                        #set flop_name [ get_db ...]
+                        puts $fp "[get_db $input_ports .name ] [ get_db $end_pin .name ] $clk_name x:${x} y:${y} "
+                    }
+                }
+            }
+
+        }
+  }
+ }
+}
+close $fp
+
+set fp [ open out_port_clocks.txt w ]
+
+foreach_in_collection port [all_outputs ] {
+    set full_name [get_object_name $port]
+    lassign [ lindex [ get_db $port .location ] 0 ] x y
+    foreach_in_collection end_pins [all_fanin -to $full_name -startpoints_only -view func_setup_ssgnp0p675v0c_cworstCCwT0c] {
+        set clock_list {}
+        foreach my_clock [get_db  -index { view func_setup_ssgnp0p675v0c_cworstCCwT0c } [get_pins -of_objects [get_cells -of_objects [get_pins $end_pins]] -filter "is_clock == true"] .clocks] {
+            set my_clock_fullname [get_db $my_clock .base_name]
+            if { [ lsearch -exact $banned_clk_list  $my_clock_fullname ]  < 0 && [get_db $end_pins .inst.is_macro ] ne "true"  } {
+                puts $fp "[get_db $port .name ] [get_db $end_pins .name ]  $my_clock_fullname x:${x} y:${y}"
+            }
+        }
+    }
+}
+close $fp
+
+
