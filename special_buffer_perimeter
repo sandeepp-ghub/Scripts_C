@@ -1,0 +1,19 @@
+mVar LIBCELL(obuff) BUFFD8BWP210H6P51CNODULVTLL
+mVar LIBCELL(ibuff) BUFFD4BWP210H6P51CNODULVTLL
+mVar LIBCELL(cbuff) CKBD6BWP210H6P51CNODULVTLL
+
+
+set buffering_ports [get_db ports .name *]
+encBufferIOs -ports $buffering_ports -direction output -datapath_buffer [mVar LIBCELL(obuff)] -clock_buffer [mVar LIBCELL(cbuff)]
+
+set buffering_ports [get_db ports .name ybus_in*]
+encBufferIOs -ports $buffering_ports -direction input -datapath_buffer [mVar LIBCELL(ibuff)] -clock_buffer [mVar LIBCELL(cbuff)]
+
+set buffering_ports [get_db ports .name dft_in*]
+encBufferIOs -ports $buffering_ports -direction input -datapath_buffer [mVar LIBCELL(ibuff)] -clock_buffer [mVar LIBCELL(cbuff)]
+
+set buffering_ports [get_db ports .name weight_up_y_in*]
+encBufferIOs -ports $buffering_ports -direction input -datapath_buffer [mVar LIBCELL(ibuff)] -clock_buffer [mVar LIBCELL(cbuff)]
+
+set buffering_ports [get_db ports .name clk]
+encBufferIOs -ports $buffering_ports -direction input -datapath_buffer [mVar LIBCELL(ibuff)] -clock_buffer [mVar LIBCELL(cbuff)]
