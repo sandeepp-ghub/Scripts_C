@@ -1,0 +1,60 @@
+
+
+set test_grps [get_db groups -if {.name==*occ_port*_test_logic_region}]
+puts "\n\n Cayman: These test groups found : $test_grps"
+
+foreach grp $test_grps {
+  if {[string match *WRCK* $grp] || [string match *ssn_bus_clock* $grp]} {
+    continue
+  } elseif {[string match *TCK* $grp]} { 
+    puts "\n\n Cayman: Modifying TCK test group region\n\n"   
+    set grp_members [get_db $grp .members]
+  
+    foreach memb $grp_members {
+      if {([string match *occ_control* $memb]) || ([string match *ssn_scan_host_* $memb])} {
+        puts "update_group -name $grp -delete -objs $memb"
+	update_group -name $grp -delete -objs $memb
+      } 
+     }  
+
+  } else {
+    puts "\n\n Cayman: Modifying functional clock test group region\n\n"  
+    set grp_members [get_db $grp .members]
+  
+    foreach memb $grp_members {
+      if {([string match *FIS* $memb]) || ([string match *udma* $memb])} {
+        puts "update_group -name $grp -delete -objs $memb"
+	update_group -name $grp -delete -objs $memb
+      } 
+     }    
+  
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
