@@ -1,0 +1,235 @@
+proc ::add_scb_diodes_left {num} {
+  set ant_cell "ANTENNABWP210H6P51CNODLVTLL"
+  set pin_cross_area 0.0004
+  set buf_patt "*_bufL_*"
+  set cld_patt "*_buf_*_group_*"
+  
+  set start_time [clock seconds]
+  
+  ::set_db edit_wire_drc_on 0
+  
+  set ant_w [expr {[::get_db [::get_db base_cells $ant_cell] .bbox.dx] + 0.051}]
+  
+  set uncon_ants 0
+  set ant_vias [list]
+  set mod_nets [list]
+  set num_diodes 0
+  set num_sbufs 0
+  foreach scb [::get_db insts -if {.base_cell.name==MRVCKS20*}] {
+    set onet [::get_db [::get_db $scb .pins -if {.direction==out}] .net]
+    if {$onet ne ""} {
+      set sb [::get_db $onet .load_pins -if {(.inst.name==$buf_patt || .inst.name==$cld_patt) && .inst.base_cell.name!=$ant_cell}]
+      if {[llength $sb] > 0} {
+        ::mortar::echo -text "Fixing [llength $sb] sector buffers on: [::get_db $onet .name]"
+        foreach b $sb {
+          ::mortar::echo -text "  Adding $num diodes: [lindex [::get_db $b .name] 0]"
+          
+          lassign [lindex [::get_db $b .location] 0] pin_x pin_y
+          set x_pos [expr {[::get_db $b .inst.bbox.ll.x] - $ant_w}]
+          if {[string match "*D24*" [::get_db $b .inst.base_cell.name]]} {
+            set x_pos [expr {$x_pos - 0.051}]
+          }
+          set y_pos [::get_db $b .inst.bbox.ll.y]
+          set orient [::get_db $b .inst.orient]
+          
+          set pin_x [expr {$pin_x - 0.03}]
+          set m2_ptr [::get_obj_in_area -obj_type wire -layer M2 -areas [list $pin_x $pin_y $pin_x $pin_y]]
+          if {[llength $m2_ptr] != 1} {
+            ::mortar::echo -warning -text "    Unable to find local M2 - ANTs will not be auto-connected."
+          }
+          
+          set uid 0
+          set added 0
+          while {$added < $num} {
+            set ant_name [lindex [::get_db $b .name] 0]_ANT_${uid}
+            if {![::mortar::exist_gate -name $ant_name]} {
+              ::mortar::create_gate -name $ant_name -lib_name $ant_cell
+              ::mortar::connect_pin -pin_name $ant_name/I -net_ptr $onet
+              ::mortar::move_gate -name $ant_name -x_coord $x_pos -y_coord $y_pos -orient $orient -status_fixed
+              
+              if {[llength $m2_ptr] != 1} {
+                ::create_marker -type uncon_ant -bbox [lindex [::get_db [::get_db insts $ant_name] .bbox] 0]
+                incr uncon_ants
+              } else {
+                set pin_rect [::get_transform_shapes -inst [get_db insts $ant_name] -local_pt [get_db [::get_db pins $ant_name/I] .base_pin.physical_pins.layer_shapes.shapes.rect]]
+                set m2_rect [::get_db $m2_ptr .rect]
+                if {[::mortar::__num_compare [::get_computed_shapes -output area $pin_rect AND $m2_rect] $pin_cross_area] < 0} {
+                  #Extend M2 to cover pin
+                  set m2_llx [::get_db $m2_ptr .rect.ll.x]
+                  set pin_llx [lindex [lindex $pin_rect 0] 0]
+                  
+                  ::mortar::echo -text "    Extending M2 segment for ANT pin: [expr {$pin_llx - $m2_llx}]"
+                  
+                  ::gui_deselect -all
+                  ::select_obj $m2_ptr
+                  ::edit_resize_routes -direction x -offset [expr {$pin_llx - $m2_llx}] -side low -no_connection 1 -keep_center_line 0
+                  ::gui_deselect -all
+                  
+                  set m2_ptr [::get_obj_in_area -obj_type wire -layer M2 -areas [list $pin_x $pin_y $pin_x $pin_y]]
+                }
+                
+                #Add via
+                set via_x [expr {$x_pos + 0.0935}]
+                set via_y [expr {$y_pos + 0.105}]
+                lappend ant_vias [list $via_x $via_y $onet [::get_db $m2_ptr .mask]]
+              }
+              
+              incr added
+            }
+            
+            set x_pos [expr {$x_pos - $ant_w}]
+            incr uid
+          }
+          
+          incr num_sbufs
+          incr num_diodes $num
+        }
+        lappend mod_nets $onet
+      }
+    }
+  }
+  set mod_nets [lsort -u $mod_nets]
+  
+  if {[llength $ant_vias] > 0} {
+    ::mortar::echo -text "Adding ANT vias..."
+    foreach via $ant_vias {
+      lassign $via via_x via_y via_net via_top_mask
+      set via_ptr [::create_via -via_def VIA12_1cut_BW20_UW20_BL170 -net $via_net -location [list $via_x $via_y] -status routed]
+      ::set_db $via_ptr .bottom_mask 2
+      ::set_db $via_ptr .top_mask $via_top_mask
+    }
+  }
+  
+  ::mortar::echo -text "Added $num_diodes diodes to $num_sbufs sector buffers on [llength $mod_nets] SCB nets, in [expr {[clock seconds] - $start_time}]s."
+  if {$uncon_ants > 0} {
+    ::mortar::echo -text "Unable to connect $uncon_ants ANTs automatically. See viol markers to make manual connection."
+  }
+  
+  return $mod_nets
+}
+
+proc ::scb_diodes_shift_welltaps {args} {
+  set ant_patt "*_ANT_*"
+  
+  set start_time [clock seconds]
+  
+  set shifts [list]
+  foreach scb [::get_db insts -if {.base_cell.name==MRVCKS20*}] {
+    set onet [::get_db [::get_db $scb .pins -if {.direction==out}] .net]
+    if {$onet ne ""} {
+      set sb [::get_db $onet .load_pins.inst -if {.name==$ant_patt}]
+      foreach ant $sb {
+        set welltap [::get_db [::get_obj_in_area -areas [::get_computed_shapes [::get_db $ant .bbox] SIZE -0.0255] -obj_type inst] *WELLTAP*]
+        if {[llength $welltap] == 1} {
+          #Shift
+          ::mortar::move_gate -ptr $welltap -x_coord [expr {[::get_db $ant .bbox.ll.x] - [::get_db $welltap .bbox.dx]}]
+          lappend shifts $welltap
+        }
+      }
+    }
+  }
+  
+  set shifts [lsort -u $shifts]
+  ::mortar::echo -text "Shifted [llength $shifts] overlapping welltaps in [expr {[clock seconds] - $start_time}]s."
+
+  return $shifts
+}
+
+proc ::add_scb_diodes {num} {
+  set ant_cell "ANTENNABWP210H6P51CNODLVTLL"
+  set buf_patt "*_bufL_*"
+  set cld_patt "*_buf_*_group_*"
+  
+  set start_time [clock seconds]
+  
+  set mod_nets [list]
+  set num_diodes 0
+  set num_sbufs 0
+  foreach scb [::get_db insts -if {.base_cell.name==MRVCKS20*}] {
+    set onet [::get_db [::get_db $scb .pins -if {.direction==out}] .net]
+    if {$onet ne ""} {
+      set sb [::get_db $onet .load_pins -if {.inst.name==$buf_patt || .inst.name==$cld_patt}]
+      if {[llength $sb] > 0} {
+        ::mortar::echo -text "Fixing [llength $sb] sector buffers on: [::get_db $onet .name]"
+        foreach b $sb {
+          ::mortar::echo -text "  Adding $num diodes: [lindex [::get_db $b .name] 0]"
+          lassign [lindex [::get_db $b .location] 0] pin_x pin_y
+          
+          set uid 0
+          set added 0
+          while {$added < $num} {
+            set ant_name [lindex [::get_db $b .name] 0]_ANT_${uid}
+            if {![::mortar::exist_gate -name $ant_name]} {
+              ::mortar::create_gate -name $ant_name -lib_name $ant_cell
+              ::mortar::connect_pin -pin_name $ant_name/I -net_ptr $onet
+              ::mortar::move_gate -name $ant_name -x_coord $pin_x -y_coord $pin_y -status_placed
+              incr added
+            }
+            incr uid
+          }
+          
+          incr num_sbufs
+          incr num_diodes $num
+        }
+        lappend mod_nets $onet
+      }
+    }
+  }
+  set mod_nets [lsort -u $mod_nets]
+  
+  ::mortar::echo -text "Added $num_diodes diodes to $num_sbufs sector buffers on [llength $mod_nets] SCB nets, in [expr {[clock seconds] - $start_time}]s."
+  
+  return $mod_nets
+}
+
+proc ::fix_scb_diodes {args} {
+  set ant_patt "*_ANT_*"
+  
+  set start_time [clock seconds]
+  
+  set fixed_diodes [list]
+  foreach scb [::get_db insts -if {.base_cell.name==MRVCKS20*}] {
+    set onet [::get_db [::get_db $scb .pins -if {.direction==out}] .net]
+    if {$onet ne ""} {
+      set sb [::get_db $onet .load_pins.inst -if {.name==$ant_patt && .place_status==placed}]
+      foreach ant $sb {
+        ::set_db $ant .place_status fixed
+        lappend fixed_diodes $ant
+      }
+    }
+  }
+  
+  ::mortar::echo -text "Fixed-in-place [llength $fixed_diodes] in [expr {[clock seconds] - $start_time}]s."
+  
+  return $fixed_diodes
+}
+
+proc ::eco_route_scb {nets} {
+  set_db [get_db $nets .wires -if {.status==routed}] .status fixed
+  set_db [get_db $nets .vias -if {.status==routed}] .status fixed
+  
+  gui_deselect -all
+  select_obj $nets
+  write_def scb_pre_route.def -selected -no_core_cells -no_special_net -no_std_cells -no_tracks -no_virtual_trim -routing
+  gui_deselect -all
+  
+  #set_db route_design_selected_net_only true
+  #eval_legacy {
+  #  setNanoRouteMode -dbExpEnforceFrozenEco true
+  #  setNanoRouteMode -quiet -routeWithEco true
+  #  setNanoRouteMode -quiet -routeEcoOnlyInLayers 1:5
+  #}
+  
+  set_db $nets .skip_routing false
+  set_db $nets .skip_antenna_repair true
+  route_eco
+  set_db $nets .skip_routing true
+  
+  #set_db route_design_selected_net_only false
+  #gui_deselect -all
+  
+  gui_deselect -all
+  select_obj $nets
+  write_def scb_post_route.def -selected -no_core_cells -no_special_net -no_std_cells -no_tracks -no_virtual_trim -routing
+  gui_deselect -all
+}
