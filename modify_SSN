@@ -1,0 +1,51 @@
+
+puts "\n\nMDA: Modifying auto-created test logic groups.\n\n"
+
+
+puts "\n\nMDA: First, resize the TCK, CCLK, and WRCK regions to be inboard of the CWGs.\n\n"
+
+# tweak the TCK region  m1dpe_sdma_wrap_occ_port_TCK_test_logic_region
+set_db [get_db groups m1dpe_sdma_wrap_occ_port_TCK_test_logic_region] .rects {{392. 24. 442. 54.}}
+
+# tweak the CCLK region   m1dpe_sdma_wrap_occ_port_CCLK_test_logic_region
+set_db [get_db groups m1dpe_sdma_wrap_occ_port_CCLK_test_logic_region] .rects {{395. 24. 435. 50.}}
+
+# tweak the  WRCK  region     m1dpe_sdma_wrap_occ_port_WRCK_test_logic_region
+set_db [get_db groups m1dpe_sdma_wrap_occ_port_WRCK_test_logic_region] .rects {{412. 24. 423. 34.}}
+
+
+puts "\n\nMDA: Now modify/correct the auto-created ssn_in group.\n\n"
+set gname m1dpe_sdma_wrap_occ_port_ssn_bus_clock_in_test_logic_region
+
+set_db [get_db groups $gname] .rects {{805. 230. 836. 270.}}
+
+# Remove all set of return_bus pipes from the forward bus group and then add in the correct/last one
+catch {update_group -name $gname -delete -objs sdma_wrap_edtocc_tessent_ssn_pipe_r1_inst/*}
+catch {update_group -name $gname -delete -objs sdma_wrap_edtocc_tessent_ssn_pipe_r2_inst/*}
+catch {update_group -name $gname -delete -objs sdma_wrap_edtocc_tessent_ssn_pipe_r3_inst/*}
+catch {update_group -name $gname -delete -objs sdma_wrap_edtocc_tessent_ssn_pipe_r4_inst/*}
+catch {update_group -name $gname -delete -objs sdma_wrap_edtocc_tessent_ssn_pipe_r5_inst/*}
+
+catch {update_group -name $gname -add -objs sdma_wrap_edtocc_tessent_ssn_pipe_r5_inst/*}
+
+
+puts "\n\nMDA: Now modify/correct the auto-created ssn_out group.\n\n"
+set gname m1dpe_sdma_wrap_occ_port_ssn_bus_clock_out_test_logic_region
+
+# Resize this region, it needs to be larger since we're going to add stuff to it
+set_db [get_db groups $gname] .rects {{1. 235. 20. 260.}}
+
+
+# Now remove the first set of forward_bus pipe flops from the master group
+#catch {update_group -name $gname -delete -objs sdma_wrap_edtocc_tessent_ssn_receiver_1x_pipe_r1_inst/*}
+
+# Remove all set of return_bus pipes from the master group and then add in the correct one
+catch {update_group -name $gname -delete -objs sdma_wrap_edtocc_tessent_ssn_fifo_f1_inst/*}
+catch {update_group -name $gname -delete -objs sdma_wrap_edtocc_tessent_ssn_pipe_f2_inst/*}
+catch {update_group -name $gname -delete -objs sdma_wrap_edtocc_tessent_ssn_pipe_f3_inst/*}
+catch {update_group -name $gname -delete -objs sdma_wrap_edtocc_tessent_ssn_pipe_f4_inst/*}
+
+catch {update_group -name $gname -add -objs sdma_wrap_edtocc_tessent_ssn_pipe_f4_inst/*}
+
+
+
