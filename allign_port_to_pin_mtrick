@@ -1,0 +1,113 @@
+
+proc get_port_load_pins { port } {
+    return [get_db port:$port .net.loads] ;
+}
+
+proc get_port_driver_pin { port } {
+    return [get_db port:$port .net.driver_pins] ;
+}
+
+proc get_port_internal_pin_layer { port } {
+    if { [get_db port:${port} .direction] == "in" } {
+	return [get_db port:$port .net.loads.layer.route_index] ;
+    } else {
+	return [get_db port:$port .net.driver_pins.layer.route_index] ;
+    }
+}
+
+proc get_pin_x { pin } {
+    set objtype [get_db ${pin} .obj_type] ;
+    if { (${objtype} == "port" ) || (${objtype} == "pin" ) } {
+	return [lindex [lindex [get_db ${pin} .location] 0] 0] ;
+    } else {
+	puts "Error: get_pin_x expected port or pin but got ${objtype} ${pin}." ;
+    }
+}
+
+proc get_pin_y { pin } {
+    set objtype [get_db ${pin} .obj_type] ;
+    if { (${objtype} == "port" ) || (${objtype} == "pin" ) } {
+	return [lindex [lindex [get_db ${pin} .location] 0] 1] ;
+    } else {
+	puts "Error: get_pin_y expected port or pin but got ${objtype} ${pin}." ;
+    }
+}
+
+proc delete_NSEW_pin_guides {} {
+    mortar::echo -info -timestamp -text "Delete old pin groups." ;
+    delete_pin_guides -all
+    delete_pin_groups -pin_group west_ports
+    delete_pin_groups -pin_group east_ports
+    delete_pin_groups -pin_group south_ports
+    delete_pin_groups -pin_group north_ports
+}
+
+proc align_port_to_pin_y {port} {
+    ::mortar::echo -timestamp -info -debug 1 -text "Starting align_port_to_pin_y." ;
+    set x [lindex [lindex [get_db port:${port} .location] 0] 0] ;
+    ::mortar::echo -timestamp -info -debug 1 -text "Port x=${x}" ;
+    if { [get_db port:${port} .direction] == "in" } {
+	set pin [get_db port:$port .net.loads] ;
+	if {[llength ${pin}] != 1 } {
+	    ::mortar::echo -timestamp -error -text "Not aligning ${port}. Expected 1 sink. Sink=${pin}." ;
+	    return ;
+	}
+	::mortar::echo -timestamp -info -debug 1 -text "Sink=${pin}" ;
+    } else {
+	set pin [get_db port:$port .net.driver_pins] ;
+	if {[llength ${pin}] != 1 } {
+	    ::mortar::echo -timestamp -error -text "Not aligning ${port}. Expected 1 driver. Driver=${pin}." ;
+	    return ;
+	}
+	::mortar::echo -timestamp -info -debug 1 -text "Driver=${pin}" ;
+    }
+    set y [get_pin_y ${pin}] ;
+    ::mortar::echo -timestamp -info -debug 1 -text "Port y=${y}" ;
+    set layer [get_port_internal_pin_layer ${port}] ;
+    ::mortar::echo -timestamp -info -debug 1 -text "Layer=${layer}" ;
+    if { ( $y < 1.0 ) || ( $y > 4740 ) } {
+	puts "Y for $port is out of range, $y.  Expected value between 10 and 4250." ;
+    } else {
+	puts "edit_pin -pin ${port} -assign $x $y -layer ${layer}";
+	edit_pin -pin ${port} -assign $x $y -layer ${layer} ;
+    }
+}
+
+proc align_port_to_pin_x {port} {
+    set y [lindex [lindex [get_db port:${port} .location] 0] 1] ;
+    set net [get_db port:${port} .net] ;
+    if { [get_db port:$port .direction] == "in" } {
+	set pin [get_db port:$port .net.loads] ;
+	if {[llength ${pin}] != 1 } {
+	    ::mortar::echo -timestamp -error -text "Not aligning ${port}. Expected 1 sink. Sink=${pin}." ;
+	    return ;
+	}
+    } else {
+	set pin [get_db port:$port .net.driver_pins] ;
+	if {[llength ${pin}] != 1 } {
+	    ::mortar::echo -timestamp -error -text "Not aligning ${port}. Expected 1 driver. Driver=${pin}." ;
+	    return ;
+	}
+    }
+    set x [get_pin_x ${pin}] ;
+    set layer [ get_port_internal_pin_layer ${port}] ;
+    if { ( $x < 9.9 ) || ( $x > 4930 ) } {
+	puts "X is out of range.  Expected value between 10 and 4930." ;
+    } else {
+	puts "edit_pin -pin ${port} -assign $x $y -layer ${layer}";
+	edit_pin -pin ${port} -assign $x $y -layer ${layer} ;
+    }
+}
+
+proc expand_x_port_depth { x depth }  {
+    # 4930.527
+    foreach p [ get_db [get_db ports -expr { [ lindex $obj(.location) 0] == ${x} }] ] {
+	edit_pin -pin ${p} -pin_depth ${depth}
+    }
+}
+
+
+
+
+
+
