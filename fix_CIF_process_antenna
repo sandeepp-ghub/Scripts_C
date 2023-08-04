@@ -1,0 +1,179 @@
+#df::process_antenna_report -nets  $scbnets -filename /proj/cayman/extvols/wa_004/dhuu/tcl/cifs/sengine_fabric_top/2baytop1baybottom/010823/reports/t -antenna_cell ANTENNABWP210H6P51CNODLVTLL
+
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_axi_gated_NET_1_1) 81
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_axi_gated_NET_2_1) 87
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_axi_gated_NET_2_1_2) 25
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_axi_gated_NET_2_1_3) 31
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_axi_gated_NET_2_1_4) 30
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_axi_gated_NET_3_1) 18
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_axi_occ_out_NET_1_1) 86
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_axi_occ_out_NET_2_1) 2
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_axi_occ_out_NET_3_1) 314
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_core_act_NET_1_1) 5
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_core_dve_gated_NET_1_1) 88
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_core_dve_gated_NET_2_1) 36
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_core_pe_NET_2_1) 2
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_core_pe_NET_2_1_1) 34
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_core_pe_NET_2_1_2) 33
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_core_pe_NET_3_1) 35
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_mem_NET_1_1) 32
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_mem_NET_1_1_10) 31
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_mem_NET_1_1_10a) 15
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_mem_NET_2_1) 67
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_mem_NET_3_1) 50
+# set ::df::ant_fixer::required_antenna_count(CIF_clk_pe_NET_2_1) 44
+
+
+set sinks1 {
+  CIF_clk_axi_gated_BUF_2_1_3
+  CIF_clk_axi_gated_BUF_2_1_4
+  CIF_clk_axi_gated_bufL_2
+  CIF_clk_axi_gated_bufL_3
+  CIF_clk_axi_gated_bufL_4
+  CIF_clk_axi_gated_bufL_5
+  CIF_clk_core_dve_gated_sector_buf
+  CIF_clk_core_pe_bufL_1
+  CIF_clk_core_pe_bufL_2
+  CIF_clk_core_pe_bufL_3
+  CIF_clk_mem_bufL_5
+  CIF_clk_mem_bufL_10
+  CIF_clk_mem_BUF_1_1_10
+  CIF_clk_mem_bufL_6
+  CIF_clk_mem_bufL_8
+  CIF_clk_mem_bufL_3
+}
+
+foreach c ${sinks1} {
+  if ![mortar::exist_gate -name ${c}_pa] {mortar::create_gate -name ${c}_pa -lib_name MRVLSPBUFD96BWP210H6P51CNODULVT}
+  set p ${c}_pa/I
+  set n [get_db [get_db pins ${c}/I] .net.name]
+  puts "Connecting $p to $n"
+  mortar::disconnect_pin -pin_name ${c}_pa/I
+  mortar::connect_pin    -pin_name ${c}_pa/I -net_name $n
+  lassign [lindex [get_db [get_db insts $c] .location] 0] x y
+  mortar::move_gate -name ${c}_pa -x_coord $x -y_coord $y
+}
+
+set uniq_sink {
+  DFT_ICG_32211clock_and
+}
+foreach c ${uniq_sink} {
+  if ![mortar::exist_gate -name ${c}_pa] {mortar::create_gate -name ${c}_pa -lib_name MRVLSPBUFD96BWP210H6P51CNODULVT}
+  set p ${c}_pa/I
+  set n [get_db [get_db pins ${c}/A1] .net.name]
+  puts "Connecting $p to $n"
+  mortar::disconnect_pin -pin_name ${c}_pa/I
+  mortar::connect_pin    -pin_name ${c}_pa/I -net_name $n
+  lassign [lindex [get_db [get_db insts $c] .location] 0] x y
+  mortar::move_gate -name ${c}_pa -x_coord $x -y_coord $y
+}
+
+set sinks2 {
+  CIF_clk_axi_gated_bufL_7
+  CIF_clk_axi_occ_out_bufL_7
+  CIF_clk_axi_occ_out_bufL_6
+  CIF_clk_axi_occ_out_bufL_5
+  CIF_clk_core_dve_gated_BUF_2_1
+}
+
+foreach c ${sinks2} {
+  for {set i 1} {$i<=2} {incr i} {
+    if ![mortar::exist_gate -name ${c}_pa_${i}] {mortar::create_gate -name ${c}_pa_${i} -lib_name MRVLSPBUFD96BWP210H6P51CNODULVT}
+    set p ${c}_pa_${i}/I
+    set n [get_db [get_db pins ${c}/I] .net.name]
+    puts "Connecting $p to $n"
+    mortar::disconnect_pin -pin_name ${c}_pa_${i}/I
+    mortar::connect_pin    -pin_name ${c}_pa_${i}/I -net_name $n
+    lassign [lindex [get_db [get_db insts $c] .location] 0] x y
+    mortar::move_gate -name ${c}_pa_${i} -x_coord $x -y_coord $y
+  }
+}
+
+
+# ::mortar::move_gate -x_coord          5691.651 -y_coord           991.200 -orient         r0         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_13_pa -status_fixed
+# ::mortar::move_gate -x_coord          3508.647 -y_coord          2719.920 -orient         r0         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_1_pa -status_fixed
+# ::mortar::move_gate -x_coord         12180.687 -y_coord           952.140 -orient         r0         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_8_pa -status_fixed
+# ::mortar::move_gate -x_coord          5725.311 -y_coord           953.820 -orient         r0         -name           CIF_sengine_fabric_top_clk_xbar_SCB_buf_4_1_pa -status_fixed
+# ::mortar::move_gate -x_coord          3722.235 -y_coord          1436.820 -orient         r0         -name           CIF_sengine_fabric_top_clk_xbar_SCB_buf_3_1_pa -status_fixed
+# ::mortar::move_gate -x_coord          8107.827 -y_coord           920.640 -orient         r0         -name           CIF_sengine_fabric_top_clk_xbar_sector_port_buf_5_1_pa -status_fixed
+
+
+set 2pa {
+  2 CIF_clk_axi_occ_out_bufL_3
+  5 CIF_clk_core_act_sector_buf
+  2 CIF_clk_core_pe_BUF_2_1_2
+}
+
+foreach "count c" ${2pa}  {
+  for {set i 1} {$i<=$count} {incr i} {
+    if ![mortar::exist_gate -name ${c}_pa_${i}] {mortar::create_gate -name ${c}_pa_${i} -lib_name  ANTENNABWP210H6P51CNODLVTLL }
+    set p ${c}_pa_${i}/I
+    set n [get_db [get_db pins ${c}/I] .net.name]
+    puts "Connecting $p to $n"
+    mortar::disconnect_pin -pin_name ${c}_pa_${i}/I
+    mortar::connect_pin    -pin_name ${c}_pa_${i}/I -net_name $n
+    lassign [lindex [get_db [get_db insts $c] .location] 0] x y
+    mortar::move_gate -name ${c}_pa_${i} -x_coord $x -y_coord [expr $y - 1]
+  }
+}
+
+
+
+# ::mortar::move_gate -x_coord          7517.451 -y_coord           950.250 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_11_pa_1 -status_placed
+# ::mortar::move_gate -x_coord          7517.247 -y_coord           950.250 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_11_pa_2 -status_placed
+# ::mortar::move_gate -x_coord          7652.091 -y_coord          2776.830 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_12_pa_1 -status_placed
+# ::mortar::move_gate -x_coord          7651.887 -y_coord          2776.830 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_12_pa_2 -status_placed
+# ::mortar::move_gate -x_coord         10595.811 -y_coord          2899.470 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_3_pa_1 -status_placed
+# ::mortar::move_gate -x_coord         10595.505 -y_coord          2899.470 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_3_pa_2 -status_placed
+# ::mortar::move_gate -x_coord          8406.687 -y_coord          3363.570 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_4_pa_1 -status_placed
+# ::mortar::move_gate -x_coord          8406.381 -y_coord          3363.570 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_4_pa_2 -status_placed
+# ::mortar::move_gate -x_coord          5691.651 -y_coord           991.200 -orient         r0         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_13_pa -status_fixed
+# ::mortar::move_gate -x_coord          7213.899 -y_coord          3379.950 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_5_pa_1 -status_placed
+# ::mortar::move_gate -x_coord          3508.647 -y_coord          2719.920 -orient         r0         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_1_pa -status_fixed
+# ::mortar::move_gate -x_coord          7213.593 -y_coord          3379.950 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_5_pa_2 -status_placed
+# ::mortar::move_gate -x_coord         12180.687 -y_coord           952.140 -orient         r0         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_8_pa -status_fixed
+# ::mortar::move_gate -x_coord          6428.703 -y_coord          3383.310 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_6_pa_1 -status_placed
+# ::mortar::move_gate -x_coord          3722.235 -y_coord          1436.820 -orient         r0         -name           CIF_sengine_fabric_top_clk_xbar_SCB_buf_3_1_pa -status_fixed
+# ::mortar::move_gate -x_coord          6428.295 -y_coord          3383.310 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_6_pa_2 -status_placed
+# ::mortar::move_gate -x_coord          5725.311 -y_coord           953.820 -orient         r0         -name           CIF_sengine_fabric_top_clk_xbar_SCB_buf_4_1_pa -status_fixed
+# ::mortar::move_gate -x_coord          4937.259 -y_coord          2930.970 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_7_pa_1 -status_placed
+# ::mortar::move_gate -x_coord          8107.827 -y_coord           920.640 -orient         r0         -name           CIF_sengine_fabric_top_clk_xbar_sector_port_buf_5_1_pa -status_fixed
+# ::mortar::move_gate -x_coord          4937.055 -y_coord          2930.970 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_7_pa_2 -status_placed
+# ::mortar::move_gate -x_coord          8724.315 -y_coord           951.090 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_10_pa_1 -status_placed
+# ::mortar::move_gate -x_coord         10655.175 -y_coord           952.770 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_9_pa_1 -status_placed
+# ::mortar::move_gate -x_coord          8724.111 -y_coord           951.090 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_10_pa_2 -status_placed
+# ::mortar::move_gate -x_coord         10654.971 -y_coord           952.770 -orient         mx         -name           CIF_sengine_fabric_top_test_clock_sector_rlm_buf_20_9_pa_2 -status_placed
+
+
+
+
+
+
+
+
+
+if {0} {
+
+ set scb  [get_db insts -if {.base_cell.name==MRV* && .name==CIF_*_BUF_*}]
+ set_db $scb .place_status fixed
+ set_db $scb .pins.net.wires.status fixed
+ set_db $scb .pins.net.vias.status fixed
+ set_db [get_db $scb .pins */Z] .net.dont_touch true
+ set_db [get_db $scb .pins */Z] .net.skip_routing true
+
+}
+
+
+set check 0
+if {$check==1} {
+  set scbnets [get_db nets .name CIF_*_NET_*]
+  sn $scbnets
+  df::process_antenna_report -nets  $scbnets -filename ./cifnets_pa.reports -antenna_cell ANTENNABWP210H6P51CNODLVTLL
+}
+
+
+
+
+
+
+
