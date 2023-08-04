@@ -1,0 +1,20 @@
+set_db eco_batch_mode false
+set_db eco_honor_dont_touch false
+set_db eco_honor_dont_use false
+set_db eco_update_timing false
+set_db eco_refine_place false
+set_db eco_batch_mode true
+
+set rlist [get_db insts *XBUS_OUTPUT_REG_XDATA_OUTPUT*dout_reg*]
+
+foreach reg $rlist {
+ set cell [get_db $reg .base_cell.name]
+ set idx [string last NOD $cell]
+ set bcell [ string range $cell 0 [expr [string last NOD $cell] +2] ]
+ set ncell ${bcell}ULVT
+ puts "$cell $ncell"
+# puts "eco_update_cell -insts [get_db $reg .name ] -cells $ncell"
+ eco_update_cell -insts [get_db $reg .name] -cells $ncell
+}
+
+set_db eco_batch_mode false
