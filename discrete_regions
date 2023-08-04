@@ -1,0 +1,32 @@
+# u_sdma_dre/u_sdma_rob/u_sms_mem_ctrl/i_SMS_proc/
+# u_sdma_dre/u_udma/u_ap_udma_top_wrapper/ap_udma_top/u_sms_mem_ctrl/i_SMS_proc
+# u_sdma_dre/DRE_u_dre/u_dre_buffer/u_sms_mem_ctrl/i_SMS_proc/  
+# u_sdma_dre/CCE_u_cce/u_cce_mem_wrapper/u_sms_mem_ctrl/i_SMS_proc/
+
+#
+#
+
+catch {delete_obj group:central_clock }
+catch {delete_obj group:rob_sms }
+
+catch {delete_obj group:cce_sms }
+catch {delete_obj group:fis_sms }
+
+
+create_group -name central_clock -type region -rects {420. 430. 450. 460.}
+create_group -name rob_sms -type region -rects {700. 200. 730. 230.}
+
+create_group -name cce_sms -type region -rects {380. 730. 410. 760.}
+create_group -name fis_sms -type region -rects {340. 80. 370. 110. }
+
+update_group -name central_clock -add -objs sdma_arith/u_sdma_arith/u_udma/u_ap_udma_top_wrapper/ap_udma_top/u_sms_mem_ctrl/i_SMS_proc
+update_group -name central_clock -add -objs sdma_arith/u_sdma_arith/clk_gate_wrapper/clk_gate_logic/U_ICG
+update_group -name central_clock -add -objs sdma_arith/u_sdma_arith/clk_gate_wrapper_apb/clk_gate_logic/U_ICG
+
+
+update_group -name rob_sms -add -objs sdma_arith/u_sdma_arith/u_sdma_rob/u_sms_mem_ctrl/i_SMS_proc
+
+update_group -name cce_sms -add -objs sdma_arith/u_sdma_arith/CCE_u_cce/u_cce_mem_wrapper/u_sms_mem_ctrl/i_SMS_proc
+update_group -name fis_sms -add -objs sdma_arith/u_sdma_arith/u_fis_cs_wrapper/FIS_SPROT_GEN_0__u_fis_sprot/u_sms_mem_ctrl/i_SMS_proc
+
+
