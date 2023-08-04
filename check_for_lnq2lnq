@@ -1,0 +1,9 @@
+foreach latch_out [get_db [get_db [get_db insts eco_timing_* -if {.is_latch}] .pins -if {.direction==out}] .name] { 
+  foreach in_pin [get_object_name [all_fanout -from [get_pins $latch_out] -endpoints_only]] {
+    set p [get_db pins $in_pin]
+    if {$p ne "" && [get_db $p .inst.is_latch]} {
+#      puts "L2L Path: $latch_out -> $latch_in"
+       puts "L2L Path: $latch_out -> $p"
+    }
+  }
+}
