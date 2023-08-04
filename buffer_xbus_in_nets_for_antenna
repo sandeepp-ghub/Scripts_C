@@ -1,0 +1,65 @@
+
+set xbn_list {
+FE_PSN8978_xbus_in_14870_NencIOBuf
+FE_OCPN170808_xbus_in_4364_NencIOBuf
+FE_OFN17315_xbus_in_33587_NencIOBuf
+FE_OFN8990_xbus_in_21133_NencIOBuf
+FE_OFN6077_xbus_in_16720_NencIOBuf
+FE_OFN13401_xbus_in_27752_NencIOBuf
+FE_OFN17591_xbus_in_33906_NencIOBuf
+FE_OFN17586_xbus_in_33901_NencIOBuf
+FE_OFN17315_xbus_in_33587_NencIOBuf
+FE_OFN16251_xbus_in_31924_NencIOBuf
+FE_OFN16245_xbus_in_31918_NencIOBuf
+FE_OFN16173_xbus_in_31819_NencIOBuf
+FE_OFN14822_xbus_in_29835_NencIOBuf
+FE_OFN13313_xbus_in_27637_NencIOBuf
+FE_OFN8990_xbus_in_21133_NencIOBuf
+FE_OFN6501_xbus_in_17282_NencIOBuf
+FE_OFN6077_xbus_in_16720_NencIOBuf
+FE_OFN134116_xbus_in_31984_NencIOBuf
+FE_OFN13401_xbus_in_27752_NencIOBuf
+FE_PSN9630_FE_OFN10414_xbus_in_23312_NencIOBuf
+FE_OFN6442_xbus_in_17196_NencIOBuf
+FE_OFN29106_xbus_in_50611_NencIOBuf
+FE_OFN20467_xbus_in_38077_NencIOBuf
+FE_OFN29134_xbus_in_50663_NencIOBuf
+FE_OFN29106_xbus_in_50611_NencIOBuf
+FE_OFN29102_xbus_in_50605_NencIOBuf
+FE_OFN27790_xbus_in_48575_NencIOBuf
+FE_OFN26388_xbus_in_46539_NencIOBuf
+FE_OFN20467_xbus_in_38077_NencIOBuf
+FE_OFN33839_xbus_in_59158_NencIOBuf
+FE_OFN33839_xbus_in_59158_NencIOBuf
+FE_PSN9657_FE_OFN33725_xbus_in_58941_NencIOBuf
+FE_OFN33839_xbus_in_59158_NencIOBuf
+FE_OFN33810_xbus_in_59099_NencIOBuf
+FE_PSN9657_FE_OFN33725_xbus_in_58941_NencIOBuf
+FE_OFN33839_xbus_in_59158_NencIOBuf
+FE_OFN36010_xbus_in_63281_NencIOBuf
+FE_OFN36010_xbus_in_63281_NencIOBuf
+FE_OFN36004_xbus_in_63272_NencIOBuf
+}
+
+set cnt 0
+
+foreach net $xbn_list {
+
+  set nloads [get_db [get_db nets $net] .loads]
+  puts $net
+#  puts $nloads
+  foreach load $nloads {
+    set load_cell [get_db $load .cell_name]
+    
+    if {[string match ANTDI* $load_cell]} {
+       set linst [get_db $load .inst.name]
+#       puts "Delete $linst "
+#       mortar::disconnect_pin -pin_name ${linst}/I
+#       mortar::delete_gate -name ${linst}
+    }
+
+  }
+
+  catch {eco_add_repeater -net $net -relative_distance_to_sink 0.2 -cells BUFFD4BWP210H6P51CNODULVT}
+
+}
