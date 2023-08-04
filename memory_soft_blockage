@@ -1,0 +1,36 @@
+proc blockMemChannels { channelWidth  } {
+      set mem [get_db insts -if { .is_macro==true }  ]
+      delete_obj PB*_channel
+      foreach one $mem {
+
+             set orient [get_db $one .orient ]
+             if { [regexp {my} $orient ] } {
+	         
+	         set bbox [get_db [get_db $one] .bbox]
+		 
+		 set x [lindex [lindex $bbox 0] 2]
+	         set y [lindex [lindex $bbox 0] 1]
+		 
+                 set x1 $x
+                 set y1 $y
+		 
+                 set x2 [expr $x1 + $channelWidth]
+		 
+                 set y2 [lindex [lindex $bbox 0] 3]
+		 
+             } elseif [regexp {r0} $orient ] {
+	       #  puts "R0"
+                 set x [get_db $one .location.x ]
+                 set y [get_db $one .location.y ]	     
+                 set x1 [expr $x  - $channelWidth]
+                 set y1 $y
+                 set x2 [expr $x1 + $channelWidth ]
+                 set y2 [expr $y1 + [get_db $one .bbox.dy ] ]
+		 
+             }
+	     puts "Creating blockage for $one at $x1, $y1, $x2, $y2"
+             create_place_blockage -type soft -name PB_[get_db $one .name ]_channel -rects "$x1 $y1 $x2 $y2"
+	     
+	    # break
+      }
+}
