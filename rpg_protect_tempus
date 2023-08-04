@@ -1,0 +1,45 @@
+
+proc reinforce_pg_new {bbox_file} {
+#check_place
+#mdc::check_drc -design_state postroute
+
+
+set PWD [exec pwd]
+set_multi_cpu_usage -local_cpu 16
+time_design -report_dir report -post_route -expanded_views  -report_prefix time_design_baseline
+time_design -hold -report_dir report -post_route -expanded_views  -report_prefix time_design_baseline
+#check_drc -limit 0 -out_file check_drc.pre_rpg
+
+
+#COMMAND to AUGMENT PG##----------
+set PWD [exec pwd]
+set_db generate_special_via_ignore_drc false
+eval_legacy {source /mrvl2g/cayman_extvol03/cayman/cayman/wa_003/ngummi/impl/tpb_array_tile.1.0A/reinforce_pg/run_auto_reinforce_pg_v15_mrvl.tcl}
+
+eval_legacy "run_auto_reinforce_pg \
+-reinforce_pg_nets {VDD VSS} \
+-reinforce_pg_uda  PGA_dynamicIR_fix \
+-reinforce_pg_boxes_file $bbox_file \
+-reinforce_pg_honor_critical_paths true \
+-reinforce_pg_cleanup_drc true \
+-reinforce_pg_max_layer M14 \
+-reinforce_pg_user_pitch_factor 4 \
+"
+
+check_drc -limit 0 -out_file check_drc.post_rpg
+#time_design -report_dir report -post_route -expanded_views  -report_prefix time_design_after_reinforce_pg
+#time_design -hold -report_dir report -post_route -expanded_views  -report_prefix time_design_after_reinforce_pg
+
+
+cd $PWD
+
+#check_place
+#mdc::check_drc -design_state postroute
+
+}
+
+
+###bbox_file format
+#1.632 1.05 87.465 133.35
+#50 100 75 200
+
