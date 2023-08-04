@@ -1,0 +1,44 @@
+
+set srcless_net_list {  \
+tessent_filler_net_ts1[7]  \
+tessent_filler_net_ts1[8]  \
+tessent_filler_net_ts1[9]  \
+tessent_filler_net_ts1[10] \
+tessent_filler_net_ts1[11] \
+tessent_filler_net_ts1[12] \
+tessent_filler_net_ts1[13] \
+tessent_filler_net_ts1[14] \
+tessent_filler_net_ts1[15] \
+tessent_filler_net_ts1[16] \
+tessent_filler_net_ts1[17] \
+tessent_filler_net_ts1[6]  \
+tessent_filler_net_ts1[5]  \
+tessent_filler_net_ts1[4]  \
+tessent_filler_net_ts1[3]  \
+tessent_filler_net_ts1[2] \
+tessent_filler_net_ts1[1]  \
+tessent_filler_net_ts1[0]  \
+tpb_psum_combine_tile_i31n106271_bypass_scan_bus_in_367_  \
+tpb_psum_combine_tile_i31n106210_bypass_scan_bus_in_306_ \
+tpb_psum_combine_tile_i31n106149_bypass_scan_bus_in_245_ \
+tpb_psum_combine_tile_i31n106088_bypass_scan_bus_in_184_ \
+tpb_psum_combine_tile_i31n106027_bypass_scan_bus_in_123_ \
+tpb_psum_combine_tile_i31n105965_bypass_scan_bus_in_61_ \
+tpb_array_xbus_pre_tile_i31n52155_bypass_scan_bus_in_399_ \
+tpb_array_xbus_pre_tile_i31n52075_bypass_scan_bus_in_319_ \
+tpb_array_xbus_pre_tile_i31n51995_bypass_scan_bus_in_239_ \
+tpb_array_xbus_pre_tile_i31n51915_bypass_scan_bus_in_159_ \
+tpb_array_xbus_pre_tile_i31n51835_bypass_scan_bus_in_79_ \
+}
+
+foreach net $srcless_net_list {
+  set sload [get_db [get_db nets $net] .loads]
+  set slx   [lindex [lindex [get_db [get_db nets $net] .loads.location] 0] 0]
+  set sly   [lindex [lindex [get_db [get_db nets $net] .loads.location] 0] 1]
+
+  puts "$net at  $slx, $sly"
+  mortar::create_gate -name tilo_${net} -lib_name mnd_dtielo
+  mortar::connect_pin -pin_name tilo_${net}/ZN -net_name $net
+  place_inst tilo_${net} $slx $sly
+
+}
