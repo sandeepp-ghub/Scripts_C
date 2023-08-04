@@ -1,0 +1,42 @@
+
+
+
+set_db place_global_timing_effort none
+set_db place_global_cong_effort   low
+set_db place_global_reorder_scan false
+set_db place_global_uniform_density true
+
+set_db design_flow_effort standard
+set_db design_power_effort low
+
+set_db opt_useful_skew false
+set_db opt_useful_skew_pre_cts false
+set_db opt_useful_skew_ccopt   none
+
+set_db opt_power_effort none
+
+set_db opt_setup_target_slack 0.0
+set_db opt_multi_bit_flop_opt false
+
+source /proj/cayman/wa/maubel/scripts/fluff_wrapper_ssn_host_logic.tcl
+
+puts "\n\nMDA: creating place blockage around sensors to try to prevent later wiring issues\n\n"
+
+create_place_blockage -name PB_mda_sensor -area 3085. 95. 3190. 255.  -type hard
+
+
+puts "\n\nMDA: Performing placement only.\n\n"
+
+
+place_design
+
+puts "\n\nMDA: Placement completed."
+
+
+puts "\n\nMDA: Performing opt_design only.\n"
+
+opt_design -pre_cts -report_prefix mdaopt -report_dir report
+
+puts "\n\nMDA: Optimization has completed\n\n"
+
+reset_db place_detail_honor_inst_pad
