@@ -1,0 +1,161 @@
+set dlist {}
+set dlist [get_db route_blockages MDA_RB*]
+foreach blkg $dlist {delete_obj $blkg}
+
+set dx 0.3
+set dy 0.3
+
+# Tile pairs to create route blockage above
+
+set tll TGRP_ROWS_3__TGRP_COLS_3__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_3__TGRP_COLS_3__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB1 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+set tll TGRP_ROWS_3__TGRP_COLS_2__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_3__TGRP_COLS_2__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB2 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+set tll TGRP_ROWS_3__TGRP_COLS_1__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_3__TGRP_COLS_1__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB3 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+#break
+set tll TGRP_ROWS_3__TGRP_COLS_0__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_3__TGRP_COLS_0__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB4 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+
+set tll TGRP_ROWS_2__TGRP_COLS_3__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_1__TGRP_COLS_3__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB5 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+
+set tll TGRP_ROWS_2__TGRP_COLS_2__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_1__TGRP_COLS_2__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB6 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+
+set tll TGRP_ROWS_2__TGRP_COLS_1__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_1__TGRP_COLS_1__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB7 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+
+set tll TGRP_ROWS_2__TGRP_COLS_0__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_1__TGRP_COLS_0__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB8 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+
+set tll TGRP_ROWS_0__TGRP_COLS_3__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_0__TGRP_COLS_3__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB9 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+
+set tll TGRP_ROWS_0__TGRP_COLS_2__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_0__TGRP_COLS_2__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB10 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+
+set tll TGRP_ROWS_0__TGRP_COLS_1__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_0__TGRP_COLS_1__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB11 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
+
+set tll TGRP_ROWS_0__TGRP_COLS_0__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+set tur TGRP_ROWS_0__TGRP_COLS_0__TPB_ARRAY_TILE_GRP/TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+
+set loc_ll [get_db [get_db insts $tll] .location]
+set ll_x [expr [lindex [lindex $loc_ll 0] 0] - $dx]
+set ll_y [expr [lindex [lindex $loc_ll 0] 1] - $dy]
+set loc_ur [get_db [get_db insts $tur] .location]
+set ur_x [expr [lindex [lindex $loc_ur 0] 0] + $dx]
+set ur_y [expr [lindex [lindex $loc_ur 0] 1] + $dy]
+
+create_route_blockage -name MDA_RB12 -layers {M13 M14 M15 M16} -rects [list $ll_x $ll_y $ur_x $ur_y] -spacing 0
+
