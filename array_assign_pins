@@ -1,0 +1,7 @@
+set_partition_pin_status -pins * -status unplaced
+
+set_db place_design_floorplan_mode true
+place_design -no_pre_place_opt
+assign_io_pins -align
+set_db place_design_floorplan_mode false
+
