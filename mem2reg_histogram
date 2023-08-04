@@ -1,0 +1,2 @@
+set reg2mem_slk [get_property [report_timing -path_group  reg2mem -collection -max_paths 999999 -max_slack 0] slack]
+mortar::numeric_histogram -data $reg2mem_slk
