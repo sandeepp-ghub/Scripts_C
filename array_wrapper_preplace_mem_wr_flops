@@ -1,0 +1,62 @@
+
+
+# walk thru all auxiliary psum_wr_if ports and preplace the flops that feed them nearby.
+set base "psum_mem_wr_if"
+set placed_list {}
+
+for {set i 0} {$i <= 15} {set i [expr $i + 1]} {
+
+   foreach str [list wbank wdouble wdtype we wnum wpsum wsop wstart wvalid] {
+      
+     set mstr ${base}_${i}__${str}*
+     set plist [get_db ports $mstr]
+     
+     foreach port $plist {
+     
+       set xloc [lindex [lindex [get_db $port .location] 0] 0]
+       set pnet [get_db $port .net]
+       set dpin [get_db $pnet .driver_pins]
+       set dinst [get_db $dpin .inst]
+       
+       place_inst $dinst $xloc 7.0 -placed
+       lappend placed_list $dinst
+       puts "port: $port,  xloc: $xloc, dinst: $dinst"
+       
+       if {[get_db $dinst .is_flop]} {continue}
+       
+       set dpins [get_db $dinst .pins]
+       foreach pin $dpins {
+         puts "  Pin: $pin"
+	 set slen [string length $pin]
+         if {[string index $pin [expr $slen-1]] eq "Z"} {continue}
+       
+         set pnet2 [get_db $pin .net]
+	 set pdpin [get_db $pnet2 .driver_pins]
+         set pdinst [get_db $pdpin .inst]
+	 lappend placed_list $pdinst
+	 
+	 place_inst $pdinst $xloc 9.0 -placed
+	 puts "  Placeing $pdinst at $xloc,4.0"
+       }
+       
+       
+     }
+   
+   }
+
+#break
+}
+
+place_detail
+
+set_db $placed_list .place_status fixed
+
+
+place_inst TPB_ARRAY_WRAPPER_VERTI_MISC/ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1__u_din_q/dout_reg_7_  3213. 4820. -soft_fixed
+place_inst TPB_ARRAY_WRAPPER_VERTI_MISC/ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1__u_din_q/dout_reg_6_  3212.5 4819.5 -soft_fixed
+place_inst TPB_ARRAY_WRAPPER_VERTI_MISC/ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1__u_din_q/dout_reg_5_  3212. 4819. -soft_fixed
+place_inst TPB_ARRAY_WRAPPER_VERTI_MISC/ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1__u_din_q/dout_reg_4_  3211.5 4818.5 -soft_fixed
+place_inst TPB_ARRAY_WRAPPER_VERTI_MISC/ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1__u_din_q/dout_reg_3_  3211. 4818. -soft_fixed
+place_inst TPB_ARRAY_WRAPPER_VERTI_MISC/ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1__u_din_q/dout_reg_2_  3210.5 4817.5 -soft_fixed
+place_inst TPB_ARRAY_WRAPPER_VERTI_MISC/ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1__u_din_q/dout_reg_1_  3210. 4817. -soft_fixed
+place_inst TPB_ARRAY_WRAPPER_VERTI_MISC/ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1__u_din_q/dout_reg_0_  3209.5 4816.5 -soft_fixed
