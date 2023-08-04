@@ -1,0 +1,50 @@
+# Script Usage : grep all the violating cells using below grep command from pgv folder
+#  ***** egrep "^-" pgv.signoff.dynamic/dynamic_run/adsRail/<blockname>_dynamic_1/VDD_VSS.worstavg.iv | awk '{if ($3<0.74) {print $2,$3}}' > violating_1.txt
+#  ***** egrep "^-" pgv.signoff.dynamic/dynamic_run/adsRail/<blockname>_dynamic_1/VDD_VSS.worst.iv | awk '{if ($3<0.74) {print $2,$3}}' > violating_2.txt
+
+## Add spare or filler deletion proc here
+set fp [open "/proj/cayman/wa/rchatty/impl/sfabric_remote_vert_macro.1.0A/track.DE3_postdft_13sep_phase3_cong1_targetdecap/invcui.postroute/failing_inst_no_decap_run" r]
+
+set lines  [read -nonewline $fp]
+close $fp;
+
+## Request to add Decap cell below (PD Team)
+# these are being displaced FILL3BWP210H6P51CNODSVT GDCAP2SHXPBWP210H6P51CNODELVT 0.153 0.408
+set decap_cell DCAP8XPBWP210H6P51CNODSVT  ; # 0.408
+#set data SPAREORFILL
+
+foreach line $lines {
+gui_highlight inst:$line -index 1
+ }
+
+puts [llength $lines]
+
+foreach line $lines {
+    set data1 PGV_FAIL_TARGET_DECAP_1_${line}
+    set data2 PGV_FAIL_TARGET_DECAP_2_${line}
+    set x1 [get_db inst:$line .bbox.ll.x]
+    set y1 [get_db inst:$line .bbox.ll.y]
+    set x2 [get_db inst:$line .bbox.ur.x]
+
+# Add Decap width and height (depending on what decap cell using above)
+    set decap_width 0.408
+    set decap_height 0.210
+
+if {[get_db inst:$line .orient] == "r0" || [get_db inst:$line .orient] == "mx"} {
+        create_inst -physical -base_cell $decap_cell -name $data1 -location "[expr $x1 - $decap_width] $y1"
+        create_inst -physical -base_cell $decap_cell -name $data2 -location "[expr $x2] $y1" -place_status fixed
+    }
+    if {[get_db inst:$line .orient] == "r180" || [get_db inst:$line .orient] == "my"} {
+        create_inst -physical -base_cell $decap_cell -name $data1 -location "[expr $x2] $y1"
+        create_inst -physical -base_cell $decap_cell -name $data2 -location "[expr $x1 - $decap_width] $y1"
+
+    }
+}
+#set_db place_detail_honor_inst_pad false
+set dcap_insts [get_db insts PGV_FAIL_TARGET_DECAP_*]
+set max_dist 15.0
+puts "Legalizing [llength $dcap_insts] DCAP insts"
+set_db place_detail_eco_max_distance $max_dist
+place_detail -inst [get_db $dcap_insts .name]
+reset_db place_detail_eco_max_distance
+set_db $dcap_insts .place_status soft_fixed
