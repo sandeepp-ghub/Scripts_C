@@ -1,0 +1,15 @@
+proc fix_upper_wires {net} {
+
+  	foreach wire [get_db [get_db nets $net ] .wires -if {(.layer.name != M1) && (.layer.name != M2) && (.layer.name != M3) && (.layer.name != M4)} ] {
+  		puts "fixing [get_db $wire .net.name ] [get_db $wire .layer.name]"
+		set_db $wire .status fixed		
+	}
+
+}
+
+proc fix_all_wires_and_vias {inst} {
+ set scb  [get_db insts $inst]
+ set_db $scb .pins.net.wires.status fixed
+ set_db $scb .pins.net.vias.status fixed
+
+}
