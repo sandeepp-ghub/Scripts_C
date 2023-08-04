@@ -1,0 +1,30 @@
+set_db assign_pins_edit_in_batch true
+set_partition_pin_status -pin clk -status unplaced
+set_partition_pin_status -pin clk_out* -status unplaced
+
+set xmax 2976.717
+set ymax 4488.96
+
+edit_pin -pin clk        -assign [list $xmax [expr $ymax - 5]] -edge 2 -layer M12 -fix_overlap 0 -honor_constraint 0 -fixed_pin 0 -snap track
+
+# First tile for clk_out  TGRP_ROWS_3__TGRP_COLS_0__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_0__TPB_ARRAY_TILE
+
+set pindx 0
+
+for {set j 0} {$j <= 3} {incr j} {
+
+  for {set i 0} {$i <= 7} {incr i} {
+
+# get tile clk port location
+  set clkloc [get_db [get_db pins TGRP_ROWS_3__TGRP_COLS_${j}__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_${i}__TPB_ARRAY_TILE/clk] .location]
+  set tclkx [lindex [lindex $clkloc 0] 0]
+
+  puts "TGRP_ROWS_3__TGRP_COLS_${j}__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_${i}__TPB_ARRAY_TILE"
+  puts "Placing clk_out[$pindx] at $tclkx,0.0"
+  edit_pin -pin clk_out[$pindx] -assign [list $tclkx 0.0] -edge 3 -layer M13 -fix_overlap 0 -honor_constraint 0 -fixed_pin 0 -snap track
+  incr pindx
+  }
+
+}
+
+set_db assign_pins_edit_in_batch false
