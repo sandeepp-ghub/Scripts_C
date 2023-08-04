@@ -1,0 +1,21 @@
+set_db eco_batch_mode true
+
+mortar::read_file_to_list -list ckbd10 -file /proj/cayman/wa/maubel/impl/tpb_array_wrapper.1.0A/track.pnr.DE3.postdft.more_ecos6.0303/pgv.signoff.dynamic.top/dynamic_run/adsRpt/ckbd10.i
+
+foreach ckbd $ckbd10  {
+
+  set loads [get_db [get_db pins $ckbd/Z] .net.loads]
+
+  if {[llength $loads] < 4} {
+    set cell [get_db [get_db insts $ckbd] .base_cell.name]
+    if {[string match CKBD10* $cell]} {
+      regsub -all "CKBD10" $cell "CKBD4"  newtype
+      puts "Chnage $ckbd from $cell to $newtype"
+      eco_update_cell -insts $ckbd -cells $newtype
+    }
+
+  }
+
+}
+
+set_db eco_batch_mode false
