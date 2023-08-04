@@ -1,0 +1,41 @@
+
+set plist1 {}
+
+for {set i 0} {$i <= 7} {incr i} {
+
+  for {set j 0} {$j <= 63} {incr j} {
+ 
+     set pname "psum_mem_wr_if_${i}__wdata\[${j}\]"
+     puts $pname
+     lappend plist1 $pname
+
+  }
+
+}
+
+set_partition_pin_status -pins $plist1 -status unplaced
+
+set plist2 {}
+
+for {set i 8} {$i <= 15} {incr i} {
+
+  for {set j 0} {$j <= 63} {incr j} {
+ 
+     set pname "psum_mem_wr_if_${i}__wdata\[${j}\]"
+     puts $pname
+     lappend plist2 $pname
+
+  }
+
+}
+
+set_partition_pin_status -pins $plist2 -status unplaced
+
+set_db assign_pins_edit_in_batch true
+
+edit_pin -pin $plist1 -start {2880. 0.} -end {2800. 0} -spread_direction clockwise -edge 3 -layer {M9 M11 } -spacing 3 -snap track -unit track -pattern fill_track -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+
+
+edit_pin -pin $plist2 -start {2792. 0.} -end {2711. 0} -spread_direction clockwise -edge 3 -layer {M9 M11 } -spacing 3 -snap track -unit track -pattern fill_track -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+
+set_db assign_pins_edit_in_batch false
