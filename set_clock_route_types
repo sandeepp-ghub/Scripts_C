@@ -1,0 +1,50 @@
+
+
+set mh_top_trunk_layer M12
+set mh_btm_trunk_layer M9
+set mh_top_leaf_layer M7
+set mh_btm_leaf_layer M6
+
+    if { [get_db route_rules 2w2s_ndr] eq "" } {
+        create_route_rule -name 2w2s_ndr -width_multiplier {M5:M16 2} -spacing_multiplier {M5:M16 2} -min_cut {VIA13:VIA4 2 VIA4:VIA2 1} -generate_via
+    }
+    if { [get_db route_rules 1w2s_ndr] eq "" } {
+        create_route_rule -name 1w2s_ndr                              -spacing_multiplier {M6:M14 2} -generate_via
+    }
+
+
+ foreach net [ get_db [ get_db nets -if { .name != CIF* && .name  != *secor* && .name != *child* && .cts_net_type == trunk } ] .name ] { set_route_attributes -nets $net -shield_net none }
+
+    create_route_type \
+    -name clock_route_trunk_${mh_top_trunk_layer}_${mh_btm_trunk_layer} \
+    -route_rule 2w2s_ndr \
+    -bottom_preferred_layer ${mh_btm_trunk_layer} \
+    -top_preferred_layer ${mh_top_trunk_layer} \
+    -preferred_routing_layer_effort medium \
+    -prefer_multi_cut_via \
+    -shield_side both
+##########
+#
+create_route_type \
+-name clock_route_leaf_${mh_top_leaf_layer}_${mh_btm_leaf_layer} \
+-route_rule 1w2s_ndr \
+-bottom_preferred_layer $mh_btm_leaf_layer \
+-top_preferred_layer $mh_top_leaf_layer \
+-preferred_routing_layer_effort medium \
+-prefer_multi_cut_via \
+-shield_side both
+
+
+foreach clk [::get_db clock_trees] {
+    #set_db $clk .cts_route_type_top clock_route_trunk_M11_14
+    set_db $clk .cts_route_type_trunk clock_route_trunk_${mh_top_trunk_layer}_${mh_btm_trunk_layer}
+    set_db $clk .cts_route_type_leaf  clock_route_leaf_${mh_top_leaf_layer}_${mh_btm_leaf_layer}
+}
+
+set_db cts_route_type_leaf clock_route_leaf_${mh_top_leaf_layer}_${mh_btm_leaf_layer}
+set_db cts_route_type_trunk clock_route_trunk_${mh_top_trunk_layer}_${mh_btm_trunk_layer}
+commit_clock_tree_route_attributes -verbose
+
+
+puts "MH CHECK TRUNK TYPES: [ get_db cts_route_type_trunk]"
+puts "MH CHECK LEAF TYPES: [ get_db cts_route_type_leaf]"
