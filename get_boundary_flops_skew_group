@@ -1,0 +1,40 @@
+set file [open create_boundary_flop_skew_group.tcl w]
+
+puts $file "if \{ \[get_db skew_groups boundary_flops\] !=\"\" \} \{ delete_skew_group boundary_flops \}"
+puts $file "create_skew_group -name boundary_flops -constrains ccopt -exclusive_sinks {"
+
+array unset printed
+
+source /proj/cayman/DE3/pd/snapshot/sdma_arith/axi_boundary_ports.txt
+
+foreach output_port $output_ports {
+  foreach_in_collection reg [all_fanin -to $output_port -startpoints_only -only_cells] {
+    set name [get_property $reg hierarchical_name]
+    if { ![info exists printed($name)] } {
+      puts $file "${name}/CP"
+      set printed($name) 1
+#     select_obj $output_port
+    }
+  }
+}
+
+
+foreach input_port $input_ports {
+  foreach_in_collection reg [all_fanout -from $input_port -endpoints_only -only_cells] {
+    set name [get_property $reg hierarchical_name]
+    if { ![info exists printed($name)] } {
+      puts $file "${name}/CP"
+      set printed($name) 1
+#     select_obj [get_cells $name]
+    }
+  }
+}
+
+puts $file "}"
+puts $file "  set_db skew_group:boundary_flops .cts_skew_group_target_insertion_delay min"
+puts $file "# set_db skew_group:boundary_flops .cts_skew_group_target_insertion_delay 400"
+
+close $file
+
+return;
+
