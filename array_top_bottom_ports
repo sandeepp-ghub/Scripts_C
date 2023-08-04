@@ -1,0 +1,55 @@
+
+set_db assign_pins_edit_in_batch true
+
+catch {set f [open /proj/cayman/wa/maubel/scripts/array_ydata.txt w]}
+
+set ty 4488.96
+
+puts $f "set_partition_pin_status -pins ybus_out* -status unplaced"
+puts $f "set_partition_pin_status -pins ybus_in* -status unplaced"
+puts $f "set_partition_pin_status -pins clk_out* -status unplaced"
+puts $f "set_partition_pin_status -pins sel_out* -status unplaced"
+puts $f "set_partition_pin_status -pins sel_in* -status unplaced"
+#puts "set_partition_pin_status -pins ybus_out* -status unplaced"
+#puts "set_partition_pin_status -pins clk_out* -status unplaced"
+
+# starting, leftmost array tile
+# TGRP_ROWS_3__TGRP_COLS_3__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_7__TPB_ARRAY_TILE
+
+set idx 0
+for {set j 0} {$j <=3} {incr j} {
+ for {set i 0} {$i <=7} {incr i} {
+  set tname "TGRP_ROWS_3__TGRP_COLS_${j}__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_${i}__TPB_ARRAY_TILE"
+  puts "Starting TILE $tname"
+  for {set k 0} {$k <= 719} {incr k} {
+    
+    set ppin [lindex [get_db [get_db pins $tname/ybus_out[${k}]]]]
+    set px [lindex [lindex [get_db $ppin .location] 0] 0]
+
+    set player [get_db $ppin .layer.name]
+    
+    set wname [expr ($idx * 720) + $k]
+    
+    set bpin_name "ybus_out\[${wname}\]"
+    set tpin_name "ybus_in\[${wname}\]"
+    puts "$bpin_name  $tpin_name"
+    puts "edit_pin -pin ${bpin_name} -assign [list ${px} 0.0] -edge 3 -layer $player -fixed_pin 0 -honor_constraints 0 -fix_overlap 0"
+    puts $f "edit_pin -pin ${bpin_name} -assign [list ${px} 0.0] -edge 3 -layer $player -fixed_pin 0 -honor_constraint 0 -fix_overlap 0"
+    puts "edit_pin -pin ${tpin_name} -assign [list ${px} ${ty}] -edge 1 -layer $player -fixed_pin 0 -honor_constraints 0 -fix_overlap 0"
+    puts $f "edit_pin -pin ${tpin_name} -assign [list ${px} ${ty}] -edge 1 -layer $player -fixed_pin 0 -honor_constraint 0 -fix_overlap 0"   
+    
+#    break
+  }
+  
+   incr idx
+#   break
+#  if {$i > 3} break
+ }
+ 
+# break
+}
+ 
+puts $f "set_db assign_pins_edit_in_batch false"
+close $f
+
+
