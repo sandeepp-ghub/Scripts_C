@@ -1,0 +1,143 @@
+namespace eval ::cayman {
+
+  proc buffer_perimeter_pre { } {
+    proc __is_edge_spaced { libcell } {
+      foreach {wcard spacing} [mVar FLOW(m1dpe_edge_spacing)] {
+        if { [string match $wcard $libcell] } { return 1 }
+      }
+      return 0
+    }
+
+    set ::buffer_perimeter_pre ""
+    set ::buffer_perimeter_post ""
+
+    #set edge_name ${name}_iobuf
+    set edge_name edge_spacing_iobuf ; # single name for all buffers so input and output buffers are also spaced, not just inputs to inputs, etc
+    switch [mortar::current_design] {
+      dfx_top -
+      dts_hub_wrap -
+      fis_sprot -
+      hbm_dfi_bridge_wrapper -
+      ring_io_bot -
+      ring_io_top -
+      ring_pll -
+      rts_pd_wrap -
+      tpb_aengine -
+      tpb_array_sequencer_sbuf_rd_rsp_cluster -
+      tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster -
+      tpb_array_tile -
+      tpb_array_xbus_pre_tile -
+      tpb_pe_seq -
+      tpb_psum_combine_tile -
+      tpb_sb_pool_act_pipeline -
+      tpb_simd_rd_tensor_generate_pool -
+      tpb_simd_wr_tensor_generate -
+      tpb_top_sp_seq -
+      vm_wrap -
+      xbar_fab_group -
+      xbar_hbm_group_32 {
+        set vert 0.420
+        set horz 0.306 ; #  6 tracks
+      }
+      default {
+        set vert 0.210
+        set horz 0.561 ; # 11 tracks
+      }
+    }
+    #
+    lappend ::buffer_perimeter_pre [list set_cell_edge_spacing ${edge_name}_H ${edge_name}_H -spacing $horz]
+    lappend ::buffer_perimeter_pre [list set_cell_edge_spacing ${edge_name}_V ${edge_name}_V -spacing $vert]
+    #
+    lappend ::buffer_perimeter_post [list delete_cell_edge_spacing ${edge_name}_H ${edge_name}_H]
+    lappend ::buffer_perimeter_post [list delete_cell_edge_spacing ${edge_name}_V ${edge_name}_V]
+
+    foreach type {ibuff obuff cbuff} {
+      set name [mVar LIBCELL($type)]
+      if { [__is_edge_spaced $name] } {
+        puts "$name is already edge spaced"
+        continue
+      }
+
+      mortar::echo "MDA version: Apply edge spacing for $name as $edge_name H ($horz) and V ($vert)"
+      lappend ::buffer_perimeter_pre [list set_cell_edge_type -cell $name -reset]
+      lappend ::buffer_perimeter_pre [list set_cell_edge_type -cell $name -top    ${edge_name}_V]
+      lappend ::buffer_perimeter_pre [list set_cell_edge_type -cell $name -bottom ${edge_name}_V]
+      lappend ::buffer_perimeter_pre [list set_cell_edge_type -cell $name -left   ${edge_name}_H]
+      lappend ::buffer_perimeter_pre [list set_cell_edge_type -cell $name -right  ${edge_name}_H]
+      lappend ::buffer_perimeter_post [list set_cell_edge_type -cell $name -reset]
+    }
+
+    foreach cmd $::buffer_perimeter_pre {
+      puts $cmd
+      eval $cmd
+    }
+    unset ::buffer_perimeter_pre
+  }
+  proc buffer_perimeter_post { args } {
+    set dont_touch 1
+    set fix_place  0
+    mortar::parse_args $args {
+      { "dont_touch" dont_touch boolean }
+      { "fix_place"  fix_place  boolean }
+    } {
+
+      # remove clock ports from the list
+      array unset clkbuf
+      foreach_in_collection port [get_ports -filter {is_clock_used_as_clock && direction == "in"}] {
+        set name "[get_property $port full_name]_IencIOBuf"
+        set clkbuf($name) 1
+      }
+
+      set port_buffers [get_db insts *_IencIOBuf]
+
+      set insts ""
+      foreach inst $port_buffers {
+        set name [get_db $inst .name]
+        if { [info exists clkbuf($name)] } {
+          mortar::echo "Skipping clock buffer $name"
+          continue
+        }
+        lappend insts $inst
+      }
+
+      proc __db_metric_stats { dpo key msg } {
+        array unset arr
+        foreach v [get_db $dpo .$key] {
+          if { [info exists arr($v)] } {
+            incr arr($v)
+          } else {
+            set arr($v) 1
+          }
+        }
+        mortar::echo -text $msg
+        foreach v [lsort [array names arr]] {
+          mortar::echo -text [format "%7d %s" $arr($v) $v]
+        }
+      }
+
+      if { $dont_touch } {
+        mortar::echo "Dont Touch [llength $insts]/[llength $port_buffers] IO buffers"
+        __db_metric_stats $insts dont_touch "Dont Touch before applying dont_touch"
+        set_dont_touch $insts
+        #set_db $insts .dont_touch true ; # necessary?
+        __db_metric_stats $insts dont_touch "Dont Touch after applying dont_touch"
+      }
+
+      if { $fix_place } {
+        mortar::echo "Fix Place [llength $insts]/[llength $port_buffers] IO buffers"
+        __db_metric_stats $insts place_status "Dont Touch before applying place_status=fixed"
+        set_db $insts .place_status fixed ; # should be soft fixed which is perhaps good enough or should we hard fix?
+        __db_metric_stats $insts place_status "Dont Touch before applying place_status=fixed"
+      }
+
+      if { [info exists ::buffer_perimeter_post] } {
+        foreach cmd $::buffer_perimeter_post {
+          puts $cmd
+          eval $cmd
+        }
+        unset ::buffer_perimeter_post
+      }
+    }
+  }
+
+}
