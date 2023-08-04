@@ -1,0 +1,42 @@
+# relative floorplan
+delete_relative_floorplan -all
+
+set xstart  3.0
+set ystart  4.0
+
+set xstep 76.145
+set ystep 147.0
+
+
+set brow  1
+
+
+for {set mr 0} {$mr <= 3} {incr mr} {
+
+  for {set sr 0} {$sr <= 7} {incr sr} {
+
+    puts "Laying down Row ${brow}" ; incr brow ;
+
+    for {set mc 0} {$mc <= 3} {incr mc} {
+
+      for {set sc 0} {$sc <= 7} {incr sc} {
+        # TGRP_ROWS_0__TGRP_COLS_0__TPB_ARRAY_TILE_GRP_TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+        set bname "TGRP_ROWS_${mr}__TGRP_COLS_${mc}__TPB_ARRAY_TILE_GRP_TILE_ROWS_${sr}__TILE_COLS_${sc}__TPB_ARRAY_TILE"
+        set thisy [expr $ystart + ($mr * $sr)]
+
+        if {($mc==0) && ($sc==0)} {
+          set cmd "move_obj $bname -point {$xstart $thisy}"
+        }{
+          set cmd "create_relative_floorplan -ref_type object -horizontal_edge_separate {""  ""  ""} -vertical_edge_separate {""  76.145  ""} -place $bname -ref $prev"
+        }
+        set prev $bname
+        puts $cmd
+
+
+
+      }
+    }
+    break
+  }
+
+}
