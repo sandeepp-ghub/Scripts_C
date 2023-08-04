@@ -1,0 +1,10 @@
+
+proc block_sense { name } {
+
+set io_ptr [get_db insts $name] 
+set loc_rect [get_db [get_db $io_ptr .base_cell.obs_layer_shapes -if {.layer.name ==OD_INJECTOR_12V_IHIA}] .shapes.rect] 
+set rect [get_transform_shapes -inst $name -local_pt $loc_rect ] 
+set enlarge_rect [get_computed_shapes $rect SIZE 15.3] 
+create_place_blockage -name METH_pblk_misc_cindy_for_VSENSE -type hard -rects $enlarge_rect -snap_to_site
+
+}
