@@ -1,0 +1,48 @@
+puts "/nMDA: setting up cust mbff flow, extreme opt with low power effort/n"
+set_db opt_power_effort high
+set_db design_flow_effort extreme
+set_db design_power_effort high
+
+set_db opt_useful_skew true
+set_db opt_useful_skew_pre_cts true
+set_db opt_useful_skew_ccopt standard
+set_db opt_useful_skew_no_boundary true
+
+eval_legacy {setOptMode -flopMergePowerTolerancePercentage 15 }
+eval_legacy {getDesignMode ; getOptMode }
+
+puts "MDA:  setting dont_touch on xbus and ybus port buffs"
+set_dont_touch [get_db insts *_IencIOBuf] true
+
+#puts "\nMDA: setting target slack to -0.500 and LDR to 0.9 and mbff opt to mergeOnly\n"
+#set_db opt_setup_target_slack -0.500
+set_db opt_leakage_to_dynamic_ratio 0.9
+set_db opt_multi_bit_flop_opt mergeOnly
+
+#set_db opt_multi_bit_flop_opt false
+
+#eval_legacy {setOptMode -powerDrivenMBFFOpt true}
+#eval_legacy {setOptMode -MBFFMergeTimingEffort medium}
+#eval_legacy {setOptMode -freeFlopMerge true}
+#eval_legacy {ecoMergeFlop -all }
+
+# For now, depend on mbff state as delivered by Artemis, review when DE2.1 is received
+#set_db place_opt_post_place_tcl /proj/cayman/wa/maubel/configs/mbff_post_place.tcl
+
+eval_legacy {setOptMode -flopMergeDebug 1}
+
+eval_legacy {getOptMode }
+
+
+#puts "MDA: setting uncertainty at 35ps to start"
+
+#report_timing
+#set_interactive_constraint_modes func
+#puts "MDA: Setting uncertainty to 35"
+#set_clock_uncertainty 35. [get_clocks CLK] -setup
+#set_clock_uncertainty 35. [get_clocks CLK_V] -setup
+#set_clock_uncertainty 20. [get_clocks CLK] -hold
+#set_clock_uncertainty 20. [get_clocks CLK_V] -hold
+#set_interactive_constraint_modes ""
+#report_timing
+
