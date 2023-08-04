@@ -1,0 +1,55 @@
+## --##
+## --## deselect_obj -all
+## --## foreach mkr [get_db markers -if {.user_originator == check && .user_type == connectivity && .user_subtype == Open }] {
+## --##
+## --##
+## --##          set box [get_db $mkr .bbox]
+## --## 	 #select_obj [get_obj_in_area -area $box -obj_type wire -enclosed_only ]
+## --## 	select_obj [get_obj_in_area -area $box -obj_type special_wire -enclosed_only]
+## --##
+## --## }
+## --##
+## --## #edit_trim_routes -selected -type float
+## --## edit_trim_routes -selected
+## --##
+## --## get_db markers -if { .user_type == M2.W.1.1 && .user_originator == Calibre }
+## --##
+## --## set mrkr marker:0x2b98d0d072b0
+## --## lassign [ lindex [ get_db $mrkr .bbox ] 0 ] llx lly urx ury
+## --##
+## --## set vx1 [ expr $llx - 0.01 ]
+## --## set vy1 [ expr $lly - 0.05 ]
+## --## set vx2 [ expr $urx + 0.01 ]
+## --## set vy2 [ expr $ury + 0.03 ]
+## --##
+## --## select_obj [get_obj_in_area -area [list $vx1 $vy1 $vx2 $vy2 ] -obj_type special_via -enclosed_only -layer M1]
+## --##
+#
+
+read_marker -type Calibre /proj/cayman/wa/yravishankar/impl/tpb_pseq_pengine_wrapper.1.0A/track.DE3_postdft.ECO33.0519.yr/pv.signoff.drc/drc_ML005S/tpb_pseq_pengine_wrapper/DRC_RES.drc
+
+set via1_mrkrs [ get_db markers -if { .user_type == M2.W.1.1 && .user_originator == Calibre } ]
+set via1s []
+foreach via1_mrkr $via1_mrkrs {
+    deselect_obj -all
+    lassign [ lindex [ get_db $via1_mrkr .bbox ] 0 ] llx lly urx ury
+
+    set vx1 [ expr $llx - 0.01 ]
+    set vy1 [ expr $lly - 0.05 ]
+    set vx2 [ expr $urx + 0.01 ]
+    set vy2 [ expr $ury + 0.03 ]
+
+    select_obj [get_obj_in_area -area [list $vx1 $vy1 $vx2 $vy2 ] -obj_type special_via -enclosed_only -layer M1]
+    foreach i [ get_db selected ] {
+        lappend via1s $i
+    }
+    deselect_obj -all
+}
+set via_u [ lsort -unique $via1s ]
+foreach v $via_u {
+    deselect_obj -all
+    select_obj $v
+    eval { edit_move_routes -dx 0.0 -dy -0.0005 }
+    puts [ get_db selected ]
+    deselect_obj -all
+}
