@@ -1,0 +1,14 @@
+set view_names [lsort -unique [get_db [get_db analysis_views -if {.is_leakage || .is_dynamic}] .name]]
+ set view $view_names
+ set_power_output_dir [pwd]
+ set opcond [mExtractFromScenario $view opcond]
+ set ::DESIGN [get_db current_design .name]
+ set leakinfoFiles [mViewList -l [mVar RELEASE([mVar DESIGN],liblist)] -v LEAKINFO -op $opcond]
+ set configFiles [mViewList -l [mVar RELEASE([mVar DESIGN],liblist)] -v LEAKCFG]
+ set edgeinfoFiles [mViewList -l [mVar RELEASE([mVar DESIGN],liblist)] -v EDGEINFO]
+ set cmd "cat $leakinfoFiles $configFiles > .all_lib_side_file.txt"
+ eval exec $cmd
+ mCmd eval_legacy "load_side_file -files {$edgeinfoFiles $leakinfoFiles $configFiles} -dump_tcl_file .lef_side_file.tcl"
+ eval_legacy {source .lef_side_file.tcl}
+ mCmd eval_legacy {set_power_analysis_mode -boundary_gate_leakage_file .all_lib_side_file.txt -write_static_currents false -boundary_gate_leakage_report true  -boundary_leakage_multi_pgpin_support true -boundary_leakage_PXE_support true}
+ report_power -view $view -out_file leakage_baseline.rpt -no_wrap -print_memory_power -include_sequential_in_clock -insts * -clock_network all
