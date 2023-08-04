@@ -1,0 +1,87 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+import pandas as pd
+import re
+import glob
+import os
+import gzip
+import argparse
+
+
+#track_dirs = ["/proj/cayman/wa/kumrrnh/impl/tpb_pseq_pengine_wrapper.1.0A/track.DE3_postdft_0128__mvNX_MA",
+#             "/proj/cayman/wa/kumrrnh/impl/tpb_pseq_pengine_wrapper.1.0A/track.DE3_postdft_0123_axicif_reduced_pg"]
+parser = argparse.ArgumentParser()
+parser.add_argument('-d', '--dir', type=str, required=True, nargs='+')
+args = parser.parse_args()
+track_dirs = args.dir
+print(track_dirs)
+
+steps = {'prects':"prects_placeopt",
+         'cts':"ccopt",
+         'postcts':"postcts_setupopt",
+         'postroute':"postroute_opt"}
+
+qor = {"Track": [], "Step": [], "WNS": [], "TNS": [], "NVP": [],
+       "H Overflow": [], "V Overflow": [], "Max Hotspot": [], "Total Hotspot": []}
+
+for track_dir in track_dirs:
+    try:
+        for _step, rpt_prefix in steps.items():
+            if os.path.exists(f"{track_dir}/invcui.{_step}/dataout/HANDOFF"):
+                track = os.path.basename(track_dir)
+                tim_sum = glob.glob(f"{track_dir}/invcui.{_step}/report/*.invcui.{_step}.{rpt_prefix}.summary.gz")
+                print("TIM_SUM:", tim_sum)
+                tim_sum = tim_sum[0]
+                cong_sum = glob.glob(f"{track_dir}/invcui.{_step}/report/*.congestion.rpt")
+                cong_sum = cong_sum[0]
+
+                wns = 0
+                tns = 0
+                nvp = 0
+
+                h_overflow = 0
+                v_overflow = 0
+                max_hotspot = 0
+                total_hotspot = 0
+
+                print(f"Parsing {tim_sum}")
+                with gzip.open(tim_sum, 'rt') as tim_sum_fh:
+                    tim = tim_sum_fh.read()
+                tim_match = re.search(r"Setup\s+mode.*?WNS.*?([-\d\.]+).*?TNS.*?([-\d\.]+).*?Violating\s+Paths.*?(\d+)", tim, re.DOTALL)
+                if tim_match:
+                    wns = tim_match.group(1)
+                    tns = tim_match.group(2)
+                    nvp = tim_match.group(3)
+
+                print(f"Parsing {cong_sum}")
+                with open(cong_sum) as cong_sum_fh:
+                    cong = cong_sum_fh.read()
+                cong_overflow_match = re.search(r"2D\s+Overflow\s+([\d\.%]+)\s*H.*?([\d\.%]+)\s*V", cong)
+                cong_hotspot_match = re.search(r"all\s+layers.*?([\d\.]+).*?([\d\.]+)", cong)
+                if cong_overflow_match:
+                    h_overflow = cong_overflow_match.group(1)
+                    v_overflow = cong_overflow_match.group(2)
+                if cong_hotspot_match:
+                    max_hotspot = cong_hotspot_match.group(1)
+                    total_hotspot = cong_hotspot_match.group(2)
+
+                qor["Track"].append(track)
+                qor["Step"].append(_step)
+                qor["WNS"].append(wns)
+                qor["TNS"].append(tns)
+                qor["NVP"].append(nvp)
+                qor["H Overflow"].append(h_overflow)
+                qor["V Overflow"].append(v_overflow)
+                qor["Max Hotspot"].append(max_hotspot)
+                qor["Total Hotspot"].append(total_hotspot)
+    except IndexError:
+        pass
+
+
+qor_df = pd.DataFrame(qor)
+#qor_df
+
+print(qor_df.to_csv(index=False))
+qor_df.to_csv("pseq_trials_qor.csv", index=False)
+
