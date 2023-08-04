@@ -1,0 +1,29 @@
+
+source /proj/cayman/wa/maubel/scripts/align_port_to_pin.mtrick.tcl
+set_db assign_pins_edit_in_batch true
+
+for {set i 0} {$i <= 38911} {set i [expr $i+1]} {
+   align_port_to_pin_y xbus_in\[$i\]
+}
+
+
+for {set i 0} {$i <= 23039} {set i [expr $i+1]} {
+   align_port_to_pin_x ybus_in\[$i\]
+}
+
+
+for {set i 0} {$i <= 23039} {set i [expr $i+1]} {
+   align_port_to_pin_x ybus_out\[$i\]
+}
+
+for {set i 0} {$i <= 1279} {set i [expr $i+1]} {
+   align_port_to_pin_x sel_in\[$i\]
+}
+
+
+for {set i 0} {$i <= 1279} {set i [expr $i+1]} {
+   align_port_to_pin_x sel_out\[$i\]
+}
+
+
+set_db assign_pins_edit_in_batch false
