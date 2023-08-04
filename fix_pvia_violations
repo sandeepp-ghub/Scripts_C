@@ -1,0 +1,42 @@
+mdc::check_pvia
+set missing_via_stripes ""
+
+foreach mkr [get_db current_design .markers -if {.subtype == MissingVia}] {
+set bbox [get_db $mkr .bbox]
+set objects [get_db [ get_obj_in_area -obj_type special_wire -areas $bbox] -if {(.net.name == VSS || .net.name == VDD)  && .layer.name == M3 && .user_class == tile_pgv_bolster}]
+  if { [llength $objects] } {
+   lappend missing_via_stripes $objects
+  }
+}
+
+deselect_obj  -all
+select_obj $missing_via_stripes
+edit_resize_routes -direction y -offset 0.035 -side {high} -no_connection 1 -keep_center_line auto
+edit_resize_routes -direction y -offset -0.035 -side {low} -no_connection 1 -keep_center_line auto
+
+deselect_obj -all
+
+set primary_power_name [get_db current_design .PRIMARY_POWER_NET]
+set primary_ground_name [get_db current_design .PRIMARY_GROUND_NET]
+
+select_obj [get_db  [get_db nets VSS VDD ] .special_wires -if { .layer.name == M2 }]
+select_obj [get_db  [get_db nets VSS VDD ] .special_wires -if { .layer.name == M3 && .user_class == tile_pgv_bolster}]
+
+set_db generate_special_via_disable_via_merge false
+set_db generate_special_via_allow_wire_shape_change false
+set_db generate_special_via_ignore_design_boundary true
+set_db generate_special_via_keep_existing_via keep_with_new_via
+set_db generate_special_via_opt_cross_via true
+
+update_power_vias -user_class tile_pgv_bolster  -add_vias 1 -bottom_layer M2 -top_layer M3 -nets "$primary_power_name $primary_ground_name" -selected_wires 1
+
+deselect_obj -all
+
+#restore
+set_db generate_special_via_disable_via_merge false
+set_db generate_special_via_allow_wire_shape_change true
+set_db generate_special_via_ignore_design_boundary false
+set_db generate_special_via_keep_existing_via remove
+set_db generate_special_via_opt_cross_via false
+
+mdc::check_pvia
