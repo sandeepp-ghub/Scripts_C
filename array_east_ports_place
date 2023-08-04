@@ -1,0 +1,40 @@
+
+set_db assign_pins_edit_in_batch true
+
+catch {set f [open /proj/cayman/wa/maubel/scripts/array_xdata_in.txt w]}
+
+puts $f "set_partition_pin_status -pins xbus_in* -status unplaced"
+puts $f "set_db assign_pins_edit_in_batch true"
+
+
+set idx 0
+for {set j 0} {$j <=3} {incr j} {
+ for {set i 0} {$i <=7} {incr i} {
+  set tname "TGRP_ROWS_${j}__TGRP_COLS_0__TPB_ARRAY_TILE_GRP/TILE_ROWS_${i}__TILE_COLS_0__TPB_ARRAY_TILE"
+  puts "Starting TILE $tname"
+    
+  for {set k 0} {$k <= 1599} {incr k} {
+
+    set ppin [lindex [get_db [get_db pins $tname/xbus_in[${k}]]]]
+    set py [lindex [lindex [get_db $ppin .location] 0] 1]
+
+    set player [get_db $ppin .layer.name]
+
+    set wname [expr ($idx * 1600) + $k]
+
+    set bpin_name "xbus_in\[${wname}\]"
+    puts $bpin_name
+    puts "edit_pin -pin ${bpin_name} -assign [list 2976.717 ${py}] -edge 2 -layer $player -fixed_pin 0 -honor_constraints 0 -fix_overlap 0"
+    puts $f "edit_pin -pin ${bpin_name} -assign [list 2976.717 ${py}] -edge 2 -layer $player -fixed_pin 0 -honor_constraint 0 -fix_overlap 0"
+#    break
+  }
+   incr idx
+#   break
+
+ }
+} 
+puts $f "set_db assign_pins_edit_in_batch false"
+close $f
+
+
+set_db assign_pins_edit_in_batch false
