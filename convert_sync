@@ -1,0 +1,26 @@
+
+select_obj [get_db insts -if {.base_cell.name == *MPGSYNC*}]   
+set slist [get_db selected .name]
+
+
+foreach inst $slist {
+
+  set ctype [get_db [get_db insts $inst] .base_cell.name]
+  
+#  puts "$inst $ctype"
+
+  if {![regexp ".*ELVT$" $ctype]}  {
+     puts "Change $inst from $ctype to ELVT"
+     incr cnt
+     
+     set nstr [string range $ctype 0 [expr [string last "NOD" $ctype]+2]]ELVT
+     
+     puts "New: $nstr"
+#     eco_update_cell -insts $flop -cells $nstr
+  }
+  
+
+
+
+}
+
