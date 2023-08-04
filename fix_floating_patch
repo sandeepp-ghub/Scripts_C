@@ -1,0 +1,20 @@
+mdc::check_drc
+set floating_patches ""
+
+foreach mkr [get_db current_design .markers -if {.subtype == Floating_Patch}] {
+set bbox [get_db $mkr .bbox]
+set objects [get_db [ get_obj_in_area -obj_type special_wire -areas $bbox] -if {(.net.name == VSS || .net.name == VDD)  && .layer.name == M3 && .shape == drcfill}]
+  if { [llength $objects] } {
+   lappend floating_patches $objects
+  }
+}
+
+deselect_obj  -all
+select_obj $floating_patches
+#edit_resize_routes -direction y -offset 0.035 -side {high} -no_connection 1 -keep_center_line auto
+#edit_resize_routes -direction y -offset -0.035 -side {low} -no_connection 1 -keep_center_line auto
+
+delete_obj $floating_patches
+
+mdc::check_drc
+
