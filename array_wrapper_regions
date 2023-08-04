@@ -1,0 +1,97 @@
+puts "\n\n\nMDA:  Sourcing array_wrapper regioning script.\n\n\n"
+
+catch {delete_obj group:xbus3 }
+catch {delete_obj group:xbus2 }
+catch {delete_obj group:xbus1 }
+catch {delete_obj group:xbus0 }
+
+catch {delete_obj group:grp3_flop1 }
+catch {delete_obj group:grp2_flop1 }
+catch {delete_obj group:grp1_flop1 }
+catch {delete_obj group:grp0_flop1 }
+
+catch {delete_obj group:reset0 }
+catch {delete_obj group:reset1 }
+catch {delete_obj group:reset2 }
+catch {delete_obj group:reset3 }
+
+catch {delete_obj group:FPSTAT_COMB16}
+catch {delete_obj group:FPSTAT_COMB24}
+
+
+create_group -name grp3_flop1 -type region -rects { 3126. 1000. 3155. 1350. }
+create_group -name grp2_flop1 -type region -rects { 3126. 2120. 3155. 2500. }
+create_group -name grp1_flop1 -type region -rects { 3126. 3180. 3155. 3600. }
+create_group -name grp0_flop1 -type region -rects { 3126. 3180. 3155. 3600. }
+
+update_group -name grp3_flop1 -add -objs XBUS_PRE_TILE_24__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp3_flop1 -add -objs XBUS_PRE_TILE_25__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp3_flop1 -add -objs XBUS_PRE_TILE_26__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp3_flop1 -add -objs XBUS_PRE_TILE_27__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp3_flop1 -add -objs XBUS_PRE_TILE_28__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp3_flop1 -add -objs XBUS_PRE_TILE_29__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp3_flop1 -add -objs XBUS_PRE_TILE_30__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp3_flop1 -add -objs XBUS_PRE_TILE_31__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+
+update_group -name grp2_flop1 -add -objs XBUS_PRE_TILE_16__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp2_flop1 -add -objs XBUS_PRE_TILE_17__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp2_flop1 -add -objs XBUS_PRE_TILE_18__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp2_flop1 -add -objs XBUS_PRE_TILE_19__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp2_flop1 -add -objs XBUS_PRE_TILE_20__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp2_flop1 -add -objs XBUS_PRE_TILE_21__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp2_flop1 -add -objs XBUS_PRE_TILE_22__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp2_flop1 -add -objs XBUS_PRE_TILE_23__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+
+update_group -name grp1_flop1 -add -objs XBUS_PRE_TILE_8__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp1_flop1 -add -objs XBUS_PRE_TILE_9__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp1_flop1 -add -objs XBUS_PRE_TILE_10__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp1_flop1 -add -objs XBUS_PRE_TILE_11__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp1_flop1 -add -objs XBUS_PRE_TILE_12__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp1_flop1 -add -objs XBUS_PRE_TILE_13__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp1_flop1 -add -objs XBUS_PRE_TILE_14__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp1_flop1 -add -objs XBUS_PRE_TILE_15__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+
+update_group -name grp0_flop1 -add -objs XBUS_PRE_TILE_0__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp0_flop1 -add -objs XBUS_PRE_TILE_1__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp0_flop1 -add -objs XBUS_PRE_TILE_2__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp0_flop1 -add -objs XBUS_PRE_TILE_3__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp0_flop1 -add -objs XBUS_PRE_TILE_4__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp0_flop1 -add -objs XBUS_PRE_TILE_5__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp0_flop1 -add -objs XBUS_PRE_TILE_6__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+update_group -name grp0_flop1 -add -objs XBUS_PRE_TILE_7__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_1*
+
+
+create_group -name xbus3 -type region -rects { 3126. 1850. 3155. 1880. }
+create_group -name xbus2 -type region -rects { 3126. 2500. 3155. 2550. }
+create_group -name xbus1 -type region -rects { 3126. 3130. 3155. 3180. }
+create_group -name xbus0 -type region -rects { 3126. 4030. 3155. 4060. }
+
+update_group -name xbus3 -add -objs TPB_ARRAY_WRAPPER_VERTI_MISC/TILE_GRP_ABOVE_THRESHOLD_LOOP_3__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_0*dout_reg*
+update_group -name xbus2 -add -objs TPB_ARRAY_WRAPPER_VERTI_MISC/TILE_GRP_ABOVE_THRESHOLD_LOOP_2__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_0*dout_reg*
+update_group -name xbus1 -add -objs TPB_ARRAY_WRAPPER_VERTI_MISC/TILE_GRP_ABOVE_THRESHOLD_LOOP_1__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_0*dout_reg*
+update_group -name xbus0 -add -objs TPB_ARRAY_WRAPPER_VERTI_MISC/TILE_GRP_ABOVE_THRESHOLD_LOOP_0__ROW_ABOVE_THRESHOLD_CNT_PIPE/flop_0*dout_reg*
+
+create_group -name reset1 -type region -rects { 3160. 1860. 3185. 1885. }
+create_group -name reset0 -type region -rects { 3160. 3800. 3185. 3825. }
+
+update_group -name reset1 -add -objs RESET_GROUP_1__reset_grp_extender/*
+update_group -name reset0 -add -objs RESET_GROUP_0__reset_grp_extender/*
+
+create_group -name reset6 -type region -rects { 3160. 2200. 3185. 2225. }
+create_group -name reset5 -type region -rects { 3160. 3400. 3185. 3425. }
+create_group -name reset4 -type region -rects { 3160. 4750. 3185. 4775. }
+
+update_group -name reset6 -add -objs TPB_ARRAY_WRAPPER_VERTI_MISC/RESET_GROUP_0__reset_grp_extender/*
+update_group -name reset5 -add -objs TPB_ARRAY_WRAPPER_VERTI_MISC/RESET_GROUP_1__reset_grp_extender/*
+update_group -name reset4 -add -objs TPB_ARRAY_WRAPPER_VERTI_MISC/RESET_GROUP_2__reset_grp_extender/*
+
+
+create_group -name reset2 -type region -rects { 1120. 40. 1130. 50. }
+create_group -name reset3 -type region -rects { 2090. 40. 2100. 50. }
+
+update_group -name reset2 -add -objs TPB_ARRAY_WRAPPER_HORIZ_MISC/RESET_GROUP_1__reset_grp_extender/*
+update_group -name reset3 -add -objs TPB_ARRAY_WRAPPER_HORIZ_MISC/RESET_GROUP_0__reset_grp_extender/*
+
+
+source /proj/cayman/wa/maubel/scripts/psum_stat.region.tcl
+
