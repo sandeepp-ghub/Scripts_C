@@ -1,0 +1,43 @@
+# relative floorplan
+delete_relative_floorplan -all
+
+# smallest X step .969*4 = 3.876 ,   smallest Y step 1.68*2 = 3.36
+set xstart  16. ; # 30.968
+set ystart  4596.48 ; # 6.72
+
+set xoffset 0.0;   # 3.876
+set xstep 77.
+set ystep -147.84; #  151.2
+
+set brow  1
+
+for {set mr 0} {$mr <= 3} {incr mr} {
+
+  for {set sr 0} {$sr <= 7} {incr sr} {
+
+    puts "Laying down Row ${brow}" ;
+
+    for {set mc 0} {$mc <= 3} {incr mc} {
+
+      for {set sc 0} {$sc <= 7} {incr sc} {
+        # TGRP_ROWS_0__TGRP_COLS_0__TPB_ARRAY_TILE_GRP_TILE_ROWS_0__TILE_COLS_0__TPB_ARRAY_TILE
+        set bname "TGRP_ROWS_${mr}__TGRP_COLS_${mc}__TPB_ARRAY_TILE_GRP_TILE_ROWS_${sr}__TILE_COLS_${sc}__TPB_ARRAY_TILE"
+        set thisy [expr $ystart + (($brow - 1) * $ystep)]
+
+        if {($mc==0) && ($sc==0)} {
+          set cmd "place_inst $bname $xstart $thisy"
+        } else {
+          #set cmd "create_relative_floorplan -ref_type object -horizontal_edge_separate {\"\"  \"\"  \"\"} -vertical_edge_separate {\"\"  $xstep  \"\"} -place $bname -ref $prev"
+           set cmd "mortar::relative_place $bname RIGHT $prev -offset $xoffset"
+        }
+        set prev $bname
+        #puts $cmd
+        eval $cmd
+      }
+    }
+    incr brow
+    #break
+  }
+  #  if {$mr > 0} break
+}
+delete_relative_floorplan -all
