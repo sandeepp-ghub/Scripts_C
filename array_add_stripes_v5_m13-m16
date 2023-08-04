@@ -1,0 +1,367 @@
+set block_and_pad_inst_ptr_list [get_db insts -if { .base_cell.base_class==block || .base_cell.base_class==pad }]
+
+set placed_inst_ptr_list {}
+foreach block_and_pad_inst_ptr $block_and_pad_inst_ptr_list {
+      if {[get_db $block_and_pad_inst_ptr .place_status] eq "unplaced"} {
+        if {$opt_planning} {
+           ::mortar::echo -warning -text "[get_db $block_and_pad_inst_ptr .name] is unplaced. For planning mode, this is ok"
+         } else {
+           ::mortar::echo -error -text "[get_db $block_and_pad_inst_ptr .name] is unplaced. Place this block or IO and rerun power routing in order to get the correct stripes around it"
+         }
+      } else {
+        lappend placed_inst_ptr_list $block_and_pad_inst_ptr
+      }
+}
+
+foreach inst_ptr $placed_inst_ptr_list {
+
+      set pg_ceiling_num($inst_ptr) [df::block_ceiling -pointer $inst_ptr -num]
+
+}
+
+##To honour signal routes
+set_db add_stripes_respect_routes all 
+
+set primary_power_name [get_db current_design .PRIMARY_POWER_NET]
+set primary_ground_name [get_db current_design .PRIMARY_GROUND_NET]
+
+ set M13_power_areablockagelist [::df::__define_area_blockage -power_name $primary_power_name -layer_name M13 -placed_inst_ptr_list $placed_inst_ptr_list]
+        if {$M13_power_areablockagelist != ""} {
+          set area_blockage_option "-area_blockage {$M13_power_areablockagelist}"
+        } else {
+          set area_blockage_option ""
+        }
+
+
+
+
+delete_obj [get_db route_blockages PGA_temp_blockage_*]
+
+set all_tile_bboxs ""
+
+for {set row 0} {$row < 4} {incr row} {
+	for {set col 0} {$col < 4} {incr col} {
+		set bbox_list [get_db [get_db insts TGRP_ROWS_${row}__TGRP_COLS_${col}__TPB_ARRAY_TILE_GRP/* -if {.base_cell.base_name == tpb_array_tile} ] .bbox]
+		set merged_bbox {*}[get_computed_shapes [get_computed_shapes $bbox_list SIZEX 1.5 SIZEY 4.12 ] BBOX]
+		lappend all_tile_bboxs $merged_bbox
+	}
+}
+
+set design_bbox [get_db current_design .bbox]
+get_computed_shapes $design_bbox ANDNOT $all_tile_bboxs
+set blockage_areas [ get_computed_shapes $design_bbox ANDNOT $all_tile_bboxs -output rect ]
+create_route_blockage -name PGA_temp_blockage_1 -layers {M13 M14 M15 M16} -rects $blockage_areas -spacing 0
+create_route_blockage -name PGA_temp_blockage_2 -layers {M13 M14 M15 M16} -rects  {0.0 1128.96 720.936 1155.84} -spacing 0
+
+create_route_blockage -name PGA_temp_blockage_3 -layers {M13 M14 M15 M16} -rects  {0.0 0.0 23.256 1155.84} -spacing 0
+
+
+set i 4
+#foreach wire [get_db [get_db nets CIF*] .wires -if {.layer.name == M13}] {
+#set bbox [get_computed_shapes [get_db $wire .rect] SIZEX 0.5 SIZEY 0.7]
+#create_route_blockage -name PGA_temp_blockage_${i} -layers { M13} -rects $bbox -spacing 0
+#incr i
+#}
+#
+#foreach wire [get_db [get_db nets CIF*] .wires -if {.layer.name == M14}] {
+#set bbox [get_computed_shapes [get_db $wire .rect] SIZEX 0.5 SIZEY 0.5]
+#create_route_blockage -name PGA_temp_blockage_${i} -layers { M14} -rects $bbox -spacing 0
+#incr i
+#}
+
+
+
+foreach wire [get_db [get_db nets CIF* *CTS* ] .wires -if {.layer.name == M16}] {
+set bbox [get_computed_shapes [get_db $wire .rect] SIZEX 0.5 SIZEY 0.5]
+create_route_blockage -name PGA_temp_blockage_${i} -layers { M16} -rects $bbox -spacing 0
+incr i
+}
+
+foreach wire [get_db [get_db nets CIF* *CTS* ] .wires -if {.layer.name == M15}] {
+set bbox [get_computed_shapes [get_db $wire .rect] SIZEX 0.5 SIZEY 1]
+create_route_blockage -name PGA_temp_blockage_${i} -layers { M15} -rects $bbox -spacing 0
+incr i
+}
+
+foreach wire [get_db [get_db nets VSS ] .special_wires -if {.shield_net.name != "" && .layer.name == M16 } ] {
+set bbox [get_computed_shapes [get_db $wire .rect] SIZEX 1 SIZEY 0.5]
+create_route_blockage -name PGA_temp_blockage_${i} -layers { M16} -rects $bbox -spacing 0
+incr i
+}
+
+foreach wire [get_db [get_db nets VSS ] .special_wires -if {.shield_net.name != "" && .layer.name == M15 } ] {
+set bbox [get_computed_shapes [get_db $wire .rect] SIZEX 0.5 SIZEY 1]
+create_route_blockage -name PGA_temp_blockage_${i} -layers { M15} -rects $bbox -spacing 0
+incr i
+}
+
+#foreach wire [get_db [get_db nets VSS ] .special_wires -if {.shield_net.name == CIF* && .layer.name == M14 } ] {
+#set bbox [get_computed_shapes [get_db $wire .rect] SIZEX 0.5 SIZEY 0.5]
+#create_route_blockage -name PGA_temp_blockage_${i} -layers { M14} -rects $bbox -spacing 0
+#incr i
+#}
+#
+#foreach wire [get_db [get_db nets VSS ] .special_wires -if {.shield_net.name == CIF* && .layer.name == M13 } ] {
+#set bbox [get_computed_shapes [get_db $wire .rect] SIZEX 0.5 SIZEY 0.7]
+#create_route_blockage -name PGA_temp_blockage_${i} -layers { M13} -rects $bbox -spacing 0
+#incr i
+#}
+
+
+set bbox_llx [get_db current_design .bbox.ll.x]
+set bbox_lly [get_db current_design .bbox.ll.y]
+set bbox_urx [get_db current_design .bbox.ur.x]
+set bbox_ury [get_db current_design .bbox.ur.y]
+
+set e_w_moat [get_db current_design .core_to_left]
+set n_s_moat [get_db current_design .core_to_bottom]
+
+
+###################################################################################################################################
+##M13 Routing
+
+
+        set M13_width      0.378
+        set M13_spacing    0.126
+        set M13_pitch      0.252
+        # M13 power pitch is 7.752 - this is twice the RLM M12 and M14 ceiling width multiple of 3.876
+        set M13_power_pitch  7.752
+        set M13_power_pitch_div2  [expr 7.752/2]
+        set M13_end_overlap 0.230
+
+
+set offset_VSS 0.763
+set offset_VDD 2.364
+
+
+set M13_VSS_start [expr {$bbox_llx - ($M13_width / 2.0) - (0.051 / 2.0) + $offset_VSS}]
+set M13_VDD_start [expr {$M13_VSS_start + ($M13_power_pitch / 2.0) - $offset_VDD  }]
+set M13_stop [expr {$bbox_urx + ($M13_width / 2.0) + (0.051 / 2.0) - $offset_VSS}]
+
+set_db add_stripes_stacked_via_bottom_layer M12
+set_db add_stripes_stacked_via_top_layer M13
+
+add_stripes \
+            -layer M13 \
+            -width .208 \
+            -set_to_set_distance $M13_power_pitch \
+	    -spacing "0.296 0.296 0.296 0.296 0.296 1.148 0.296 0.296 0.296 0.296 0.296" \
+            -direction vertical \
+            -start $M13_VSS_start \
+            -stop $M13_stop \
+            -nets "$primary_power_name $primary_ground_name $primary_power_name $primary_ground_name $primary_power_name $primary_ground_name $primary_ground_name $primary_power_name $primary_ground_name $primary_power_name $primary_ground_name $primary_power_name" \
+            -area $design_bbox \
+	    -user_class tile_pgv_bolster 
+
+#            -area_blockage "{$blockage_areas {0.0 1128.96 720.936 1155.84}  {0.0 0.0 23.256 1155.84}}"
+
+
+
+
+
+#add_stripes \
+#            -layer M13 \
+#            -width .208 \
+#            -set_to_set_distance $M13_power_pitch_div2 \
+#	    -spacing "0.548 0.548 0.548" \
+#            -direction vertical \
+#            -start $M13_VSS_start \
+#            -stop $M13_stop \
+#            -nets "$primary_ground_name $primary_power_name $primary_ground_name $primary_power_name" \
+#            -area $bbox \
+#	    -user_class tile_pgv_bolster           
+#
+
+##################################################################################################################################################################
+##M14 Routing
+
+set M14_width    0.624
+set M14_spacing    0.126
+set M14_pitch      0.252
+# M14 power pitch is 6.720 - this is the M12 RLM height multiple and half the M14 RLM height multiple
+set M14_power_pitch [expr 6.720]
+set M14_power_pitch_div2 [expr 6.720/2]
+
+set M14_side_overlap [expr {($M14_width / 2.0)}]
+set M14_end_overlap 1.520
+
+
+
+
+set_db add_stripes_stacked_via_bottom_layer M13
+set_db add_stripes_stacked_via_top_layer M14
+
+set offset_VSS 1.137
+set offset_VDD 2.364
+
+set M14_VSS_start [expr {$bbox_lly - ($M14_width / 2.0) + $offset_VSS}]
+set M14_stop [expr {$bbox_ury + ($M14_width / 2.0) - 1 }]
+
+set M14_VDD_start [expr {$M14_VSS_start + ($M14_power_pitch / 2.0)}]
+set M14_VSS_VDD_spacing [expr {$M14_VDD_start - $M14_VSS_start}]
+
+add_stripes \
+              -layer M14 \
+              -width .45  \
+              -spacing "0.558 1.902 0.558" \
+              -set_to_set_distance $M14_power_pitch \
+              -direction horizontal \
+              -start $M14_VSS_start \
+              -stop $M14_stop \
+              -nets "$primary_power_name $primary_ground_name $primary_ground_name $primary_power_name" \
+              -area $design_bbox \
+	      -user_class tile_pgv_bolster
+
+
+#################################################################################################################################################################
+##M15 Routing
+      set M15_gnd_width  2.880
+      set M15_gnd_width_div2  1.440
+      set M15_pwr_width  1.440
+      # spacing is greater than minimum (0.450) since width is > 1.350 and triggers the larger spacing bucket
+      set M15_spacing    0.585
+      # M15_pitch not used in any calculations, but kept here for reference
+      set M15_pitch      0.900
+      # M15 power pitch is 23.256 (3x the M13 power pitch)
+      set M15_power_pitch 23.256
+
+      set M15_side_overlap [expr {($M15_gnd_width / 2.0)}]
+
+        set M15_end_overlap 2.025
+
+set offset_VSS_M15 8.298
+        set M15_VSS_start [expr {$bbox_llx - ($M15_gnd_width / 2.0) - (0.051 / 2.0) + $offset_VSS_M15}]
+        set M15_stop [expr {$bbox_urx + ($M15_gnd_width / 2.0) + (0.051 / 2.0)}]
+
+     # The two half-width VDD rails will be closest on left and right to the VSS rail
+      set M15_right_VDD_start [expr {$M15_VSS_start + $M15_gnd_width + $M15_spacing}]
+      set M15_left_VDD_start [expr {$M15_VSS_start - $M15_spacing - $M15_pwr_width}]
+
+
+
+        set_db add_stripes_stacked_via_bottom_layer M14
+        set_db add_stripes_stacked_via_top_layer M15
+
+
+      set stripe_min_length [expr {$e_w_moat + 0.001}]
+      set_db add_stripes_stripe_min_length $stripe_min_length
+
+add_stripes \
+          -block_ring_bottom_layer_limit M15 \
+          -block_ring_top_layer_limit M15 \
+          -layer M15 \
+          -width $M15_gnd_width_div2 \
+          -set_to_set_distance $M15_power_pitch \
+	  -spacing "1.26 1.26 1.26 1.26" \
+          -direction vertical \
+          -start $M15_VSS_start \
+          -stop $M15_stop \
+          -nets "$primary_ground_name $primary_power_name $primary_ground_name $primary_power_name" \
+          -area $design_bbox \
+	  -user_class tile_pgv_bolster 
+
+
+
+
+
+###############################################################################################################################################################
+##M16 Routing
+ set M16_width      4.050
+ set M16_spacing    0.585
+ set M16_pitch      0.900
+ set M16_power_pitch 26.880
+
+set offset_VSS_M16 10.29
+        set M16_VSS_start [expr {$bbox_lly - ($M16_width / 2.0) + $offset_VSS_M16 }]
+        set M16_stop [expr {$bbox_ury + ($M16_width / 2.0)}]
+        set M16_VDD_start [expr {$M16_VSS_start - $M16_width - $M16_spacing}]
+
+
+      set_db add_stripes_stacked_via_bottom_layer M15
+      set_db add_stripes_stacked_via_top_layer M16
+
+
+
+
+add_stripes \
+          -block_ring_bottom_layer_limit M16 \
+          -block_ring_top_layer_limit M16 \
+          -layer M16 \
+          -width $M16_width \
+          -set_to_set_distance $M16_power_pitch \
+	  -spacing "2.25" \
+          -direction horizontal \
+          -start $M16_VSS_start \
+          -stop $M16_stop \
+          -nets "$primary_ground_name $primary_power_name" \
+          -area $design_bbox \
+	  -user_class tile_pgv_bolster 
+
+
+
+
+select_obj [get_db  [get_db nets VDD VSS] .special_wires -if { .user_class == tile_pgv_bolster && .layer.name == M14 }]
+#delete_obj [get_db  [get_db nets VDD VSS] .special_vias -if { .user_class == tile_pgv_bolster && .via_def.name == VIAGEN1415*}]
+select_obj [get_db  [get_db nets VDD VSS] .special_wires -if { .layer.name == M15}]
+
+set_db generate_special_via_disable_via_merge false
+set_db generate_special_via_allow_wire_shape_change false
+set_db generate_special_via_ignore_design_boundary true
+set_db generate_special_via_keep_existing_via keep_with_new_via
+set_db generate_special_via_opt_cross_via true
+
+update_power_vias -user_class tile_pgv_bolster  -add_vias 1 -bottom_layer M14 -top_layer M15 -nets "$primary_power_name $primary_ground_name" -selected_wires 1
+
+
+
+deselect_obj -all
+
+select_obj [get_db  [get_db nets VDD VSS] .special_wires -if { .user_class == tile_pgv_bolster && .layer.name == M15 }]
+select_obj [get_db  [get_db nets VDD VSS] .special_wires -if { .layer.name == M16}]
+
+update_power_vias -user_class tile_pgv_bolster  -add_vias 1 -bottom_layer M15 -top_layer M16 -nets "$primary_power_name $primary_ground_name" -selected_wires 1
+deselect_obj -all
+
+
+mdc::check_pvia
+
+
+#restore
+set_db generate_special_via_disable_via_merge false
+set_db generate_special_via_allow_wire_shape_change true
+set_db generate_special_via_ignore_design_boundary false
+set_db generate_special_via_keep_existing_via remove
+set_db generate_special_via_opt_cross_via false
+
+
+
+#delete_obj [get_db  {net:tpb_array/VDD  net:tpb_array/VSS} .special_wires -if { .layer .user_class == tile_pgv_bolster}]
+#delete_obj [get_db  {net:tpb_array/VDD  net:tpb_array/VSS} .special_vias -if { .user_class == tile_pgv_bolster}]
+delete_obj [get_db route_blockages PGA_temp_blockage_*]
+#delete_obj [get_db route_blockages PGA_temp_blockage_M14_*]
+
+#delete_routes -type special -status routed -shapes stripe -sub_class tile_pgv_bolster
+
+#create_shape -shape drcfill -rect $rect -layer $layer -net $primary_ground -user_class fill_fix
+mdc::check_drc -design_state postroute
+
+foreach mkr [get_db current_design .markers -if {.subtype == MinStep}] {
+set bbox [get_db $mkr .bbox]
+set bbox_2x [get_computed_shapes $bbox SIZEX 0.24 SIZEY 0.15]
+
+#select_obj [ get_db [get_obj_in_area  -area $bbox_2x  -obj_type special_via ] -if { .user_class == tile_pgv_bolster && .via_def.name == VIAGEN1213_* }]
+delete_obj [ get_db [get_obj_in_area  -area $bbox_2x  -obj_type special_via ] -if { .user_class == tile_pgv_bolster && .via_def.name == VIAGEN1213_* }]
+
+}
+
+foreach mkr [get_db current_design .markers -if {.subtype == Cut_Spacing}] {
+set bbox [get_db $mkr .bbox]
+set bbox_2x [get_computed_shapes $bbox SIZEX 1 SIZEY 0.5]
+
+#select_obj [ get_db [get_obj_in_area  -area $bbox_2x  -obj_type special_via ] -if { .user_class == tile_pgv_bolster && .via_def.name == VIAGEN1516_7 }]
+delete_obj [ get_db [get_obj_in_area  -area $bbox_2x  -obj_type special_via ] -if { .user_class == tile_pgv_bolster && .via_def.name == VIAGEN1516_7 }]
+
+}
+
+
+delete_obj [get_db  {net:tpb_array/VDD  net:tpb_array/VSS} .special_vias -if { .via_def.name == VIAGEN1516_7 && .user_class == tile_pgv_bolster}]
