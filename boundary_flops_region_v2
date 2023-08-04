@@ -1,0 +1,108 @@
+
+#create_group -name name -rects { x y x y } -type region
+create_group -name io_bnd_flops_1 -rects { 525 2700 551 2840 } -type region
+create_group -name io_bnd_flops_2 -rects { 561 2700 637 2840 } -type region
+create_group -name io_bnd_flops_3 -rects { 636 2700 720 2840 } -type region
+create_group -name io_bnd_flops_4 -rects { 763 2700 820 2840 } -type region
+create_group -name io_bnd_flops_5 -rects { 814 2700 816 2840 } -type region
+create_group -name io_bnd_flops_6 -rects { 824 2700 855 2840 } -type region
+create_group -name io_bnd_flops_7 -rects { 869 2700 973 2840 } -type region
+create_group -name io_bnd_flops_8 -rects { 1628 2700 1709 2840 } -type region
+create_group -name io_bnd_flops_9 -rects { 1954 2700 2028 2840 } -type region
+create_group -name io_bnd_flops_10 -rects { 2308 2700 2380 2840 } -type region
+create_group -name io_bnd_flops_11 -rects { 2629 2700 2703 2840 } -type region
+create_group -name io_bnd_flops_12 -rects { 2981 2700 3058 2840 } -type region
+create_group -name io_bnd_flops_13 -rects { 3304 2700 3377 2840 } -type region
+create_group -name io_bnd_flops_14 -rects { 3655 2700 3735 2840 } -type region
+create_group -name io_bnd_flops_15 -rects { 3978 2700 4051 2840 } -type region
+create_group -name io_bnd_flops_16 -rects { 4314 2700 4463 2840 } -type region
+
+#design y : 2849.28
+
+
+
+# update_group -add -name name -objs [ get_db frasfas]
+
+set banned_clk_list { WRCK_buf tessent_ssh0_shift_capture_clock_gated tessent_ssh0_shift_capture_clock_div tessent_ssh0_shift_capture_clock_gated tessent_ssh0_shift_capture_clock_div TCK tessent_tck tessent_ssh0_test_clock_gated tessent_ssh0_test_clock_div  }
+set fp [ open input_port_clocks.txt w ]
+foreach_in_collection input_ports [all_inputs -no_clocks] {
+    lassign [ lindex [ get_db $input_ports .location ] 0 ] x y
+   set full_name [get_object_name $input_ports]
+   foreach_in_collection end_pins [all_fanout -from $full_name -endpoints_only -view func_setup_ssgnp0p675v0c_cworstCCwT0c] {
+    set clock_list {}
+#    foreach my_clock [get_db [get_pins -of_objects [get_cells -of_objects [get_pins $end_pins]] -filter "is_clock == true"] .clocks] {
+#       set my_clock_fullname [get_db $my_clock .base_name]
+#       lappend clock_list $my_clock_fullname
+#    }
+
+    set non_data_pins { RESET SET CD WRSTN RB SDN SB E TE }
+
+    set io_grps [ get_db groups io_bnd_flops*]
+
+    foreach end_pin $end_pins {
+        # obj_type here since some ports were found
+        if { [get_db $end_pin .obj_type ] eq "pin" } {
+            set base_pin_name [ get_db $end_pin .lib_pins.base_name ]
+            set clock_names [get_db [ get_db [get_db $end_pin .inst.pins. -if { .is_clock } ] .clocks -index { view func_setup_ssgnp0p675v0c_cworstCCwT0c } ] .base_name ]
+            foreach clk_name $clock_names {
+
+                if { [ lsearch -exact $banned_clk_list  $clk_name ]  < 0 } {
+                    if { [ get_db $end_pin .is_data ] eq "true" &&  [ lsearch -exact  $non_data_pins $base_pin_name ] < 0 && [get_db $end_pin .inst.is_macro ] ne "true" } {
+                        #lappend clock_list $clock_name
+                        # or get flops with clock
+                        #set flop_name [ get_db ...]
+                        puts $fp "[get_db $input_ports .name ] [ get_db $end_pin .name ] $clk_name x:${x} y:${y} "
+                        foreach io_grp $io_grps {
+                            lassign [ lindex [ get_db $io_grp .rects ] 0 ] x1 y1 x2 y2
+                            if { $x > $x1 && $x < $x2 } {
+                                if { [get_db $end_pin .obj_type] ne "port" } {
+                                    if { [get_db $end_pin .inst.group] ne "" && [get_db $end_pin .inst.group.name ] ne "PowerDomain_MAIN" } {
+                                        puts "group [get_db $end_pin .inst.group.name]"
+                                        puts "inst: [ get_db $end_pin .inst.name ]"
+                                        update_group -delete -name [get_db $end_pin .inst.group.name] -objs [ get_db $end_pin .inst.name ]
+                                    }
+                                    update_group -add -name [get_db $io_grp .name ] -objs [ get_db $end_pin .inst.name ]
+                                    puts $fp "update_group -add -name [get_db $io_grp .name ] -objs [ get_db $end_pin .inst.name ]"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+        }
+  }
+ }
+}
+close $fp
+
+set fp [ open out_port_clocks.txt w ]
+
+foreach_in_collection port [all_outputs ] {
+    set full_name [get_object_name $port]
+    lassign [ lindex [ get_db $port .location ] 0 ] x y
+    foreach_in_collection end_pins [all_fanin -to $full_name -startpoints_only -view func_setup_ssgnp0p675v0c_cworstCCwT0c] {
+        set clock_list {}
+        foreach my_clock [get_db  -index { view func_setup_ssgnp0p675v0c_cworstCCwT0c } [get_pins -of_objects [get_cells -of_objects [get_pins $end_pins]] -filter "is_clock == true"] .clocks] {
+            set my_clock_fullname [get_db $my_clock .base_name]
+            if { [ lsearch -exact $banned_clk_list  $my_clock_fullname ]  < 0 && [get_db $end_pins .inst.is_macro ] ne "true"  } {
+                puts $fp "[get_db $port .name ] [get_db $end_pins .name ]  $my_clock_fullname x:${x} y:${y}"
+                        foreach io_grp $io_grps {
+                            lassign [ lindex [ get_db $io_grp .rects ] 0 ] x1 y1 x2 y2
+                            if { $x > $x1 && $x < $x2 } {
+                                if { [get_db $end_pins .obj_type] ne "port" } {
+                                    if { [get_db $end_pins .inst.group] ne "" && [get_db $end_pins .inst.group.name ] ne "PowerDomain_MAIN" } {
+                                        update_group -delete -name [get_db $end_pins .inst.group.name] -objs [ get_db $end_pins .inst.name ]
+                                    }
+                                    update_group -add -name [get_db $io_grp .name ] -objs [ get_db $end_pins .inst.name ]
+                                    puts $fp "update_group -add -name [get_db $io_grp .name ] -objs [ get_db $end_pins .inst.name ]"
+                                }
+                            }
+                        }
+            }
+        }
+    }
+}
+close $fp
+
+
