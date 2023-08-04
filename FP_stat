@@ -1,0 +1,83 @@
+
+
+
+
+
+### Placing PSUM_FPSTAT_REDUCE flops
+### There are pipeline flops after the final stage and two pipe stages between COMB16 and COMB32
+set flop_x_loc [expr ${psum_0_llx} / 2.0] ; # Center of the channel
+
+# COMB4 flops
+foreach_in_collection comb4_flop [get_cells PSUM_FPSTAT_REDUCE/*COMB4*/* -filter "is_sequential==true"] {
+    set comb4_flop_name [get_object_name $comb4_flop]
+    set fanins [get_cells [all_transitive_fanin -flat -startpoints_only -only_cells -to ${comb4_flop_name}/D]]
+    set flop_y_loc 0.00
+    foreach_in_collection fanin $fanins {
+        set fanin_y_loc [lindex [get_attribute $fanin origin] 1]
+        set flop_y_loc [expr $fanin_y_loc + $flop_y_loc]
+    }
+    set flop_y_loc [expr $flop_y_loc / [sizeof_collection $fanins]]    
+    puts "Placing $comb4_flop_name at $flop_x_loc $flop_y_loc"
+    set_cell_location -coordinates [list $flop_x_loc $flop_y_loc] $comb4_flop
+    set_attribute $comb4_flop -name physical_status -value legalize_only
+}
+
+# COMB16 flops and two pipe stages after it
+foreach_in_collection comb16_flop [get_cells PSUM_FPSTAT_REDUCE/*COMB16*/flop_0__u_din_q/* -filter "is_sequential==true"] {
+    set comb16_flop_name [get_object_name $comb16_flop]
+    set fanins [get_cells [all_transitive_fanin -flat -startpoints_only -only_cells -to ${comb16_flop_name}/D]]
+    set flop_y_loc 0.00
+    foreach_in_collection fanin $fanins {
+        set fanin_y_loc [lindex [get_attribute $fanin origin] 1]
+        set flop_y_loc [expr $fanin_y_loc + $flop_y_loc]
+    }
+    set flop_y_loc [expr $flop_y_loc / [sizeof_collection $fanins]]
+    puts "Placing $comb16_flop_name at $flop_x_loc $flop_y_loc"
+    set_cell_location -coordinates [list $flop_x_loc $flop_y_loc] $comb16_flop
+    set_attribute $comb16_flop -name physical_status -value legalize_only
+
+    # Placing two pipe stages
+    regsub {flop_0__u_din_q} $comb16_flop_name {flop_1__u_din_q} stage_1_flop_name
+    regsub {flop_0__u_din_q} $comb16_flop_name {flop_2__u_din_q} stage_2_flop_name
+    set staging_flops [list $stage_1_flop_name $stage_2_flop_name]
+    set num_staging_flops [llength $staging_flops]
+
+    set ury $flop_y_loc
+    set lly [expr ($psum_0_lly + $psum_31_ury) / 2.0]
+    if {$flop_y_loc < [expr ($psum_0_lly + $psum_31_ury) / 2.0]} {
+        set ury [expr ($psum_0_lly + $psum_31_ury) / 2.0]
+        set lly $flop_y_loc
+    }
+
+    set placement_interval [expr ($ury - $lly) / ($num_staging_flops + 1)]
+
+    set num_curr_flop 1
+    foreach curr_flop $staging_flops {
+        if {$flop_y_loc < [expr ($psum_0_lly + $psum_31_ury) / 2.0]} {
+            set curr_y [expr $lly + ($num_curr_flop * $placement_interval)]
+        } else {
+            set curr_y [expr $ury - ($num_curr_flop * $placement_interval)]
+        }
+        puts "Placing $curr_flop at $flop_x_loc $curr_y"
+        set_cell_location -coordinates [list $flop_x_loc $curr_y] [get_cells $curr_flop]
+        set_attribute [get_cells $curr_flop] -name physical_status -value legalize_only
+        incr num_curr_flop
+    }
+}
+
+# COMB32 flops
+set flop_y_loc [expr ($psum_0_lly + $psum_31_ury) / 2.0]
+
+foreach_in_collection comb32_flop [get_cells PSUM_FPSTAT_REDUCE/*COMB32*/* -filter "is_sequential==true"] {
+    set comb32_flop_name [get_object_name $comb32_flop]
+    #set fanins [get_cells [all_transitive_fanin -flat -startpoints_only -only_cells -to ${comb32_flop_name}/D]]
+    #set flop_y_loc 0.00
+    #foreach_in_collection fanin $fanins {
+    #    set fanin_y_loc [lindex [get_attribute $fanin origin] 1]
+    #    set flop_y_loc [expr $fanin_y_loc + $flop_y_loc]
+    #}
+    #set flop_y_loc [expr $flop_y_loc / [sizeof_collection $fanins]]
+    puts "Placing $comb32_flop_name at $flop_x_loc $flop_y_loc"
+    set_cell_location -coordinates [list $flop_x_loc $flop_y_loc] $comb32_flop
+    set_attribute $comb32_flop -name physical_status -value legalize_only
+}
