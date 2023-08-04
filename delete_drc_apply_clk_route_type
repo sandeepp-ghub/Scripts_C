@@ -1,0 +1,67 @@
+set_db check_drc_disable_rules out_of_die
+check_drc -out_file pre_fix.drc.rpt -limit 50000
+set route_drc_markers [get_db markers -if {.originator eq check}]
+#set route_drc_markers [get_db markers -if {.originator eq route_design}]
+set num_of_route_vios [llength $route_drc_markers]
+set nets_to_reroute [list]
+foreach route_drc_marker $route_drc_markers {
+    foreach marker_object [get_db $route_drc_marker .objects] {
+        if {[get_db $marker_object .obj_type] == "net"} {
+         if {    ([get_db $marker_object .is_power]  ne true) && \
+                  ([get_db $marker_object .is_ground] ne true) && \
+                  ([get_db $marker_object .name ] ne "CIF*" ) && \
+                  ([get_db $marker_object .name ] ne "q7_cores_tap_net_child_pair_*" ) && \
+                  ([get_db $marker_object .skip_routing ] ne true  ) } {
+                lappend nets_to_reroute [get_db $marker_object .name]
+            }
+        }
+    }
+}
+set nets_to_reroute [ lsort -unique $nets_to_reroute]
+foreach net_to_check $nets_to_reroute {
+    puts $net_to_check
+}
+
+delete_routes -net $nets_to_reroute -shield
+deselect_obj -all
+
+#select_obj [get_db nets $nets_to_reroute]
+#set_route_attributes -nets @PREROUTED -skip_routing true
+#set_db route_design_selected_net_only true
+#route_design
+#set_route_attributes -nets @PREROUTED -skip_routing false
+#set_db route_design_selected_net_only false
+#deselect_obj -all
+
+create_route_type \
+    -name clock_route_trunk_M10_14 \
+    -route_rule double_isolate \
+    -bottom_preferred_layer M10 \
+    -top_preferred_layer M14 \
+    -preferred_routing_layer_effort low \
+    -prefer_multi_cut_via \
+    -shield_net VSS \
+    -shield_side both
+create_route_type \
+    -name clock_route_leaf_M5_8 \
+    -route_rule double_isolate \
+    -bottom_preferred_layer M5 \
+    -top_preferred_layer M8 \
+    -preferred_routing_layer_effort low \
+    -prefer_multi_cut_via \
+    -shield_net VSS \
+    -shield_side both
+
+set_db cts_route_type_leaf clock_route_leaf_M5_8
+set_db cts_route_type_trunk clock_route_trunk_M10_14
+
+
+commit_clock_tree_route_attributes
+
+
+
+route_eco
+route_eco -fix_drc
+
+
+check_drc -out_file post_fix.drc.rpt -limit 50000
