@@ -1,0 +1,129 @@
+
+
+#  XBUS_PRE_TILE_0__TPB_ARRAY_XBUS_PRE_TILE
+
+set total 0
+
+for {set i 0} {$i <= 31} {incr i} {
+
+  set xb_inst XBUS_PRE_TILE_${i}__TPB_ARRAY_XBUS_PRE_TILE
+
+  for {set j 0} {$j <= 2087} {incr j} {
+
+    set drvr1 "none"
+    set drvr2 "none"
+    set drvr3 "none"
+    set drvr4 "none"
+    set drvr5 "none"
+    set cnt 0
+    incr total
+
+    for {set d 1} {$d <= 5} {incr d} {
+      if {$d == 1} {
+        if { [get_db [get_db pins ${xb_inst}/xbus_in[${j}]] .net.drivers.obj_type] == "pin"}  {
+          set drvr1 [get_db [get_db pins ${xb_inst}/xbus_in[${j}]] .net.drivers.inst.name]
+
+	  incr cnt
+        }
+      } elseif {$d == 2} {
+        if { [get_db [get_db pins $drvr1/I] .net.drivers.obj_type] == "pin" }  {
+          set drvr2 [get_db [get_db pins $drvr1/I] .net.drivers.inst.name]
+	  set dnet2 [get_db [get_db pins $drvr1/I] .net.name]
+          if {[llength [get_db [get_db pins $drvr1/I] .net.loads]] > 1} {puts "MDA: antenna detected on net $dnet2"}
+	  incr cnt
+        }
+      } elseif {$d == 3} {
+        if { [get_db [get_db pins $drvr2/I] .net.drivers.obj_type] == "pin" }  {
+          set drvr3 [get_db [get_db pins $drvr2/I] .net.drivers.inst.name]
+	  set dnet3 [get_db [get_db pins $drvr2/I] .net.name]
+
+          if {[llength [get_db [get_db pins $drvr2/I] .net.loads]] > 1} {puts "MDA: antenna detected on net $dnet3"}
+	  incr cnt
+        }
+      } elseif {$d == 4} {
+        if { [get_db [get_db pins $drvr3/I] .net.drivers.obj_type] == "pin" }  {
+          set drvr4 [get_db [get_db pins $drvr3/I] .net.drivers.inst.name]
+	  set dnet4 [get_db [get_db pins $drvr3/I] .net.name]
+
+          if {[llength [get_db [get_db pins $drvr1/I] .net.loads]] > 1} {puts "MDA: antenna detected on net $dnet4"}
+	  incr cnt
+        }
+      } elseif {$d == 5} {
+        if { [get_db [get_db pins $drvr4/I] .net.drivers.obj_type] == "pin" }  {
+          set drvr5 [get_db [get_db pins $drvr3/I] .net.drivers.inst.name]
+	
+	  incr cnt
+        } 	
+      }
+
+    }
+
+    set xb_bit [expr $i*2088 + $j]
+    set port_y [lindex [lindex [get_db [get_db ports xbus_in[${xb_bit}]] .location] 0] 1]
+    
+    if {$cnt > 3} {
+#      puts "$xb_inst, bit=$j, $xb_bit, cnt=$cnt $drvr1, $drvr2, $drvr3, $drvr4, $drvr5"
+    }
+
+    set slist [list 0 9 12 3 7 2 11 6 10 1 9 4 13] 
+    set fuzz [lindex $slist [expr $total % 13]]
+    if {$cnt == 5} {
+       set d1x [lindex [lindex [get_db [get_db insts $drvr1] .location] 0] 0]
+       set d1y [lindex [lindex [get_db [get_db insts $drvr1] .location] 0] 1]
+       set d2x [lindex [lindex [get_db [get_db insts $drvr2] .location] 0] 0]
+       set d2y [lindex [lindex [get_db [get_db insts $drvr2] .location] 0] 1]
+       set d3x [lindex [lindex [get_db [get_db insts $drvr3] .location] 0] 0]
+       set d3y [lindex [lindex [get_db [get_db insts $drvr3] .location] 0] 1]
+       set d4x [lindex [lindex [get_db [get_db insts $drvr4] .location] 0] 0]
+       set d4y [lindex [lindex [get_db [get_db insts $drvr4] .location] 0] 1]
+
+       if {$d1x > 3121.} {
+         set nd1x [expr 3191 + ($fuzz * .3)]
+         set nd2x [expr 3200 + ($fuzz * .3)]
+         set nd3x [expr 3209 + ($fuzz * .3)]
+         set nd4x [expr 3218 + ($fuzz * .3)]	
+       }
+
+       puts "place_inst $drvr1 $nd1x $port_y my -soft_fixed"
+       puts "place_inst $drvr2 $nd2x $port_y my -soft_fixed"
+       puts "place_inst $drvr3 $nd3x $port_y my -soft_fixed"
+       puts "place_inst $drvr4 $nd4x $port_y my -soft_fixed"
+
+       place_inst $drvr1 $nd1x $port_y my -soft_fixed
+       place_inst $drvr2 $nd2x $port_y my -soft_fixed
+       place_inst $drvr3 $nd3x $port_y my -soft_fixed
+       place_inst $drvr4 $nd4x $port_y my -soft_fixed
+       
+       delete_routes -net [list $dnet2 $dnet3 $dnet4]
+
+    } elseif {$cnt == 4} {
+       set d1x [lindex [lindex [get_db [get_db insts $drvr1] .location] 0] 0]
+       set d1y [lindex [lindex [get_db [get_db insts $drvr1] .location] 0] 1]
+       set d2x [lindex [lindex [get_db [get_db insts $drvr2] .location] 0] 0]
+       set d2y [lindex [lindex [get_db [get_db insts $drvr2] .location] 0] 1]
+       set d3x [lindex [lindex [get_db [get_db insts $drvr3] .location] 0] 0]
+       set d3y [lindex [lindex [get_db [get_db insts $drvr3] .location] 0] 1]
+
+       if {$d1x > 3121.} {
+         set nd1x [expr 3199 + ($fuzz * .3)]
+         set nd2x [expr 3208 + ($fuzz * .3)]
+         set nd3x [expr 3217 + ($fuzz * .3)]
+       }
+
+       puts "place_inst $drvr1 $nd1x $port_y my -soft_fixed"
+       puts "place_inst $drvr2 $nd2x $port_y my -soft_fixed"
+       puts "place_inst $drvr3 $nd3x $port_y my -soft_fixed"
+
+       place_inst $drvr1 $nd1x $port_y my -soft_fixed
+       place_inst $drvr2 $nd2x $port_y my -soft_fixed
+       place_inst $drvr3 $nd3x $port_y my -soft_fixed
+
+       delete_routes -net [list $dnet2 $dnet3]
+    }
+
+#    if {$j > 100} {break}
+  }
+
+#  break
+
+}
