@@ -1,0 +1,251 @@
+
+set_db assign_pins_edit_in_batch true
+
+set xmax 3232.533
+set ymax 4865.28
+
+
+# psum_mem_wr_if_0__wbank*
+# psum_mem_wr_if_0__wdouble*
+# psum_mem_wr_if_0__wdtype*
+# psum_mem_wr_if_0__we*
+# psum_mem_wr_if_0__wnum*
+# psum_mem_wr_if_0__wpsum*
+# psum_mem_wr_if_0__wsop*
+# psum_mem_wr_if_0__wstart*
+# psum_mem_wr_if_0__wvalid*
+
+# Ports of the form psum_mem_wr_if* will placed in two groups on the bottom edge utilizing the gaps between tile blocks where there are no ports
+
+
+set  plist {}
+deselect_obj -all
+select_obj [get_db ports psum_mem_wr_if_0__wbank*]
+select_obj [get_db ports psum_mem_wr_if_0__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_0__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_0__we*]
+select_obj [get_db ports psum_mem_wr_if_0__wnum*]
+select_obj [get_db ports psum_mem_wr_if_0__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_0__wsop*]
+select_obj [get_db ports psum_mem_wr_if_0__wstart*]
+select_obj [get_db ports psum_mem_wr_if_0__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_1__wbank*]
+select_obj [get_db ports psum_mem_wr_if_1__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_1__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_1__we*]
+select_obj [get_db ports psum_mem_wr_if_1__wnum*]
+select_obj [get_db ports psum_mem_wr_if_1__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_1__wsop*]
+select_obj [get_db ports psum_mem_wr_if_1__wstart*]
+select_obj [get_db ports psum_mem_wr_if_1__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_2__wbank*]
+select_obj [get_db ports psum_mem_wr_if_2__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_2__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_2__we*]
+select_obj [get_db ports psum_mem_wr_if_2__wnum*]
+select_obj [get_db ports psum_mem_wr_if_2__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_2__wsop*]
+select_obj [get_db ports psum_mem_wr_if_2__wstart*]
+select_obj [get_db ports psum_mem_wr_if_2__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_3__wbank*]
+select_obj [get_db ports psum_mem_wr_if_3__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_3__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_3__we*]
+select_obj [get_db ports psum_mem_wr_if_3__wnum*]
+select_obj [get_db ports psum_mem_wr_if_3__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_3__wsop*]
+select_obj [get_db ports psum_mem_wr_if_3__wstart*]
+select_obj [get_db ports psum_mem_wr_if_3__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_4__wbank*]
+select_obj [get_db ports psum_mem_wr_if_4__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_4__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_4__we*]
+select_obj [get_db ports psum_mem_wr_if_4__wnum*]
+select_obj [get_db ports psum_mem_wr_if_4__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_4__wsop*]
+select_obj [get_db ports psum_mem_wr_if_4__wstart*]
+select_obj [get_db ports psum_mem_wr_if_4__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_5__wbank*]
+select_obj [get_db ports psum_mem_wr_if_5__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_5__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_5__we*]
+select_obj [get_db ports psum_mem_wr_if_5__wnum*]
+select_obj [get_db ports psum_mem_wr_if_5__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_5__wsop*]
+select_obj [get_db ports psum_mem_wr_if_5__wstart*]
+select_obj [get_db ports psum_mem_wr_if_5__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_6__wbank*]
+select_obj [get_db ports psum_mem_wr_if_6__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_6__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_6__we*]
+select_obj [get_db ports psum_mem_wr_if_6__wnum*]
+select_obj [get_db ports psum_mem_wr_if_6__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_6__wsop*]
+select_obj [get_db ports psum_mem_wr_if_6__wstart*]
+select_obj [get_db ports psum_mem_wr_if_6__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_7__wbank*]
+select_obj [get_db ports psum_mem_wr_if_7__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_7__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_7__we*]
+select_obj [get_db ports psum_mem_wr_if_7__wnum*]
+select_obj [get_db ports psum_mem_wr_if_7__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_7__wsop*]
+select_obj [get_db ports psum_mem_wr_if_7__wstart*]
+select_obj [get_db ports psum_mem_wr_if_7__wvalid*]
+
+set plist [get_db selected .name]
+
+#puts [llength $plist]
+#foreach elt $plist {puts $elt}
+
+puts "\nPlace psum_mem_wr_if 0-7 in right tile gap\n"
+set_partition_pin_status -pins $plist -status unplaced
+
+edit_pin -pin $plist -start {2258. 0.0} -end {2226.0 0.0} -spread_direction clockwise -snap track -unit track -edge 3 -layer {M7 M9} -pattern fill_track -spacing 3 -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+
+#break
+
+set  plist {}
+deselect_obj -all
+select_obj [get_db ports psum_mem_wr_if_8__wbank*]
+select_obj [get_db ports psum_mem_wr_if_8__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_8__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_8__we*]
+select_obj [get_db ports psum_mem_wr_if_8__wnum*]
+select_obj [get_db ports psum_mem_wr_if_8__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_8__wsop*]
+select_obj [get_db ports psum_mem_wr_if_8__wstart*]
+select_obj [get_db ports psum_mem_wr_if_8__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_9__wbank*]
+select_obj [get_db ports psum_mem_wr_if_9__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_9__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_9__we*]
+select_obj [get_db ports psum_mem_wr_if_9__wnum*]
+select_obj [get_db ports psum_mem_wr_if_9__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_9__wsop*]
+select_obj [get_db ports psum_mem_wr_if_9__wstart*]
+select_obj [get_db ports psum_mem_wr_if_9__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_10__wbank*]
+select_obj [get_db ports psum_mem_wr_if_10__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_10__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_10__we*]
+select_obj [get_db ports psum_mem_wr_if_10__wnum*]
+select_obj [get_db ports psum_mem_wr_if_10__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_10__wsop*]
+select_obj [get_db ports psum_mem_wr_if_10__wstart*]
+select_obj [get_db ports psum_mem_wr_if_10__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_11__wbank*]
+select_obj [get_db ports psum_mem_wr_if_11__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_11__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_11__we*]
+select_obj [get_db ports psum_mem_wr_if_11__wnum*]
+select_obj [get_db ports psum_mem_wr_if_11__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_11__wsop*]
+select_obj [get_db ports psum_mem_wr_if_11__wstart*]
+select_obj [get_db ports psum_mem_wr_if_11__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_12__wbank*]
+select_obj [get_db ports psum_mem_wr_if_12__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_12__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_12__we*]
+select_obj [get_db ports psum_mem_wr_if_12__wnum*]
+select_obj [get_db ports psum_mem_wr_if_12__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_12__wsop*]
+select_obj [get_db ports psum_mem_wr_if_12__wstart*]
+select_obj [get_db ports psum_mem_wr_if_12__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_13__wbank*]
+select_obj [get_db ports psum_mem_wr_if_13__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_13__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_13__we*]
+select_obj [get_db ports psum_mem_wr_if_13__wnum*]
+select_obj [get_db ports psum_mem_wr_if_13__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_13__wsop*]
+select_obj [get_db ports psum_mem_wr_if_13__wstart*]
+select_obj [get_db ports psum_mem_wr_if_13__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_14__wbank*]
+select_obj [get_db ports psum_mem_wr_if_14__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_14__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_14__we*]
+select_obj [get_db ports psum_mem_wr_if_14__wnum*]
+select_obj [get_db ports psum_mem_wr_if_14__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_14__wsop*]
+select_obj [get_db ports psum_mem_wr_if_14__wstart*]
+select_obj [get_db ports psum_mem_wr_if_14__wvalid*]
+
+select_obj [get_db ports psum_mem_wr_if_15__wbank*]
+select_obj [get_db ports psum_mem_wr_if_15__wdouble*]
+select_obj [get_db ports psum_mem_wr_if_15__wdtype*]
+select_obj [get_db ports psum_mem_wr_if_15__we*]
+select_obj [get_db ports psum_mem_wr_if_15__wnum*]
+select_obj [get_db ports psum_mem_wr_if_15__wpsum*]
+select_obj [get_db ports psum_mem_wr_if_15__wsop*]
+select_obj [get_db ports psum_mem_wr_if_15__wstart*]
+select_obj [get_db ports psum_mem_wr_if_15__wvalid*]
+
+set plist [get_db selected .name]
+
+#puts [llength $plist]
+#foreach elt $plist {puts $elt}
+
+set_partition_pin_status -pins $plist -status unplaced
+puts "\nPlace psum_mem_wr_if 8-15 in left tile gap\n"
+edit_pin -pin $plist -start {774. 0.0} -end {738.0 0.0} -spread_direction clockwise -snap track -unit track -edge 3 -layer {M7 M9} -pattern fill_track -spacing 3 -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+
+#break
+
+puts "\nPlace ssn_* ports, IN set on right edge in gap below upper 8 rows of tiles, OUT set in gaps on bottom edge.\n"
+
+set_partition_pin_status -pins ssn_* -status unplaced
+
+edit_pin -pin {ssn_forward_bus_in* ssn_bus_clock_in ssn_return_bus_out* } -start [list $xmax 3650.] -end [list $xmax 3610.] -spread_direction clockwise -snap track -unit track -edge 2 -spacing 6 -layer {M6 M8} -pattern fill_track -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+
+edit_pin -pin {ssn_forward_bus_out* ssn_bus_clock_out}  -start [list 863. 0.] -end [list 850. 0.] -spread_direction clockwise -snap track -unit track -edge 3 -spacing 5 -layer {M5 M7} -pattern fill_track -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+edit_pin -pin {ssn_return_bus_in*}  -start [list 952. 0.] -end [list 939. 0.] -spread_direction clockwise -snap track -unit track -edge 3 -spacing 5 -layer {M5 M7} -pattern fill_track -fixed_pin 0 -honor_constraint 0 -fix_overlap 
+
+#break
+
+puts "Place fp_status pins on bottom edge near right edge"
+set_partition_pin_status -pins fp_status_*_out* -status unplaced
+set_partition_pin_status -pins pe_dam_row_above_th_cnt* -status unplaced
+set_partition_pin_status -pins pe_row_edge_cfg* -status unplaced
+edit_pin -pin {fp_status_ie_out* fp_status_inf_out* fp_status_oe_out* fp_status_ue_out* pe_dam_row_above_th_cnt* pe_row_edge_cfg*} -start [list 3050. 0.0] -end [list 2970 0.0] -spread_direction clockwise -snap track -unit track -edge 3 -layer {M7 M9} -pattern fill_track -spacing 5 -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+#edit_pin -pin fp_status_ie_out* -start {4110. 0.0} -end {4000.0 0.0} -spread_direction clockwise -snap track -edge 3 -layer {M7 M9} -pattern fill_track -spacing 8 -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+#edit_pin -pin fp_status_inf_out* -start {3990. 0.0} -end {3980.0 0.0} -spread_direction clockwise -snap track -edge 3 -layer {M7 M9} -pattern fill_track -spacing 8 -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+#edit_pin -pin fp_status_oe_out* -start {3970. 0.0} -end {3960.0 0.0} -spread_direction clockwise -snap track -edge 3 -layer {M7 M9} -pattern fill_track -spacing 8 -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+#edit_pin -pin fp_status_ue_out* -start {3950. 0.0} -end {3940.0 0.0} -spread_direction clockwise -snap track -edge 3 -layer {M7 M9} -pattern fill_track -spacing 8 -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+
+set_partition_pin_status -pins ctrl_in* -status unplaced
+edit_pin -pin {ctrl_in*} -start [list $xmax [expr $ymax-40]] -end [list $xmax [expr $ymax-115]] -spread_direction clockwise -edge 2 -layer {M6 M8 M10} -spacing 4 -snap track -unit track -pattern fill_layer -fixed
+
+#break 
+
+set_partition_pin_status -pins scan_* -status unplaced
+set_partition_pin_status -pins abort_* -status unplaced
+set_partition_pin_status -pins {rst_n arr_div_rst_n pb_div_rst_n misc_sw_pe_array_rst} -status unplaced
+
+puts "place scan* and abort_* pins on right edge near bottom"
+#edit_pin -pin {scan_* abort_* rst_n arr_div_rst_n pb_div_rst_n misc_sw_pe_array_rst} -start [list $xmax 190.0] -end [list $xmax 150.0] -spread_direction clockwise -snap track -edge 2 -layer {M6 M8} -pattern fill_track -spacing 8 -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+edit_pin -pin {scan_* abort_*} -start [list $xmax 190.0] -end [list $xmax 150.0] -spread_direction clockwise -snap track -edge 2 -layer {M6 M8} -pattern fill_track -spacing 8 -fixed_pin 0 -honor_constraint 0 -fix_overlap 0
+
+set_partition_pin_status -pins {clk clk_out cwg_reset_n TCK ijtag*} -status unplaced
+puts "place clk, rst and misc pins on right edge near top"
+#edit_pin -pin {clk clk_out cwg_reset_n TCK ijtag*} -start [list $xmax [expr $ymax-10.]] -end [list $xmax [expr $ymax-20.]] -spread_direction clockwise -spread_type range -snap track -edge 2 -layer {M12} -spacing 8 -fixed_pin 0 -honor_constraint 0 -fix_overlap
+
+edit_pin -pin {ijtag*} -start [list $xmax 2540.] -end [list $xmax 2535.] -spread_direction clockwise -spread_type range -snap track -unit track -edge 2 -layer {M10} -spacing 3 -fixed_pin 0 -honor_constraint 0 -fix_overlap
+edit_pin -pin {clk_out cwg_reset_n rst_n  arr_div_rst_n pb_div_rst_n misc_sw_pe_array_rst TCK } -start [list $xmax 4835.] -end [list $xmax 4830.] -spread_direction clockwise -spread_type range -snap track -unit track -edge 2 -layer {M10} -spacing 6 -fixed_pin 0 -honor_constraint 0 -fix_overlap
+edit_pin -pin {clk } -assign [list $xmax 4835.7]  -snap track -edge 2 -layer {M12} -fixed_pin 0 
+
+
+set_db assign_pins_edit_in_batch false
