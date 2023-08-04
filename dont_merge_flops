@@ -1,0 +1,14 @@
+puts "\n\nMDA set the .dont_merge attribute on the boundary flops to get early clocks\n\n"
+
+mortar::read_file_to_list -file /proj/cayman/DE3/pd/snapshot/sdma_wrap/boundary_flops.txt  -list  bflops
+
+set_db [get_db insts $bflops] .dont_merge_multibit true
+
+
+
+catch {delete_obj group:bdry_flops }
+
+
+create_group -name bdry_flops -type region -rects { 255. 4. 580. 100. }
+
+update_group -name bdry_flops -add -objs $bflops
