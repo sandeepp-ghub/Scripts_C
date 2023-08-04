@@ -1,0 +1,32 @@
+puts "/nMDA: setting up mbff enhanced flow, extreme opt with low power effort/n"
+set_db opt_power_effort low
+set_db design_flow_effort extreme
+set_db design_power_effort low
+
+set_db opt_useful_skew false
+set_db opt_useful_skew_pre_cts false
+set_db opt_useful_skew_ccopt none
+
+eval_legacy {setOptMode -flopMergePowerTolerancePercentage 15 }
+eval_legacy {getDesignMode ; getOptMode }
+
+puts "MDA:  setting dont_touch on port buffs"
+set_dont_touch [get_db insts *_IencIOBuf] true
+
+puts "\nMDA: setting target slack to -0.200 and LDR to 0.9 and mbff opt to mergeOnly\n"
+set_db opt_setup_target_slack -0.200
+set_db opt_leakage_to_dynamic_ratio 0.9
+set_db opt_multi_bit_flop_opt mergeOnly
+eval_legacy {setOptMode -powerDrivenMBFFOpt true}
+eval_legacy {setOptMode -MBFFMergeTimingEffort medium}
+eval_legacy {setOptMode -freeFlopMerge true}
+#eval_legacy {ecoMergeFlop -all }
+
+set_db place_opt_post_place_tcl /proj/cayman/wa/maubel/configs/mbff_post_place.tcl
+
+eval_legacy {setOptMode -flopMergeDebug 1}
+
+eval_legacy {getOptMode }
+
+
+
