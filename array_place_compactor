@@ -1,0 +1,55 @@
+
+eval_legacy {setEcoMode -honorDontTouch false -honorDontUse false -honorFixedStatus false -refinePlace false}
+eval_legacy {setEcoMode -updateTiming false -batchMode true}
+
+# Need to find ybus_in ports which do not connect directly to ports
+
+# starting, top row rightmost array tile
+# TGRP_ROWS_3__TGRP_COLS_0__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_0__TPB_ARRAY_TILE
+
+#set placed_insts {}
+for {set j 0} {$j <=3} {incr j} {
+ for {set i 0} {$i <=7} {incr i} {
+  set tname "TGRP_ROWS_3__TGRP_COLS_${j}__TPB_ARRAY_TILE_GRP/TILE_ROWS_7__TILE_COLS_${i}__TPB_ARRAY_TILE"
+  puts "Starting TILE $tname"
+  for {set k 0} {$k <= 719} {incr k} {
+    
+    set ppin [get_db pins $tname/ybus_out[${k}]]
+    set px [lindex [lindex [get_db $ppin .location] 0] 0]
+    set py [lindex [lindex [get_db $ppin .location] 0] 1]
+    set pnetp [get_db $ppin .net]
+    
+    set loads  [get_db $pnetp .loads.name]; # will give driving pin
+
+    foreach load $loads {
+      if {[string match "*tessent*" $load]} {
+
+         set name [get_db [get_db pins $load] .cell_name]
+	 puts "Placing inst $name below $px, $py" 
+	 
+	 place_inst $name $px [expr $py - 1.5] -soft_fixed
+	 
+         set ctype [get_db [get_db insts $name] .base_cell]
+         regsub -all "D.BWP210" $ctype "D1BWP210"  newtype
+         puts "Changing $ctype to $newtype"
+         eco_update_cell -insts $name -cells $newtype	 
+	 
+      } {
+#         puts "$load is not the one of interest"
+
+      }
+     
+    } 
+        
+#    break
+  }
+   
+#   break
+#  if {$i > 3} break
+ }
+ 
+# break
+}
+
+
+eval_legacy {setEcoMode -batchMode false}
