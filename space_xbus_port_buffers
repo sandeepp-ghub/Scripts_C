@@ -1,0 +1,22 @@
+
+
+set pbuf_list [get_db [get_db insts xbus_in_*_IencIOBuf] .name]
+
+
+foreach pbuf $pbuf_list {
+
+  set_db [get_db insts $pbuf] .place_status placed
+  set_inst_padding -inst $pbuf -left_side 25 -right_side 25 
+
+
+}
+
+set_db place_detail_honor_inst_pad true
+place_detail
+set_db place_detail_honor_inst_pad false
+
+foreach pbuf $pbuf_list {
+   delete_inst_padding $pbuf
+
+  set_db [get_db insts $pbuf] .place_status fixed
+}
