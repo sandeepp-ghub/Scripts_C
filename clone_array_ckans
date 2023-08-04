@@ -1,0 +1,59 @@
+
+
+# This is the expected name of the CKAN from DFT
+set xname "DFT_ICG_ECO_clock_and"
+
+# Create 32 new CKAN's and their associated nets
+if {![llength [get_db insts $xname]] } {
+  puts "Expected tile clock gate not found"
+  return
+} else {
+  puts "Create 32 copies of the initial clock gate, delete the initial gate at the end"
+
+  set gn [get_db [get_db insts $xname] .name]
+  set a1name [get_db [get_db pins $gn/A1] .net.name]
+  set a2name [get_db [get_db pins $gn/A2] .net.name]
+  set zname [get_db [get_db pins $gn/Z] .net.name]
+  
+  for {set r 1} {$r <=32} {incr r} {
+    set ngname ${xname}_${r}
+    mortar::create_gate -lib_name CKAN2D8BWP210H6P51CNODLVT  -name $ngname 
+    mortar::connect_pin -pin_name $ngname/A1 -net_name $a1name
+    mortar::connect_pin -pin_name $ngname/A2 -net_name $a2name
+    set nzname ${zname}_${r}
+    mortar::create_net  -name ${zname}_${r}
+    mortar::connect_pin -pin_name $ngname/Z  -net_name $nzname
+  }
+}
+
+#return
+set ridx 32
+
+ for {set i 0} {$i <= 3} {incr i} {
+
+   for {set k 0} {$k <= 7} {incr k} {
+
+     for {set j 0} {$j <= 3} {incr j} {
+
+       for {set m 0} {$m <= 7} {incr m} {
+         set tname "TGRP_ROWS_${i}__TGRP_COLS_${j}__TPB_ARRAY_TILE_GRP/TILE_ROWS_${k}__TILE_COLS_${m}__TPB_ARRAY_TILE"         
+         mortar::disconnect_pin -pin_name $tname/clk
+	 set nzname ${zname}_${ridx}
+	 puts "Reconnecting tile $tname to CKAN $ridx, net: $nzname"
+	 mortar::connect_pin -pin_name $tname/clk -net_name $nzname
+            
+       }
+      
+     }
+     puts "Completed assigning row $ridx"
+     set ridx [expr $ridx - 1] ; # decrement the tile row index counter
+    
+   }
+     
+ }
+
+
+# Now delete that initial CKAN and its net
+puts "Deleting initial seed CKAN"
+mortar::delete_net -name $zname
+mortar::delete_gate -name $gn
