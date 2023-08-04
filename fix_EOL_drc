@@ -1,0 +1,63 @@
+deselect_obj -all
+
+set EOL_violation_stripes  ""
+
+foreach mkr [get_db current_design .markers -if {.subtype == EndOfLine_Keepout}] {
+set bbox [get_computed_shapes [get_db $mkr .bbox] SIZEY 0.2]
+set objects [get_db [ get_obj_in_area -obj_type special_wire -areas $bbox] -if {(.net.name == VSS || .net.name == VDD)  && .layer.name == M3 && .user_class == tile_pgv_bolster}]
+if { [llength $objects] } {
+lappend EOL_violation_stripes $objects
+
+}
+}
+select_obj $EOL_violation_stripes
+edit_trim_routes -selected
+deselect_obj -all
+
+
+set EOL_violation_stripes  ""
+
+foreach mkr [get_db current_design .markers -if {.subtype == EndOfLine_Spacing}] {
+set bbox [get_computed_shapes [get_db $mkr .bbox] SIZEY 0.2]
+set objects [get_db [ get_obj_in_area -obj_type special_wire -areas $bbox] -if {(.net.name == VSS || .net.name == VDD)  && .layer.name == M3 && .user_class == tile_pgv_bolster}]
+if { [llength $objects] } {
+lappend EOL_violation_stripes $objects
+
+}
+}
+select_obj $EOL_violation_stripes
+edit_trim_routes -selected
+deselect_obj -all
+
+
+set EOL_violation_stripes  ""
+
+foreach mkr [get_db current_design .markers -if {.subtype == Metal_EndOfLine_Spacing}] {
+set bbox [get_computed_shapes [get_db $mkr .bbox] SIZEY 0.2]
+set objects [get_db [ get_obj_in_area -obj_type special_wire -areas $bbox] -if {(.net.name == VSS || .net.name == VDD)  && .layer.name == M3 && .user_class == tile_pgv_bolster}]
+if { [llength $objects] } {
+lappend EOL_violation_stripes $objects
+
+}
+}
+select_obj $EOL_violation_stripes
+edit_trim_routes -selected
+deselect_obj -all
+
+set EOL_violation_stripes  ""
+
+foreach mkr [get_db current_design .markers -if {.subtype == Metal_EndOfLine_SameMask_spacing}] {
+set bbox [get_computed_shapes [get_db $mkr .bbox] SIZEY 0.2]
+set objects [get_db [ get_obj_in_area -obj_type special_wire -areas $bbox] -if {(.net.name == VSS || .net.name == VDD)  && .layer.name == M3 && .user_class == tile_pgv_bolster}]
+if { [llength $objects] } {
+lappend EOL_violation_stripes $objects
+
+}
+}
+select_obj $EOL_violation_stripes
+edit_trim_routes -selected
+deselect_obj -all
+
+
+
+
