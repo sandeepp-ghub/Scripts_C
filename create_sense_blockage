@@ -1,0 +1,11 @@
+set io_ptr [get_db insts SENSESD_1]
+set loc_rect [get_db [get_db $io_ptr .base_cell.obs_layer_shapes -if {.layer.name ==OD_INJECTOR_12V_IHIA}] .shapes.rect]
+set rect [get_transform_shapes -inst SENSESD_1 -local_pt $loc_rect ]
+set enlarge_rect [get_computed_shapes $rect SIZE 15.3]
+create_place_blockage -name METH_pblk_misc_mda_for_SENSESD_1 -type hard -rects $enlarge_rect -snap_to_site 
+
+set io_ptr [get_db insts SENSESD_2]
+set loc_rect [get_db [get_db $io_ptr .base_cell.obs_layer_shapes -if {.layer.name ==OD_INJECTOR_12V_IHIA}] .shapes.rect]
+set rect [get_transform_shapes -inst SENSESD_2 -local_pt $loc_rect ]
+set enlarge_rect [get_computed_shapes $rect SIZE 15.3]
+create_place_blockage -name METH_pblk_misc_mda_for_SENSESD_2 -type hard -rects $enlarge_rect -snap_to_site 
