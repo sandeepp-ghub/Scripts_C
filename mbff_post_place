@@ -1,0 +1,11 @@
+puts "MDA: Forcing flop merge pass after placement only..."
+
+set systemTime [clock seconds]
+puts "\n\nMDA: The current time before merge is: [clock format $systemTime -format "%T %Z"]\n\n"
+eval_legacy {ecoMergeFlop -all }
+
+puts "MDA: Setting target slack back to 0.0"
+set_db opt_setup_target_slack 0.0
+
+set systemTime [clock seconds]
+puts "\n\nMDA: The current time after merge is: [clock format $systemTime -format "%T %Z"]\n\n"
