@@ -1,0 +1,94 @@
+# Import creates the clones (see projflow track_config.import.tcl)
+# Prects redistributes the fanout in-between place and opt (see pd/configure_innovus.tcl for place_opt_post_place_tcl info)
+
+# foreach primary extender, trace the repowering tree and place inverting and non-inverting into buckets
+#   create a seed inverter off each extender (primary and clones)
+#   run two redistributions, one for inverting sinks and one for non-inverting sinks
+
+puts "\n\nRedistribute HORIZ reset extend sinks\n"
+
+set h0 [get_db hinsts TPB_ARRAY_WRAPPER_HORIZ_MISC/RESET_GROUP_0__reset_grp_extender]
+set h1 [get_db hinsts TPB_ARRAY_WRAPPER_HORIZ_MISC/RESET_GROUP_1__reset_grp_extender]
+
+
+
+# trace the tree to find inverting and non-inverting
+set snks_noninvert ""
+set snks_invert    ""
+set srcs_noninvert ""
+set srcs_invert    ""
+foreach hinst [list $h0 $h1] {
+  if { [set hport [get_db $hinst .hports -if {.base_name == reset_n_out}]] eq "" } {
+    mortar::echo -error -text "Cannot find reset_n_out from $primary"
+    continue
+  }
+  if { [set net [get_db $hport .hnet.net]] eq "" } {
+    mortar::echo -error -text "Cannot find net from $hport"
+    continue
+  }
+  if { [set src [get_db $net .drivers]] eq "" } {
+    mortar::echo -error -text "Cannot find source of $net"
+    continue
+  }
+
+  set noninverted_sinks [mortar::trace_repower -ptr $net -noninv_sink_pins]
+  set inverted_sinks    [mortar::trace_repower -ptr $net -inv_sink_pins]
+
+  lappend snks_noninvert {*}$noninverted_sinks
+  lappend snks_invert    {*}$inverted_sinks
+
+  lappend srcs_noninvert $src
+
+  # create a root inverter for each extender that becomes the source of the redistribution of inverted sinks
+  if { [llength $inverted_sinks] ne "" } {
+    set hinst_base_name [get_db $hinst .base_name]
+
+    set cmd_inst [list create_inst -base_cell INVD1BWP210H6P51CNODLVTLL -name ${hinst_base_name}_root_inv -location [lindex [get_db $src .location] 0]]
+    set cmd_net  [list create_net -name ${hinst_base_name}_root_inv_net]
+    set parent   [get_db $hinst .parent]
+    if { [get_db $parent .obj_type] eq "hinst" } {
+      lappend cmd_inst -parent [get_db $parent .module.name]
+      lappend cmd_net  -module [get_db $parent .module.name]
+    }
+    mortar::echo "  $cmd_inst"
+    mortar::echo "  $cmd_net"
+
+    set inv_inst [eval $cmd_inst]
+    set inv_net  [eval $cmd_net]
+
+    set inv_inst_name [get_db $inv_inst .name]
+    set inv_net_name  [get_db $inv_net .name]
+
+    connect_pin -inst [get_db $inv_inst .name] -pin I  -net [get_db $net .name]
+    connect_pin -inst [get_db $inv_inst .name] -pin ZN -net [get_db $inv_net .name]
+
+    mortar::echo "Created $inv_inst_name root inverter ($inv_net_name)"
+
+    lappend srcs_invert [get_db $inv_inst .pins -if {.direction == out}]
+  }
+}
+
+set num_noninvert [llength $snks_noninvert]
+set num_invert    [llength $snks_invert]
+
+mortar::echo "$num_noninvert Non-Inverting sinks"
+mortar::echo "$num_invert Inverting sinks"
+
+mortar::echo "Redistributing $num_noninvert non-inverting sinks to [llength $srcs_noninvert] non-inverting sources..."
+if { $num_noninvert > 0 } {
+  # NOTE FOR MARK: add -no_execute to show what would happen without actually doing it
+  set eco [mortar::redistribute_sinks -sources $srcs_noninvert -sinks $snks_noninvert]
+  foreach line $eco {
+    puts $line
+  }
+}
+
+mortar::echo "Redistributing $num_invert inverting sinks to [llength $srcs_invert] inverting sources..."
+if { $num_invert > 0 } {
+  # NOTE FOR MARK: add -no_execute to show what would happen without actually doing it
+  set eco [mortar::redistribute_sinks -sources $srcs_invert    -sinks $snks_invert]
+  foreach line $eco {
+    puts $line
+  }
+}
+puts ""
