@@ -1,0 +1,76 @@
+set _design_name [get_object_name [current_design]]
+set _scenario_name [lindex [all_analysis_views] 0]
+
+set _mode [lindex [split $_scenario_name _]  0]
+set input_derate_cell_list ""
+
+mPuts "--I-- Will consider reading below files."
+foreach fname [glob -nocomplain *${_scenario_name}_pgv_derates*.tcl] {
+    mPuts " \t\t $fname"
+}
+foreach fname [lrange [glob -nocomplain *${_scenario_name}_pgv_derates*.tcl] 0 end] {
+    mPuts "--I-- Reading $fname"
+
+    if [regexp {(\S+)_(func|shift|capt|lsmode|asst)_\S+} $fname match design_name] {
+	mPuts "--I-- Count [llength $input_derate_cell_list] Design: $design_name"
+	if {$design_name == "$_design_name"}  {
+
+	    mPuts "--I-- Working on  Design: $design_name Inst: . (TopDesign)"
+	    set hier_list ""
+	    set hier ""
+	    set rfile [open $fname r]
+	    while {![eof $rfile]} {
+		set line [gets $rfile]
+		if [regexp {\S+get_cells\s+(\S+)\]\S+} $line match cell] {
+		    lappend input_derate_cell_list ${hier}$cell
+		}
+	    }
+	    close $rfile
+	} else {
+	    set hier_list [get_object_name [get_cells -quiet -of [get_designs -quiet $design_name]]]
+	    foreach hier $hier_list {
+		mPuts "--I-- Working on  Design: $design_name Inst: $hier "
+		set rfile [open $fname r]
+		while {![eof $rfile]} {
+		    set line [gets $rfile]
+		    if [regexp {\S+get_cells\s+(\S+)\]\S+} $line match cell] {
+			lappend input_derate_cell_list "${hier}/$cell"
+		    }
+		}
+		close $rfile
+		mPuts "--I-- Done Working on  Design: $design_name Inst: $hier  - Total objects collected till now [llength $input_derate_cell_list]"
+	    }
+	}
+    } else {
+	mPuts "--ERROR-- in Parsing $fname"
+    }
+}
+
+catch {
+    redirect /dev/null {mVar cell_with_pgv_derates_applied [get_object_name [get_cells -quiet [lsort -u $input_derate_cell_list ]] ]}
+
+    proc listAminusB {A B} {
+	set _x ""
+	set _nb [llength $B]
+	set _na [llength $A]
+	foreach p $A {
+	    if {[lsearch $B $p] < 0 } {lappend _x $p}
+	}
+	return $_x
+    }
+
+    #mVar cell_with_pgv_derates_ignored [listAminusB [lsort -u $input_derate_cell_list ] [mVar cell_with_pgv_derates_applied]]
+    mVar cell_with_pgv_derates_ignored ""
+    mVar cell_with_pgv_derates_ignored_c [expr [llength [lsort -u $input_derate_cell_list ]]  - [llength $cell_with_pgv_derates_applied]]
+    if {$cell_with_pgv_derates_ignored_c > 1000} {
+	redirect /dev/null {mVar cell_with_pgv_derates_ignored [listAminusB [lsort -u $input_derate_cell_list ] [mVar cell_with_pgv_derates_applied]]}
+    }
+
+    mPuts "--I--  Total PGV-DERATES Applied on : [llength [mVar cell_with_pgv_derates_applied]] Instances"
+    mPuts "--I--  Total PGV-DERATES Ignored on :  [mVar cell_with_pgv_derates_ignored_c] Instances"
+
+    set _fp [open missing_pgv_derates.rpt w] ;  puts $_fp [regsub -all " " [mVar cell_with_pgv_derates_ignored] \n] ; close $_fp
+    set _fp [open applied_pgv_derates.rpt w] ;  puts $_fp [regsub -all " " [mVar cell_with_pgv_derates_applied] \n] ; close $_fp
+
+    mPuts "--I--  End collecting pgv-derate instance lists - Next will load the derate values"
+}
