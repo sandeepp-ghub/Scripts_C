@@ -1,0 +1,114 @@
+##################################################################################################################
+proc rtsum_ssn {args} {
+    set gap_var "\t"
+    #echo "$args"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    #echo "Slack Status Skew  StartPoint                                EndPoint                     Clock     Hpins"
+    #echo "Slack${gap_var}pathType${gap_var}Status${gap_var}\(FRom-->TO\)${gap_var}skew${gap_var}StartPoint${gap_var}EndpOint${gap_var}SpClock${gap_var}EpClock${gap_var}NumLevels${gap_var}PathDelay${gap_var}Period${gap_var}launch_index${gap_var}capture_index"
+    echo "ID${gap_var}Slack${gap_var}pathType${gap_var}Status${gap_var}\(FRom-->TO\)${gap_var}StartPoint${gap_var}EndpOint${gap_var}SpClock${gap_var}EpClock${gap_var}Hpins\n"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    #set paths [sort_collection [eval report_timing_pba -hpin -collection  $args -path_type full_clock] slack]
+    set paths [sort_collection [eval report_timing -hpin -collection  $args ] slack]
+    if {[sizeof $paths] > 0} {
+	if {[lindex [get_property $paths slack] 0] < 0} {
+	    set paths [sort_collection [eval report_timing_pba -hpin -collection  $args ] slack]
+	}
+	if {[sizeof $paths] > 40} {
+	    echo "# WARNING: More than one interface path found."
+	}
+	set i 0
+	foreach_in_collection path $paths {
+	    incr i
+	    set skew [get_skew $path]
+	    set slack [get_slack $path]
+	    set sp [get_startpoint_clock_pin $path]
+	    set sp_ref [get_property -quiet [get_cells -quiet [find_pnr $sp]] ref_name]
+	    set ep [get_object_name [get_property  $path endpoint]]
+	    set ep_ref [get_property -quiet [get_cells -quiet [find_pnr $ep]] ref_name]
+	    if {$sp_ref == ""} {set sp_ref TOP}
+	    if {$ep_ref == ""} {set ep_ref TOP}
+	    if {[find_pnr $sp] ==  [find_pnr $ep]} {set path_region INTERNAL} else {set path_region INTERFACE}
+	    set path_type [get_property -quiet $path path_type]
+	    set ep_c [get_endpoint_clock $path]
+	    set sp_c [get_startpoint_clock $path]
+	    if {$slack == "NA"} {
+		set status UNC
+	    } else {
+		if {$slack < 0} {
+		    set status VIO
+		} else {
+		    set status MET
+		}
+	    }
+	    set hpins [get_hpins_path $path]
+	    #set num_levels [get_property $path num_cell_arcs]
+	    #set path_delay [get_property $path path_delay]
+	    #set period [get_property $path period]
+
+	    #set launch_clk_path [get_property $path launch_clock_path]
+	    #set launch_clk_objects [get_object_name [get_cells -quiet -of [get_property [get_property $launch_clk_path timing_points] object]]]
+	    #set capture_clk_path [get_property $path capture_clock_path]
+	    #set capture_clk_objects [get_object_name [get_cells -quiet -of [get_property [get_property $capture_clk_path timing_points] object]]]
+
+	    #set launch_depth [llength $launch_clk_objects]
+	    #set capture_depth [llength $capture_clk_objects]
+	    #set cppr_point [get_object_name [get_cells -of [get_property $path cppr_branch_point]]]
+	    #set launch_index [expr $launch_depth - [lsearch -exact $launch_clk_objects $cppr_point]]
+	    #set capture_index [expr [llength $capture_clk_objects] - [lsearch -exact $capture_clk_objects $cppr_point]]
+	    
+	    #set hpins_launch [get_hpins_path $launch_clk_path]
+	    #set hpins_capture [get_hpins_path $capture_clk_path]
+
+	    #echo "$slack $path_region $path_type $status $skew $sp  $ep  $sp_c $ep_c $launch_depth $capture_depth $launch_index $capture_index  \{$hpins\}"
+	    #echo "${slack}${gap_var}${path_type}_${path_region}${gap_var}${status}${gap_var}\(${sp_ref}\-\-\>${ep_ref}\)${gap_var}${skew}${gap_var}${sp}${gap_var}${ep}${gap_var}${sp_c}${gap_var}${ep_c}${gap_var}${num_levels}${gap_var}${path_delay}${gap_var}${period}${gap_var}${launch_index}${gap_var}${capture_index}"
+	    echo "Path-${i}${gap_var}${slack}${gap_var}${path_type}_${path_region}${gap_var}${status}${gap_var}\(${sp_ref}\-\-\>${ep_ref}\)${gap_var}${sp}${gap_var}${ep}${gap_var}${sp_c}${gap_var}${ep_c}${gap_var}\{$hpins\}"
+	}
+    } else {
+
+	echo "# WARNING - NO Timing paths found"
+    }
+}
+
+##################################################################################################################
+#O_rtsum -early -through  [get_pins sengine_0/channel_vmid/ssn*forward*bus* -filter "direction==in"] -unique_pins -nworst 1 -max_paths 10000 -max_slack 1000000 -group tessent_ssn_bus_clock_network
+#rtsum_ssn -early -through  [get_pins sengine_0/channel_vmid/ssn*forward*bus* -filter "direction==in"] -unique_pins -nworst 1 -max_paths 10000 -max_slack 1000000 -group tessent_ssn_bus_clock_network
+
+##################################################################################################################
+set type "-late"
+set view [get_db analysis_views .name]
+set design [get_object_name [current_design]]
+
+if [regexp hold $view] {set type "-early"}
+report_timing_pba $type -max_slack 10000 -path_type summary -max_paths 1 -nworst 1
+##################################################################################################################
+if ![file exists ./DEBUG_REPORT] {file mkdir ./DEBUG_REPORT}
+##################################################################################################################
+redirect ./DEBUG_REPORT/SSN_trace_${design}_${view}.rpt {
+    foreach pnr_inst  [lrange [get_object_name [sort_collection [get_pnr] ref_name]] 0 end] {
+	#set pnr_inst sengine_0/channel_vmid
+	set pnr_ref [get_property -quiet [get_cells -quiet $pnr_inst] ref_name]
+
+	set bussed_ssn_ports  [lsort -u [regsub -all {\[\d+\]} [get_property [get_pins -quiet ${pnr_inst}/*ssn*bus* -filter "(direction==out || direction==in) && lib_pin_name!~*clock*"] lib_pin_name] ""]]
+	if {[llength $bussed_ssn_ports] > 0} {
+	    echo "\n#======================================================="
+	    echo "# PNR_DESIGN: $pnr_ref "
+	    echo "# PNR_INST: $pnr_inst "
+	    echo "#=======================================================\n"
+	    set j 0
+	    foreach bus $bussed_ssn_ports {
+		incr j
+		set ssn_bus_pins [get_pins -quiet ${pnr_inst}/${bus}]
+		echo "\n#-------------------------------------------------------"
+		echo "SSN-BUS-${j} : ${pnr_inst}/${bus} (Width: [sizeof_collection $ssn_bus_pins])"
+		echo "#-------------------------------------------------------\n"
+		rtsum_ssn $type  -through  [get_pins $ssn_bus_pins ] -unique_pins -nworst 1 -max_paths 10000 -max_slack 1000000 -group tessent_ssn_bus_clock_network
+	    }
+	} else {
+	    echo "\n#======================================================="
+	    echo "# WARNING: NO-SSN-BUS found ; PNR_DESIGN: $pnr_ref  ; PNR_INST: $pnr_inst "
+	    echo "#=======================================================\n"
+	    
+	}
+    }
+}
+##################################################################################################################
