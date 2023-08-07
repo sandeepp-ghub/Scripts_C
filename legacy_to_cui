@@ -1,0 +1,42 @@
+proc my_map {} {
+    echo "dbGetObjByName ==> get_obj_by_name"
+    echo "db_pt ==> get_point"
+    echo "selectNetP2P ==> select_net_p2p"
+}
+
+proc get_obj_by_name {args} {
+    redirect -var  b {puts "set x \[eval_legacy \{dbGetObjByName $args\}\]"}
+    eval $b
+    return $x
+}
+
+proc get_point {args} {
+    redirect -var  b {puts "set x \[eval_legacy \{db_pt $args\}\]"}
+    eval $b
+    return $x
+}
+alias get_pt get_point
+
+
+proc select_net_p2p {args} {
+    redirect -var  b {puts "set x \[eval_legacy \{selectNetP2P $args\}\]"}
+    eval $b
+    return $x
+}
+
+
+proc db_get_term_by_name {args} {
+    redirect -var  b {puts "set x \[eval_legacy \{dbGetTermByName $args\}\]"}
+    eval $b
+    return $x
+}
+
+
+proc db_get_net_by_name {args} {
+    redirect -var  b {puts "set x \[eval_legacy \{dbGetNetByName $args\}\]"}
+    eval $b
+    return $x
+}
+
+
+
