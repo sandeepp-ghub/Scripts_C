@@ -1,0 +1,62 @@
+## Load DB
+read_db cbp.invcuidb/cbp.invcuidb.pre:2_fp
+##
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/enc_procs_cui.tcl
+#####################################################
+update_floorplan -core_to_edge [list [expr 22 * 0.051] [expr 4 * 0.21] [expr 22 * 0.051] [expr 4 * 0.21]] -no_snap_to_grid
+#######################################################
+catch {delete_route_halo -all_blocks}
+catch {delete_place_halo -all_blocks}
+catch {delete_obj [get_db place_blockages]}
+catch {delete_route_blockage -type all}
+catch {delete_routes}
+catch {delete_filler -prefix ENDCAP}
+eval_legacy {clearDrc}
+###################
+## Adjust Macro placement
+#####################
+myfplan_settings
+############
+#create_place_halo -halo_deltas 0.663 0 0.663 0 -all_macros
+create_place_halo -halo_deltas 0.663  0.663  0.663 0.663 -all_macros
+
+
+init_core_rows
+eval_legacy {cutRow -honorRowSiteheight}
+set_db floorplan_row_site_width odd
+set_db floorplan_row_site_height even
+check_floorplan -odd_even_site_row
+set_db finish_floorplan_drc_region_objs non_row_area
+
+finish_floorplan -drc_region_layer FB1 -edge_extend {0 0.105} -edge_shrink {0.0255 0}
+add_dummy_boundary_wires -layer {M1 M2 M3 M4} -space {0.025 0.03 0.125 0.125}
+#######################
+set_db [all_macros] .place_status fixed
+##################################
+
+
+#catch {delete_route_halo -all_blocks}
+#catch {delete_place_halo -all_blocks}
+#catch {delete_obj [get_db place_blockages]}
+#catch {init_core_row}
+## Part-1 of Marvell PG
+eval_legacy {clearDrc}
+eval_legacy "source /proj/m1dpqa00/wa/kpavan/DATA_IN/IPBU_scripts/pgrScripts/encPG.split"
+
+eval_legacy {clearDrc} ; eval_legacy {check_ufc /proj/cadpnr/mKit/tsmc005p/2020.01.002/mFlow/flow/invcui/script/tcic_dblk.ufc}
+eval_legacy {source /proj/cadpnr/mKit/tsmc005p/2020.01.002/mFlow/flow/invcui/script/N5_database_checker_20190725_encrypted.tcl}
+eval_legacy {check_floorplan}
+#llength [get_db [all_macros] -if {.orient == r0}] - bbox_llx should be on even site
+
+# for my - the - always the origin is on : even site.
+## macro origin is always on - even -site - Macro her is odd site width
+## TOp to bottom : 0.56 + 0.028*n
+## Left: 0.714 + 0.102*n
+## Minimi x spacing and yspacing b/w macros is better to give 5um.
+## STDcells dont need to abut/missing routing halo regions - will check
+
+deselectAll; 
+get_db markers -if {.subtype == EndCapWrongOrientViolation} -foreach {select_obj [get_obj_in_area -areas  $obj(.bbox) -obj_type inst]}
+deselect_obj [get_db selected -if {.base_cell.name == *BOUNDARYPINCORNER*} -invert ]
+flip_or_rotate_obj -flip  MY -keep_relative 
+
