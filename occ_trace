@@ -1,0 +1,38 @@
+#set all_occ_clkout_mux [get_object_name [get_cells [get_db [get_db [get_cells -hier *u_occ -filter "is_hierarchical"]  .hinsts *tessent_persistent_cell_clock_out*mux*] .insts *anpa_keep_clk_mux*]]]
+set all_occ_clkout_mux "" ; foreach clkout_mux [get_object_name [get_cells -hier *u_occ -filter "is_hierarchical"]] {lappend all_occ_clkout_mux [get_object_name [get_cells ${clkout_mux}/*tessent_persistent_cell_clock_out*mux*/*anpa_keep_clk_mux* -filter "!is_hierarchical"]]}
+
+#set occ_clk_out_mux [lindex $all_occ_clkout_mux 0] 
+
+set j 0
+set fp [open parent_occ_i0_trace.rpt w]
+foreach occ_clk_out_mux  [lsort -u [get_object_name [get_cells $all_occ_clkout_mux]]] {
+
+    set parent_occ_list [remove_from_collection -intersect [remove_from_collection [get_cells -quiet -of  [get_pins -quiet [all_fanin -flat -to [get_pins $occ_clk_out_mux/I0]]  -filter "full_name=~*anpa_keep_clk_mux*"]] [get_cells -quiet $occ_clk_out_mux]] [get_cells -quiet  $all_occ_clkout_mux] ]
+    set parent_occ_c [sizeof $parent_occ_list]
+    set i 0
+    incr j
+    puts $fp "\n $j - I0-Trace: Parent-OCC-Count: $parent_occ_c  OCC-Inst: $occ_clk_out_mux    RLM-Inst : [find_pnr $occ_clk_out_mux] ([get_attribute [get_cells [find_pnr $occ_clk_out_mux]] ref_name]) "
+    foreach_in_collection parent $parent_occ_list {
+	incr i
+	set parent_occ_name [get_object_name $parent]
+	puts $fp "\t$i: OCC-Inst: $parent_occ_name    RLM-Inst : [find_pnr $parent_occ_name] ([get_attribute [get_cells [find_pnr $parent_occ_name]] ref_name])"
+    }
+}
+close $fp
+
+
+set j 0
+redirect  occ_i1_trace.rpt {echo ""}
+foreach occ_clk_out_mux  [lsort -u [get_object_name [get_cells $all_occ_clkout_mux]]] {
+    incr j
+    if {[sizeof_collection [remove_from_collection -intersect  [get_pins [all_fanin_h -to $occ_clk_out_mux/I1 -startpoints_only -trace_through case_disable]] [get_pins ring_io_top/GPIO[41]]]] > 0} {set pad_trace true} else {set pad_trace false}
+    redirect -append occ_i1_trace.rpt {echo  "\n $j - I1-Trace:  Case: [get_attribute [get_pins $occ_clk_out_mux/I1] case_value ] PadTrace: $pad_trace  OCC-Inst: $occ_clk_out_mux    RLM-Inst : [find_pnr $occ_clk_out_mux] ([get_attribute [get_cells [find_pnr $occ_clk_out_mux]] ref_name]) "}
+
+    if {[sizeof [get_pins -quiet $occ_clk_out_mux/I1 -filter "defined(case_value)"]] > 0} {
+	redirect -append occ_i1_trace.rpt  {sortprint -nosort -case_value -direction  all_fanin_h -to $occ_clk_out_mux/I1 -startpoints_only -trace_through case_disable}
+	redirect -append occ_i1_trace.rpt  {sortprint -nosort -case_value -direction  get_ports -quiet [all_fanin_h -to $occ_clk_out_mux/I1 -startpoints_only -trace_through case_disable]}
+    } else {
+	redirect -append occ_i1_trace.rpt {sortprint -nosort -case_value -direction  all_fanin_h -to $occ_clk_out_mux/I1 -startpoints_only }
+	redirect -append occ_i1_trace.rpt {sortprint -nosort -case_value -direction  get_ports -quiet [all_fanin_h -to $occ_clk_out_mux/I1 -startpoints_only ]}
+    }
+}
