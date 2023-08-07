@@ -1,0 +1,570 @@
+
+proc print_uncon_info {{out_file debug.rpt}} {
+
+    suppress_message SEL-003
+
+    set all_cp_pins [all_registers -clock_pins -edge_triggered]
+    set all_le_pins [all_registers -clock_pins -level_sensitive]
+    set con_ck_pins ""
+    set con_le_pins ""
+    set con_internal_ck_pins ""
+
+    foreach clk [get_object_name [filter_collection [all_clocks ] @sources.direction!=internal]] {
+	append_to_collection -unique con_ck_pins [get_ck_pins $clk 0]
+    }
+
+
+    foreach clk [get_object_name [filter_collection [all_clocks ] @sources.direction==internal]] {
+	append_to_collection -unique con_internal_ck_pins [get_ck_pins $clk 0]
+    }
+
+    foreach clk [get_object_name [filter_collection [all_clocks ] @sources.direction!=internal]] {
+	append_to_collection -unique con_le_pins [all_registers -clock_pins -clock $clk -level_sensitive]
+    }
+    
+    
+    set uncon_ck_pins [remove_from_collection $all_cp_pins $con_ck_pins]
+    set uncon_le_pins [remove_from_collection $all_le_pins $con_le_pins]
+    set waived_le_pins [get_pins $uncon_le_pins -filter "full_name=~*dft_bypass_mplat*cn_latch* || full_name =~ *dft_bypass_fplat*cn_latch* || full_name=~*U_decompressor_CW_Extest_compressed*cache_reg* || full_name=~*U_decompressor_ScanCompression_mode*cache_reg* || full_name =~ *scan_hub*jtg__hub_scan_ctl*latch*latch*"]
+
+    set un_waived_le_pins  [remove_from_collection $uncon_le_pins $waived_le_pins]
+
+    ec $waived_le_pins > ${out_file}_waived_latch_enable.rpt
+    ec $un_waived_le_pins > ${out_file}_unwaived_latch_enable.rpt
+
+    ec [remove_from_collection -intersect $uncon_ck_pins $con_internal_ck_pins] > ${out_file}_uncon_from_internal_clocks.rpt
+    ec [remove_from_collection  $uncon_ck_pins $con_internal_ck_pins] > ${out_file}_uncon_from_non_internal_clocks.rpt
+
+    set uncon_ck_pins_gold $uncon_ck_pins
+    set uncon_ck_pins [remove_from_collection $uncon_ck_pins_gold $con_internal_ck_pins]
+
+    redirect ${out_file}.uncon_internal_ck.hier.info {print_head_fanin [remove_from_collection -intersect $uncon_ck_pins $con_internal_ck_pins]}
+    redirect ${out_file}.uncon_internal_ck.verbose {ec [remove_from_collection -intersect $uncon_ck_pins $con_internal_ck_pins]}
+
+    redirect ${out_file}.uncon_ck.hier.info {print_head_fanin $uncon_ck_pins}
+    redirect ${out_file}.uncon_ck.verbose {ec $uncon_ck_pins}
+
+    redirect ${out_file}.uncon_le.hier.info {print_head_fanin $un_waived_le_pins}
+    redirect ${out_file}.uncon_le.verbose {ec $un_waived_le_pins}
+
+    catch {exec dos2unix ${out_file}.uncon_internal_ck.hier.info}
+    catch {exec dos2unix ${out_file}.uncon_ck.hier.info}
+    catch {exec dos2unix ${out_file}.uncon_le.hier.info}
+
+    set allsp [all_fanin -flat -to $uncon_ck_pins -startpoints_only ]
+    set potential_start_points [remove_from_collection  $allsp $uncon_ck_pins]
+    set sp_ports [get_ports -quiet $potential_start_points]
+    set sp_pins ""
+    set sp_pins  [get_pins -quiet [remove_from_collection [get_pins -quiet $potential_start_points] $uncon_ck_pins] -filter "lib_pin_name!~TIE*"]
+    set sp_pins_tied ""
+    set sp_pins_tied [get_pins -quiet $potential_start_points -filter "lib_pin_name=~TIE*"]
+    set sp_pins_seq ""
+    set sp_pins_seq [remove_from_collection -intersect $sp_pins $all_cp_pins]
+    set sp_pins_combo ""
+    set sp_pins_combo [remove_from_collection [remove_from_collection  $sp_pins $all_cp_pins] $sp_pins_tied]
+
+    set ep_pins_tied ""
+    set ep_pins_tied  [remove_from_collection -intersect  $allsp $uncon_ck_pins]
+    if {[sizeof $sp_pins_tied] > 0} {
+	append_to_collection -unique ep_pins_tied [remove_from_collection -intersect [all_fanout -flat -from $sp_pins_tied -endpoints_only] $uncon_ck_pins_gold]
+    }
+
+    set constant_ck_pins ""
+    set constant_ck_pins [get_pins -quiet $uncon_ck_pins -filter "case_value==1 || case_value==0"]
+
+    append_to_collection -unique ep_pins_tied $constant_ck_pins
+    catch {set uncon_ck_pins [remove_from_collection $uncon_ck_pins $ep_pins_tied]}
+    set controlled_by_ports ""
+    if {[sizeof_collection $sp_ports] > 0} {
+	set controlled_by_ports [remove_from_collection -intersect [all_fanout -flat -from $sp_ports -endpoints_only] $uncon_ck_pins]
+    }
+
+    puts "\n---I--- Total Unconstrained Clock Pins :: [sizeof $uncon_ck_pins_gold]"
+    if {[sizeof $ep_pins_tied] > 0} {
+	puts "\n---I--- Total Pins Tied Off / Unconnected / SetTo Constant Case :: [sizeof $ep_pins_tied]"
+	puts "\n---I--- Total Unconstrained Pins - Withtout Case/Uncon/Tie :: [sizeof $uncon_ck_pins]"
+	#ec $sp_pins_tied
+    }
+
+    if {[sizeof $controlled_by_ports] > 0} {
+	puts "\n---I--- Total Unconstrained Clock Pins - Controlled by Ports ::  [sizeof $controlled_by_ports]"
+	puts "\tPorts - That are Controlling Unconstrained Clock Pins Count:[sizeof $sp_ports] :: "
+	foreach_in_collection sp_port $sp_ports {
+	    puts "\t\t [get_object_name $sp_port]"
+	}
+    }
+
+    set remaining_uncon  [remove_from_collection [remove_from_collection $uncon_ck_pins_gold $controlled_by_ports] $ep_pins_tied]
+    set sp_pins [get_pins -quiet [all_fanin -flat -to $remaining_uncon -startpoints_only  ]]
+
+    set sp_pins_flops     [remove_from_collection -intersect  $sp_pins $all_cp_pins]
+    set sp_pins_non_flops [remove_from_collection   $sp_pins $all_cp_pins]
+
+    set uncon_controlled_by_flops ""
+    set uncon_controlled_by_non_flops ""
+
+    set uncon_controlled_by_flops ""
+    if {[sizeof $sp_pins_flops] > 0} {
+	set uncon_controlled_by_flops [remove_from_collection -intersect  [all_fanout -flat -from  $sp_pins_flops -endpoints_only] $remaining_uncon]
+    }
+
+    if {[sizeof $uncon_controlled_by_flops] > 0} {
+	puts "\n---I--- Total Unconstrained Clock Pins - Controlled by Seq Pins :: [sizeof $uncon_controlled_by_flops]"
+	puts "\tSeq Pins -That are Controlling Unconstrained Clock Pins Count:[sizeof $sp_pins_flops] ::"
+	foreach_in_collection sp_pin $sp_pins_flops {
+	    puts "\t\t [get_object_name $sp_pin]"
+	}
+    }
+
+    set uncon_controlled_by_combo ""
+    set uncon_controlled_by_non_flops ""
+    if {[sizeof $sp_pins_non_flops] > 0} {
+	set uncon_controlled_by_non_flops [remove_from_collection -intersect  [all_fanout -flat -from  $sp_pins_non_flops -endpoints_only] $remaining_uncon]
+	if {[sizeof $uncon_controlled_by_flops] > 0} {
+	    set uncon_controlled_by_non_flops [remove_from_collection $uncon_controlled_by_non_flops $uncon_controlled_by_flops]
+	}
+    }
+
+
+    if {[sizeof $uncon_controlled_by_non_flops] > 0} {
+	puts "\n---I--- Total Unconstrained Clock Pins - Controlled by NOn Seq Pins :: [sizeof $uncon_controlled_by_non_flops]"
+	puts "\tNon Seq Pins -That are Controlling Unconstrained Clock Pins Count:[sizeof $sp_pins_non_flops]::"
+	foreach_in_collection sp_pin $sp_pins_non_flops {
+	    set con_pins [get_pins -quiet -of [get_nets -quiet -seg -of $sp_pin]]
+	    set driver [get_object_name [get_pins -quiet -leaf $con_pins -filter "direction==out"]]
+	    if {$driver == ""} {set driver NA}
+	    puts "\t\t PIN:: [get_object_name $sp_pin] ==> DRIVER:: $driver"
+	    foreach hpin [get_object_name [get_pins -quiet $con_pins -filter "is_hierarchical==true"]] {
+		puts "\t\t\t HPIN:: $hpin"
+	    }
+	}
+    }
+
+    set controlled_by_pins $remaining_uncon
+
+    puts ""
+    if {[sizeof $controlled_by_ports] > 0} {
+	puts "================================================================="
+	puts "======== EPs Controlled by Ports ================================"
+	puts "================================================================="
+	puts "--I-- Port List : [sizeof $sp_ports]"
+	ec $sp_ports
+	puts ""
+	puts "--I-- EP List: [sizeof $controlled_by_ports]"
+	ec $controlled_by_ports
+	puts ""
+    }
+
+    if {[sizeof $uncon_controlled_by_flops] > 0} {
+	puts "================================================================="
+	puts "======== EPs Controlled by Seq Pins ============================="
+	puts "================================================================="
+	puts "--I-- Pin List : [sizeof $sp_pins_flops]"
+	ec $sp_pins_flops
+	puts ""
+	puts "--I-- EP List : [sizeof $uncon_controlled_by_flops]"
+	ec $uncon_controlled_by_flops
+	puts ""
+    }
+
+
+    if {[sizeof $uncon_controlled_by_non_flops] > 0} {
+	puts "================================================================="
+	puts "======== EPs Controlled by NON Seq Pins ========================="
+	puts "================================================================="
+	puts "--I-- Pin List : [sizeof $sp_pins_non_flops]"
+	ec $sp_pins_non_flops
+	puts ""
+	puts "Hier-Pins"
+	foreach_in_collection sp_pin $sp_pins_non_flops {
+	    puts [get_object_name [get_pins -quiet -of [get_nets -quiet -top -seg -of $sp_pin] -filter "is_hierarchical==true"]]
+	}
+	puts ""
+
+	puts "--I-- EP List : [sizeof $uncon_controlled_by_non_flops]"
+	ec $uncon_controlled_by_non_flops
+	puts ""
+    }
+
+
+    puts ""
+    if {[sizeof $ep_pins_tied] > 0} {
+	puts "================================================================="
+	puts "======== EPs DiscConnected / Tied off ==========================="
+	puts "================================================================="
+	puts "--I-- EP List : [sizeof $ep_pins_tied]"
+	ec $ep_pins_tied
+	puts ""
+    }
+    unsuppress_message SEL-003
+}
+
+#==================================================================================================================
+
+proc print_case_settings_on_test_pins {{out_file debug.rpt}} {
+    set out_file ${out_file}.case_settings
+    redirect ${out_file} {puts ""}
+
+    set all_se [get_pins -hier */SE -filter "is_hierarchical==false"]
+    set all_te [get_pins -hier */TE -filter "is_hierarchical==false"]
+    set all_async [all_registers -async_pins]
+    set all_se_case [get_pins -quiet $all_se -filter "case_value==1 || case_value==0"]
+    set all_te_case [get_pins -quiet $all_te -filter "case_value==1 || case_value==0"]
+    set all_async_case [get_pins -quiet $all_async -filter "case_value==1 || case_value==0"]
+
+    set all_se_no_case [remove_from_collection $all_se $all_se_case]
+    set all_te_no_case [remove_from_collection $all_te $all_te_case]
+    set all_async_no_case [remove_from_collection $all_async $all_async_case]
+
+    redirect ${out_file}.uncon_se.hier.info {print_head_fanin $all_se_no_case}
+    redirect ${out_file}.uncon_te.hier.info {print_head_fanin $all_te_no_case}
+    redirect ${out_file}.uncon_async.hier.info {print_head_fanin $all_async_no_case}
+
+    redirect ${out_file}.uncon_se.verbose {ec $all_se_no_case}
+    redirect ${out_file}.uncon_te.verbose {ec $all_te_no_case}
+    redirect ${out_file}.uncon_async.verbose {ec $all_async_no_case}
+
+    catch {exec dos2unix ${out_file}.uncon_se.hier.info}
+    catch {exec dos2unix ${out_file}.uncon_te.hier.info}
+    catch {exec dos2unix ${out_file}.uncon_async.hier.info}
+
+    catch {exec dos2unix *verbose*}
+
+    set all_se_sp [remove_from_collection [all_fanin -flat -to $all_se_no_case -startpoints_only] $all_se]
+    set all_te_sp [remove_from_collection [all_fanin -flat -to $all_te_no_case -startpoints_only] $all_te]
+    set all_async_sp [remove_from_collection [all_fanin -flat -to $all_async_no_case -startpoints_only] $all_async]
+
+    set all_latch_en  [all_registers -clock_pins -level_sensitive]
+    set all_flop_en  [all_registers -clock_pins -edge_triggered]
+
+    set latch_en_se_controls [remove_from_collection -intersect $all_se_sp $all_latch_en]
+    set flop_en_se_controls [remove_from_collection -intersect $all_se_sp $all_flop_en]
+    set port_se_controls [get_ports -quiet $all_se_sp]
+    set pin_se_controls [get_pins -quiet $all_se_sp]
+
+    set latch_en_te_controls [remove_from_collection -intersect $all_te_sp $all_latch_en]
+    set flop_en_te_controls [remove_from_collection -intersect $all_te_sp $all_flop_en]
+    set port_te_controls [get_ports -quiet $all_te_sp]
+    set pin_te_controls [get_pins -quiet $all_te_sp]
+
+    set latch_en_async_controls [remove_from_collection -intersect $all_async_sp $all_latch_en]
+    set flop_en_async_controls [remove_from_collection -intersect $all_async_sp $all_flop_en]
+    set port_async_controls [get_ports -quiet $all_async_sp]
+    set pin_async_controls [get_pins -quiet $all_async_sp]
+
+    set t [get_pins -quiet $all_se_sp -filter "full_name=~*TIE*"]; set all_se_tieoff [remove_from_collection -intersect  [all_fanout -flat -from $t -endpoints_only] $all_se_case]
+    set t [get_pins -quiet $all_te_sp -filter "full_name=~*TIE*"]; set all_te_tieoff [remove_from_collection -intersect  [all_fanout -flat -from $t -endpoints_only] $all_te_case]
+    set t [get_pins -quiet $all_async_sp -filter "full_name=~*TIE*"]; set all_async_tieoff [remove_from_collection -intersect  [all_fanout -flat -from $t -endpoints_only] $all_async_case]
+
+
+
+    puts ""
+    puts "==========================================================="
+    puts "==== SE Pin INFO =========================================="
+    puts "==========================================================="
+
+    puts "---I--- Total SE Pins: [sizeof $all_se]"
+    puts "---I--- SE Pins Which are Driven By TIE cells: [sizeof $all_se_tieoff]"
+    puts "---I--- SE Pins Which are Not Set to Constants: [sizeof $all_se_no_case]"
+    puts "---I--- Controlling Ports for SE pins: [sizeof $port_se_controls]"
+    ec $port_se_controls
+    puts ""
+    puts "---I--- Controlling Pins for SE pins: [sizeof $pin_se_controls]"
+    ec $pin_se_controls
+    puts ""
+
+    redirect -append  ${out_file} {
+    
+	puts ""
+	puts "==========================================================="
+	puts "==== SE Pin INFO =========================================="
+	puts "==========================================================="
+	
+	puts "---I--- Total SE Pins: [sizeof $all_se]"
+	puts "---I--- SE Pins Which are Driven By TIE cells: [sizeof $all_se_tieoff]"
+	puts "---I--- SE Pins Which are Not Set to Constants: [sizeof $all_se_no_case]"
+	puts "---I--- Controlling Ports for SE pins: [sizeof $port_se_controls]"
+	ec $port_se_controls
+	puts ""
+	puts "---I--- Controlling Pins for SE pins: [sizeof $pin_se_controls]"
+	ec $pin_se_controls
+	puts ""
+
+	puts ""
+	puts "======= Verbose List NO -CASE =============="
+	puts ""
+	ec $all_se_no_case
+	puts ""
+
+	puts ""
+	puts "======= Verbose List TIE - OFF =============="
+	puts ""
+	ec $all_se_tieoff
+	puts ""
+    
+    }
+
+    puts ""
+    puts "==========================================================="
+    puts "==== TE Pin INFO =========================================="
+    puts "==========================================================="
+
+    puts "---I--- Total TE Pins: [sizeof $all_te]"
+    puts "---I--- TE Pins Which are Driven By TIE cells: [sizeof $all_te_tieoff]"
+    puts "---I--- TE Pins Which are Not Set to Constants: [sizeof $all_te_no_case]"
+    puts "---I--- Controlling Ports for TE pins: [sizeof $port_te_controls]"
+    ec $port_te_controls
+    puts ""
+    puts "---I--- Controlling Pins for TE pins: [sizeof $pin_te_controls]"
+    ec $pin_te_controls
+    puts ""
+
+    # puts "Controlling Latches for TE pins : [sizeof $latch_en_te_controls]"
+    # ec $latch_en_te_controls
+    # puts ""
+    # puts "Controlling Flops for TE pins : [sizeof $flop_en_te_controls]"
+    # ec $flop_en_te_controls
+    # puts ""
+
+    redirect -append  ${out_file} {
+    
+	puts ""
+	puts "==========================================================="
+	puts "==== TE Pin INFO =========================================="
+	puts "==========================================================="
+	
+	puts "---I--- Total TE Pins: [sizeof $all_te]"
+	puts "---I--- TE Pins Which are Driven By TIE cells: [sizeof $all_te_tieoff]"
+	puts "---I--- TE Pins Which are Not Set to Constants: [sizeof $all_te_no_case]"
+	puts "---I--- Controlling Ports for TE pins: [sizeof $port_te_controls]"
+	ec $port_te_controls
+	puts ""
+	puts "---I--- Controlling Pins for TE pins: [sizeof $pin_te_controls]"
+	ec $pin_te_controls
+	puts ""
+
+	puts ""
+	puts "======= Verbose List NO -CASE =============="
+	puts ""
+	ec $all_te_no_case
+	puts ""
+
+	puts ""
+	puts "======= Verbose List TIE - OFF =============="
+	puts ""
+	ec $all_te_tieoff
+	puts ""
+    
+    }
+    puts ""
+    puts "==========================================================="
+    puts "==== ASYNC Pin INFO ======================================="
+    puts "==========================================================="
+
+    puts "---I--- Total ASYNC Pins: [sizeof $all_async]"
+    puts "---I--- ASYNC Pins Which are Driven By TIE cells: [sizeof $all_async_tieoff]"
+    puts "---I--- ASYNC Pins Which are Not Set to Constants: [sizeof $all_async_no_case]"
+    puts "---I--- Controlling Ports for ASYNC pins: [sizeof $port_async_controls]"
+    ec $port_async_controls
+    puts ""
+    puts "---I--- Controlling Pins for ASYNC pins: [sizeof $pin_async_controls]"
+    ec $pin_async_controls
+    puts ""
+    
+    # puts "Controlling Latches for ASYNC pins : [sizeof $latch_en_async_controls]"
+    # ec $latch_en_async_controls
+    # puts ""
+    # puts "Controlling Flops for ASYNC pins : [sizeof $flop_en_async_controls]"
+    # ec $flop_en_async_controls
+    # puts ""
+
+    redirect -append  ${out_file} {
+    
+	puts ""
+	puts "==========================================================="
+	puts "==== ASYNC Pin INFO =========================================="
+	puts "==========================================================="
+	
+	puts "---I--- Total ASYNC Pins: [sizeof $all_async]"
+	puts "---I--- ASYNC Pins Which are Driven By TIE cells: [sizeof $all_async_tieoff]"
+	puts "---I--- ASYNC Pins Which are Not Set to Constants: [sizeof $all_async_no_case]"
+	puts "---I--- Controlling Ports for ASYNC pins: [sizeof $port_async_controls]"
+	ec $port_async_controls
+	puts ""
+	puts "---I--- Controlling Pins for ASYNC pins: [sizeof $pin_async_controls]"
+	ec $pin_async_controls
+	puts ""
+
+	puts ""
+	puts "======= Verbose List NO -CASE =============="
+	puts ""
+	ec $all_async_no_case
+	puts ""
+
+	puts ""
+	puts "======= Verbose List TIE - OFF =============="
+	puts ""
+	ec $all_async_tieoff
+	puts ""
+    
+    }
+    catch {exec dos2unix ${out_file}}
+}
+
+#==================================================================================================================
+
+proc get_seq_case_info { } {
+    suppress_message SEL-003
+    catch {set cell_high_latch_list [get_object_name [get_cells -quiet -of  [get_pins -quiet [remove_from_collection -intersect [get_pins -quiet -of  [get_cells -quiet -of  [get_pins -quiet [all_registers -level_sensitive  -clock_pins] -filter "case_value==1"] -filter "ref_name=~LHQ*"] -filter "direction==in"] [all_registers -level_sensitive -data_pins]] -filter "case_value==0 || case_value==1"] ]]}
+    catch {set cell_low_latch_list [get_object_name [get_cells -quiet -of  [get_pins -quiet [remove_from_collection -intersect [get_pins -quiet -of  [get_cells -quiet -of  [get_pins -quiet [all_registers -level_sensitive  -clock_pins] -filter "case_value==0"] -filter "ref_name=~LNQ*"] -filter "direction==in"] [all_registers -level_sensitive -data_pins]] -filter "case_value==0 || case_value==1"] ]]}
+
+    catch {
+	foreach latch_inst $cell_high_latch_list {
+	    foreach_in_collection latch_inst_inp_pin [get_pins -quiet -of [get_cells -quiet $latch_inst] -filter "direction==in"] {
+		puts "--I-- [get_object_name $latch_inst_inp_pin] \tConstrained to \t :: [get_attribute $latch_inst_inp_pin case_value]"
+	    }
+	    #puts "--I-- Setting case sequential propagation on inst :: $latch_inst"
+	}
+    }
+
+    catch {
+	foreach latch_inst $cell_low_latch_list {
+	    foreach_in_collection latch_inst_inp_pin [get_pins -quiet -of [get_cells -quiet $latch_inst] -filter "direction==in"] {
+		puts "--I-- [get_object_name $latch_inst_inp_pin] \tConstrained to \t :: [get_attribute $latch_inst_inp_pin case_value]"
+	    }
+	    #puts "--I-- Setting case sequential propagation on inst :: $latch_inst"
+	}
+    }
+
+    catch {if {[llength $cell_high_latch_list ] > 0} {puts "set_case_sequential_propagation \{$cell_high_latch_list\} "}}
+    catch {if {[llength $cell_low_latch_list ] > 0} {puts "set_case_sequential_propagation \{$cell_low_latch_list"\} }}
+    set cell_list ""
+    foreach x $cell_high_latch_list {    lappend cell_list $x}
+    foreach x $cell_low_latch_list {    lappend cell_list $x}
+    
+    return $cell_list
+    unsuppress_message SEL-003
+}
+
+#==================================================================================================================
+
+proc debug_uncon {{out_file debug.rpt} {seq 0}} {
+
+    redirect ${out_file} {puts ""}
+    redirect ${out_file}.post {puts ""}
+
+    redirect  ${out_file}.check_timing.rpt {check_timing -override_default {no_clock clock_crossing loops unconstrained_endpoints multiple_clock } -verbose }
+    #dangling_startpoints
+
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {puts "[string repeat = 41] INITIAL [string repeat = 100]"}
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {puts ""}
+
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {rac}
+    redirect -append ${out_file} {puts ""}
+
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {report_case_analysis -nosplit}
+    redirect -append ${out_file} {puts ""}
+    
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {puts "CLOCK Information"}
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {print_clock_info}
+    redirect -append ${out_file} {puts ""}
+
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {puts "Expected Case Settings"}
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {print_case_settings_on_test_pins $out_file}
+    redirect -append ${out_file} {puts ""}
+
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {puts "UnConstrained Information"}
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {print_uncon_info}
+    redirect -append ${out_file} {puts ""}
+
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {puts "Sequential Case Issues"}
+    redirect -append ${out_file} {puts "[string repeat = 150]"}
+    redirect -append ${out_file} {set cell_list [get_seq_case_info]}
+    redirect -append ${out_file} {puts ""}
+    redirect  ${out_file}.rac.hold.verbose {rac_hold}
+
+    if {$seq} {
+	if {[llength $cell_list] > 0} {
+	    puts "Propagating Sequential Case"
+	    redirect /dev/null {set_case_sequential_propagation $cell_list}
+	    redirect /dev/null {report_case_analysis -nosplit}
+
+	    redirect  ${out_file}.post.check_timing.rpt {check_timing -override_default {no_clock clock_crossing loops unconstrained_endpoints multiple_clock } -verbose }
+	    #dangling_startpoints
+	    
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {puts "[string repeat = 40] POSTPROP [string repeat = 100]"}
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {puts ""}
+
+
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {rac}
+	    redirect -append ${out_file}.post {puts ""}
+
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {report_case_analysis -nosplit}
+	    redirect -append ${out_file}.post {puts ""}
+	    
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {puts "CLOCK Information"}
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {print_clock_info}
+	    redirect -append ${out_file}.post {puts ""}
+
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {puts "Expected Case Settings"}
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {print_case_settings_on_test_pins ${out_file}.post}
+	    redirect -append ${out_file}.post {puts ""}
+
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {puts "UnConstrained Information"}
+	    redirect -append ${out_file}.post {puts "[string repeat = 150]"}
+	    redirect -append ${out_file}.post {print_uncon_info}
+	    redirect -append ${out_file}.post {puts ""}
+
+	    redirect  ${out_file}.post.rac.hold.verbose {rac_hold}
+	    catch {exec dos2unix ${out_file}.post.rac.hold.verbose}
+	}
+    }
+    catch {exec dos2unix ${out_file}}
+    catch {exec dos2unix ${out_file}.post}
+    catch {exec dos2unix ${out_file}.rac.hold.verbose}
+    puts "${out_file} & ${out_file}.post Generated"
+
+    set driver_less [print_all_floating_inputs]
+    redirect   ${out_file}.driver_less.rpt {puts ""}
+    redirect -append  ${out_file}.driver_less.rpt {puts ""}
+    redirect -append  ${out_file}.driver_less.rpt {puts "====== Physical Pins ================="}
+    redirect -append  ${out_file}.driver_less.rpt {puts ""}
+    redirect -append  ${out_file}.driver_less.rpt {ec $driver_less}
+    redirect -append  ${out_file}.driver_less.rpt {puts ""}
+    redirect -append  ${out_file}.driver_less.rpt {puts "====== Hierarchical Pins ================="}
+    redirect -append  ${out_file}.driver_less.rpt {puts ""}
+    redirect -append  ${out_file}.driver_less.rpt {ec [get_pins -quiet -of [get_nets -quiet -seg -top -of $driver_less] -filter "is_hierarchical"]}
+    redirect -append  ${out_file}.driver_less.rpt {puts "====== Nets ================="}
+    redirect -append  ${out_file}.driver_less.rpt {puts ""}
+    redirect -append  ${out_file}.driver_less.rpt {ec  [get_nets -quiet -seg -top -of $driver_less ]}
+
+    catch {exec dos2unix ${out_file}.driver_less.rpt}
+    puts "${out_file}.driver_less.rpt Generated"
+
+    set all_shift_mux [get_cells -hier * -filter "full_name=~*scan_clock_mux* && ref_name=~*MUX*"]
+    ec -col $all_shift_mux -attrib {full_name ref_name} > ${out_file}.scan_mux.rpt
+}
