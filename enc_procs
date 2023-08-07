@@ -1,0 +1,291 @@
+### Author: kpavan@marvell.com
+#=====================================================================
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/write_fplan.tcl
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/timing_path_procs.tcl
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/create_path_group_procs.tcl
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/custom_fplan_procs.tcl
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/get_distance.tcl
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/pin_shapes.tcl
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/trace_pipes.tcl
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/get_port_spread.tcl
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/from_cadence.tcl
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/legacy_to_cui.tcl
+source /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI/inv_tempus/eco_custom.tcl
+#=====================================================================
+proc myman {args } {
+    redirect -var _man {man $args}
+    puts $_man
+}
+
+proc get_die_boundary {} {
+    return  [get_computed_shapes [get_db current_design .boundary] -output rect ]
+}
+
+proc get_core_boundary {} {
+    set c2l [get_db current_design .core_to_left]
+    set c2r [get_db current_design .core_to_right]
+    set c2t [get_db current_design .core_to_top]
+    set c2b [get_db current_design .core_to_bottom]
+
+    set darea [get_die_boundary]
+    set t $darea
+    set t1 [get_computed_shapes [get_computed_shapes $t   SIZEX [expr -1 * $c2l/2]   ] MOVE [list [expr 1 * $c2l/2] 0]]
+    set t2 [get_computed_shapes [get_computed_shapes $t1  SIZEX [expr -1 * $c2r/2]   ] MOVE [list [expr -1 * $c2l/2] 0]]
+    set t3 [get_computed_shapes [get_computed_shapes $t2  SIZEY [expr -1 * $c2t/2]   ] MOVE [list 0 [expr -1 * $c2l/2] ]]
+    set t4 [get_computed_shapes [get_computed_shapes $t3  SIZEY [expr -1 * $c2b/2]   ] MOVE [list 0 [expr 1 * $c2l/2] ]]
+    set core_box $t4
+    return $core_box
+}
+proc get_die_area {} {
+    set area 0; foreach rect  [get_die_boundary] {set area [expr $area + [get_rect $rect -area]]}  ; return $area
+}
+
+proc get_core_area {} {
+    set area 0; foreach rect  [get_core_boundary] {set area [expr $area + [get_rect $rect -area]]}  ; return $area
+}
+proc all_macro {} {
+    return [get_db insts -if {.base_cell.class == block}]
+}
+proc all_pads {} {
+    return [get_db insts -if {.base_cell.class == pad}]
+}
+
+proc all_std_cell {} {
+    return [get_db insts -if {.base_cell.class == core && .is_physical == false}]
+}
+
+proc all_phy_std_cell {} {
+    return [get_db insts -if {.base_cell.class == core && .is_physical == true}]
+}
+
+
+proc all_non_std_cell {} {
+    return [get_db insts -if {.base_cell.class == core} -invert]
+}
+
+proc select_inst {args} {
+    foreach arg $args {
+	catch {select_obj inst:${arg}}
+    }
+}
+
+proc select_net {args} {
+    foreach arg $args {
+	catch {select_obj net:${arg}}
+    }
+}
+
+proc select_pin {args} {
+    foreach arg $args {
+	redirect /dev/null {catch {select_obj pin:${arg}}}
+	redirect /dev/null {catch {select_obj pg_pin:${arg}}}
+    }
+}
+
+proc report_select {} {
+    get_db selected .*
+}
+
+proc get_design_info {} {
+
+    set tot_area 0; set tot_count [get_db insts -if {.is_physical == false } -foreach {set tot_area [expr $tot_area + $obj(.area)]}]
+
+    set std_area 0; set std_count [get_db insts -if {.is_physical == false && .base_cell.class == core} -foreach {set std_area [expr $std_area + $obj(.area)]}]
+
+    set macro_area 0; set macro_count [get_db insts -if {.is_physical == false && .base_cell.class == block} -foreach {set macro_area [expr $macro_area + $obj(.area)]}]
+
+    set pad_area 0; set pad_count [get_db insts -if {.is_physical == false && .base_cell.class == pad} -foreach {set pad_area [expr $pad_area + $obj(.area)]}]
+
+    set seq_area 0; set seq_count [get_db insts -if {.base_cell.is_sequential == true && .base_cell.class == core} -foreach {set seq_area [expr $seq_area + $obj(.area)]}]
+
+    set comb_area 0; set comb_count [get_db insts -if {.base_cell.is_sequential == false && .base_cell.class == core && .is_physical ==false} -foreach {set comb_area [expr $comb_area + $obj(.area)]}]
+
+    set buff_area 0; set buff_count [get_db insts -if {.base_cell.name == *BUFF* && .base_cell.class == core} -foreach {set buff_area [expr $buff_area + $obj(.area)]}]
+
+    set inv_area 0; set inv_count [get_db insts -if {.base_cell.name == *INV* && .base_cell.class == core} -foreach {set inv_area [expr $inv_area + $obj(.area)]}]
+
+    set ulvt_area 0; set ulvt_count [get_db insts -if {.base_cell.name == *DULVT && .base_cell.class == core} -foreach {set ulvt_area [expr $ulvt_area + $obj(.area)]}]
+
+    set lvt_area 0; set lvt_count [get_db insts -if {.base_cell.name == *DLVT && .base_cell.class == core} -foreach {set lvt_area [expr $lvt_area + $obj(.area)]}]
+
+
+    set ports [sizeof_collection [get_ports]]
+
+    echo "TotalInstCount:: \t $tot_count <=> TotalInstArea:: \t $tot_area"
+    echo "TotalStdInstCount:: \t $std_count <=> TotalStdInstArea:: \t $std_area"
+    echo "TotalMacroInstCount:: \t $macro_count <=> TotalMacroInstArea:: \t $macro_area"
+    echo "TotalPadInstCount:: \t $pad_count <=> TotalPadInstArea:: \t $pad_area"
+    echo "TotalSeqInstCount:: \t $seq_count <=> TotalSeqInstArea:: \t $seq_area"
+    echo "TotalCombInstCount:: \t $comb_count <=> TotalCombInstArea:: \t $comb_area"
+    echo "TotalBuffInstCount:: \t $buff_count <=> TotalBuffInstArea:: \t $buff_area"
+    echo "TotalInvInstCount:: \t $inv_count <=> TotalInvInstArea:: \t $inv_area"
+    echo "TotalUlvtInstCount:: \t $ulvt_count <=> TotalUlvtInstArea:: \t $ulvt_area"
+    echo "TotalLvtInstCount:: \t $lvt_count <=> TotalLvtInstArea:: \t $lvt_area"
+
+    echo "$ports,$tot_count,$std_count,$macro_count,$pad_count,$tot_area,$std_area,$macro_area,$pad_area,$seq_count,$seq_area,$comb_count,$comb_area,$buff_count,$buff_area,$ulvt_count,$lvt_count,$ulvt_area,$lvt_area"
+
+}
+
+
+
+##############################################
+proc get_net_length {args} {
+    set length_list ""
+    foreach mynet $args {
+	set len 0
+	get_db net:$mynet .wires -foreach {set len [expr $len + $obj(.length)]}
+	lappend length_list $len
+    }
+    return $length_list
+}
+
+##############################################
+
+proc expand_collection {args} {
+    foreach l [lsort -u -dict [get_object_name $args]] {echo $l}
+}
+
+proc expand_collection_ref {args} {
+    foreach_in_collection l [sort_collection $args full_name] {
+	echo "[get_property $l ref_name] \t [get_property $l full_name]"
+    }
+}
+proc expand_list {args} {
+    foreach l [lsort -u -dict  $args] {echo $l}
+}
+
+proc expand_array {args} {
+    foreach elem [array names $::args] {
+	echo "$elem \t ${args}(${elem})"
+    }
+}
+
+proc get_obj_by_name {args} {
+    redirect -var  b {puts "set x \[eval_legacy \{dbGetObjByName $args\}\]"}
+    eval $b
+    return $x
+}
+
+proc get_point {args} {
+    redirect -var  b {puts "set x \[eval_legacy \{db_pt $args\}\]"}
+    eval $b
+    return $x
+}
+alias get_pt get_point
+
+## Variables
+catch {set_db print_full_message_summary true}
+#catch {set_db set_db_verbose true}
+
+## aliases
+
+alias cui get_common_ui_map
+alias all_macros all_macro
+alias ccpb createCustomPartialPBBoxes
+alias ccpbt createTraingleBlockage
+alias deselectAll gui_deselect -all
+alias deselectall gui_deselect -all
+alias hm highlight_all_mems $mem_hier_list
+alias win gui_show
+alias win_off gui_hide
+alias report_property report_object_property_names
+alias gnl get_net_length
+alias rtibm report_timing -fields [list delay delay_sigma incr_delay user_derate arrival transition load fanout edge cell hpin net phase pin_location phys_info annotation]
+alias rtreg report_timing -fields [list hpin cell fanout load transition user_derate total_derate delay_mean delay_sigma incr_delay delay arrival_mean arrival_sigma arrival edge]
+alias rte1 report_timing -fields [list  id slack startpoint endpoint ]  -path_type endpoint
+alias rte2 report_timing -fields [list  id slack clock_skew data_path_delay path_time view  check_type  startpoint endpoint   ]  -path_type endpoint
+alias rte3 report_timing -fields [list  id slack launch_clock_latency capture_clock_latency clock_skew data_path_delay path_time view  check_type  startpoint endpoint   ]  -path_type endpoint
+alias sim set_db timing_enable_simultaneous_setup_hold_mode true
+alias simoff set_db timing_enable_simultaneous_setup_hold_mode false
+alias list_property report_object_property_names
+alias get_attribute get_property
+alias tim1 eval {
+    set_db timing_disable_report_header_info true
+    set_db timing_report_unconstrained_paths true
+    set_db  timing_report_group_based_mode true
+    set_db  timing_report_enable_skew_in_reports true
+    set_db  timing_report_clock_pin_as_begin_point true
+    set_db  timing_report_enable_cppr_point true
+
+    set_table_style -nosplit -no_frame_fix_width
+    #set_db timing_report_enable_cppr_point true
+    set_db timing_report_default_formatting split_delay
+    #set_db timing_report_fields [list delay delay_sigma incr_delay user_derate arrival transition load fanout edge cell hpin net phase pin_location phys_info annotation]
+    set_db timing_report_fields [list delay \
+				     delay_sigma incr_delay user_derate \
+				     arrival transition load fanout \
+				     edge cell hpin net phase pin_location annotation voltage phys_info]
+    set_db ui_precision_timing 5
+    set_db ui_precision_sensitivities 5
+    set_db ui_precision 5
+}
+alias tim2 eval {
+    set_db timing_report_fields [list hpin cell fanout load transition user_derate total_derate delay_mean delay_sigma incr_delay delay arrival_mean arrival_sigma arrival edge]
+}
+
+alias tim3 eval {
+    set_db timing_report_fields [list  arrival arrival_sigma arrival_mean delay incr_delay delay_sigma delay_mean total_derate user_derate transition load fanout edge cell hpin net phase pin_location annotation voltage phys_info ]
+}
+
+alias n5fph210 eval {
+    set_db design_process_node 5
+    set_db floorplan_row_site_width  odd
+    set_preference ConstraintUserYGrid 0.028
+    set_preference ConstraintUserXGrid 0.051
+    set_db finish_floorplan_drc_region_objs "non_row_area"
+    set_db floorplan_snap_die_grid user_define
+    set_db floorplan_snap_core_grid user_define
+    set_db floorplan_snap_io_grid user_define
+    set_db floorplan_snap_block_grid user_define
+    #set_db floorplan_snap_block_grid inst
+    set_db floorplan_row_site_height even
+}
+
+
+alias n5fph280 eval {
+    set_db design_process_node 5
+    set_db floorplan_row_site_width  odd
+    set_preference ConstraintUserYGrid 0.028
+    set_preference ConstraintUserXGrid 0.057
+    set_db finish_floorplan_drc_region_objs "non_row_area"
+    set_db floorplan_snap_die_grid user_define
+    set_db floorplan_snap_core_grid user_define
+    set_db floorplan_snap_io_grid user_define
+    set_db floorplan_snap_block_grid user_define
+    set_db floorplan_row_site_height even
+}
+
+alias myfplan_settings eval {
+    n5fph210
+
+    ## Below approach maskes sure Most of the macro placement issues are addressed?..
+    set_db [all_macros] .place_status placed
+    set_preference ConstraintUserYGrid 0.42; #2 height
+    set_preference ConstraintUserXGrid 0.051; # 1 sites
+    set_db floorplan_snap_block_grid user_define; # user_define
+    #delete_place_halo -all_blocks
+    #delete_route_halo -all_blocks
+    #init_core_row
+    snap_floorplan -block
+    # Refinement further
+    deselectAll
+    get_db [all_macros] -if {.orient == r0}  -foreach {if [expr [format %0.0f [expr  [lindex $obj(.bbox) 0] / 0.051]] % 2] {select_inst $obj(.name)}}
+    get_db [all_macros] -if {.orient == mx}  -foreach {if [expr [format %0.0f [expr  [lindex $obj(.bbox) 0] / 0.051]] % 2] {select_inst $obj(.name)}}
+    get_db [all_macros] -if {.orient == my}  -foreach {if [expr [format %0.0f [expr  [lindex $obj(.bbox) 2] / 0.051]] % 2] {select_inst $obj(.name)}}
+    get_db [all_macros] -if {.orient == mxy}  -foreach {if [expr [format %0.0f [expr  [lindex $obj(.bbox) 2] / 0.051]] % 2] {select_inst $obj(.name)}}
+    catch {move_obj -direction left -distance 0.051 -selected}
+    set_db [all_macros] .place_status fixed
+
+    n5fph210
+    check_floorplan
+}
+#floorplan_get_snap_rule -for BLK
+#eval_legacy {check_ufc /proj/cadpnr/mKit/tsmc005p/2020.01.002/mFlow/flow/invcui/script/tcic_dblk.ufc}
+#eval_legacy {source /proj/cadpnr/mKit/tsmc005p/2020.01.002/mFlow/flow/invcui/script/N5_database_checker_20190725_encrypted.tcl}
+#eval_legacy {check_floorplan}
+
+alias ec expand_collection
+alias ecr expand_collection_ref
+alias el expand_list
+alias ea expand_array
+alias clearDrc delete_drc_markers
