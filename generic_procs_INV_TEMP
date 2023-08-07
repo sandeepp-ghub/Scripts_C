@@ -1,0 +1,992 @@
+#==========================================================================================================
+proc time_stamp {} {return [clock format [clock seconds] -format "%m%d%y_%H%M%S"]}
+sh mkdir -p ./DEBUG_REPORTS
+if [info exists ::run_type_specific] {set ::__debug_dir_ext $::run_type_specific} else {set ::__debug_dir_ext [time_stamp]}
+global DEBUG_DIR_FOR_PT
+set ::DEBUG_DIR_FOR_PT ./DEBUG_REPORTS/${::__debug_dir_ext}
+sh mkdir -p $::DEBUG_DIR_FOR_PT
+#==========================================================================================================
+# proc ec {args} {
+#     foreach_in_collection elem $args {
+# 	puts "[get_object_name $elem]"
+#     }
+# }
+#==========================================================================================================
+
+proc el {args} {
+    if {[llength $args]== 1 } {set args [lindex $args 0]}
+    foreach elem [lsort -u -dict $args] {
+	puts "$elem"
+    }
+}
+
+#==========================================================================================================
+proc get_ck_pins {clk {with_icg 1}} {
+    #set all_cp_pins [remove_from_collection -intersect [all_registers -clock_pins] [get_attribute [get_clocks $clk] clock_network_pins]]
+    if $with_icg {
+	set all_cp_pins [filter_collection    [all_registers -clock_pins] @clocks.full_name==$clk]
+    } else {
+	set all_cp_pins [filter_collection [filter_collection    [all_registers -clock_pins] @clocks.full_name==$clk] @cell.is_integrated_clock_gating_cell==false]
+    }
+    return $all_cp_pins
+}
+
+#==========================================================================================================
+proc get_clocks_real {} {
+    return [get_clocks -filter "is_generated_from_lib_cell==false"]
+}
+
+proc get_clocks_lib {} {
+    return [get_clocks -filter "is_generated_from_lib_cell==true"]
+}
+
+proc print_clock_info {{lib_clocks 0}} {
+    global ::DEBUG_DIR_FOR_PT
+    sh mkdir -p ./${::DEBUG_DIR_FOR_PT}
+    if ![info exists DESIGN] {set DESIGN [get_object_name [current_design]]}
+
+    set design1 [get_object_name [current_design]]
+    set fp [open ./${::DEBUG_DIR_FOR_PT}/${design1}_clock_info.rpt w]
+    suppress_message TIM-052
+    #set all_regs [all_registers]
+    #set all_regs_edge [all_registers -edge_triggered]
+    #set all_latch_edge [all_registers -level_sensitive]
+    set clk_pin_c [sizeof [all_registers -clock_pin]]
+
+    set all_clock [get_object_name [get_clocks -filter "is_generated_from_lib_cell==false"]]
+    if {$lib_clocks} {set all_clock [get_object_name [get_clocks *]]}
+    
+    set clk_len [llength $all_clock]
+
+
+    array set multi_clock {}
+
+    foreach clk $all_clock {
+	#set multi_clock($clk) [all_registers -clock_pins -clock $clk]
+	set multi_clock($clk) [get_ck_pins $clk]
+    }
+    puts $fp ""
+    puts $fp "[string repeat = 150]"
+    puts $fp "Multiple CLock Info"
+    puts $fp "[string repeat = 150]"
+    puts $fp ""
+    eval puts $fp \[format \"%-30s[string repeat " %-30s" $clk_len]\"  ClkName [array names multi_clock]\]
+    echo [join [split "ClkName [array names multi_clock]"] ,] >  ./${::DEBUG_DIR_FOR_PT}/multi_clock.csv
+
+    set ck_var ""
+    foreach clk [array names multi_clock] {
+	set ck_var $clk
+	foreach clk1 [array names multi_clock] {
+	    lappend ck_var [sizeof_collection [remove_from_collection -intersect $multi_clock($clk) $multi_clock($clk1)]]
+	}
+	eval puts $fp \[format \"%-30s[string repeat " %-30s" $clk_len]\"  $ck_var\]
+	echo [join [split $ck_var] ,] >> ./${::DEBUG_DIR_FOR_PT}/multi_clock.csv
+    }
+    puts $fp ""
+    puts $fp "[string repeat = 150]"
+    puts $fp "Single CLock Info"
+    puts $fp "[string repeat = 150]"
+    puts $fp ""
+
+    puts $fp [format "%-120s %10s %10s %15s %15s %5s %5s %5s %10s %-50s" ClkName Period Freq(MHz) Sinks %OfSink GenClk SU HU NetPins Sources]
+    echo [join [split "ClkName Period Freq(MHz) Sinks %OfSink GenClk SU HU NetPins Sources"] ,] > ./${::DEBUG_DIR_FOR_PT}/clock_summary.csv
+    puts $fp [string repeat = 100]
+    #array set clk_sink_pins ""
+    foreach_in_collection clk [get_clocks] {
+	set sink_pins [get_ck_pins [get_object_name $clk]]
+	#set clk_sink_pins([get_object_name $clk]) $sink_pins
+	set sink_pin_c [sizeof $sink_pins]
+	set sink_pin_p [format %5.2f [expr $sink_pin_c * 100.000 / $clk_pin_c]]
+
+	set period [get_attribute $clk period]; if {$period == ""} {set period 000.000 ; set freq 000.000} else {set freq [expr 1000.000/[get_attribute $clk period]]}
+	
+	set set_uncert [get_attribute $clk setup_uncertainty] ; if {$set_uncert == ""} {set set_uncert 0.000}
+	set hold_uncert [get_attribute $clk hold_uncertainty] ; if {$hold_uncert == ""} {set hold_uncert 0.000}
+
+	puts $fp [format "%-120s %10.3f %10.3f %15d %12.3f %5s %8s %8s %10d %-50s" [get_object_name $clk] $period $freq $sink_pin_c $sink_pin_p [get_attribute $clk is_generated] $set_uncert $hold_uncert [sizeof [remove_from_collection [get_cells -quiet -of [get_attribute $clk clock_network_pins]] [get_cells -quiet -of $sink_pins]]] \{[get_object_name [get_attribute $clk sources]]\}]
+	echo [join "[get_object_name $clk] $period $freq $sink_pin_c $sink_pin_p [get_attribute $clk is_generated] $set_uncert $hold_uncert [sizeof [remove_from_collection [get_cells -quiet -of [get_attribute $clk clock_network_pins]] [get_cells -quiet -of $sink_pins]]] \{[get_object_name [get_attribute $clk sources]]\}" ,] >> ./${::DEBUG_DIR_FOR_PT}/clock_summary.csv
+    }
+    puts $fp ""
+    if {1} {
+	puts $fp "\n PNR CLOCKS"
+	array set pnr_clk_pins ""
+	array set pnr_data_pins ""
+	array set pnr_out_pins ""
+	array set pnr_in_pins ""
+
+	set all_clk_pins [all_registers -clock_pins]
+	set all_data_pins [all_registers -data_pins]
+	set all_pnr_insts [get_object_name [get_pnr]]
+
+	foreach pnr_inst $all_pnr_insts  {
+	    set pnr_out_pins($pnr_inst) [get_pins $pnr_inst/* -filter "(pin_direction==out || pin_direction ==inout) && is_hierarchical" ]
+	    set pnr_in_pins($pnr_inst) [get_pins $pnr_inst/* -filter "(pin_direction==in || pin_direction ==inout) && is_hierarchical" ]
+	    set pnr_clk_pins($pnr_inst) [filter_collection $all_clk_pins "full_name=~${pnr_inst}*"]
+	    set pnr_data_pins($pnr_inst) [filter_collection $all_data_pins "full_name=~${pnr_inst}*"]
+	}
+
+
+
+	foreach pnr_inst $all_pnr_insts {
+	    foreach pnr_inst1 [listAminusB $all_pnr_insts $pnr_inst] {
+		if [regexp $pnr_inst $pnr_inst1] {
+		    #set a [sizeof $pnr_clk_pins($pnr_inst)]
+		    set pnr_clk_pins($pnr_inst)  [remove_from_collection $pnr_clk_pins($pnr_inst) $pnr_clk_pins($pnr_inst1)]
+		    #set b [sizeof $pnr_clk_pins($pnr_inst)]
+		    #echo "$a --> $b :: $pnr_inst --> $pnr_inst1"
+		    set pnr_data_pins($pnr_inst) [remove_from_collection $pnr_data_pins($pnr_inst) $pnr_data_pins($pnr_inst1)]
+		}
+	    }
+	}
+
+
+
+
+
+	array set clk_sink_pins ""
+	foreach_in_collection clk [get_clocks *] {
+	    set sink_pins [get_ck_pins [get_object_name $clk]]
+	    set clk_sink_pins([get_object_name $clk]) $sink_pins
+	}
+
+	set my_str "ck_name,"
+	foreach pnr_inst $all_pnr_insts {
+	    lappend my_str "${pnr_inst}\([get_attribute -quiet [get_cells -quiet $pnr_inst] ref_name]\),"
+	}
+	echo "$my_str" > ./${::DEBUG_DIR_FOR_PT}/sink_per_pnr.csv
+
+	puts $fp [regsub -all , $my_str \t]
+
+	foreach clk [lsort -u [array names clk_sink_pins]] {
+	    set my_str "${clk},"
+	    foreach pnr_inst  $all_pnr_insts {
+		lappend my_str "[sizeof_collection [get_cells -quiet -of [remove_from_collection -intersect $pnr_clk_pins($pnr_inst)  $clk_sink_pins($clk)] -filter "!is_integrated_clock_gating_cell"]],"
+	    }
+	    echo $my_str >> ./${::DEBUG_DIR_FOR_PT}/sink_per_pnr.csv
+	    puts $fp [regsub -all , $my_str \t]
+	}
+	####
+
+    }
+    close $fp
+    report_clocks -groups -nosplit >> ${design1}_clock_info.rpt
+    echo "" >> ${design1}_clock_info.rpt
+    report_clock_jitter -clock [all_clocks] >> ${design1}_clock_info.rpt
+    echo "" >> ${design1}_clock_info.rpt
+    unsuppress_message TIM-052 
+    echo "\nPrinting Unconstrained Clock Pins:"  >> ${design1}_clock_info.rpt
+    set xx [get_uncon_ckpins]
+    if  {[sizeof_collection $xx] > 0} {
+	catch {ec $xx >> ${design1}_clock_info.rpt}
+	echo "\nPrinting Potential Missing Clock Sources:"  >> ${design1}_clock_info.rpt	 
+	catch {ec [all_fanin -flat -to $xx -startpoints_only] >> ${design1}_clock_info.rpt }
+    }
+    
+    echo "\nPrinting TiedOff Clock Pins:\n"  >> ${design1}_clock_info.rpt
+    set cktie [get_tie_ckpins]
+    if {[sizeof_collection $cktie] > 0} {
+	catch {ec -col $cktie -attrib {full_name case_value} >> ${design1}_clock_info.rpt}
+	echo "\Potential Clock Tied Off Case Propagation Sources:\n"  >> ${design1}_clock_info.rpt	
+	ec -col [get_pins -of [get_nets -of  [get_pins -quiet  [all_fanin -flat -to $cktie -trace_arcs all -startpoints_only] -filter "defined(case_value)"]] -filter "(is_hierarchical && pin_direction==in && defined(case_value)) || (!is_hierarchical && cell.ref_name=~*tie* && defined(case_value))"] -attrib {full_name case_value cell.ref_name} >> ${design1}_clock_info.rpt
+    }
+    catch {sh /proj/tools01/wa/kpavan/SCRIPTS/convert_csv_to_xlsx.py -infile ./${::DEBUG_DIR_FOR_PT}/clock_summary.csv ./${::DEBUG_DIR_FOR_PT}/sink_per_pnr.csv ./${::DEBUG_DIR_FOR_PT}/multi_clock.csv -outfile ./${::DEBUG_DIR_FOR_PT}/${design1}_clock_summary.xlsx}
+    
+    set user $::env(USER)
+    #sh gzip -f clock_summary.xlsx 
+    catch {exec echo [pwd]/./${::DEBUG_DIR_FOR_PT}/${design1}_clock_info.rpt | mail -s "${design1} ClockDistribution Summary" -a ./${::DEBUG_DIR_FOR_PT}/${design1}_clock_summary.xlsx ${user}@marvell.com}
+    echo "--I-- ./${::DEBUG_DIR_FOR_PT}/${design1}_clock_info.rpt is Generated"
+}
+
+#==========================================================================================================
+
+proc print_all_floating_inputs {} {
+    set all_pins  [get_pins -quiet [get_pins -hier */* ] -filter "is_hierarchical==false && pin_direction==in"]
+    set with_drivers [filter_collection $all_pins @net.leaf_drivers.full_name!=""]
+    set no_driv [remove_from_collection [get_pins -quiet [remove_from_collection $all_pins $with_drivers] -filter "is_hierarchical==false"] [get_pins -leaf -of [get_nets -of [all_inputs]] -filter "direction==in"]]
+    set all_pins ""
+    set with_drivers ""
+    return $no_driv
+}
+alias get_floating_inputs print_all_floating_inputs
+
+proc print_all_floating_outputs {} {
+    set all_pins  [get_pins -quiet [get_pins -hier */* ] -filter "is_hierarchical==false && pin_direction==out"]
+    set with_drivers [filter_collection $all_pins @net.leaf_loads.full_name!=""]
+    set no_driv [remove_from_collection [get_pins -quiet [remove_from_collection $all_pins $with_drivers] -filter "is_hierarchical==false"] [get_pins -leaf -of [get_nets -of [all_outputs]] -filter "direction==out"]]
+    set all_pins ""
+    set with_drivers ""
+    return $no_driv
+}
+alias get_floating_outputs print_all_floating_outputs
+
+#==========================================================================================================
+
+
+proc get_macro_masters {} {
+    return [lsort -u [get_attribute [remove_from_collection [get_lib_cells */* -filter is_instantiated] [list [get_lib_cells tcbn05*_bwph2*/*] [get_lib_cells *synctcbn*/*] [get_lib_cells mrvl_n5p_h*/* ] [get_lib_cells *tietcbn*/*] ]] base_name]]
+}
+alias all_macro_masters get_macro_masters
+#===============================================================================================================================
+
+proc all_macros {} {
+    set filter_list "-filter \""
+    foreach macro [lrange [get_macro_masters] 0 end] {
+	set filter_list "$filter_list ref_name == $macro || "
+    }
+    set filter_list "$filter_list ref_name == PAVAN \""
+    set macro_list [eval get_cells -hier * $filter_list]
+    return [sort_collection $macro_list full_name]
+}
+alias all_macro all_macros
+alias get_macro all_macros
+alias get_macros all_macros
+#===============================================================================================================================
+
+proc print_macros {args} {
+    array set inputs $args
+    set sort2 ""
+    if [info exists inputs(-sort)] {set sort2 $inputs(-sort)}
+    set sort ref_name; set sort1 full_name
+    if {$sort2 == full_name} {set sort full_name; set sort1 ref_name}
+    if {$sort2 == ref_name} {set sort ref_name; set sort1 full_name}
+    set attrib [list $sort $sort1]
+    if [info exists inputs(-attrib)] {foreach attr $inputs(-attrib) {lappend attrib $attr}}
+    report_collection -header none  [sort_collection $macro_list $sort] -column $attrib -nosplit
+}
+
+alias print_macro print_macros
+#===============================================================================================================================
+
+proc expand_collection {args} {
+    set attrib full_name
+    set sort [lindex $attrib 0]
+    if { [llength $args] > 1} {
+	array set inputs $args
+	if [info exists inputs(-col)]  {set collection $inputs(-col)}
+	if [info exists inputs(-attrib)] {set attrib $inputs(-attrib) ; set sort [lindex $attrib 0] }
+    } else {
+	set collection $args
+    }
+    if {[sizeof_collection $collection] > 0} {
+	report_collection -header none  [sort_collection $collection $sort] -column $attrib -nosplit
+    } else {
+	echo "Input is an empty collection"
+    }
+}
+alias ec expand_collection
+
+
+proc expand_collection_nosort {args} {
+    set attrib full_name
+    set sort [lindex $attrib 0]
+    if { [llength $args] > 1} {
+	array set inputs $args
+	if [info exists inputs(-col)]  {set collection $inputs(-col)}
+	if [info exists inputs(-attrib)] {set attrib $inputs(-attrib) ; set sort [lindex $attrib 0] }
+    } else {
+	set collection $args
+    }
+    report_collection -header none   $collection -column $attrib -nosplit
+}
+alias ecs expand_collection_nosort
+
+#===============================================================================================================================
+
+proc all_fanout_h {args} {
+    set  coll [eval all_fanout $args]
+    return [get_pins -quiet -of [get_nets -quiet -seg  -of $coll] -filter "is_hierarchical==true"]
+}
+
+
+proc all_fanout_hpnr {args} {
+    set hier_p [get_pins -quiet -of [get_pnr]]
+    set  coll [eval all_fanout_h $args]
+    return [remove_from_collection -intersect $hier_p $coll]
+}
+
+
+
+proc all_fanin_h {args} {
+    set  coll [eval all_fanin $args]
+    return [get_pins -quiet -of [get_nets -quiet -seg  -of $coll] -filter "is_hierarchical==true"]
+}
+
+proc all_fanin_hpnr {args} {
+    set hier_p [get_pins -quiet -of [get_pnr]]
+    set  coll [eval all_fanin_h $args]
+    return [remove_from_collection -intersect $hier_p $coll]
+}
+
+#===============================================================================================================================
+
+proc print_heads {args} {
+    set heads ""
+    foreach name  [get_object_name $args] {
+	lappend heads [lindex [split $name /] 0]
+    }
+    foreach head [lsort -u $heads] {
+	puts  [format "%-40s \t=>\t %10s " $head  [sizeof [filter_collection $args @full_name=~"${head}/*"]]]
+    }
+    return [lsort -u $heads]
+}
+
+proc print_head_fanin {args} {
+    foreach head [print_heads $args] {
+	echo "[string repeat = 150]"
+	echo "$head"
+	echo "[string repeat = 150]"
+	ec -col [remove_from_collection -intersect [get_pins -of [get_nets -seg -of [all_fanin -flat -to  [filter_collection $args @full_name=~${head}/*]]] -filter "is_hierarchical"] [get_pins ${head}/* ]] -attrib {full_name direction net net.leaf_drivers}
+	echo ""
+    }
+}
+#===============================================================================================================================================
+proc get_drivers {args} {
+    set pins [get_pins -quiet $args]
+    if {[sizeof_collection $pin] < 1} {
+	set pins [get_ports -quiet $args]
+	if {[sizeof_collection $pin] < 1} {
+	    set nets [get_nets -quiet -top -seg $args]
+	}
+    } else {
+	set nets [get_nets -seg -top -quiet -of $pins]
+    }
+    set driver ""
+    set driver [get_attribute $nets leaf_drivers.full_name]
+    return $driver
+}
+#===============================================================================================================================================
+proc get_loads {args} {
+    set pins [get_pins -quiet $args]
+    if {[sizeof_collection $pin] < 1} {
+	set pins [get_ports -quiet $args]
+	if {[sizeof_collection $pin] < 1} {
+	    set nets [get_nets -quiet -top -seg $args]
+	}
+    } else {
+	set nets [get_nets -seg -top -quiet -of $pins]
+    }
+    set loads ""
+    set loads [get_attribute $nets leaf_loads.full_name]
+    return $loads
+}
+#===============================================================================================================================================
+
+proc get_multi_driver_nets {args} {
+    set nets [get_nets -quiet -top -hier * -filter "number_of_leaf_drivers > 1 "]
+    return $nets
+}
+#===============================================================================================================================================
+
+proc handle_mdrivers {{ofile mdrivers.tcl}} {
+    suppress_message ATTR-3
+    redirect $ofile {
+	foreach_in_collection m_net [get_multi_driver_nets] {
+	    set m_drivers [filter_collection [get_attribute $m_net leaf_drivers] @direction==out]
+	    set m_loads [filter_collection [get_attribute $m_net leaf_loads] @direction==in]
+	    if {[sizeof_collection $m_loads] > 0} {
+		if {[sizeof_collection $m_drivers] > 1} {
+		    echo "\n# Processing MDriverNet: [get_object_name $m_net] DriverCount: [sizeof_collection $m_drivers] LoadCount: [sizeof_collection $m_loads]"
+		    set m_drivers_break [index_collection $m_drivers 1 end]
+		    set m_drivers_retain  [index_collection $m_drivers 0]
+		    foreach_in_collection driv $m_drivers_break {
+			foreach in_pin [get_attribute  [get_pins -quiet -of [get_cells -quiet -of $driv] -filter "direction==in"] full_name] {
+			    foreach out_pin [get_attribute  [get_pins -quiet -of [get_cells -quiet -of $driv] -filter "direction==out"] full_name] {
+				echo "set_disable_timing -from [file tail $in_pin] -to [file tail $out_pin] \[get_cells [file dirname [get_object_name $driv]]\]"
+			    }
+			}
+		    }
+		    foreach out_pin [get_object_name [get_pins -of [get_cells -quiet -of $m_drivers_retain] -filter "direction==out"]] {
+			foreach in_pin [get_attribute $m_loads full_name] {
+			    echo "set_annotated_delay -net -from $out_pin -to $in_pin  0.1"
+			    echo "set_annotated_transition 0.01 $in_pin"
+			}
+		    }
+		    foreach in_pin [get_object_name [get_pins -of [get_cells -quiet -of $m_drivers_retain] -filter "direction==in"]] {
+			foreach out_pin [get_object_name [get_pins -of [get_cells -quiet -of $m_drivers_retain] -filter "direction==out"]] {
+			    echo "set_annotated_delay -cell -from $in_pin -to $out_pin  0.1"
+			}
+		    }
+		}
+	    }
+	}
+    }
+    unsuppress_message ATTR-3
+    echo "$ofile Generated"
+}
+
+#===============================================================================================================================================
+global ::__MY_PT_HIER_INSTS
+set ::__MY_PT_HIER_INSTS ""
+proc get_pnr {{DD .}} {
+    if {![info exists ::__MY_PT_HIER_INSTS] || $::__MY_PT_HIER_INSTS eq "" } {
+	global ::__MY_PT_HIER_INSTS
+	set DIR $DD
+	if [file exists ${DD}/msta_conf_vars.tcl] {
+	    source ${DD}/msta_conf_vars.tcl
+	    set str "\"" ; foreach cell [array names VERILOG] {set str "$str ref_name == $cell || "} ; set str "$str ref_name == PAVAN\""
+	    set ::__MY_PT_HIER_INSTS  [eval get_cells -hier * -filter $str]
+	} else {
+	    echo "--E-- Msta_conf_vars.tcl not found - use--> get_pnr \$DIR"
+	    set ::__MY_PT_HIER_INSTS  [current_design]
+	}
+    } else {
+	echo [sizeof $::__MY_PT_HIER_INSTS]
+    }
+    return $::__MY_PT_HIER_INSTS
+}
+
+proc find_pnr {inst} {
+    set all_hier  [get_pnr]
+    set i 0
+    set curr_inst ""
+    set dir_name $inst
+    set prev_dir_name ""
+    while {[llength $dir_name] > 0} {
+	set curr_inst [remove_from_collection -intersect $all_hier [get_cells -quiet $dir_name]]
+	if {[sizeof $curr_inst] > 0} {
+	    break
+	} else {
+	    set prev_dir_name $dir_name
+	    set dir_name [file dirname $dir_name]
+	    if {$prev_dir_name == $dir_name} {
+		if {$i > 0} {
+		    break
+		}
+		incr i
+	    }
+
+	}
+    }
+    if {[llength $curr_inst] > 0} {
+	set curr_inst [get_object_name $curr_inst]
+    } else {
+	set curr_inst NA
+    }
+    return $curr_inst
+}
+#===============================================================================================================================================
+proc get_pnr_ck_pins {{DD .}} {
+    set pnrb [get_pnr $DD] 
+    set hpins [get_pins -of $pnrb -filter "direction==in && is_hierarchical==true"]
+    set all_ck_hpins [get_pins -of  [get_nets -seg -of [all_fanout -clock_tree]] -filter "is_hierarchical==true"]
+    set pnr_ck_hpins [remove_from_collection -intersect $all_ck_hpins $hpins]
+    ec -col $pnr_ck_hpins -attrib {cell.ref_name lib_pin_name  net.leaf_drivers.clocks.full_name}
+    foreach_in_collection elem $pnr_ck_hpins {
+	set bname [ga $elem cell.ref_name]
+	set lib_pin_name [ga $elem lib_pin_name]
+	set fc_ck_name [lsort -u [ga $elem net.leaf_drivers.clocks.full_name]]
+	if {$fc_ck_name == ""} {
+	    set fc_ck_name [lsort -u [ga $elem net.leaf_loads.clocks.full_name]]
+	}
+	if {$fc_ck_name == ""} {
+	    foreach_in_collection clk [get_clocks *] {
+		if {[sizeof_collection [remove_from_collection -intersect [ga $clk sources] [ga  $elem  net.leaf_loads]]] > 0} {
+		    break
+		}
+	    }
+	    set fc_ck_name [get_object_name $clk]
+	}
+	if {$fc_ck_name == ""} {set fc_ck_name NA}
+	set block_ck($bname) "$lib_pin_name $fc_ck_name"
+    }
+    foreach elem [lsort -u -dict [array names block_ck]] {
+	puts  [format "%-30s %-80s %-40s" $elem [lindex $block_ck($elem) 0] [lindex $block_ck($elem) 1]]
+    }
+}
+#=======================================================================================================================================================
+
+proc get_non_ck_cells {{ofile non_ck_cell.rpt}} {
+    redirect $ofile {
+	set a  [get_cells -hier * -filter "is_clock_network_cell && ref_name!~DCC* && ref_name !~CK* && ref_name!~MRVL* && ref_name!~LVL* && number_of_pins==2"]
+	echo \n"--I-- List of CellsOn Clock Path That are not of type Clock \n"
+	ec -col $a -attrib {full_name ref_name}
+	echo \n"--I-- Potential Clock Sources \n"
+	ec -col [add_to_collection -unique  [all_fanin_h -to [get_pins -of $a -filter "direction==in"]] [all_fanin_h -to [get_pins -of $a -filter "direction==in"]]] -attrib {cell.ref_name direction full_name}
+    }
+    echo "${ofile} generated"
+}
+
+proc get_non_ck_cells {{ofile non_ck_cell.rpt}} {
+    set a  [get_cells -hier * -filter "is_clock_network_cell && ref_name!~DCC* && ref_name !~CK* && ref_name!~MRVL* && ref_name!~LVL* && number_of_pins==2"]
+    set local_pnr_blks $::pnr_blks
+    foreach pb $local_pnr_blks {
+	set oofile ${pb}_${ofile}
+	set cur_inst [get_object_name [index_collection [all_instances -hierarchy $pb] 0]]
+	set b [get_cells -quiet $a -filter "full_name=~${cur_inst}/*"]
+	if {[sizeof_collection $b] > 0} {
+	    redirect $oofile {
+		echo \n"--I-- List of CellsOn Clock Path That are not of type Clock \n"
+		ec -col $b -attrib {full_name ref_name}
+		echo \n"--I-- Potential Clock Sources \n"
+		set c [all_fanin_h -to [get_pins -of $b -filter "direction==in"]]
+		set d [remove_from_collection -intersect [add_to_collection -unique  $c $c ] [get_pins ${cur_inst}/* -filter "direction==in"]]
+		ec -col $d -attrib {cell.ref_name direction lib_pin_name net.leaf_drivers.clocks.full_name net.leaf_drivers.clocks.period}
+	    }
+	    echo "${oofile} generated"
+	}
+    }
+}
+
+#==========================================================================================
+
+proc lib_arc_info {args} {
+    array set inputs $args
+    #set ref_name COMPHY_56G_PIPE5_X4_4PLL
+    set error 0
+    if [info exists inputs(-ref)] { set ref_name $inputs(-ref)} else {set error 1}
+    #set pin_name PIN_SI_LANE3[228]
+    if [info exists inputs(-pin)] {set pin_name $inputs(-pin)} else {set error 1}
+    if $error {
+	echo "Usage: lib_arc_info -ref reference_name -pin pin_name"
+    } else {
+	set lib_cell  [index_collection [get_lib_cells */${ref_name}] 0]
+	set arcs [get_lib_timing_arcs -of $lib_cell -filter "from_lib_pin.base_name==$pin_name || from_lib_pin.base_name==$pin_name"]
+	if {[sizeof_collection $arcs] > 0} {
+	    ec -col $arcs -attrib {mode from_lib_pin.base_name from_lib_pin.direction to_lib_pin.base_name to_lib_pin.direction  sense is_disabled is_user_disabled}
+	} else {
+	    echo "Error: No Timing Modeled in LIB_CELL : $ref_name for LIB_PIN : $pin_name"
+	}
+    }
+}
+
+####################################
+
+proc get_uncon_ckpins {} {
+    return [remove_from_collection [get_pins -quiet [all_registers -clock_pins] -filter "!defined(clocks) && !defined(case_value)"] [all_registers -clock_pins]]
+}
+proc get_tie_ckpins {} {
+    return  [get_pins -quiet [all_registers -clock_pins] -filter "!defined(clocks) && defined(case_value)"]
+}
+####################################
+proc print_combo_cells_on_clock {{outfile combo_cells_on_clock.rpt}} {
+    global ::DEBUG_DIR_FOR_PT
+    sh mkdir -p ./${::DEBUG_DIR_FOR_PT}
+    if ![info exists DESIGN] {set DESIGN [get_object_name [current_design]]}
+
+    #ec -col [get_pins -quiet [all_fanout -clock_tree -flat] -filter "cell.lib_cell.function_id!=a1.0 && cell.lib_cell.function_id!=Ia1.0 && defined(cell.lib_cell.function_id) && cell.number_of_pins > 1 && !cell.is_sequential && pin_direction==in && is_clock_used_as_clock  "] -attrib  {full_name clocks.full_name cell.ref_name} > ./${::DEBUG_DIR_FOR_PT}/${outfile}
+    #ec -col [get_pins -quiet -hier * -filter "!is_hierarchical && cell.lib_cell.function_id!=a1.0 && cell.lib_cell.function_id!=Ia1.0 && defined(cell.lib_cell.function_id) && cell.number_of_pins > 1 && !cell.is_sequential && pin_direction==in && is_clock_used_as_clock  "] -attrib  {full_name clocks.full_name cell.ref_name} > ./${::DEBUG_DIR_FOR_PT}/${outfile}
+    #ec -col [get_pins -quiet -hier * -filter "!is_hierarchical && defined(cell.lib_cell.function_id) && cell.number_of_pins > 1 && !cell.is_sequential && pin_direction==in && is_clock_used_as_clock  "] -attrib  {full_name clocks.full_name cell.ref_name} > ./${::DEBUG_DIR_FOR_PT}/${outfile}
+
+    set pin_list [get_pins -quiet -hier * -filter "!is_hierarchical && cell.lib_cell.function_id!=a1.0 && cell.lib_cell.function_id!=Ia1.0 && defined(cell.lib_cell.function_id) && cell.number_of_pins > 1 && !cell.is_sequential && pin_direction==in && is_clock_used_as_clock  "]
+    set pin_list_muxes [get_pins -quiet $pin_list -filter "cell.lib_cell.function_id=~*mux*"]
+    set pin_list_combos [remove_from_collection $pin_list $pin_list_muxes]
+
+    echo "\n--I-- Combo cell info on clock-path \n" > ./${::DEBUG_DIR_FOR_PT}/${outfile}
+    ec -col $pin_list_combos -attrib {full_name clocks.full_name cell.ref_name} >> ./${::DEBUG_DIR_FOR_PT}/${outfile}
+    echo "\n--I-- Mux cell info on clock-path \n" >> ./${::DEBUG_DIR_FOR_PT}/${outfile}
+    ec -col $pin_list_muxes  -attrib {full_name clocks.full_name cell.ref_name} >> ./${::DEBUG_DIR_FOR_PT}/${outfile}
+
+    echo "--I-- ./${::DEBUG_DIR_FOR_PT}/${outfile} generated"
+}
+####################################
+proc print_tie_off_icg_enables {{outfile tie_off_icg_enables.rpt}} {
+    global ::DEBUG_DIR_FOR_PT
+    sh mkdir -p ./${::DEBUG_DIR_FOR_PT}
+    if ![info exists DESIGN] {set DESIGN [get_object_name [current_design]]}
+
+    echo "\n*** Clock Enables Which are getting a constant value ***\n" > ./${::DEBUG_DIR_FOR_PT}/${outfile}
+    set x [get_pins -quiet [all_registers -data_pins ] -filter "cell.is_integrated_clock_gating_cell && lib_pin_name!=TE && defined(case_value)"]
+    ec -col $x -attrib {full_name case_value cell.ref_name} >> ./${::DEBUG_DIR_FOR_PT}/${outfile}
+    echo "\n*** Potential Tie off Points causing Case propagation to ICG enables ***\n" >> ./${::DEBUG_DIR_FOR_PT}/${outfile}
+    ec -col [get_pins -of [get_nets -of  [get_pins -quiet  [all_fanin -flat -to $x -trace_arcs all -startpoints_only] -filter "defined(case_value)"]] -filter "(is_hierarchical && pin_direction==in && defined(case_value)) || (!is_hierarchical && cell.ref_name=~*tie* && defined(case_value))"] -attrib {full_name case_value cell.ref_name} >> ./${::DEBUG_DIR_FOR_PT}/${outfile}
+    echo "--I-- ./${::DEBUG_DIR_FOR_PT}/${outfile} generated"
+}
+####################################
+proc get_partition_info {} {
+    set all_regs [all_registers ]
+    set all_cells [get_cells  -hier * -filter "!is_hierarchical"]
+    set all_macro [all_macros]
+    echo "RefName \t InstName \t TotalCells \t FLopCount \t MacroCount"
+    foreach x [get_object_name [get_pnr]] {
+	echo [get_attribute [get_cells $x] ref_name ]\t $x \t[sizeof [get_cells -quiet $all_cells -filter "full_name=~${x}/*"]] \t [sizeof [get_cells -quiet $all_regs -filter "full_name=~${x}/*"]] \t[sizeof [get_cells -quiet  $all_macro -filter "full_name=~${x}/*"]]
+    }
+}
+
+proc dump_seq_info {{outdir .}} {
+    global ::DEBUG_DIR_FOR_PT
+    set outdir $::DEBUG_DIR_FOR_PT
+    sh mkdir -p $outdir 
+    sh mkdir -p ${outdir}/SEQ_CELL_INFO
+    catch {ec -col [get_lib_cells -quiet */* -filter "is_sequential && is_instantiated"] -attrib {base_name function_id} > ${outdir}/SEQ_CELL_INFO/seq_cell.rpt}
+    catch {ec -col [get_cells -quiet  -hier * -filter "ref_name=~*DFK*"] -attrib {ref_name full_name} > ${outdir}/SEQ_CELL_INFO/synch_set_reset_flops.list}
+    catch {ec -col [get_cells -quiet  -hier * -filter "ref_name=~*DFN*"] -attrib {ref_name full_name} > ${outdir}/SEQ_CELL_INFO/trailing_edge_flops.list}
+    catch {ec -col [get_cells -quiet  -hier * -filter "ref_name=~*CKLH*"] -attrib {ref_name full_name} > ${outdir}/SEQ_CELL_INFO/or_type_icg.list}
+    catch {ec -col  [get_cells -quiet  -hier * -filter "is_sequential && (is_positive_level_sensitive || is_negative_level_sensitive)"] -attrib { full_name ref_name}  > ${outdir}/SEQ_CELL_INFO/latch.rpt}
+    catch {ec -col [get_cells -quiet  -hier * -filter "ref_name=~*EDF*"] -attrib {ref_name full_name} > ${outdir}/SEQ_CELL_INFO/enable_flops.list}
+    catch {ec -col [get_cells -quiet  -hier * -filter "ref_name=~*DFM*"] -attrib {ref_name full_name} > ${outdir}/SEQ_CELL_INFO/mux_flops.list}
+    echo "Generated reports under: ${outdir}/SEQ_CELL_INFO/*"
+}
+
+#####################################
+
+
+proc get_cross_domain_async_paths {{outdir .}} {
+    global ::DEBUG_DIR_FOR_PT
+    set outdir $::DEBUG_DIR_FOR_PT
+    sh mkdir -p $outdir 
+    set paths [get_timing_path -group **async_default** -cover_design -slack_lesser_than inf ]
+    set paths1 ""; foreach_in_collection path $paths {if {[ga $path startpoint_clock.full_name] == [ga $path endpoint_clock.full_name]} {} else {append_to_collection paths1 $path}}
+    ecs -col [sort_collection $paths1 startpoint] -attrib {startpoint_clock startpoint_clock.period  endpoint_clock endpoint_clock.period startpoint endpoint } > ${outdir}/async_cross_domain.rpt
+    echo "--I-- ${outdir}/async_cross_domain.rpt Generated"
+    rt -group **async_default**  -slack_lesser_than inf -cover_design -from  [lsort -u [get_object_name [ga $paths1 startpoint]]] > ${outdir}/async_rpeort_elab.rpt 
+    echo "" > ${outdir}/async_cross_domain_elab.rpt
+    foreach sp [lsort -u [get_object_name [ga $paths1 startpoint]]] {
+	#rt -group **async_default**  -slack_lesser_than inf -cover_design -from  [get_pins $sp] >> ${outdir}/async_cross_domain_elab.rpt 
+	rt -group **async_default**  -slack_lesser_than inf  -from  [get_pins $sp] -max_paths 10 -nworst 1 >> ${outdir}/async_cross_domain_elab.rpt
+    }
+    echo "--I-- ${outdir}/async_cross_domain_elab.rpt  Generated"
+}
+
+
+proc get_missing_mapped_icg {{outdir .}} {
+    global ::DEBUG_DIR_FOR_PT
+    set outdir $::DEBUG_DIR_FOR_PT
+    sh mkdir -p $outdir 
+    rte4 -group **clock_gating_default** -exclude [get_pins [all_registers -data_pins ]  -filter "cell.is_integrated_clock_gating_cell"] -from [all_registers -clock_pins -level_sensitive] -cover_design -slack_lesser_than inf > ${outdir}/missing_mapped_icg.rpt
+    echo "--I-- ${outdir}/missing_mapped_icg.rpt Generated"
+    rt  -group **clock_gating_default** -exclude [get_pins [all_registers -data_pins ]  -filter "cell.is_integrated_clock_gating_cell"] -from [all_registers -clock_pins -level_sensitive] -cover_design -slack_lesser_than inf > ${outdir}/missing_mapped_icg_elab.rpt
+    echo "--I-- ${outdir}/missing_mapped_icg_elab.rpt Generated"
+}
+
+
+
+############################################################################################
+
+proc get_avg_clk_id {args} {
+    array set inputs $args
+    #sil_spu_pnr_inst
+    #sil_spu_pnr_inst       
+    #sil_fuse_pnr_inst
+    set flag 1
+    #if [info exists inputs(-inst)] {set inst_name $inputs(-inst)} else {set inst_name "" ; set flag 0}
+    if [info exists inputs(-inst)] {set inst_name $inputs(-inst)} else {set inst_name "" ; }
+    if [info exists inputs(-clock)] {set clock_name $inputs(-clock)} else {set clock_name "" ; set flag 0}
+    if [info exists inputs(-exclude)] {set exclude_names $inputs(-exclude)} else {set exclude_names "" }
+
+    set exclude_names ""
+
+    set return_value 0
+    if $flag {
+	if {[sizeof [get_clocks $clock_name]] > 0} {
+	    set all_clk_pins [all_registers -clock_pins -clock $clock_name]
+	    set all_clk_icg_pins [filter_collection $all_clk_pins @cell.is_integrated_clock_gating_cell]
+	    set all_clk_pins [remove_from_collection $all_clk_pins $all_clk_icg_pins]
+	    if {[sizeof_collection $all_clk_pins] > 0} {
+		set target_pins [get_pins -quiet $all_clk_pins -filter "full_name=~${inst_name}*"]
+		if {[sizeof $target_pins] > 0} {
+		    foreach exclude_hier $exclude_names {
+			set target_pins [remove_from_collection $target_pins [get_pins -quiet $all_ck_pins -filter "full_name=~${exclude_hier}*"]]
+		    }
+		    if {[sizeof $target_pins] > 0} {
+			##set return_value [get_average [get_attribute -quiet $target_pins max_arrival]]
+			set return_value [get_average [get_max_rise_arrival $target_pins $clock_name]]
+			lappend return_value [sizeof $target_pins]
+			set pnr_h_pin [get_pins -quiet $inst_name/* -filter "is_hierarchical && (pin_direction==in || pin_direction==inout || pin_direction==all )"]
+			#set pnr_d_pins [get_pins -quiet -leaf -of [get_nets -quiet -of $pnr_h_pin] -filter "!is_hierarchical && (pin_direction==in || pin_direction==inout || pin_direction==all ) && defined(clocks) && cell.lib_cell.number_of_pins > 1 && clocks.full_name=~*${clock_name}*"]
+			#set pnr_d_pins [get_pins -quiet -leaf -of [get_nets -quiet -of $pnr_h_pin] -filter "!is_hierarchical && (pin_direction==in || pin_direction==inout || pin_direction==all ) && defined(clocks) && cell.lib_cell.number_of_pins > 1 && clocks.full_name==${clock_name}"]
+			set pnr_d_pins [get_pins -quiet -leaf -of [get_nets -quiet -of $pnr_h_pin] -filter "!is_hierarchical && (pin_direction==in ) && defined(clocks) && cell.lib_cell.number_of_pins > 1 && clocks.full_name==${clock_name}"]
+			if { [sizeof  $pnr_d_pins] < 1} {
+			    set pnr_d_pins [get_pins -quiet -leaf -of [get_nets -quiet -of $pnr_h_pin] -filter "!is_hierarchical && (pin_direction==in || pin_direction==inout || pin_direction==all ) && defined(clocks) && cell.lib_cell.number_of_pins > 1 && clocks.full_name==${clock_name}"]
+			}
+			if {[sizeof_collection $pnr_d_pins] > 0} {
+			    #lappend return_value [get_average [get_attribute -quiet $pnr_d_pins max_arrival]]
+			    lappend return_value [get_average [get_max_rise_arrival $pnr_d_pins $clock_name]]
+			}
+		    } else {
+			echo "Error: No Sink pins exist for $clock_name Matching to $inst_name hierarchy after removing $exclude_names"
+		    }
+		} else {
+		    echo "Error: No Sink pins exist for $clock_name Matching to $inst_name hierarchy"
+		}
+	    } else {
+		echo "Error: No Sink pins exist for $clock_name in design"
+	    }
+	} else {
+	    echo "Error: clock $clock_name doesn't exist in design"
+	}
+
+	return $return_value
+    } else {
+	echo "Usage: get_avg_clk_id -clock CLKNAME -inst PNRINST \[-exclude EXCLUDE_HIER_LIST\]"
+    }
+}
+
+##########################################################################################################
+
+
+
+proc get_arrival {pin clock} {
+    set arrival [get_attribute -quiet [get_ports -quiet $pin] arrival_window]
+    if {$arrival == ""} {
+	set arrival [get_attribute -quiet [get_pins -quiet $pin] arrival_window]
+    }
+    set return_val ""
+    set max_rise "0.000"
+    set max_fall "0.000"
+    set min_rise "0.000"
+    set min_fall "0.000"
+    if {$arrival == ""}  {
+	set return_val ""
+    } else {
+	set arrival [lindex $arrival 0]
+	foreach elem $arrival {
+	    #echo $elem
+	    if [regexp $clock [lindex $elem 0] ] {
+		if {[regexp NA [lindex $elem 2]] || [regexp NA [lindex $elem 3]]} {
+		    if [regexp pos_edge$ [lindex $elem 1]] {
+			if {[lindex [lindex $elem 2] 1] == "NA" } {
+			    set min_fall [lindex [lindex $elem 2] 2]
+			} else  {
+			    set min_rise [lindex [lindex $elem 2] 1]
+			}
+			if {[lindex [lindex $elem 3] 1]=="NA"} {
+			    set max_fall [lindex [lindex $elem 3] 2]
+			} else {
+			    set max_rise [lindex [lindex $elem 3] 1]
+			}
+		    }
+		    if [regexp neg_edge$ [lindex $elem 1]] {
+			if {[lindex [lindex $elem 2] 2] == "NA"} {
+			    set min_rise [lindex [lindex $elem 2] 1]
+			} else {
+			    set min_fall [lindex [lindex $elem 2] 2]
+			}
+			if {[lindex [lindex $elem 3] 2]=="NA"} {
+			    set max_rise [lindex [lindex $elem 3] 1]
+			} else {
+			    set max_fall [lindex [lindex $elem 3] 2]
+			}
+		    }
+		    
+		} else {
+		    set min_rise [lindex [lindex $elem 2] 1]
+		    set min_fall [lindex [lindex $elem 2] 2]
+		    set max_rise [lindex [lindex $elem 3] 1]
+		    set max_fall [lindex [lindex $elem 3] 2]
+		}
+	    }
+	}
+	#if {$max_rise == "NA"} {set max_rise 0.000 ; echo $pin}
+	#if {$max_fall == "NA"} {set max_fall 0.000 ; echo $pin}
+	#if {$min_rise == "NA"} {set min_rise 0.000 ; echo $pin}
+	#if {$min_fall == "NA"} {set min_fall 0.000 ; echo $pin}
+
+	set return_val [list [format %0.4f $max_rise] [format %0.4f $max_fall] [format %0.4f $min_rise] [format %0.4f $min_fall]]
+    }
+    return $return_val
+}
+
+proc get_max_rise_arrival {pin_list clock} {
+    set max_rise_list ""
+    foreach pin [get_object_name [get_pins -quiet $pin_list]] {
+	lappend max_rise_list [lindex [get_arrival $pin $clock] 0]
+    }
+    return $max_rise_list
+}
+
+
+proc get_max_fall_arrival {pin_list clock} {
+    set max_fall_list ""
+    foreach pin [get_object_name [get_pins -quiet $pin_list]] {
+	lappend max_fall_list [lindex [get_arrival $pin $clock] 1]
+    }
+    return $max_fall_list
+}
+
+
+proc get_min_rise_arrival {pin_list clock} {
+    set min_rise_list ""
+    foreach pin [get_object_name [get_pins -quiet $pin_list]] {
+	lappend min_rise_list [lindex [get_arrival $pin $clock] 2]
+    }
+    return $min_rise_list
+}
+
+
+proc get_min_fall_arrival {pin_list clock} {
+    set min_fall_list ""
+    foreach pin [get_object_name [get_pins -quiet $pin_list]] {
+	lappend min_fall_list [lindex [get_arrival $pin $clock] 3]
+    }
+    return $min_fall_list
+}
+
+
+proc get_clock_id_summary {args} {
+
+    array set inputs $args
+    if [info exists inputs(-inst)] {set inst_names $inputs(-inst)} else {set inst_names [get_object_name [get_pnr]] ; set flag 0}
+    if [info exists inputs(-clock)] {set clock_names $inputs(-clock)} else {set clock_names [get_object_name [get_clocks *]] ; set flag 0}
+    if [info exists inputs(-exclude)] {set exclude_names $inputs(-exclude)} else {set exclude_names "" }
+    
+
+    if [info exists  ::run_type_specific] {set pfix [get_object_name [current_design]]_${::run_type_specific}_} else {set pfix "[get_object_name [current_design]]_"}
+    echo [format "%-50s %-50s %-20s %-20s %-20s %-20s" CLOCK_NAME PNR_BLOCK SINK_COUNT TOTAL_ID BLOCK_EXT_ID BLOCK_INT_ID] > ${::DEBUG_DIR_FOR_PT}/${pfix}clk_pnr_id.rpt
+    
+    #foreach clock_name {spu_clk snocv_clk snoch_clk} 
+    #foreach inst {sil_fuse_pnr_inst  sil_mio_pnr_inst sil_snoch_pnr_inst  sil_snocv_pnr_inst sil_spu_pnr_inst} 
+    foreach clock_name $clock_names {
+	echo "\tInfo: Processing CLOCK:  $clock_name"
+
+	if { [llength $inst_names] < 1} {set inst_names TOP_INST}
+	foreach inst $inst_names {
+	    echo "\t\tInfo: Processing INST: $inst"
+	    if {$inst == "TOP_INST"} {set inst ""}
+	    set id_val [get_avg_clk_id -clock $clock_name  -inst $inst -exclude $exclude_names]
+	    if {[llength $id_val]  > 2} {
+		set total_id [lindex $id_val 0]
+		set total_sinks [lindex $id_val 1]
+		set block_ext_id [lindex $id_val 2]
+		set block_int_id [expr $total_id - $block_ext_id]
+	    } else {
+		set total_id [lindex $id_val 0]
+		set total_sinks [lindex $id_val 1]
+		set block_ext_id 0.000
+		set block_int_id [expr $total_id - $block_ext_id]
+		
+	    }
+	    if {$total_id > 0} {
+		echo [format "%-50s %-50s %-20d %-20.4f %-20.4f %-20.4f"  $clock_name $inst $total_sinks $total_id $block_ext_id $block_int_id] >> ${::DEBUG_DIR_FOR_PT}/${pfix}clk_pnr_id.rpt
+	    }
+	}
+    }
+    echo "Info: Generated ${::DEBUG_DIR_FOR_PT}/${pfix}clk_pnr_id.rpt"
+}    
+
+############################################################################################
+############################################################################################
+
+#set data [ga [get_timing_paths -nworst 10 -max_paths 20000 -slack_lesser_than inf] slack]
+
+proc plot_histogram {args} {
+    array set inputs $args
+    set run_flag 1
+    package require math::statistics
+    if [info exists inputs(-bin_width)] {set bin_width  $inputs(-bin_width)} else {set bin_width 0.05}
+    if [info exists inputs(-xlabel)] {set xlabel  $inputs(-xlabel)} else {set xlabel "slack(ns)"}
+    if [info exists inputs(-ylabel)] {set xlabel  $inputs(-ylabel)} else {set ylabel "PathCount"}
+    if [info exists inputs(-title)] {set title  $inputs(-title)} else {set title "HistoGram ${xlabel}-BinWidth: ${bin_width} vs ${ylabel}  "}
+    if [info exists inputs(-outfile)] {set outfile  $inputs(-outfile)} else {set outfile "histogram.ps"}
+    if [info exists inputs(-data)] {set data $inputs(-data)} else {set run_flag 0}
+
+    if [info exists inputs(-centre)] {set centre_point $inputs(-centre)} else {set centre_point NA}
+    if [info exists inputs(-xmax)] {set xmax_point $inputs(-xmax)} else {set xmax_point NA}
+    if [info exists inputs(-xmin)] {set xmin_point $inputs(-xmin)} else {set xmin_point NA}
+    if [info exists inputs(-ymax)] {set ymax_point $inputs(-ymax)} else {set ymax_point NA}
+    if [info exists inputs(-ymin)] {set ymin_point $inputs(-ymin)} else {set ymin_point NA}
+    if [info exists inputs(-box_width)] {set box_width $inputs(-box_width)} else {set box_width 0.5}
+
+
+    if $run_flag {
+	set basic_stat_data [math::statistics::basic-stats $data]
+	foreach {mean min max count stdev var psd pv} $basic_stat_data {}
+
+	if {$centre_point=="NA"} {set centre_point 0.00}
+	if {$xmax_point=="NA"} { } else {set max $xmax_point}
+	if {$xmin_point=="NA"} { } else {set min $xmin_point}
+
+	set limits $centre_point
+
+	
+	set num_bins [expr ceil(($max-$centre_point)/$bin_width)]
+
+	for {set i 0} {$i <= $num_bins} {incr i} {
+	    lappend limits [expr ($i+1) * $bin_width]
+	}
+
+	set num_bins [expr ceil(($centre_point - $min)/$bin_width)]
+	for {set i 0} {$i <  $num_bins} {incr i} {
+	    set limits [linsert $limits 0 [expr ($i+1) * $bin_width * -1]]
+	}
+	
+	set xtic_val $bin_width
+	set max_num_bins 20
+	if {$num_bins > $max_num_bins} {
+	    set xtic_val [format %0.2f [expr [expr $num_bins * $bin_width]/$max_num_bins]]
+	    set xtic_val [format %0.2f [expr $xtic_val - [expr [format %0.0f [expr $xtic_val * 100]] % 5] / 100.0]]
+	}
+	set bin_counts [math::statistics::histogram $limits $data]
+
+	set max_val 0
+	redirect plot.dat {
+	    echo "#point PathDelay NumCunt Mean SD 2SD 3SD"
+	    for {set i 0} {$i < [llength $limits]} {incr i} {
+		echo "[expr $i + 1] [lindex $limits $i] [lindex $bin_counts $i] $mean $stdev [expr 2*$stdev] [expr 3*$stdev]"
+		if { [lindex $bin_counts $i] > $max_val} {set max_val [lindex $bin_counts $i]}
+	    }
+	}
+
+	set fp [open gnu_plot.tcl w]
+
+	puts $fp    "unset label"
+	puts $fp    "set xlabel \"$xlabel\""
+	puts $fp    "set ylabel \"$ylabel\""
+	puts $fp    "set style data linespoints"
+	puts $fp    "set autoscale  "
+	puts $fp    "set title \"$title\""
+	puts $fp    ""
+
+	puts $fp    "set term postscript landscape color solid  "
+	puts $fp    "set out \"${outfile}\""
+	puts $fp    "set key top left"
+	puts $fp
+	puts $fp    "set style line 1 lw 2 lc rgb '#990042' ps 2 pt 6 pi 50000"
+	puts $fp    "set style line 2 lw 2 lc rgb '#31f120' ps 2 pt 12 pi 51000"
+	puts $fp    "set style line 3 lw 2 lc rgb '#0044a5' ps 2 pt 9 pi 52000"
+	puts $fp    "set style line 4 lw 2 lc rgb '#888888' ps 2 pt 7 pi 53000"
+	puts $fp    ""
+
+	puts $fp    "set datafile commentschars \"#%\""
+	puts $fp    ""
+
+	puts $fp    "unset log"
+	puts $fp    "set xtic auto;"
+	puts $fp    "set ytic auto ;"
+	puts $fp
+	puts $fp   ""
+
+	if {${box_width} > 1} {set box_width 1}
+	if {${box_width} < 0} {set box_width 0.01}
+
+	puts $fp    "set boxwidth ${box_width} relative"
+	#puts $fp    "set boxwidth ${box_width} "
+	puts $fp
+
+	if {$ymax_point=="NA"} { set ymax [expr $max_val + 1000]} else {set ymax $ymax_point}
+	if {$ymin_point=="NA"} { set ymin -500} else {set ymin $ymin_point}
+
+	puts $fp    "set yr \[${ymin}:${ymax}\] "
+	puts $fp    "set xtics  $xtic_val"
+	puts $fp    "set xtics rotate by  270"
+	puts $fp    ""
+	#puts $fp    "set style fill solid 4"
+	puts $fp    "set style fill pattern 4"
+	puts $fp    ""
+	puts $fp    "set grid ytics mytics"
+	puts $fp    "set grid xtics mxtics"
+	puts $fp    "set mytics 2"
+	puts $fp    "set mxtics 1"
+	puts $fp    "set grid"
+	#puts $fp    "plot  	\"./plot.dat\" using 2:3 title \"NumPaths\" with impulses ,	\"./plot.dat\" using 2:3:(0.025) title \"NumPaths\" with boxes "
+	#puts $fp    "plot \"./plot.dat\" using 2:3:(0.025) title \"NumPaths\" with boxes "
+	# puts $fp    "plot \"./plot.dat\" using 2:3 title \"NumPaths\" with boxes "
+	puts $fp    "plot \"./plot.dat\" using 2:3 title \"NumPaths\" with boxes, \'\' using 2:\(\$3 + 200 \):\(\$3\)  with labels  "
+
+	close $fp
+
+	catch {exec /usr/local/bin//gnuplot ./gnu_plot.tcl }
+	catch {echo "${outfile} generated"}
+	catch {exec /proj/cadpnr/bin/pdf_viewer_cadpnr ${outfile} &}
+	catch {file delete ./gnu_plot.tcl }
+	catch {file delete ./plot.dat }
+	
+	catch {puts "Done"}
+
+    } else {
+	puts "plot_histogram -data tcl_data_list_to_plot -bin_width BinWidth  -xlable XLabel -ylabel Ylabel -title Title "
+    }
+    
+}
+
+########################################
+
