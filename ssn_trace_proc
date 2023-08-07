@@ -1,0 +1,106 @@
+proc print_ssn_info {path} {
+    #set path [index_collection [sort_collection [report_timing -through channel_vr_top/ssn_forward_bus_in[39] -collection -path_type full_clock -hpin -nworst 1 -max_paths 1]  slack] 0]  
+
+    set slack [ga $path slack]
+    set all_h_pin [get_pins -of [get_pnr]]
+    set sp_design [find_pnr [get_object_name [ga $path startpoint]]]
+    set ep_design [find_pnr [get_object_name [ga $path endpoint]]]
+
+    set sp [get_object_name [ga $path startpoint]]
+    set ep [get_object_name [ga $path endpoint]]
+
+    set ep_design_pins [get_pins ${ep_design}/* -filter "is_hierarchical"]
+    set sp_design_pins [get_pins ${sp_design}/* -filter "is_hierarchical"]
+
+    set data_hpins     [get_pins [ga [ga $path timing_points] object]  -filter "is_hierarchical"]
+    set launch_hpins   [get_pins [ga [ga [ga $path launch_clock_path] timing_points] object]  -filter "is_hierarchical"]
+    set capt_hpins   [get_pins [ga [ga [ga $path capture_clock_path] timing_points] object]  -filter "is_hierarchical"]
+
+
+    set launch_clock_entry_forsp ""
+    set capt_clock_entry_forep ""
+
+    set launch_clock_entry_forep ""
+    set capt_clock_entry_forsp ""
+
+    set data_launch ""
+    set data_capture ""
+
+    set my_pin_list [get_object_name $launch_hpins]
+    for {set i [expr [llength $my_pin_list] -1]} {$i > 0} {incr i -1} {
+	set tt [remove_from_collection -intersect [get_pins [lindex $my_pin_list $i]] [get_pins $sp_design_pins -filter "direction==in"]]
+	if { [sizeof $tt] > 0} {
+	    set launch_clock_entry_forsp [get_object_name $tt]
+	    break
+	}
+    }
+
+    set my_pin_list [get_object_name $launch_hpins]
+    for {set i [expr [llength $my_pin_list] -1]} {$i > 0} {incr i -1} {
+	set tt [remove_from_collection -intersect [get_pins [lindex $my_pin_list $i]] [get_pins $ep_design_pins -filter "direction==in"]]
+	echo "-- [get_object_name $tt]"
+	if { [sizeof $tt] > 0} {
+	    set launch_clock_entry_forep [get_object_name $tt]
+	    break
+	}
+    }
+
+
+    set my_pin_list [get_object_name $capt_hpins]
+    for {set i [expr [llength $my_pin_list] -1]} {$i > 0} {incr i -1} {
+	set tt [remove_from_collection -intersect [get_pins [lindex $my_pin_list $i]] [get_pins $ep_design_pins -filter "direction==in"]]
+	if { [sizeof $tt] > 0} {
+	    set capt_clock_entry_forep [get_object_name $tt]
+	    break
+	}
+    }
+
+
+    set my_pin_list [get_object_name $capt_hpins]
+    for {set i [expr [llength $my_pin_list] -1]} {$i > 0} {incr i -1} {
+	set tt [remove_from_collection -intersect [get_pins [lindex $my_pin_list $i]] [get_pins $sp_design_pins -filter "direction==in"]]
+	if { [sizeof $tt] > 0} {
+	    set capt_clock_entry_forsp [get_object_name $tt]
+	    break
+	}
+    }
+
+
+
+    set my_pin_list [get_object_name $data_hpins]
+    for {set i [expr [llength $my_pin_list] -1]} {$i > 0} {incr i -1} {
+	set tt [remove_from_collection -intersect [get_pins [lindex $my_pin_list $i]] [get_pins $sp_design_pins -filter "direction==out"]]
+	if { [sizeof $tt] > 0} {
+	    set data_launch [get_object_name $tt]
+	    break
+	}
+    }
+
+    set my_pin_list [get_object_name $data_hpins]
+    for {set i [expr [llength $my_pin_list] -1]} {$i > 0} {incr i -1} {
+	set tt [remove_from_collection -intersect [get_pins [lindex $my_pin_list $i]] [get_pins $ep_design_pins -filter "direction==in"]]
+	if { [sizeof $tt] > 0} {
+	    set data_capture [get_object_name $tt]
+	    break
+	}
+    }
+    set STATUS ERROR
+
+    if {[regexp forward $data_capture] || [regexp forward $data_launch]} {
+	set launch_clk_pattern "$launch_clock_entry_forsp :: NA"
+	set capture_clk_pattern "$capt_clock_entry_forep :: $capt_clock_entry_forsp"
+	if {$launch_clock_entry_forsp == $capt_clock_entry_forsp} {set STATUS GOOD} else {set STATUS ERROR}
+    } elseif  {[regexp return $data_capture] || [regexp return $data_launch]} {
+	set launch_clk_pattern "$launch_clock_entry_forsp :: $launch_clock_entry_forep"
+	set capture_clk_pattern "$capt_clock_entry_forep  :: NA"
+	if {$capt_clock_entry_forep == $launch_clock_entry_forep} {set STATUS GOOD} else {set STATUS ERROR}
+    } else {
+	set data_launch $sp
+	set data_capture $ep
+	set launch_clk_pattern "$launch_clock_entry_forsp"
+	set capture_clk_pattern "$capt_clock_entry_forep"
+	if {$capt_clock_entry_forep == $launch_clock_entry_forsp} {set STATUS GOOD} else {set STATUS ERROR}
+    }
+
+    echo "$STATUS \($slack\) \t\t $data_launch \($launch_clk_pattern\) \t==>\t $data_capture \($capture_clk_pattern\)"
+}
