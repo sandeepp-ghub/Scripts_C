@@ -1,0 +1,57 @@
+sh mkdir -p ./${::DEBUG_DIR_FOR_PT}/LIBCHK
+if ![info exists DESIGN] {set DESIGN [get_object_name [current_design]]}
+suppress_message ATTR-3
+foreach  blk $pnr_blks {
+    echo "Processing $blk ...."
+    set inst [index_collection [all_instance -hierarchy ${blk}] 0]
+    set inst_name [get_object_name $inst]
+
+    set in_1 [get_pins -quiet -of  $inst -filter "direction==in" ]
+    set in_2 [get_pins -quiet [ga $in_1 net.leaf_loads] -filter "full_name=~${inst_name}/* && (cell.ref_name=~DEL* || cell.ref_name=~BUFFD1BWP*)"]
+    set in_a [get_pins -quiet -of [get_nets -quiet  -seg -of $in_2 ] -filter "is_hierarchical==true && direction==in && full_name=~${inst_name}/*"]
+    #set in_a [get_pins -quiet -of  $inst -filter "direction==in && net.leaf_loads.(cell.ref_name=~DEL* || cell.ref_name=~BUFFD1*) && net.leaf_loads.full_name=~${inst_name}/*"]
+
+    set out_1 [get_pins -quiet -of  $inst -filter "direction==out" ]
+    set out_2 [get_pins -quiet [ga $out_1 net.leaf_drivers] -filter "full_name=~${inst_name}/* && (cell.ref_name=~DEL* || cell.ref_name=~BUFFD1BWP*)"]
+    set out_b [get_pins -quiet -of [get_nets -quiet  -seg -of $out_2 ] -filter "is_hierarchical==true && direction==out && full_name=~${inst_name}/*"]
+
+    #set out_b [get_pins -quiet -of  $inst -filter "direction==out && net.leaf_drivers.(cell.ref_name=~DEL* || cell.ref_name=~BUFFD1*) && net.leaf_drivers.full_name=~${inst_name}/*"]
+
+    if { [sizeof_collection $in_a] > 0 || [sizeof_collection $out_b] > 0} {
+	redirect ${blk}_DEL_PRT.info {
+	    echo "Block :: $blk"
+	    echo ""
+	    echo [string repeat - 150]
+	    echo [format "%-10s %-60s %-30s %-100s" Direction PinName RefName InstName ]
+	    echo [string repeat - 150]
+	    echo ""
+	}
+	if { [sizeof_collection $in_a] > 0 } {
+	    redirect -append ${blk}_DEL_PRT.info {
+		#ec -col $in_a -attrib {direction full_name net.leaf_loads.cell.ref_name}
+		foreach_in_collection pin $in_a {
+		    set dir in
+		    set name [ga $pin lib_pin_name]
+		    set leaf_load [get_cells -quiet -of [ga $pin net.leaf_loads] -filter "full_name=~${inst_name}/* && (ref_name=~DEL* || ref_name=~BUFFD1BWP*)"]
+		    echo [format "%-10s %-60s %-30s %-100s" $dir $name [ga $leaf_load ref_name] [regsub -all ${inst_name}/ [get_object_name $leaf_load] ""] ]
+		}
+		echo ""
+	    }
+	}
+	if { [sizeof_collection $out_b] > 0} {
+	    redirect -append ${blk}_DEL_PRT.info {
+		#ec -col $out_b -attrib {direction full_name net.leaf_drivers.cell.ref_name}
+		foreach_in_collection pin $out_b {
+		    set dir out
+		    set name [ga $pin lib_pin_name]
+		    set leaf_driver [get_cells -quiet -of [ga $pin net.leaf_drivers] -filter "full_name=~${inst_name}/* && (ref_name=~DEL* || ref_name=~BUFFD1BWP*)"]
+		    echo [format "%-10s %-60s %-30s %-100s" $dir $name [ga $leaf_driver ref_name] [regsub -all ${inst_name}/ [get_object_name $leaf_driver] ""] ]
+		}
+	    }
+	}
+	echo "Generated ${blk}_DEL_PRT.info ..."
+    }
+}
+
+unsuppress_message ATTR-3
+
