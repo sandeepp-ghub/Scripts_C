@@ -1,0 +1,94 @@
+#set port1 i_roc_ch_w0_cpc_wrap___cpc__gibm_gia_data[0]
+#set port2 o_roc_ch_w0_iocx___cpc__gibm_gia_data[0]
+
+proc get_port_info {port} {
+    set ptr [get_db port:$port]
+    set loc [get_db $ptr .location]
+    
+    set x [get_pt $loc -x]
+    set y [get_pt $loc -y]
+    
+    set lay [get_db $ptr .layer.name]
+    set edge [get_db $ptr .pin_edge]
+    set side [get_db $ptr .side]
+
+    set direction [get_db $ptr .direction]
+    return [list $port $direction $loc $lay $edge $side]
+}
+
+proc get_port2port_info {port1 port2} {
+    set port1_info [get_port_info $port1]
+    set port2_info [get_port_info $port2]
+    set tot_dist [get_distance [lindex $port1_info 2] [lindex $port2_info 2]]
+    set midp  [get_mid_point [lindex $port1_info 2] [lindex $port2_info 2]]
+    echo "$port1_info"
+    echo "$port2_info"
+    echo "TotDsit $tot_dist  :: MidPoint $midp \([is_in_core $midp]\) "
+}
+
+proc get_location {args} {
+    return [get_db [get_obj_by_name [lindex $args 0]]  .location]
+}
+
+proc get_distance {args} {
+    if {[llength $args] == 4} {
+	set x1 [get_rect -llx $args]
+	set y1 [get_rect -lly $args]
+	set x2 [get_rect -urx $args]
+	set y2 [get_rect -ury $args]
+    }
+
+
+    if {[llength $args] == 2} {
+	set x1 [get_pt -x [lindex $args 0]]
+	set y1 [get_pt -y [lindex $args 0]]
+	set x2 [get_pt -x [lindex $args 1]]
+	set y2 [get_pt -y [lindex $args 1]]
+    }
+
+    set dist [expr [expr abs([expr $x1 - $x2]) ] +     [expr abs([expr $y1 - $y2]) ]]
+    return $dist
+}
+
+
+proc get_mid_point {args} {
+    if {[llength $args] == 4} {
+	set x1 [get_rect -llx $args]
+	set y1 [get_rect -lly $args]
+	set x2 [get_rect -urx $args]
+	set y2 [get_rect -ury $args]
+    }
+
+
+    if {[llength $args] == 2} {
+	set x1 [get_pt -x [lindex $args 0]]
+	set y1 [get_pt -y [lindex $args 0]]
+	set x2 [get_pt -x [lindex $args 1]]
+	set y2 [get_pt -y [lindex $args 1]]
+    }
+
+    set pt [list [expr [expr $x1 + $x2] /2] [expr [expr $y1 + $y2] /2] ]
+    return $pt
+}
+
+proc is_in_core {args} {
+    if {[llength $args] == 2} {
+	set x [lindex $args 0]
+	set y [lindex $args 1]
+    }
+    if {[llength $args] == 1} {
+	set x [lindex [lindex $args 0] 0]
+	set y [lindex [lindex $args 0] 1]
+    }
+    set x1 [expr $x - 0.001]
+    set x2 [expr $x + 0.001]
+    set y1 [expr $y - 0.001]
+    set y2 [expr $y + 0.001]
+    
+    set rect [list $x1 $y1 $x2 $y2]
+    set is_in_core 0
+    foreach rect1 [get_core_boundary] {
+	if { [get_computed_shape $rect ANDNOT $rect1] == ""} {set is_in_core 1 ; break}
+    }
+    return $is_in_core
+}
