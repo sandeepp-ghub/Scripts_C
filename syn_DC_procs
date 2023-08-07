@@ -1,0 +1,1236 @@
+########################################################################
+#### Author: Pavan K (kpavan@marvell.com ###############################
+#### DC- Syntheis Generic PRocs ########################################
+########################################################################
+## Usage::
+## PBU_map_7t_to_9t
+## PBU_gen_all_cmd_reports  -outdir report -prefix [mVar DESIGN]_[mVar SESSION(step_suffix)]_post_USER
+## PBU_get_design_metrics -outdir report -prefix [mVar DESIGN]_[mVar SESSION(step_suffix)]_post_USER
+## PBU_map_CkPath_to_LVT
+## PBU_map_DMin_to_DMax
+## PBU_print_clock_info  -outdir report -prefix [mVar DESIGN]_[mVar SESSION(step_suffix)]_post_USER
+## PBU_print_mvars report/debug/[mVar DESIGN]_[mVar SESSION(step_suffix)].mvar_settings_post_dump.rpt
+## PBU_print_mvars report/debug/[mVar DESIGN]_[mVar SESSION(step_suffix)].mvar_settings_pre_dump.rpt
+## set cell_hier [PBU_preserve_mapped_hier] 
+
+
+if {[info proc mVar] == ""}  {
+    source /proj/mkit/tsmc016ffc/2021.05.000/mInfra/mFlow/mPackages
+}
+
+#namespace eval acacia 
+
+## Print all Mvars
+
+proc PBU_print_mvars {{ofile current_mvar.rpt }} {
+    puts $ofile
+    puts $ofile
+    set fp [open $ofile w]
+    puts $fp "VariableDump: [date]"
+
+    foreach x [mVar] {
+	echo $x
+	if [ array exists ::$x] {
+	    puts $fp "\nArray: $x" 
+	    foreach elem [lsort [array names ::$x]] {
+		puts $fp "\t $elem => [set "::${x}(${elem})"]" 
+	    }
+	} else {
+	    puts $fp "\nVariable: $x" 
+	    puts $fp "\t $x => [set ::${x}]" 
+	}
+    }
+    close $fp
+    puts "${ofile} is Generated"
+
+    if [info exists synopsys_program_name] {
+	if [regexp dc [get_app_var synopsys_program_name]] {
+	    mCmd mem -all -debug -verbose
+	    mCmd cputime -all -verbose
+	    
+	} else {
+	    mCmd mem -all  -verbose
+	    mCmd cputime
+	}
+    }
+}
+
+#### Create_clock 
+
+proc PBU_create_clock {args} {
+    set argc [llength $args]
+    set error_flag 0
+    if {[expr $argc%2] || $argc eq "0"} {
+	set error_flag 1
+    } else {
+	array set inputs $args
+	set fileds [array names inputs]
+	set cmd_string "create_clock"
+	if ![info exists inputs(-freq_scale)] {set freq_scale 1} else {set freq_scale $inputs(-freq_scale) }
+	set period_scale [format %0.5f [expr 1.000 / $freq_scale]]
+	if ![info exists inputs(-name)] {set clk_name "" ; mError "Specify clock name" ; set error_flag 1} else {set clk_name $inputs(-name); set cmd_string "$cmd_string -name $clk_name"}
+	
+	if ![info exists inputs(-period)] {set period ""} else {set period [format %0.5f [expr $inputs(-period) * $period_scale]] ; set cmd_string "$cmd_string -period $period"}
+	if ![info exists inputs(-add)] {set add ""} else {set add  $inputs(-add) ; if {$add eq "true"} {set cmd_string "$cmd_string -add"}}
+	if ![info exists inputs(-waveform)] {set waveform ""} else {set waveform ""; foreach wf $inputs(-waveform) {lappend waveform [format %0.5f [expr $wf * $period_scale]]}; set cmd_string "$cmd_string -waveform \{$waveform\}" ; if {[expr [llength $waveform]%2]} {set error_flag 1 ; mError "Waveform should have Even Numbers"} }
+	if ![info exists inputs(-comment)] {set comment ""} else {set comment  $inputs(-comment) ; if !{$comment eq ""} {set cmd_string "$cmd_string -comment $comment"}}
+
+	set source_pins ""
+	set source_ports ""
+	set source_objects ""
+
+	set add_pins_to_source 0
+	set add_ports_to_source 0
+	
+	if [info exists inputs(-source_pins)]  {
+	    set source_pins $inputs(-source_pins)
+	    set sp [get_pins -quiet  $source_pins]
+	    if {[sizeof $sp] < 1 } {set add_pins_to_source 0; mError "SourcePin : $source_pins Cannot be Found" ; set error_flag 1}  else {set add_pins_to_source 1}
+	}
+
+	if [info exists inputs(-source_ports)]  {
+	    set source_ports $inputs(-source_ports)
+	    set sp [get_ports -quiet $source_ports]
+	    if {[sizeof $sp] < 1 } {set add_ports_to_source 0; mError "SourcePort : $source_ports Cannot be Found" ; set error_flag 1} else {set add_ports_to_source 1}
+	}
+
+	if {$add_pins_to_source && $add_ports_to_source} {
+	    set cmd_string "$cmd_string \[add_to_collection \[get_pins $source_pins\] \[get_ports $source_ports\]\]"
+	}
+
+	if {$add_pins_to_source && !$add_ports_to_source} {
+	    set cmd_string "$cmd_string  \[get_pins $source_pins\] "
+	}
+
+	if {!$add_pins_to_source && $add_ports_to_source} {
+	    set cmd_string "$cmd_string  \[get_ports $source_ports\] "
+	}
+
+    }
+
+    if {$error_flag} {
+	mPuts {
+	    Usage: my_create_clock    # create clock
+	    [-name clock_name]     (name for the clock)
+	    [-period period_value] (period of the clock: 
+				    Value >= 0)
+	    [-waveform edge_list]  (alternating rise, fall times for 1 period)
+	    [-add true/false]                 (add to the existing clock in port_pin_list - true/false)
+	    [-comment comment_string]
+	    (SDC comment string)
+	    [-source_ports source_ports names]       (list of ports)
+	    [-source_pins source_pins name]       (list of  pins)
+	    [-freq_scale freq_scale_factor]       (a floating value - default 1.0)
+	}
+    } else {
+	mPuts "INPUT - Options"
+	foreach opt [array names inputs] {
+	    mPuts "$opt \t::\t $inputs($opt)"
+	}
+	if {!$add_pins_to_source && !$add_ports_to_source} {
+	    mPuts "No Sources Specified - VIRTUAL CLOCK will be created"
+	}
+	mCmd $cmd_string
+
+	set max_clk_tran 0.15
+	set max_data_tran 0.45
+
+	if [regexp dc [get_app_var synopsys_program_name] ] {
+	    set setup_uncert 0.250
+	    set hold_uncert  0.055
+	    set cycle_jitter 0.05
+	    set duty_cycle_jitter 0.05
+	    
+	} else {
+	    set setup_uncert 0.030
+	    set hold_uncert  0.005
+	    set cycle_jitter 0.010
+	    set duty_cycle_jitter 0.010
+	}
+
+	if [regexp pt [get_app_var synopsys_program_name] ] {
+	    set cycle_jitter 0.050
+	    set duty_cycle_jitter 0.050
+	    set period [get_attribute [get_clocks $clk_name] period]
+	    if {$period > 0} {
+		set max_clk_tran [expr  0.1 * $period]
+		set max_data_tran [expr 0.2 * $period]
+	    }
+	}
+
+	set cmd "set_clock_uncertainty -setup $setup_uncert  \[get_clocks $clk_name\]"
+	mCmd $cmd
+
+	set cmd "set_clock_uncertainty -hold  $hold_uncert  \[get_clocks $clk_name\]"
+	mCmd $cmd
+
+	set cmd "set_max_transition -data_path  $max_data_tran     \[get_clocks $clk_name\]"
+	mCmd $cmd
+
+	set cmd "set_max_transition -clock_path $max_clk_tran     \[get_clocks $clk_name\]"
+	mCmd $cmd
+
+	set cmd "set_clock_transition $max_clk_tran     \[get_clocks $clk_name\]"
+	mCmd $cmd
+
+	set cmd "set_clock_jitter -clock \[get_clocks $clk_name\] -cycle $cycle_jitter -duty_cycle $duty_cycle_jitter"
+	mCmd $cmd
+
+    }
+}
+#################################################
+
+
+proc PBU_get_col_area {col} {
+    suppress_message UID-341
+    set i 0
+    set j 0
+    set total_c 0
+    set area 0
+    set int_power 0
+    set leak_power 0
+
+    set null_area ""
+    foreach_in_collection elem $col {
+	set area_elem [get_attribute -quiet $elem area ]
+	if {$area_elem == "" || $area_elem <= 0} {
+	    lappend null_area [get_object_name $elem]
+	    incr j
+	} else {
+	    set area [expr $area + $area_elem]
+	    incr i
+	}
+    }
+    set total_c [expr $i + $j]
+    unsuppress_message UID-341
+    return [list $total_c $area $i $j $null_area]
+
+}
+
+proc PBU_get_design_metrics {args} {
+
+    array set inputs $args
+    if [info exists inputs(-outdir)] {set outdir $inputs(-outdir)} else {set outdir .}
+    if [info exists inputs(-prefix)] {set pfix $inputs(-prefix)} else {set pfix Design}
+    if [info exists inputs(-hier)] {set hier $inputs(-hier)} else {set hier ""}
+
+
+    if ![file exists $outdir] {file mkdir $outdir}
+    set design_name [get_object_name [current_design]]
+
+
+    if {$hier==""} {
+	set all_cells [get_cells -quiet  -hier * -filter "!is_hierarchical"]
+    } else {
+	
+	set design_name [get_attribute [get_cells [file dirname ${hier}]/[file tail ${hier}] ] ref_name]
+	if {[lindex [split $hier /]  end] == ""} {
+	    
+	    set all_cells [get_cells -quiet [get_cells -quiet  -hier * -filter "!is_hierarchical"] -filter "full_name=~${hier}*"]
+	} else {
+	    set all_cells [get_cells -quiet [get_cells -quiet  -hier * -filter "!is_hierarchical"] -filter "full_name=~${hier}/*"]
+	}
+    }
+
+    set all_cells_with_area [filter_collection $all_cells "defined(area)"]
+    set all_cells_without_area [filter_collection $all_cells "!defined(area)"]
+
+    set all_std_cells [filter_collection $all_cells_with_area "ref_name=~*BWP*CNOD* || ref_name=~??d_?2sdsync*"]
+    set all_macro_cells [remove_from_collection $all_cells_with_area $all_std_cells]
+
+    set all_seq_cells [filter_collection $all_std_cells "is_sequential"]
+    set all_combo_cells [filter_collection $all_std_cells "!is_sequential"]
+
+    if [regexp dc [get_app_var synopsys_program_name] ] {
+	set all_bufinv_cells [filter_collection $all_combo_cells "function_id==Ia1.0||function_id==a1.0 "]
+	set all_buf_cells [filter_collection $all_bufinv_cells "function_id==a1.0 "]
+	set all_inv_cells [filter_collection $all_bufinv_cells "function_id==Ia1.0 "]
+    } else {
+	set all_bufinv_cells [filter_collection $all_combo_cells "lib_cell.function_id==Ia1.0||lib_cell.function_id==a1.0 "]
+	set all_buf_cells [filter_collection $all_bufinv_cells "lib_cell.function_id==a1.0 "]
+	set all_inv_cells [filter_collection $all_bufinv_cells "lib_cell.function_id==Ia1.0 "]
+    }
+    
+
+    ## Original
+    #set all_std_cells_hvt [filter_collection $all_std_cells "ref_name=~*HVT || ref_name=~h?d_*2*sync*x*"]
+    #set all_std_cells_lvt [filter_collection $all_std_cells "(ref_name=~*LVT || ref_name=~l?d_*2*sync*x*) && ref_name!~*ULVT "]
+    #set all_std_cells_svt [remove_from_collection [remove_from_collection $all_std_cells $all_std_cells_lvt] $all_std_cells_hvt]
+
+    ## Modified for PBU
+    catch {set my_all_std_cells_lvt [filter_collection $all_std_cells "(ref_name=~*CNODLVT* || ref_name=~l?d_*2*sync*x*) "]}
+    catch {set my_all_std_cells_ulvt [filter_collection $all_std_cells "(ref_name=~*CNODULVT* || ref_name=~u?d_*2*sync*x*) "]}
+    catch {set my_all_std_cells_elvt [filter_collection $all_std_cells "(ref_name=~*CNODELVT* || ref_name=~e?d_*2*sync*x*) "]}
+    catch {set my_all_std_cells_hvt [filter_collection $all_std_cells "(ref_name=~*CNODHVT* || ref_name=~h?d_*2*sync*x*) "]}
+    catch {set my_all_std_cells_svt [filter_collection $all_std_cells "(ref_name=~*CNODSVT* || ref_name=~s?d_*2*sync*x*) "]}
+
+    set all_std_cells_hvt  $my_all_std_cells_svt
+    set all_std_cells_svt  $my_all_std_cells_lvt
+    set all_std_cells_lvt  $my_all_std_cells_ulvt
+    set Map(Hvt) Svt
+    set Map(Svt) Lvt
+    set Map(Lvt) Ulvt
+
+
+    foreach {all_c all_a x y z } [::PBU_get_col_area $all_cells_with_area] {}
+
+    foreach {std_c std_a x y z } [::PBU_get_col_area $all_std_cells] {}
+    foreach {mac_c mac_a x y z } [::PBU_get_col_area $all_macro_cells] {}
+
+    foreach {seq_c seq_a x y z } [::PBU_get_col_area $all_seq_cells] {}
+    foreach {combo_c combo_a x y z } [::PBU_get_col_area $all_combo_cells] {}
+
+    foreach {bufinv_c bufinv_a x y z } [::PBU_get_col_area $all_bufinv_cells] {}
+    foreach {buf_c buf_a x y z } [::PBU_get_col_area $all_buf_cells] {}
+    foreach {inv_c inv_a x y z } [::PBU_get_col_area $all_inv_cells] {}
+
+    foreach {svt_c svt_a x y z } [::PBU_get_col_area $all_std_cells_svt] {}
+    foreach {hvt_c hvt_a x y z } [::PBU_get_col_area $all_std_cells_hvt] {}
+    foreach {lvt_c lvt_a x y z } [::PBU_get_col_area $all_std_cells_lvt] {}
+
+    set std_c_p 0.00
+    set std_a_p 0.00
+
+    set mac_c_p 0.00
+    set mac_a_p 0.00
+
+    set seq_c_p 0.00
+    set seq_a_p 0.00
+
+    set combo_c_p 0.00
+    set combo_a_p 0.00
+
+    set buf_c_p 0.00
+    set buf_a_p 0.00
+
+    set hvt_c_p 0.00
+    set hvt_a_p 0.00
+    
+    set svt_c_p 0.00
+    set svt_a_p 0.00
+    
+    set lvt_c_p 0.00
+    set lvt_a_p 0.00
+
+    catch {
+	set std_c_p [format %0.2f [expr $std_c*100.00/$all_c]]
+	set std_a_p [format %0.2f [expr $std_a*100.00/$all_a]]
+
+	set mac_c_p [format %0.2f [expr $mac_c*100.00/$all_c]]
+	set mac_a_p [format %0.2f [expr $mac_a*100.00/$all_a]]
+
+	set seq_c_p [format %0.2f [expr $seq_c*100.00/$std_c]]
+	set seq_a_p [format %0.2f [expr $seq_a*100.00/$std_a]]
+
+	set combo_c_p [format %0.2f [expr $combo_c*100.00/$std_c]]
+	set combo_a_p [format %0.2f [expr $combo_a*100.00/$std_a]]
+
+	set buf_c_p [format %0.2f [expr $buf_c*100.00/$std_c]]
+	set buf_a_p [format %0.2f [expr $buf_a*100.00/$std_a]]
+
+	set hvt_c_p [format %0.2f [expr $hvt_c*100.00/$std_c]]
+	set hvt_a_p [format %0.2f [expr $hvt_a*100.00/$std_a]]
+	
+	set svt_c_p [format %0.2f [expr $svt_c*100.00/$std_c]]
+	set svt_a_p [format %0.2f [expr $svt_a*100.00/$std_a]]
+	
+	set lvt_c_p [format %0.2f [expr $lvt_c*100.00/$std_c]]
+	set lvt_a_p [format %0.2f [expr $lvt_a*100.00/$std_a]]
+    }
+
+    set comb_vs_seq_c [format %0.2f [expr $combo_c/[expr 1.00 * $seq_c]]]
+
+    if {$hier == ""} {
+	set all_port_c [sizeof [get_ports -quiet *]]
+	set in_port_c [sizeof [get_ports -quiet * -filter "direction==in"]]
+	set out_port_c [sizeof [get_ports -quiet * -filter "direction==out"]]
+	set inout_port_c [sizeof [get_ports -quiet * -filter "direction==inout"]]
+    } else {
+	set hier_pins [get_pins -quiet "[file dirname ${hier}]/[file tail ${hier}]/*"]
+	set all_port_c [sizeof $hier_pins]
+	set in_port_c [sizeof [filter_collection $hier_pins "direction==in"]]
+	set out_port_c [sizeof [filter_collection $hier_pins "direction==out"]]
+	set inout_port_c [sizeof [filter_collection $hier_pins "direction==inout"]]
+    }
+
+    if [regexp dc [get_app_var synopsys_program_name] ] {
+	set tim_info [::PBU_get_reg2reg_timing_summary]
+    } else {
+	set tim_info {NA NA NA NA}
+    }
+    set wns [lindex $tim_info 0]
+    set tns [lindex $tim_info 1]
+    set nvp [lindex $tim_info 2]
+
+    if [regexp dc [get_app_var synopsys_program_name] ] {
+	set power_info [::PBU_print_power_csv ${outdir} ${pfix}]
+    } else {
+	set power_info {NA NA NA NA NA NA NA}
+    }
+
+    set internal_power [lindex $power_info 1]
+    set switching_power [lindex $power_info 2]
+    set leakage_power [lindex $power_info 3]
+    set total_power [lindex $power_info 4]
+
+
+    if [regexp dc [get_app_var synopsys_program_name] ] {
+	report_clock_gating -nosplit > __xx_ckg
+	set fp [open __xx_ckg  r]
+	set fdata ""
+	while { [gets $fp data] >= 0 } {
+	    lappend fdata $data
+	}
+	close $fp
+	
+	set no_of_icg [lindex [lindex $fdata 13] end-1]
+	set gate_percent [regsub % [regsub {\)} [regsub {\(} [lindex [lindex $fdata 15] end-1] ""] ""] ""]
+	
+	file delete __xx_ckg
+    } else {
+	set no_of_icg NA
+	set gate_percent NA
+    }
+
+    
+    redirect ${outdir}/${pfix}_design_stats.csv {
+	echo "
+Design,$design_name
+TotalInstCount,$all_c
+TotalArea,$all_a
+StdCellCount,$std_c
+StdCellArea,$std_a
+%$Map(Hvt)Count,$hvt_c_p
+%$Map(Hvt)Area,$hvt_a_p
+%$Map(Svt)Count,$svt_c_p
+%$Map(Svt)Area,$svt_a_p
+%$Map(Lvt)Count,$lvt_c_p
+%$Map(Lvt)Area,$lvt_a_p
+MacroCount,$mac_c
+MacroArea,$mac_a
+%StdArea,$std_a_p
+%MacroArea,$mac_a_p
+SeqCount,$seq_c
+SeqArea,$seq_a
+ComboCount,$combo_c
+ComboArea,$combo_a
+%SeqCount,$seq_c_p
+%SeqArea,$seq_a_p
+%ComboCount,$combo_c_p
+%ComboArea,$combo_a_p
+CombVsSeqRatio,$comb_vs_seq_c
+BufInvCount,$bufinv_c
+BufInvArea,$bufinv_a
+BufCount,$buf_c
+BufArea,$buf_a
+InvCount,$inv_c
+InvArea,$inv_a
+%BufCount,$buf_c_p
+%BufArea,$buf_a_p
+$Map(Hvt)Count,$hvt_c
+$Map(Hvt)Area,$hvt_a
+$Map(Svt)Count,$svt_c
+$Map(Svt)Area,$svt_a
+$Map(Lvt)Count,$lvt_c
+$Map(Lvt)Area,$lvt_a
+TotPorts,$all_port_c
+TotInPorts,$in_port_c
+TotOutPorts,$out_port_c
+TotInOutPorts,$inout_port_c
+R2RWNS,$wns
+R2RTNS,$tns
+R2RNVP,$nvp
+InternalPwr,$internal_power
+SwitchingPwr,$switching_power
+LeakagePwr,$leakage_power
+TotalPwr,$total_power
+IcgCount,$no_of_icg
+CkGPercent,$gate_percent
+"
+    }
+
+    redirect ${outdir}/${pfix}_design_stats.rpt {
+	echo "
+Design :\t\t $design_name
+TotalInstCount :\t\t $all_c
+TotalArea :\t\t $all_a
+StdCellCount :\t\t $std_c
+StdCellArea :\t\t $std_a
+MacroCount :\t\t $mac_c
+MacroArea :\t\t $mac_a
+%StdArea :\t\t $std_a_p
+%MacroArea :\t\t $mac_a_p
+SeqCount :\t\t $seq_c
+SeqArea :\t\t $seq_a
+ComboCount :\t\t $combo_c
+ComboArea :\t\t $combo_a
+%SeqCount :\t\t $seq_c_p
+%SeqArea :\t\t $seq_a_p
+%ComboCount :\t\t $combo_c_p
+%ComboArea :\t\t $combo_a_p
+CombVsSeqRatio :\t\t $comb_vs_seq_c
+BufInvCount :\t\t $bufinv_c
+BufInvArea :\t\t $bufinv_a
+BufCount :\t\t $buf_c
+BufArea :\t\t $buf_a
+InvCount :\t\t $inv_c
+InvArea :\t\t $inv_a
+%BufCount :\t\t $buf_c_p
+%BufArea :\t\t $buf_a_p
+$Map(Hvt)Count :\t\t $hvt_c
+$Map(Hvt)Area :\t\t $hvt_a
+$Map(Svt)Count :\t\t $svt_c
+$Map(Svt)Area :\t\t $svt_a
+$Map(Lvt)Count :\t\t $lvt_c
+$Map(Lvt)Area :\t\t $lvt_a
+%$Map(Hvt)Count :\t\t $hvt_c_p
+%$Map(Hvt)Area :\t\t $hvt_a_p
+%$Map(Svt)Count :\t\t $svt_c_p
+%$Map(Svt)Area :\t\t $svt_a_p
+%$Map(Lvt)Count :\t\t $lvt_c_p
+%$Map(Lvt)Area :\t\t $lvt_a_p
+TotInPorts :\t\t$in_port_c
+TotOutPorts :\t\t$out_port_c
+TotInOutPorts :\t\t$inout_port_c
+R2RWNS :\t\t$wns
+R2RTNS :\t\t$tns
+R2RNVP :\t\t$nvp
+InternalPwr :\t\t$internal_power
+SwitchingPwr :\t\t$switching_power
+LeakagePwr :\t\t$leakage_power
+TotalPwr :\t\t$total_power
+IcgCount :\t\t$no_of_icg
+CkGPercent :\t\t$gate_percent
+"
+    }
+
+
+
+    set drive_list "-1"
+    set cell_type_list "ALL"
+
+    set coeff [expr $std_c/100.00]
+
+    foreach ref [lsort -u [get_attribut $all_cells_with_area ref_name]] {
+	if [regexp {(\S+)D(\d+)BWP(\S+)} $ref full cell_type drive post ] {
+	    lappend cell_type_list $cell_type
+	    lappend drive_list $drive
+	}
+    }
+
+    redirect ${outdir}/${pfix}_stdcell_histo.rpt {
+	echo "#######################\nDrive Strength Histogram of StandardCells\n#######################\n"
+	foreach drive [lsort -u -real -increasing $drive_list] {
+	    if {$drive == "-1"} {set drive "*"}
+	    set cell_list [filter_collection $all_cells_with_area "ref_name=~*D${drive}BWP*CNOD*"]
+	    if {$drive == "*"} {set drive ALL}
+	    set cell_list_c [sizeof $cell_list]
+	    set cell_list_p  [format %0.2f [expr  $cell_list_c * 100.00/ [expr $std_c * 1.0]]]
+	    set printstr [string repeat * [format %0.0f [expr ceil( $cell_list_c/$coeff)]]]
+	    echo [format "%-15s %10d %10s  %-100s" $drive $cell_list_c ${cell_list_p}% ::$printstr]
+	    
+	}
+	echo "\n#######################\nCell Type Histogram of StandardCells\n#######################\n"
+
+	foreach drive [lsort -u -dict $cell_type_list] {
+	    if {$drive == "ALL"} {set drive "*"}
+	    set cell_list [filter_collection $all_cells_with_area "ref_name=~${drive}D*BWP*CNOD*"]
+	    if {$drive == "*"} {set drive ALL}
+	    set cell_list_c [sizeof $cell_list]
+	    set cell_list_p  [format %0.2f [expr  $cell_list_c * 100.00/ [expr $std_c * 1.0]]]
+	    set printstr [string repeat * [format %0.0f [expr ceil( $cell_list_c/$coeff)]]]
+	    echo [format "%-15s %10d %10s  %-100s" $drive $cell_list_c ${cell_list_p}% ::$printstr]
+	    
+	}
+	echo "\n#######################\n"
+    }
+
+
+    redirect ${outdir}/${pfix}_stdcell_histo_vtsplit.rpt {
+	foreach postfix { CNODSVT* CNODLVT* CNODULVT* } {
+	    echo "#######################\nDrive Strength Histogram of ${postfix} StandardCells\n#######################\n"
+	    foreach drive [lsort -u -real -increasing $drive_list] {
+		if {$drive == "-1"} {set drive "*"}
+		set cell_list [filter_collection $all_cells_with_area "ref_name=~*D${drive}BWP*${postfix}"]
+		if {$drive == "*"} {set drive ALL}
+		set cell_list_c [sizeof $cell_list]
+		set area 0
+		foreach_in_collection cp $cell_list {set area [expr $area + [get_attribute $cp area]]}
+		set cell_list_p  [format %0.2f [expr  $cell_list_c * 100.00/ [expr $std_c * 1.0]]]
+		set cell_list_ap  [format %0.2f [expr  $area * 100.00/ [expr $std_a * 1.0]]]
+		set printstr [string repeat * [format %0.0f [expr ceil( $cell_list_c/$coeff)]]]
+		echo [format "%-15s %10d %10s %10.3f %10s  %-100s" $drive $cell_list_c ${cell_list_p}% ${area} ${cell_list_ap}% ::$printstr]
+		
+	    }
+	}
+
+	foreach postfix { CNODSVT* CNODLVT* CNODULVT* } {
+	    echo "\n#######################\nCell Type Histogram of ${postfix} StandardCells\n#######################\n"
+
+	    foreach drive [lsort -u -dict $cell_type_list] {
+		if {$drive == "ALL"} {set drive "*"}
+		set cell_list [filter_collection $all_cells_with_area "ref_name=~${drive}D*BWP*${postfix}"]
+		if {$drive == "*"} {set drive ALL}
+		set cell_list_c [sizeof $cell_list]
+		set area 0
+		foreach_in_collection cp $cell_list {set area [expr $area + [get_attribute $cp area]]}
+		set cell_list_ap  [format %0.2f [expr  $area * 100.00/ [expr $std_a * 1.0]]]
+		set cell_list_p  [format %0.2f [expr  $cell_list_c * 100.00/ [expr $std_c * 1.0]]]
+		set printstr [string repeat * [format %0.0f [expr ceil( $cell_list_c/$coeff)]]]
+		echo [format "%-15s %10d %10s %10.3f %10s  %-100s" $drive $cell_list_c ${cell_list_p}% ${area} ${cell_list_ap}% ::$printstr]
+	    }
+	    echo "\n#######################\n"
+	}
+    }
+
+
+
+    redirect ${outdir}/${pfix}_macro_info.rpt {
+	## Macro - Information
+	report_collection [sort_collection $all_macro_cells full_name]  -header none -nosplit -columns  {ref_name full_name area number_of_pins is_sequential}
+    }
+
+}
+
+
+proc PBU_print_power_csv {{outdir .} {pfix "Design"}} {
+    report_power -nosplit -level 0 > __xx
+    set fp [open __xx r]
+    set fdata ""
+    while { [gets $fp data] >= 0 } {
+	lappend fdata $data
+    }
+    close $fp
+    set unit_data [lindex $fdata end-1]
+    set comp_list {internal switching leakage total percent}
+
+    set power_unit(internal) [lindex $unit_data 2]
+    set power_unit(switching) [lindex $unit_data 4]
+    set power_unit(leakage) [lindex $unit_data 6]
+    set power_unit(total) [lindex $unit_data 8]
+    set power_unit(percent) ""
+
+    set power_number(total,internal) [lindex $unit_data 1]
+    set power_number(total,switching) [lindex $unit_data 3]
+    set power_number(total,leakage) [lindex $unit_data 5]
+    set power_number(total,total) [lindex $unit_data 7]
+    set power_number(total,percent) "100.00%"
+
+    set tab_data ""
+    set type_list ""
+
+    foreach elem [lrange $fdata end-9 end-3]  {
+	set elem1 [regsub -all {\)} [regsub -all {\(} $elem ""] ""]
+	set type [lindex $elem1 0]
+	lappend type_list $type
+	set power_number(${type},internal) [lindex $elem1 1]
+	set power_number(${type},switching) [lindex $elem1 2]
+	set power_number(${type},leakage) [lindex $elem1 3]
+	set power_number(${type},total) [lindex $elem1 4]
+	set power_number(${type},percent) [lindex $elem1 5]
+    }
+    lappend type_list total
+
+    redirect ${outdir}/${pfix}_power_summary.csv {
+	echo "Type,Internal,Switching,Leakage,Total,Percent"
+	foreach type $type_list {
+	    set mystr $type
+	    foreach comp $comp_list {
+		set  mystr "${mystr},[set power_number(${type},${comp})][set power_unit($comp)]"
+	    }
+	    echo $mystr
+	}
+    }
+    set return_str ""
+    redirect ${outdir}/${pfix}_power_summary.rpt {
+	echo "Type\t\tInternal\t\tSwitching\t\tLeakage\t\tTotal\t\tPercent"
+	foreach type $type_list {
+	    set mystr $type
+	    foreach comp $comp_list {
+		set  mystr "${mystr}\t\t[set power_number(${type},${comp})][set power_unit($comp)]"
+	    }
+	    echo $mystr
+	    if {$type=="total"} {set return_str $mystr}
+	}
+    }
+
+    file delete __xx
+
+    redirect ${outdir}/${pfix}_power.rpt {
+	report_power -nosplit -level 0 
+    }
+    return $return_str
+}
+
+#########################################
+
+proc PBU_get_reg2reg_timing_summary {{print 0}} {
+    suppress_message {TIM-175 UID-85 TIM-052 TIM-134}
+    set nvp 0
+    set tns 0.000
+    set wns 0.000
+
+    if [regexp dc [get_app_var synopsys_program_name]] {
+	group_path -name  USER_reg2reg -from [all_registers -clock_pins] -to [add_to_collection -unique  [add_to_collection -unique  [get_pins -hier * -filter "is_async_pin || is_preset_pin || is_clear_pin"] [all_registers -include_icg -data_pins]] [all_clock_gates -enable_pins -test_pins]]
+	
+	set paths [get_timing_path -group USER_reg2reg -slack_lesser_than 0.00000 -nworst 1 -max_paths [expr [sizeof [all_registers -data_pins]] * 2]]
+	set nvp [sizeof $paths]
+	if {$nvp > 0} {
+	    set wns [lindex [lsort -real -increasing [get_attribute $paths slack]] 0]; set wns [format %0.3f $wns]
+	    foreach x [get_attribute $paths slack] {set tns [expr $tns + $x]} ; set tns [format %0.3f $tns]
+	}
+	catch {remove_path_group USER_reg2reg}
+	unsuppress_message {TIM-175 UID-85 TIM-052 TIM-134}
+	if {$print} {
+	    echo "WNS \t$wns"
+	    echo "TNS \t$tns"
+	    echo "NVP \t$nvp"
+	}
+    }
+    return [list $wns $tns $nvp]
+}
+
+#########################################
+
+proc PBU_gen_all_cmd_reports {args} {
+
+    array set inputs $args
+    if [info exists inputs(-outdir)] {set outdir $inputs(-outdir)} else {set outdir .}
+    if [info exists inputs(-prefix)] {set pfix $inputs(-prefix)} else {set pfix Design}
+
+    report_collection -nosplit -header none -columns {full_name ideal_net } [all_high_fanout -nets -threshold 40 ] > ${outdir}/${pfix}_all_hfn_threshold_40.rpt
+    report_collection -nosplit -header none -columns {full_name ideal_net } [all_high_fanout -through_buf_inv -nets -threshold 40 ] > ${outdir}/${pfix}_all_hfn_threshold_40_ThroughBufInv.rpt
+    report_collection -nosplit -header none -columns {full_name ideal_net } [all_ideal_nets ] > ${outdir}/${pfix}_all_ideal_nets.rpt
+    report_collection -nosplit -header none -columns {full_name} [all_dont_touch -nets ] > ${outdir}/${pfix}_all_dont_touch_nets.rpt
+    report_collection -nosplit -header none -columns {full_name} [all_dont_touch -cells ] > ${outdir}/${pfix}_all_dont_touch_cells.rpt
+    report_collection -nosplit -header none -columns {full_name dont_use number_of_pins is_combinational} [sort_collection [get_lib_cells tcbn*/* -filter "dont_use"] number_of_pins] > ${outdir}/${pfix}_all_dont_use_stdcells.rpt
+
+    report_collection -nosplit -header none -columns {full_name case_value} [filter_collection [all_registers -clock_pins -edge_triggered] defined(case_value)]  > ${outdir}/${pfix}_all_reg_clk_tieoff.rpt
+    report_collection -nosplit -header none -columns {full_name case_value} [filter_collection [all_registers -clock_pins -level_sensitive] defined(case_value)]  > ${outdir}/${pfix}_all_lat_ena_tieoff.rpt
+
+    report_collection -nosplit -header none -columns {full_name } [filter_collection [all_registers -clock_pins -edge_triggered] "!defined(clocks) && !defined(case_value)"]  > ${outdir}/${pfix}_all_reg_no_clk.rpt
+    report_collection -nosplit -header none -columns {full_name } [filter_collection [all_registers -clock_pins -level_sensitive] "!defined(clocks) && !defined(case_value)"]  > ${outdir}/${pfix}_all_lat_no_ena.rpt
+
+    report_collection -nosplit -header none -columns {ref_name full_name } [sort_collection [all_clock_gates -cells]   ref_name] > ${outdir}/${pfix}_all_clk_gaters.rpt	
+    report_collection -nosplit -header none -columns {ref_name full_name } [sort_collection [all_tieoff_cells]   ref_name] > ${outdir}/${pfix}_all_tieoff_cells.rpt	
+
+    report_constraint -all_vio -nosplit > ${outdir}/${pfix}_all_constraint_violators.rpt
+    report_timing -loop -nosplit > ${outdir}/${pfix}_timing_loops.rpt
+    report_timing -net -input -cap -nosplit -attrib -slack_lesser_than 0 -nworst 1 -max_paths 1000000 > ${outdir}/${pfix}_timing_report_with_attributes.rpt
+    report_resources -hierarchy -nosplit -context   > ${outdir}/${pfix}_resource.rpt
+
+    
+}
+#########################################
+proc PBU_get_hier_tree {inst_name} {
+    set hier_list ""
+    set inst_name1 $inst_name
+    while {[regexp / $inst_name1]} {
+	lappend hier_list  [file dirname $inst_name1]
+	set inst_name1 [file dirname $inst_name1]
+    }
+    return $hier_list
+}
+
+proc PBU_preserve_mapped_hier {{user_cell_list ""}} {
+    set preserve_hier [get_cells -hier * -filter "!is_hierarchical && is_mapped && ref_name!~**logic**"] 
+    append_to_collection -unique preserve_hier [get_cells -quiet -of [get_pins -quiet [get_attribute [get_clocks *] sources]]]
+    if {$user_cell_list == ""} {
+    } else {
+	append_to_collection -unique preserve_hier [get_cells -quiet $user_cell_list]
+    }
+    set global_hier_list ""
+    foreach elem [get_object_name $preserve_hier] {
+	#echo $elem
+	foreach elem1 [::PBU_get_hier_tree $elem] {
+	    lappend global_hier_list $elem1
+	}
+    }
+    set preserve_hier_con_list [get_cells -quiet  [lsort -u $global_hier_list] -filter "is_hierarchical"]
+    return $preserve_hier_con_list
+}
+
+
+###########################################
+
+proc PBU_map_7t_to_9t {} {
+    set all_7d5t_cells [get_object_name [add_to_collection [get_lib_cells tcbn*bwp7d5t*/*BWP7D5T*] [get_lib_cells m7*/*sync*]]]
+
+    array set 7p5t_to_9t {}
+    foreach lib_cell_td5t $all_7d5t_cells {
+	set new_ref_name ""
+	set ref_name [file tail $lib_cell_td5t]
+	if {[regexp {\S+g2s\S+sync\S+x2} $ref_name]} {
+	    set new_ref_name [get_object_name [index_collection [get_lib_cells m9*/[regsub -all g2 $ref_name f2]] 0]]
+	} else {
+	    if [regexp ^TIEH $ref_name] { 
+		set new_lib_list [get_lib_cells tcbn*bwp*/TIEH* -filter "name!~*7D5T*"]
+		if  {[sizeof $new_lib_list] > 0} {
+		    set new_ref_name [get_object_name [index_collection $new_lib_list 0]]
+		}
+	    } else  {
+		if [regexp ^TIEL $ref_name] { 
+		    set new_lib_list [get_lib_cells tcbn*bwp*/TIEL* -filter "name!~*7D5T*"]
+		    if  {[sizeof $new_lib_list] > 0} {
+			set new_ref_name [get_object_name [index_collection $new_lib_list 0]]
+		    }
+		} else {
+		    if [regexp {(\S+)D((\d+)P\d+|(\d+))BWP7D5T(\S+)} $ref_name full cell_type drive post] {
+			set drive [regsub -all P5 $drive {}]
+			set new_lib_list [get_lib_cells tcbn*bwp*/${cell_type}D${drive}BWP* -filter "name!~*7D5T*"]
+			if  {[sizeof $new_lib_list] > 0} {
+			    set new_ref_name [get_object_name [index_collection $new_lib_list 0]]
+			    #echo "A:: $ref_name ==> $new_ref_name"
+			} else {
+			    set new_cell_type [regsub -all SKN [regsub -all SKP [regsub -all RTN $cell_type {}] {}] {}]
+			    set new_lib_list [get_lib_cells tcbn*bwp*/${new_cell_type}D${drive}BWP* -filter "name!~*7D5T*"]
+			    if  {[sizeof $new_lib_list] > 0} {
+				set new_ref_name [get_object_name [index_collection $new_lib_list 0]]
+				#echo "B:: $ref_name ==> $new_ref_name"
+			    } else {
+				set new_lib_list [get_lib_cells tcbn*bwp*/${new_cell_type}D*BWP* -filter "name!~*7D5T*"]
+				if  {[sizeof $new_lib_list] > 0} {
+				    set new_ref_name [get_object_name [index_collection $new_lib_list 0]]
+				    #echo "C:: $ref_name ==> $new_ref_name"
+				} else {
+				    #echo "Error: No Mapping Found for $ref_name"
+				}
+			    }
+			}
+		    } else {
+			#echo "Error: No Mapping Found for $ref_name"
+			
+		    }
+		} ; #TieL else
+	    } ; # TieH - else
+	} ; # Sync- else
+	if {$new_ref_name== ""} {
+	    #echo "Error: No Mapping Found for $ref_name"
+	    set 7p5t_to_9t($ref_name) [get_object_name [index_collection [get_lib_cells */$ref_name] 0]]
+	} else {
+	    #echo "$ref_name ==> $new_ref_name"
+	    set 7p5t_to_9t($ref_name) $new_ref_name
+	}
+    }
+
+    mPuts "--I-- Mapping Info"
+    foreach map [lsort [array names 7p5t_to_9t]] {mPuts "$map => $7p5t_to_9t($map)"}
+    
+    set to_map_list [get_cells -hier * -filter "(ref_name=~*BWP*7D5T*CNOD* || ref_name=~*g2*sync*) && !is_hierarchical"]
+    if { [sizeof $to_map_list] > 0} {
+
+	if [file exists map_eco.tcl] {file delete map_eco.tcl}
+
+	set fp [open map_eco.tcl w+]
+	
+	foreach_in_collection inst $to_map_list {
+	    puts $fp  "change_link [get_object_name $inst] [set 7p5t_to_9t([get_attribute $inst ref_name])]"
+	}
+	close $fp
+	mPuts "--I-- ./map_eco.tcl file is created; sourcing ./map_eco.tcl .. "
+	source -e -v  map_eco.tcl
+    }
+    set to_map_list [get_cells -hier * -filter "(ref_name=~*BWP*7D5T*CNOD || ref_name=~*g2*sync*) && !is_hierarchical"]
+    if { [sizeof $to_map_list] > 0} {
+	foreach_in_collection inst $to_map_list {
+	    mPuts  "--I-- Instance  : [get_object_name $inst]  With Reference Name : [get_attribute $inst ref_name] - Cannot be Swapped to 9T library - Manually Hack the Netlist"
+	}
+
+    }
+}
+
+#########################################
+
+
+proc PBU_map_DMin_to_DMax {{mind 0} {maxd 1} {outdir .}} {
+    #set mind 0
+    #set maxd 1
+    #set outdir .
+    set allD0cells [get_cells -quiet -hier * -filter "ref_name =~*D${mind}BWP* && is_hierarchical==false && (is_combinational==true || is_icg==true)"]
+    if { [sizeof_collection $allD0cells] > 0} {
+	set fp [open ${outdir}/map_d${mind}_to_d${maxd}_eco.tcl w]
+	foreach_in_collection cell $allD0cells {
+	    set ref_name [get_attribute $cell ref_name]
+	    set full_name [get_attribute $cell full_name]
+	    if [regexp {(\S+)D(\d+)BWP(\S+)} $ref_name full cell_type drive post] {
+		if {$drive == "${mind}"} {
+		    set new_ref_name "${cell_type}D${maxd}BWP${post}"
+		    if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+			set new_ref_name "${cell_type}D${maxd}BWP${post}"
+			set maxd [expr $maxd + 1]
+		    }
+		    if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+			set new_ref_name "${cell_type}D${maxd}BWP${post}"
+			set maxd [expr $maxd + 1]
+		    }
+
+		    if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+			set new_ref_name "${cell_type}D${maxd}BWP${post}"
+			set maxd [expr $maxd + 1]
+		    }
+		    if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+			set new_ref_name "${cell_type}D${maxd}BWP${post}"
+			set maxd [expr $maxd + 1]
+		    }
+		    if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+			set new_ref_name "${cell_type}D${maxd}BWP${post}"
+			set maxd [expr $maxd + 1]
+		    }
+
+		    if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+			set new_ref_name NA
+		    }
+		    if {$new_ref_name == "NA"} {
+			puts $fp "# Error : $full_name with $ref_name - cannot be resized"
+		    } else {
+			puts $fp "# Info : $full_name with $ref_name -  resized to $new_ref_name"
+			puts $fp "size_cell $full_name \[index_collection \[get_lib_cells */$new_ref_name\] 0\]"
+		    }
+		}
+	    }
+	}
+	close $fp
+	puts "${outdir}/map_d${mind}_to_d${maxd}_eco.tcl "
+	catch {source -echo -verbose ${outdir}/map_d${mind}_to_d${maxd}_eco.tcl }
+	redirect /dev/null {report_qor}
+    }
+}
+#########################################
+
+proc PBU_map_CkPath_to_LVT {{outdir .}} {
+    set ck_path_cells [get_cells -quiet -of [get_pins -quiet -hier * -filter "is_clock_used_as_clock==true"] -filter "is_hierarchical==false && (is_combinational==true || is_icg==true)"]
+    catch {append_to_collection -unique ck_path_cells [get_cells -quiet -of [get_pins -quiet -hier * -filter "is_clock_used_as_clock==true"] -filter "is_hierarchical==false && (is_combinational==true || is_icg==true) &&  ref_name!~*24P96CNODLVT"]}
+
+    if { [sizeof_collection $ck_path_cells] > 0} {
+	set fp [open ${outdir}/map_ck_path_to_lvt_eco.tcl w]
+	foreach_in_collection cell $ck_path_cells {
+	    set ref_name [get_attribute $cell ref_name]
+	    set orig_ref_name $ref_name
+	    set full_name [get_attribute $cell full_name]
+	    if [regexp {(\S+)D(\d+)BWP(\S+)} $ref_name full cell_type drive post] {
+		set maxd 4
+
+		#set func_id [get_attribute -quiet [get_lib_cells -quiet */[get_attribute $cell ref_name]] fucntion_id]
+		if [info exists synopsys_program_name] {
+		    set func_id [get_attribute $cell function_id]
+		} else {
+		    set func_id [get_attribute $cell lib_cell.function_id]
+		}
+		#echo $func_id
+		if {$func_id == "a1.0"} {set cell_type CKBD}
+		if {$func_id == "Ia1.0"} {set cell_type CKND}
+		if {$func_id == "a2.0"} {set cell_type CKAN2}
+		if {$func_id == "Ia2.0"} {set cell_type CKND2}
+		if {$func_id == "a2.2"} {set cell_type CKNR2}
+		if {$func_id == "Ia2.2"} {set cell_type CKOR2}
+		
+		if {$func_id == "mux21"} {set cell_type CKMUX2}
+		if {$func_id == "xor2"} {set cell_type CKXOR2}
+
+		if [regexp 7D5T $post] {
+		    set new_ref_name "${cell_type}D*BWP7D5T24P96CNODLVT"
+		} else {
+		    set new_ref_name "${cell_type}D*BWP9T24P96CNODLVT"
+		}
+		if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] > 0} {
+		    set ref_name [file tail [lindex [lsort [get_attribute [get_lib_cells -quiet */${new_ref_name}] full_name]] 0]]
+		}
+
+		regexp {(\S+)D(\d+)BWP(\S+)} $ref_name full cell_type drive post
+		
+		set new_ref_name "${cell_type}D4BWP${post}"
+		if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+		    set new_ref_name "${cell_type}D${maxd}BWP${post}"
+		    set maxd [expr $maxd + 1]
+		}
+		if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+		    set new_ref_name "${cell_type}D${maxd}BWP${post}"
+		    set maxd [expr $maxd + 1]
+		}
+		
+		if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+		    set new_ref_name "${cell_type}D${maxd}BWP${post}"
+		    set maxd [expr $maxd + 1]
+		}
+		if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+		    set new_ref_name "${cell_type}D${maxd}BWP${post}"
+		    set maxd [expr $maxd + 1]
+		}
+		if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+		    set new_ref_name "${cell_type}D${maxd}BWP${post}"
+		    set maxd [expr $maxd + 1]
+		}
+		
+		if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+		    set new_ref_name $ref_name
+		}
+
+		if  {[sizeof [get_lib_cells -quiet */${new_ref_name}]] < 1} {
+		    set new_ref_name NA
+		}
+		
+		if {$new_ref_name == "NA"} {
+		    puts $fp "# Error : $full_name with $orig_ref_name - cannot be resized"
+		} else {
+		    puts $fp "# Info : $full_name with $orig_ref_name -  resized to $new_ref_name"
+		    puts $fp "size_cell $full_name \[index_collection \[get_lib_cells */$new_ref_name\] 0\]"
+		}
+	    }
+	}
+	close $fp
+	puts " ${outdir}/map_ck_path_to_lvt_eco.tcl"
+	catch {source -echo -verbose ${outdir}/map_ck_path_to_lvt_eco.tcl}
+	redirect /dev/null {report_qor}
+	
+    }
+}
+
+
+
+#########################################
+
+proc PBU_get_ck_pins {clk {with_icg 1}} {
+    #set all_cp_pins [remove_from_collection -intersect [all_registers -clock_pins] [get_attribute [get_clocks $clk] clock_network_pins]]
+    if $with_icg {
+	set all_cp_pins [filter_collection    [all_registers -clock_pins] @clocks.full_name==$clk]
+    } else {
+	set all_cp_pins [filter_collection [filter_collection    [all_registers -clock_pins] @clocks.full_name==$clk] @cell.is_integrated_clock_gating_cell==false]
+    }
+    return $all_cp_pins
+}
+
+#==========================================================================================================
+proc PBU_get_clocks_real {} {
+    return [get_clocks -filter "is_generated_from_lib_cell==false"]
+}
+
+proc PBU_get_clocks_lib {} {
+    return [get_clocks -filter "is_generated_from_lib_cell==true"]
+}
+
+proc PBU_print_clock_info {args} {
+
+    array set inputs $args
+    if [info exists inputs(-outdir)] {set outdir $inputs(-outdir)} else {set outdir .}
+    if [info exists inputs(-prefix)] {set pfix $inputs(-prefix)} else {set pfix Design}
+    if [info exists inputs(-lib_clocks)] {set lib_clocks $inputs(-lib_clocks)} else {set lib_clocks 0}
+
+    set fp [open ${outdir}/${pfix}_clk_info.rpt w]
+    set fp_csv [open ${outdir}/${pfix}_clk_info.csv w]
+    
+    suppress_message TIM-052
+    #set all_regs [all_registers]
+    #set all_regs_edge [all_registers -edge_triggered]
+    #set all_latch_edge [all_registers -level_sensitive]
+    set clk_pin_c [sizeof [all_registers -clock_pin]]
+
+    set all_clock [get_object_name [get_clocks -filter "is_generated_from_lib_cell==false"]]
+    if {$lib_clocks} {set all_clock [get_object_name [get_clocks *]]}
+    
+    set clk_len [llength $all_clock]
+
+
+    array set multi_clock {}
+
+    foreach clk $all_clock {
+	#set multi_clock($clk) [all_registers -clock_pins -clock $clk]
+	set multi_clock($clk) [::PBU_get_ck_pins $clk]
+    }
+    puts $fp  ""
+    puts $fp  "[string repeat = 150]"
+    puts $fp  "Multiple CLock Info"
+    puts $fp  "[string repeat = 150]"
+    puts $fp  ""
+    eval puts $fp  \[format \"%-30s[string repeat " %-30s" $clk_len]\"  ClkName [array names multi_clock]\]
+    set ck_var ""
+    foreach clk [array names multi_clock] {
+	set ck_var $clk
+	foreach clk1 [array names multi_clock] {
+	    lappend ck_var [sizeof_collection [remove_from_collection -intersect $multi_clock($clk) $multi_clock($clk1)]]
+	}
+	eval puts $fp  \[format \"%-30s[string repeat " %-30s" $clk_len]\"  $ck_var\]
+    }
+    puts $fp  ""
+    puts $fp  "[string repeat = 150]"
+    puts $fp  "Single CLock Info"
+    puts $fp  "[string repeat = 150]"
+    puts $fp  ""
+
+    puts $fp  [format "%-120s %10s %10s %15s %15s %5s %5s %5s %10s %-50s" ClkName Period Freq(MHz) Sinks %OfSink GenClk SU HU NetPins Sources]
+    puts $fp_csv  "ClkName,Period,Freq(MHz),Sinks,%OfSink,GenClk,SU,HU,NetPins,Sources"
+    puts $fp  [string repeat = 100]
+    foreach_in_collection clk [get_clocks] {
+	set sink_pins [::PBU_get_ck_pins [get_object_name $clk]]
+	set sink_pin_c [sizeof $sink_pins]
+	set sink_pin_p [format %5.2f [expr $sink_pin_c * 100 / $clk_pin_c]]
+
+	set period [get_attribute $clk period]; if {$period == ""} {set period 000.000 ; set freq 000.000} else {set freq [expr 1000.000/[get_attribute $clk period]]}
+	
+	set set_uncert [get_attribute $clk setup_uncertainty] ; if {$set_uncert == ""} {set set_uncert 0.000}
+	set hold_uncert [get_attribute $clk hold_uncertainty] ; if {$hold_uncert == ""} {set hold_uncert 0.000}
+
+	puts $fp  [format "%-120s %10.3f %10.3f %15d %12.3f %5s %8s %8s %10d %-50s" [get_object_name $clk] $period $freq $sink_pin_c $sink_pin_p [get_attribute $clk is_generated] $set_uncert $hold_uncert [sizeof [remove_from_collection [get_cells -quiet -of [get_attribute $clk clock_network_pins]] [get_cells -quiet -of $sink_pins]]] \{[get_object_name [get_attribute $clk sources]]\}]
+	puts $fp_csv "[get_object_name $clk],[format %0.3f $period],[format %0.3f $freq],$sink_pin_c,$sink_pin_p,[get_attribute $clk is_generated],[format %0.3f $set_uncert],[format %0.3f $hold_uncert],[sizeof [remove_from_collection [get_cells -quiet -of [get_attribute $clk clock_network_pins]] [get_cells -quiet -of $sink_pins]]],\{[get_object_name [get_attribute $clk sources]]\}"
+    }
+    close $fp
+    close $fp_csv
+    redirect -append ${outdir}/${pfix}_clk_info.rpt {
+	puts  ""
+	report_clocks -groups 
+	puts   ""
+	report_clock_jitter -clock [all_clocks]
+	puts  ""
+    }
+    unsuppress_message TIM-052
+}
+
+
+######################################################
+
+### PT PROCS
+######################################################
+
+proc PBU_PT_get_power_summary {{outdir power}} {
+
+    set scen   [mVar  mSTA_CURRENT_SCENARIO]
+    set design [mVar  DESIGN]
+    set pwr_analysis [get_app_var power_enable_analysis]
+    set_app_var power_enable_analysis true
+    report_power 
+    report_power -nosplit > ${outdir}/${design}_${scen}_USER_power_summary.rpt
+    report_collection -header none [current_design] -nosplit -columns {leakage_power internal_power switching_power dynamic_power total_power} >> ${outdir}/${design}_${scen}_USER_power_summary.rpt
+    set leak_power 0
+    set internal_power 0
+    set switching_power 0
+    set dynamic_power 0
+    set total_power 0
+
+
+    catch {set leak_power [format %0.9f [expr [get_attribute [current_design] leakage_power] * 1.000e03]]}
+    catch {set internal_power [format %0.3f [expr [get_attribute [current_design] internal_power] * 1.00e03]]}
+    catch {set switching_power [format %0.3f [expr [get_attribute [current_design] switching_power] * 1.00e03]]}
+    catch {set dynamic_power [format %0.3f [expr [get_attribute [current_design] dynamic_power] * 1.00e03]]}
+    catch {set total_power [format %0.3f [expr [get_attribute [current_design] total_power] * 1.00e03]]}
+
+    echo "Design,Scenario,LeakPwr(mW),InternalPwr(mW),SwitchPwr(mW),DynamicPwr(mW),TotalPwr(mW)" > ${outdir}/${design}_${scen}_USER_power_summary.csv
+    echo "${design},${scen},${leak_power},${internal_power},${switching_power},${dynamic_power},${total_power}" >> ${outdir}/${design}_${scen}_USER_power_summary.csv
+
+
+    report_collection -header none -nosplit [current_design]   -columns {full_name  area internal_power switching_power leakage_power total_power} > ${outdir}/${design}_${scen}_USER_hier_power_area.rpt
+    report_collection -header none -nosplit [sort_collection   [get_cells -hier * -filter "is_hierarchical"]  full_name] -columns {full_name  area internal_power switching_power leakage_power total_power} >> ${outdir}/${design}_${scen}_USER_hier_power_area.rpt
+
+
+    set_app_var power_enable_analysis $pwr_analysis
+
+}
+
+
+
+proc PBU_PT_set_custom_activity {args} {
+    array set inputs $args
+    
+    set seq_op_toggle_rate 0.1
+    set icg_op_toggle_rate 0.2
+    set static_probability 0.5
+    set hiers *
+
+    if [info exists inputs(-hier)] {set hiers $inputs(-hier)}
+    if [info exists inputs(-seq_toggle)] {set seq_op_toggle_rate $inputs(-seq_toggle)}
+    if [info exists inputs(-icg_toggle)] {set icg_op_toggle_rate $inputs(-icg_toggle)}
+    if [info exists inputs(-static_prob)] {set static_probability $inputs(-static_prob)}
+
+    suppress_message {PWR-278 PSW-191}
+
+    foreach hier $hiers {
+	if {$hier == "*"} {} else {
+	    if ![regexp \/ $hier] {set hier ${hier}/*} else {set hier "${hier}*"}
+	}
+	#echo $hier
+	
+	foreach_in_collection clk [sort_collection [get_clocks * -filter "defined(period)" ] period -descending]  {
+	    
+
+	    set all_op_pins [get_pins -quiet [all_registers -clock $clk -output_pins] -filter "full_name=~${hier}"]
+	    set all_icg_op_pins [get_pins -quiet -of [get_cells -quiet [all_registers -clock $clk ] -filter is_integrated_clock_gating_cell] -filter "direction==out && full_name=~${hier}"]
+	    
+	    set target_icg_pins [remove_from_collection -intersect $all_op_pins $all_icg_op_pins]
+	    set target_reg_pins [remove_from_collection  $all_op_pins $all_icg_op_pins]
+	    
+	    if { [sizeof $target_reg_pins] > 0} {
+		echo "--I-- Setting Activity for CLock: [get_object_name $clk] Under Hierarchiy ${hier} - With StaticProb of: ${static_probability} And With SeqOpToggle of : $seq_op_toggle_rate on [sizeof $target_reg_pins] Pins"
+		
+		set_switching_activity $target_reg_pins  \
+		    -toggle_rate $seq_op_toggle_rate -static_probability $static_probability \
+		    -period [get_attribute $clk period] 
+	    }
+	    
+	    if { [sizeof $target_icg_pins] > 0} {
+		echo "--I-- Setting Activity for CLock: [get_object_name $clk] Under Hierarchiy ${hier} - With StaticProb of: ${static_probability} And With ICG-toggle of: $icg_op_toggle_rate  on [sizeof $target_icg_pins] Pins"
+		set_switching_activity  $target_icg_pins \
+		    -toggle_rate $seq_op_toggle_rate -static_probability $static_probability \
+		    -period [get_attribute $clk period] 
+	    }
+	    
+	}
+    }
+    
+    unsuppress_message {PWR-278 PSW-191}
+    #-type 
+}
+#########################################################
+
+
+proc __tmp_my_create_clock {args} {
+    
+    #set my_str [lindex $args 0]
+    set my_str  $args 
+    set scale 1.1
+    regexp {(.*)\-period(\s*)(\S*)(\s*)(.*)} $my_str a b c period d e
+    set new_period [expr $period * $scale]
+    set my_new_str " $b -period $c $new_period $d $e"
+    echo "create_clock $my_new_str"
+}
+
+proc __tmp_print_mvars {{ofile current_mvar.rpt }} {
+    puts $ofile
+    set ::ofile $ofile
+    uplevel  {
+	puts $ofile
+	set fp [open $ofile w]
+	puts $fp "VariableDump: [date]"
+
+	foreach x [mVar] {
+	    if [array exists $x] {
+		puts $fp "\nArray: $x" 
+		foreach elem [lsort [array names $x]] {
+		    puts $fp "\t $elem => [set "${x}(${elem})"]" 
+		}
+	    } else {
+		puts $fp "\nVariable: $x" 
+		puts $fp "\t $x => [set ${x}]" 
+	    }
+	}
+	close $fp
+	puts "${::ofile} is Generated"
+
+    }
+}
+
+proc test {{x "x is not set"}} {
+    mPuts "Testing variable x : $x"
+    mPuts "Design : [mVar DESIGN]"
+    mPuts "Session [mVar SESSION(step_suffix)]"
+    
+}
+
+
+
+## PBU_map_7t_to_9t
+## PBU_gen_all_cmd_reports  -outdir report -prefix [mVar DESIGN]_[mVar SESSION(step_suffix)]_post_USER
+## PBU_get_design_metrics -outdir report -prefix [mVar DESIGN]_[mVar SESSION(step_suffix)]_post_USER
+## PBU_map_CkPath_to_LVT
+## PBU_map_DMin_to_DMax
+## PBU_print_clock_info  -outdir report -prefix [mVar DESIGN]_[mVar SESSION(step_suffix)]_post_USER
+## PBU_print_mvars report/debug/[mVar DESIGN]_[mVar SESSION(step_suffix)].mvar_settings_post_dump.rpt
+## PBU_print_mvars report/debug/[mVar DESIGN]_[mVar SESSION(step_suffix)].mvar_settings_pre_dump.rpt
+## set cell_hier [PBU_preserve_mapped_hier] 
