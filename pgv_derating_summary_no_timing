@@ -1,0 +1,327 @@
+if {!([llength [info proc mVar]] || [llength [info command mVar]])} {
+    proc mVar {args} {uplevel 1  set $args}
+    proc mPuts {args} {uplevel 1  puts $args}
+    proc mSource {args} {uplevel 1  source  $args}
+}
+## 
+
+set _design_name [get_object_name [current_design]]
+set _scenario_name [lindex [all_analysis_views] 0]
+
+if [regexp setup $_scenario_name]  {set type "late" } else {set type "early"}
+####################
+## Generate - PGV-DERATE REPORT
+proc get_path_cell_delay {path inst} {
+    set object_list  [get_property -quiet  [get_property -quiet  [get_property -quiet  $path points] object] full_name]
+    set arrival_list [get_property -quiet  [get_property -quiet  $path points] arrival]
+    set cell_delay NA
+    if { [llength $arrival_list] == [llength $object_list]} {
+	set index_list ""
+	set i 0
+	foreach object $object_list {
+	    if [regexp "${inst}/" $object] {lappend index_list $i}
+	    incr i
+	}
+	if { [llength $index_list] == "2"} {
+	    set cell_delay [expr   [lindex $arrival_list [lindex $index_list 1]] -  [lindex $arrival_list [lindex $index_list 0]] ]
+	}
+    }
+    return $cell_delay
+}
+
+proc get_cell_delay_slack {inst type} {
+    if { [sizeof_collection [get_pins -quiet $inst/*]] > 0} {
+
+	if {$type == "late"} {
+	    set windows [lrange [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/*] arrival_max_rise]] end-1 end]
+	    set slack [lindex [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/*] slack_max]] 0]
+	    if {[llength $windows] == "2"} {
+		set in_rise_max [lindex [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==in"] arrival_max_rise]]  end]
+		set in_fall_max [lindex [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==in"] arrival_max_fall]]  end]
+		set out_rise_max [lindex [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==out"] arrival_max_rise]]  end]
+		set out_fall_max [lindex [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==out"] arrival_max_fall]]  end]
+		set t1 [expr $out_rise_max - $in_rise_max]
+		set t2 [expr $out_rise_max - $in_fall_max]
+		set t3 [expr $out_fall_max - $in_rise_max]
+		set t4 [expr $out_fall_max - $in_fall_max]
+		#echo [lindex [lsort -real -increasing [list $t1 $t2 $t3 $t4]] end]
+		set delay [expr [expr $t1 +  $t2 +  $t3 + $t4] / 4]
+	    } else {
+		set delay NA
+		set slack NA
+	    }
+	} else {
+	    set windows [lrange [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/*] arrival_min_rise]] end-1 end]
+	    set slack [lindex [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/*] slack_min]] 0]
+	    if {[llength $windows] == "2"} {
+		set in_rise_min [lindex [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==in"] arrival_min_rise]]  end]
+		set in_fall_min [lindex [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==in"] arrival_min_fall]]  end]
+		set out_rise_min [lindex [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==out"] arrival_min_rise]]  end]
+		set out_fall_min [lindex [lsort -real -increasing [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==out"] arrival_min_fall]]  end]
+		set t1 [expr $out_rise_min - $in_rise_min]
+		set t2 [expr $out_rise_min - $in_fall_min]
+		set t3 [expr $out_fall_min - $in_rise_min]
+		set t4 [expr $out_fall_min - $in_fall_min]
+		#echo [lindex [lsort -real -increasing [list $t1 $t2 $t3 $t4]] end]
+		set delay [expr [expr $t1 +  $t2 +  $t3 + $t4] / 4]
+	    } else {
+		set delay NA
+		set slack NA
+	    }
+	}
+    } else {
+	set delay NA
+	set slack NA
+    }
+    if {$slack == "" || $slack == "inf" || $slack == "INFINITY"} {set slack NA}
+    
+    return [list $delay $slack]
+}
+
+#########################
+
+proc get_cell_delay_slack_new {inst type} {
+    set delay NA
+    set slack NA
+    set ip_pin_through NA
+    if {$type == "late"} {
+	set opslack  [lindex  [lsort -real -increasing [regsub -all NA [regsub -all inf  [regsub -all INFINITY [regsub -all NA [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==out"]  slack_max] ""] ""] ""] ""]] 0]
+	if {$opslack == ""} {
+	    set slack NA 
+	    set delay NA
+	} else {
+	    set slack $opslack
+	    set oppin [get_pins -quiet $inst/* -filter "direction==out && slack_max==$opslack"]
+	    set op_rise [get_property -quiet $oppin  arrival_max_rise]
+	    set op_fall [get_property -quiet $oppin  arrival_max_fall]
+
+	    #set ipslack  [lindex  [lsort -real -increasing [regsub -all NA [regsub -all inf  [regsub -all INFINITY [regsub -all NA [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==in"]  slack_max] ""] ""] ""] ""]] 0]
+	    set ipslack NA
+	    if {$ipslack == ""} {	
+		set delay NA
+	    } else {
+		set ippin [index_collection [get_pins -quiet $inst/* -filter "direction==in && slack_max==$opslack"] 0]
+		if { [sizeof_collection $ippin] > 0} {
+		    set ip_rise [get_property -quiet $ippin  arrival_max_rise]
+		    set ip_fall [get_property -quiet $ippin  arrival_max_fall]
+		    
+		    #set delay [lindex [lsort -real -increasing [list [expr $op_rise - $ip_rise] [expr $op_rise - $ip_fall]   [expr $op_fall - $ip_rise] [expr $op_fall - $ip_fall]    ] ] end]
+		    set delay [lindex [lsort -real -increasing [list [expr $op_rise - $ip_rise] [expr $op_rise - $ip_fall]       ] ] end]
+		    set ip_pin_through [get_object_name $ippin]
+		} else {
+		    set delay NA
+		}
+	    }
+	}
+    } else {
+	set opslack  [lindex  [lsort -real -increasing [regsub -all NA [regsub -all inf  [regsub -all INFINITY [regsub -all NA [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==out"]  slack_max] ""] ""] ""] ""]] 0]
+	if {$opslack == ""} {
+	    set slack NA 
+	    set delay NA
+	} else {
+	    set slack $opslack
+	    set oppin [get_pins -quiet $inst/* -filter "direction==out && slack_min==$opslack"]
+	    set op_rise [get_property -quiet $oppin  arrival_min_rise]
+	    set op_fall [get_property -quiet $oppin  arrival_min_fall]
+
+	    #set ipslack  [lindex  [lsort -real -increasing [regsub -all NA [regsub -all inf  [regsub -all INFINITY [regsub -all NA [get_property -quiet  [get_pins -quiet $inst/* -filter "direction==in"]  slack_min] ""] ""] ""] ""]] 0]
+	    set ipslack NA
+	    if {$ipslack == ""} {	
+		set delay NA
+	    } else {
+		set ippin [index_collection [get_pins -quiet $inst/* -filter "direction==in && slack_min==$opslack"] 0]
+		if { [sizeof_collection $ippin] > 0} {
+		    set ip_rise [get_property -quiet $ippin  arrival_min_rise]
+		    set ip_fall [get_property -quiet $ippin  arrival_min_fall]
+		    
+		    #set delay [lindex [lsort -real -increasing [list [expr $op_rise - $ip_rise] [expr $op_rise - $ip_fall]   [expr $op_fall - $ip_rise] [expr $op_fall - $ip_fall]    ] ] end]
+		    #set delay [lindex [lsort -real -increasing [list [expr $op_rise - $ip_rise] [expr $op_rise - $ip_fall]       ] ] end]
+		    set delay [lindex [lsort -real -increasing [list [expr $op_fall - $ip_rise] [expr $op_fall - $ip_fall]       ] ] 0]
+		    set ip_pin_through [get_object_name $ippin]
+		} else {
+		    set delay NA
+		}
+	    }
+	}
+    }
+    return [list $delay $slack $ip_pin_through]
+}
+####################
+
+if ![file exists ${_design_name}_${_scenario_name}_PGV_USER_DERATE.rpt] {
+    report_timing_derate > ${_design_name}_${_scenario_name}_PGV_USER_DERATE.rpt
+}
+
+if {1} {
+    if ![regexp baseline [pwd]] {
+
+	sleep 3
+	set hdl3 [open ${_design_name}_${_scenario_name}_PGV_USER_DERATE.rpt r] 
+	set derate_cell_list "" ; 
+
+	while {![eof $hdl3]} {
+	    set line [gets $hdl3]
+	    if [regexp {Cell\s+\(leaf\)\:\s+(\S+)} $line match cell] {
+		lappend derate_cell_list $cell
+	    }
+	}
+
+	close $hdl3
+    } else {
+
+	set derate_cell_list [mVar cell_with_pgv_derates_applied]
+    }
+}
+####################
+set derate_cell_collection [get_cells $derate_cell_list] 
+mPuts "Total cells derated: [sizeof_collection $derate_cell_collection]"
+
+set clock_elements     [get_cells -quiet -of [get_pins -quiet -leaf -of [get_cell -quiet $derate_cell_list] -filter "is_clock_used_as_clock  "]]
+set non_clock_elements [remove_from_collection [get_cells -quiet $derate_cell_list] $clock_elements]
+
+######################
+
+## PGV-DERATE_CELL- SLACK- INFO
+set i 0
+set prev_val 0
+set hdl4 [open ${_design_name}_${_scenario_name}_PGV_DERATE_SLACK.rpt w]
+puts $hdl4 [format "%-230s %-15s %-40s %-15s  %-10s %-15s %-15s %-15s" INST TYPE REFNAME  INST_DELAY SLACK PGV_DERATE_COUNT LATE_DERATE EARLY_DERATE]
+set slack_data ""
+set _cell_type DATA
+if { [sizeof_collection $clock_elements] > 0}  {
+    foreach_in_collection inst  [range_collection $clock_elements 0 end] {
+	incr i
+	set cur_val [expr $i / 10000]; if {$cur_val == $prev_val} {}  else {set prev_val $cur_val ; mPuts "--I-- Processed $i paths"}
+	set inst_name [get_object_name $inst]
+	if [get_property $inst is_sequential] {
+	    set _cell_type SEQUENTIAL
+	    set early_derate [get_property -quiet $inst early_data_cell_derate_factor]
+	    set late_derate [get_property -quiet $inst  late_data_cell_derate_factor]
+
+	} else {
+	    set _cell_type CLOCK
+	    set early_derate [get_property -quiet $inst early_clock_cell_derate_factor]
+	    set late_derate [get_property -quiet $inst  late_clock_cell_derate_factor]
+
+	}
+	set slack NA
+	set inst_delay NA
+	set pgv_inst_count 1
+
+	#foreach {slack inst_delay} [get_cell_delay_slack  $inst_name $type] {}
+	foreach {slack inst_delay ip_pin_through} [get_cell_delay_slack_new  $inst_name $type] {}
+	if { $ip_pin_through == "NA" } {
+	    set pgv_inst_count 1
+	} else {
+	    #set pgv_inst_count [sizeof_collection [remove_from_collection -intersect $derate_cell_collection [add_to_collection -unique [all_fanout -flat -from $ip_pin_through -only_cells] [all_fanin -flat -to $ip_pin_through -only_cells]]]]
+	    set pgv_inst_count 1
+	}
+	#echo $late_derate $early_derate
+
+	puts $hdl4 [format "%-235s %-40s %-15s  %-10s %-15s %-15s %-15s %-15s" [get_object_name $inst] ${_cell_type} [get_property -quiet $inst ref_name] $inst_delay $slack $pgv_inst_count $late_derate $early_derate]
+	if {$slack == "NA"} {} else {lappend slack_data $slack}
+    }
+}
+
+set _cell_type DATA
+#puts $hdl4 "\n"
+#puts $hdl4 [format "%-150s %-15s %-40s%-15s  %-10s %-15s %-15s %-15s" INST TYPE REFNAME  INST_DELAY SLACK PGV_DERATE_COUNT LATE_DERATE EARLY_DERATE]
+
+foreach_in_collection inst  [range_collection $non_clock_elements 0 end] {
+    incr i
+    set cur_val [expr $i / 10000]; if {$cur_val == $prev_val} {}  else {set prev_val $cur_val ; mPuts "--I-- Processed $i paths"}
+    set inst_name [get_object_name $inst]
+    set slack NA
+    set inst_delay NA
+    set pgv_inst_count 1
+
+    #foreach {inst_delay slack} [get_cell_delay_slack  $inst_name $type] {}
+    foreach {inst_delay slack ip_pin_through} [get_cell_delay_slack_new  $inst_name $type] {}
+    #set pgv_inst_count [sizeof_collection [remove_from_collection -intersect [get_cells -quiet $derate_cell_list ] [get_cells -quiet -of [get_property -quiet  [get_property -quiet  $tim_path points] object]]]]
+    #set pgv_inst_count [sizeof_collection [remove_from_collection -intersect $derate_cell_collection [add_to_collection -unique [all_fanout -flat -from $inst_name/* -only_cells] [all_fanin -flat -to $inst_name/* -only_cells]]]]
+
+    #set early_derate [get_property -quiet $inst early_rise_clock_cell_derate_factor]
+    #set late_derate [get_property -quiet $inst late_rise_clock_cell_derate_factor]
+
+    if { $ip_pin_through == "NA" } {
+	set pgv_inst_count 1
+    } else {
+	#set pgv_inst_count [sizeof_collection [remove_from_collection -intersect $derate_cell_collection [add_to_collection -unique [all_fanout -flat -from $ip_pin_through -only_cells] [all_fanin -flat -to $ip_pin_through -only_cells]]]]
+	set pgv_inst_count 1
+    }
+
+
+    set early_derate [get_property -quiet $inst early_data_cell_derate_factor]
+    set late_derate [get_property -quiet $inst late_data_cell_derate_factor]
+    #echo $late_derate $early_derate
+    puts $hdl4 [format "%-235s %-40s %-15s  %-10s %-15s %-15s %-15s  %-15s" [get_object_name $inst] ${_cell_type} [get_property -quiet $inst ref_name] $inst_delay $slack $pgv_inst_count $late_derate $early_derate]
+    if {$slack == "NA"} {} else {lappend slack_data $slack}
+}
+close $hdl4
+
+
+#####################
+# Collect - Cells MIssing Derates ##
+#####################
+
+if {0} {
+    if [file exists PGV_DERATE.log] {
+	set hdl5 [open PGV_DERATE.log r] 
+
+	set missing_derate_inst ""
+	while {![eof $hdl5]} {
+	    set line [gets $hdl5]
+	    if [regexp {\S*Working on Design\:\s+(\S+)\s+\-\-\s+Instance\:\s+(\S+)\s+\S+} $line match design instance] {
+		set hier "${instance}/"
+		#echo $hier
+	    }
+	    if [regexp {\S*Working on TopDesign} $line match design instance] {
+		set hier ""
+	    }
+	    if [regexp {\*\*WARN: \(TCLCMD-513\):The software could not find a matching object of the specified type for the pattern (\S+)} $line match inst1] {
+		set inst [regsub -all \' $inst1 ""]
+		#echo $inst
+		lappend missing_derate_inst "${hier}${inst}"
+		#echo "${hier}${inst}"
+	    } else {
+		#echo $line
+	    }
+	}
+
+	close $hdl5
+
+	set hdl6  [open ${_design_name}_${_scenario_name}_PGV_MISSING_DERATE_INST.rpt w]
+	foreach elem $missing_derate_inst {
+	    puts $hdl6 $elem
+	}
+	close $hdl6
+
+	#######################
+
+    } else {
+	echo "--I-- PGV_DERATE.log is not found"
+    }
+}
+
+
+if {0} {
+    set hdl6  [open ${_design_name}_${_scenario_name}_PGV_MISSING_DERATE_INST.rpt w]
+    foreach elem [mVar cell_with_pgv_derates_ignored] {
+	puts $hdl6 $elem
+    }
+    close $hdl6
+}
+###################################################################
+if {1} {
+    if { [llength $slack_data] > 0} {
+	source ~kpavan/scripts/histogram.tcl
+	if [regexp -nocase baseline [pwd]] {
+	    set title ${_design_name}-${_scenario_name}-BaseLine-NO-PgvDerate-GBA-SlackHistoGram 
+	} else {
+	    set title ${_design_name}-${_scenario_name}-PgvDerateSlack-GBAHistoGram 
+	}
+	catch {plot_histogram -bin_width 25 -xlabel slack -ylabel NumPaths -title $title -outfile  ${_design_name}_${_scenario_name}_pgvderate_histogram.ps -data $slack_data}
+    }
+    ###################################################################
+
+}
