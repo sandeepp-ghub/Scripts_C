@@ -1,0 +1,180 @@
+
+proc write_pb  {file} {
+    write_floorplan_script $file -sections place_blockages
+}
+proc write_rb  {file} {
+    write_floorplan_script $file -sections route_blockages
+}
+proc write_my_macro  {file} {
+    write_floorplan_script $file -sections blocks
+}
+proc write_pad  {file} {
+    write_floorplan_script $file -sections iopad
+}
+proc write_io  {file} {
+    write_floorplan_script $file -sections {pins bump}
+}
+proc write_grp  {file} {
+    write_floorplan_script $file -sections groups
+}
+proc write_bndry  {file} {
+    write_floorplan_script $file -sections boundary
+}
+proc write_selected  {file} {
+    write_floorplan_script $file -selected
+}
+proc write_track_def {file} {
+    redirect $file {puts "VERSION 5.8 
+DIVIDERCHAR \"/\" 
+BUSBITCHARS \"\[\]\" 
+DESIGN [get_db current_design .name] 
+UNITS DISTANCE MICRONS 2000 
+\n"}
+    redirect -append $file {report_tracks}
+redirect -append $file {puts "\nEND DESIGN"}
+}
+
+proc write_bndry_def  {file} {
+    write_def_by_section -no_nets -no_comp $file
+}
+
+
+proc write_row_def {file} {
+    set file1 _ttmmppp
+    gui_deselect -all
+    write_def_by_section $file1  -rows -no_comp -no_nets 
+    set in1 [open $file1]
+    redirect $file {}
+    #set in_data [read $in1]
+    set flag 1
+    while { [gets $in1 line] >= 0 } {
+	if [regexp PROPERTYDEFINITIONS $line] {set flag 0}
+	if [regexp ROW $line] {set flag 1}
+	if {$flag} { redirect -append $file {puts $line}}
+
+    }
+    close $in1
+    #exec 'perl -ni -e 'print unless /^PROPERTYDEFINITIONS/../^COMPONENTMASKSHIFT/' $file'
+
+}
+
+
+
+proc write_pin_def {file} {
+    set file1 _ttmmpp
+    set x [get_db selected ]
+    gui_deselect -all
+    select_obj [get_db  current_design .ports ]
+    write_def -selected $file1
+    gui_deselect -all
+    if {$x==""} {} else {select_obj $x}
+    set in1 [open $file1]
+    redirect $file {}
+    #set in_data [read $in1]
+    set flag 1
+    while { [gets $in1 line] >= 0 } {
+	if [regexp PROPERTYDEFINITIONS $line] {set flag 0}
+	if {$flag} { redirect -append $file {puts $line}}
+	if [regexp COMPONENTMASKSHIFT $line] {set flag 1}
+    }
+    close $in1
+    #exec 'perl -ni -e 'print unless /^PROPERTYDEFINITIONS/../^COMPONENTMASKSHIFT/' $file'
+}
+
+proc dump_pb {} {
+    foreach x [get_db place_blockages ] {
+	if { [llength [get_db $x .rects]] > 0} {
+	    
+	    set name [get_db $x .name] 
+	    set boxes [get_computed_shapes [get_db $x .rects]  -output polygon]
+	    set type [get_db $x .type] 
+	    if {$type == "partial"} {
+		set density  [format %0.0f [get_db $x .density]]
+		set noflop [get_db $x .is_no_flop]
+		if {$noflop} {
+		    foreach box $boxes {
+			puts "create_place_blockage -type $type -name $name  -polygon \{$box\} -density $density -exclude_flops"
+		    }
+		} else {
+		    foreach box $boxes {
+			puts "create_place_blockage -type $type -name $name  -polygon \{$box\} -density $density"
+		    }
+		}
+	    } else {
+		foreach box $boxes {
+		    puts "create_place_blockage -type $type -name $name -polygon \{$box\}"
+		}
+	    }
+	}
+    }
+}
+
+
+proc dump_bndry {} {
+    set box [string repeat "[regsub -all \} [regsub -all \{ [get_db current_design .bbox]  ""] ""] " 3]
+    set top [get_db current_design .name ]
+    puts "create_floorplan -no_snap_to_grid -b  $box"
+    foreach rect [get_computed_shapes [get_db current_design .bbox] XOR [get_die_boundary] -output rect] {
+	puts "eval_legacy {addObjFPlanCutBox cell  $top $rect}"
+    }
+    puts {update_floorplan  -core_to_edge {0.96 0.96 0.96 0.96} -no_snap_to_grid}
+
+}
+
+proc db_pt {args} {
+    array set pts $args
+    if {[array names pts] == "-x"} {return [lindex $pts(-x) 0]}
+    if {[array names pts] == "-y"} {return [lindex $pts(-y) 1]}
+}
+
+proc dump_bndry_with_core {} {
+    set box [string repeat "[regsub -all \} [regsub -all \{ [get_db current_design .bbox]  ""] ""] " 3]
+    set top [get_db top.name -e]
+    puts "floorplan -noSnapToGrid -b  $box"
+    foreach rect [get_computed_shapes [get_db current_design .bbox] XOR [get_die_boundary] -output rect] {
+	puts "addObjFPlanCutBox cell  $top $rect"
+    }
+    set centerx [db_pt -x [gui_rect -center [get_db current_design .bbox]]]
+    set centery [db_pt -y [gui_rect -center [get_db current_design .bbox]]]
+    
+    set core2left 0.96
+    set core2right 0.96
+    set core2top 0.96
+    set core2bot 0.96
+
+    foreach bbox [get_computed_shapes [get_db current_design .bbox] XOR [get_db current_design .core_bbox]] {
+	set midx [db_pt -x [gui_rect -center $bbox]]
+	set midy [db_pt -y [gui_rect -center $bbox]]
+	set dir ""
+	if {$midx == "$centerx"} {if {$midy < $centery} {set dir bot} else {set dir top}} else {if {$midx < $centerx} {set dir left} else {set dir right}}
+	#echo "$bbox --> $dir"
+	if {$dir == "left"} {set core2left [gui_rect -dx $bbox]}
+	if {$dir == "right"} {set core2right [gui_rect -dx $bbox]}
+	if {$dir == "top"} {set core2top [gui_rect -dy $bbox]}
+	if {$dir == "bot"} {set core2bot [gui_rect -dy $bbox]}
+    }
+
+    puts "update_floorplan -core_to_edge \{$core2left $core2bot $core2right $core2top\} -no_snap_to_grid"
+
+}
+
+
+proc write_fplan {{prefix {}}} {
+    #write_bndry ${prefix}fplan_bndry.tcl
+    redirect ${prefix}fplan_bndry.tcl {dump_bndry}
+    write_bndry_def ${prefix}fplan_bndry.def
+    redirect ${prefix}fplan_bndry_withcore.tcl {dump_bndry_with_core}
+    #write_pb ${prefix}fplan_pb.tcl
+    redirect ${prefix}fplan_pb.tcl {dump_pb}
+    write_rb ${prefix}fplan_rb.tcl
+    write_pad ${prefix}fplan_iopad.tcl
+    write_io ${prefix}fplan_iopin.tcl
+    redirect ${prefix}fplan_iopin_dump.tcl {dump_ios}
+    write_grp ${prefix}fplan_groups.tcl
+    write_my_macro ${prefix}fplan_macro.tcl
+    write_track_def ${prefix}fplan_tracks.def
+    write_pin_def ${prefix}fplan_pin.def
+    write_row_def ${prefix}fplan_row.def
+}
+
+#===============================================================
