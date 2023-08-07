@@ -1,0 +1,151 @@
+######################################
+
+proc all_cg_enable_pins {{clock ""}} {
+    if {$clock==""} {
+    set all_cg_enable [get_pins -quiet [all_registers -data_pins] -filter "is_clock_gating_enable==true"]
+    } else {
+	set all_cg_enable [get_pins -quiet [all_registers -data_pins -clock $clock] -filter "is_clock_gating_enable==true"]
+    }
+return $all_cg_enable
+}
+
+proc all_cg_clock_pins {{clock ""}} {
+    if {$clock == ""} {
+    set all_cg_clock [get_pins -quiet [all_registers -clock_pins] -filter "is_clock_gating_clock==true"]
+    } else {
+    set all_cg_clock [get_pins -quiet [all_registers -clock $clock  -clock_pins] -filter "is_clock_gating_clock==true"]
+    }
+return $all_cg_clock
+}
+
+
+proc all_set_reset_pins {{clock ""}} {
+    if {$clock == ""} {
+    set all_set_reset [get_pins -quiet  [all_registers -async_pins] -filter "is_async==true || is_clear == true || is_preset == true"]
+    } else {
+    set all_set_reset [get_pins -quiet  [all_registers -clock $clock  -async_pins] -filter "is_async==true || is_clear == true || is_preset == true"]
+    }
+return $all_set_reset
+}
+
+proc all_macro_datain_pins {{clock ""}} {
+    if {$clock == ""} {
+    set all_macro_data_in [get_pins -quiet [get_db [get_db [all_macros] .pins -if {.direction==in && .is_async == false && .is_clock == false}] .name]]
+    } else {
+	set all_macro_data_in [remove_from_collection -intersect  [get_pins -quiet [get_db [get_db [all_macros] .pins -if {.direction==in && .is_async == false && .is_clock == false}] .name]] [all_registers -data_pins -clock $clock]]
+    }
+return $all_macro_data_in
+}
+
+proc all_macro_clock_pins {{clock ""}} {
+    if {$clock == ""} {
+    set all_macro_clk_in [get_pins -quiet [get_db [get_db [all_macros] .pins -if {.direction==in && .is_async == false && .is_clock == true}] .name]]
+    } else {
+	set all_macro_clk_in [remove_from_collection -intersect [get_pins -quiet [get_db [get_db [all_macros] .pins -if {.direction==in && .is_async == false && .is_clock == true}] .name]] [all_registers -clock_pins -clock $clock]]
+    }
+return $all_macro_clk_in
+}
+
+proc all_macro_dataout_pins {{clock ""}} {
+    if {$clock == ""} {
+    set all_macro_out [get_pins -quiet [get_db [get_db [all_macros] .pins -if {.direction==out && .is_async == false && .is_clock == false}] .name]]
+    } else {
+	set all_macro_out [remove_from_collection -intersect [get_pins -quiet [get_db [get_db [all_macros] .pins -if {.direction==out && .is_async == false && .is_clock == false}] .name]] [all_registers -output_pins -clock $clock]]
+    }
+return $all_macro_out
+}
+
+proc all_test_pins {{clock ""}} {
+    if {$clock == ""} {
+    set all_test [get_pins -quiet [all_registers -data_pins] -filter "name==TE || name ==SI || name ==SE | name ==SCN"]
+    } else {
+    set all_test [get_pins -quiet [all_registers -clock $clock  -data_pins] -filter "name==TE || name ==SI || name ==SE | name ==SCN"]
+    }
+return $all_test
+}
+
+proc all_non_test_pins {{clock ""}} {
+    if {$clock == ""} {
+	set all_reg_dat [remove_from_collection [remove_from_collection [all_registers -data_pins] [all_test_pins ]] [all_macro_datain_pins ]]
+    } else {
+	set all_reg_dat [remove_from_collection [remove_from_collection [all_registers -data_pins -clock $clock] [all_test_pins $clock]] [all_macro_datain_pins $clock]]
+    }
+return $all_reg_dat
+}
+
+proc all_reg_clock_pins {{clock ""}} {
+    if {$clock == ""} {
+	set all_cg_clock [remove_from_collection [get_pins -quiet [all_registers -clock_pins] -filter "is_clock_gating_clock==false"] [all_macro_clock_pins]]
+    } else {
+	set all_cg_clock [remove_from_collection [get_pins -quiet [all_registers -clock $clock  -clock_pins] -filter "is_clock_gating_clock==false"] [all_macro_clock_pins $clock]]
+    }
+return $all_cg_clock
+}
+
+proc all_input_ports {{clock ""}} {
+    if {$clock == ""} {
+	set all_inp_port [all_inputs -no_clock]
+    } else {
+	set all_inp_port [all_inputs -no_clock -clock $clock]
+    }
+    return $all_inp_port
+}
+
+proc all_output_ports {{clock ""}} {
+    if {$clock == ""} {
+	set all_outp_port [all_outputs ]
+    } else {
+	set all_outp_port [all_outputs -clock $clock]
+    }
+    return $all_outp_port
+}
+
+proc create_custom_path_groups {{clock ""}} {
+    set ::enc_keep_user_path_group 1
+    if {$clock == ""} {set prefix ""} else {set prefix "${clock}_"}
+    report_path_group_options
+    if {$clock == ""} {reset_path_group -all}
+    group_path -name ${prefix}REG2REG -from [all_reg_clock_pins $clock] -to [all_non_test_pins $clock]
+    group_path -name ${prefix}REG2CKG -from [all_reg_clock_pins $clock] -to [all_cg_enable_pins $clock]
+    group_path -name ${prefix}REG2ASYNC -from [all_reg_clock_pins $clock] -to [all_set_reset_pins $clock]
+    group_path -name ${prefix}REG2TEST -from [all_reg_clock_pins $clock] -to [all_test_pins $clock]
+
+    group_path -name ${prefix}REG2MACRO -from [all_reg_clock_pins $clock] -to [all_macro_datain_pins $clock]
+    group_path -name ${prefix}MACRO2REG -from [all_macro_clock_pins $clock] -to [all_non_test_pins $clock] -through [all_macro_dataout_pins $clock]
+
+
+    group_path -name ${prefix}IN2REG -from [all_input_ports $clock] -to [all_non_test_pins $clock]
+    group_path -name ${prefix}IN2CKG -from [all_input_ports $clock] -to  [all_cg_enable_pins $clock]
+    group_path -name ${prefix}IN2ASYNC -from [all_input_ports $clock] -to   [all_set_reset_pins $clock]
+    group_path -name ${prefix}IN2TEST -from [all_input_ports $clock] -to [all_test_pins $clock]
+    group_path -name ${prefix}IN2MACRO -from [all_input_ports $clock] -to [all_macro_datain_pins $clock]
+
+    group_path -name ${prefix}REG2OUT -from [all_reg_clock_pins $clock] -to [all_output_ports $clock]
+    group_path -name ${prefix}MACRO2OUT -from [all_macro_clock_pins $clock]  -through [all_macro_dataout_pins $clock] -to [all_output_ports $clock]
+
+    group_path -name ${prefix}IN2OUT -from [all_input_ports  $clock] -to [all_output_ports $clock]
+
+    set_path_group_option ${prefix}REG2REG -effort_level high -weight 5
+    set_path_group_options ${prefix}REG2CKG -effort_level high -weight 5
+    set_path_group_options ${prefix}REG2ASYNC -effort_level high -weight 2 
+    set_path_group_options ${prefix}REG2TEST -effort_level low -weight 2
+
+    set_path_group_options ${prefix}REG2MACRO -effort_level high -weight 6
+    set_path_group_options ${prefix}MACRO2REG -effort_level high -weight 6
+
+
+    set_path_group_options ${prefix}IN2REG -effort_level low -weight 1
+    set_path_group_options ${prefix}IN2CKG -effort_level low -weight 2
+    set_path_group_options ${prefix}IN2ASYNC -effort_level low -weight 1
+    set_path_group_options ${prefix}IN2TEST -effort_level low -weight 1
+    set_path_group_options ${prefix}IN2MACRO -effort_level high -weight 2
+
+    set_path_group_options ${prefix}REG2OUT -effort_level low -weight 1
+    set_path_group_options ${prefix}MACRO2OUT -effort_level high -weight 2
+
+    set_path_group_options ${prefix}IN2OUT -effort_level low -weight 2
+
+    report_path_group_options
+    set_db timing_report_group_based_mode true
+}
+
