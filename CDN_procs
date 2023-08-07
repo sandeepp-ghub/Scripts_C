@@ -1,0 +1,80 @@
+##########################################################
+#*************************************************************************#
+# DISCLAIMER: The code is provided for Cadence customers                  #
+# to use at their own risk. The code may require modification to          #
+# satisfy the requirements of any user. The code and any modifications    #
+# to the code may not be compatible with current or future versions of    #
+# Cadence products. THE CODE IS PROVIDED \"AS IS\" AND WITH NO WARRANTIES,# 
+# INCLUDING WITHOUT LIMITATION ANY EXPRESS WARRANTIES OR IMPLIED          #
+# WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR USE.          #
+#*************************************************************************#
+proc getObjRects {object} {
+  set objType [get_db $object .obj_type]
+  if {$objType=="pin"} {
+    set layer [get_db $object .layer.name]
+    set gRects [get_db $object .base_pin.physical_pins.layer_shapes.shapes.rect]
+    set rects($layer) [get_transform_shapes -local_pt $gRects -inst [get_db $object .inst]]
+  }
+  if {$objType=="wire"} {
+    set layer [get_db $object .layer.name]
+    set rects($layer) [get_db $object .rect]
+  }
+  if {$objType=="via"} {
+    set topLay [get_db $object .via_def.top_layer.name]
+    set botLay [get_db $object .via_def.bottom_layer.name]
+    set rects($topLay) [get_db $object .top_rects]
+    set rects($botLay) [get_db $object .bottom_rects]
+  }
+  return [array get rects]
+}
+proc trace_route {fromObj sinkObj routeObjs traceObjs} {
+  set object ""
+  unset -nocomplain fromRects
+  array set fromRects [getObjRects $fromObj]
+  set fromLayers [array names fromRects]
+  set contObjs {}
+  set awayObjs $routeObjs
+  foreach currObj $routeObjs {
+    unset -nocomplain currRects
+    array set currRects [getObjRects $currObj]
+    set currLayers [array names currRects]
+    foreach fLayer $fromLayers {
+      foreach cLayer $currLayers {
+        if {$fLayer == $cLayer} {
+          set contact_area [get_computed_shapes -output area $fromRects($fLayer) AND $currRects($cLayer)]
+          if {$contact_area > 0} {
+            lappend contObjs $currObj
+            set awayObjs [lreplace $awayObjs [lsearch $awayObjs $currObj] [lsearch $awayObjs $currObj]]
+            if {$currObj == $sinkObj} {
+              #foreach object [get_db $traceObjs -if {.obj_type == wire}] { select_object $object }
+              #foreach object [get_db $traceObjs -if {.obj_type == via }] { select_object $object }
+              #foreach object $traceObjs { select_object $object }
+              set object $traceObjs
+            }
+          }
+        }
+      }
+    }
+  }
+  foreach currObj $contObjs {
+    set newTraceObjs [concat $traceObjs $currObj]
+    set object [concat $object [trace_route $currObj $sinkObj $awayObjs $newTraceObjs]]
+  }
+  return $object
+}
+proc getNetObjFromPin { fromObj sinkObj } {
+  set netObj [get_db $fromObj .net ]
+  set wireObjs [get_db $netObj .wires]
+  set viaObjs [get_db $netObj .vias ]
+  set routeObjs [concat $wireObjs $viaObjs $sinkObj]
+  set object [trace_route $fromObj $sinkObj $routeObjs {}]
+  return $object
+}
+proc getNetObjFromPinName { fromPin sinkPin } {
+  set fromPinObj [get_db pins $fromPin]
+  set sinkPinObj [get_db pins $sinkPin]
+  set object [getNetObjFromPin $fromPinObj $sinkPinObj]
+  return $object
+}
+
+##############################################################################################
