@@ -1,0 +1,14 @@
+set paths [report_timing -collection -max_slack 0 -path_type full_clock -begin_end_pair]
+set dps [get_pins [ga [ga $paths timing_points] object]  -filter "slew_max > 500"]
+
+set clk_launch [get_pins [ga [ga [ga $paths launch_clock_path] timing_points] object]  -filter "slew_max > 500"]
+set clk_capture [get_pins [ga [ga [ga $paths capture_clock_path] timing_points] object]  -filter "slew_max > 500"]
+
+set clk_slew ""
+append_to_collection clk_slew $clk_launch
+append_to_collection clk_slew $clk_capture
+
+if ![file exists ./DEBUG_REPORT] {file mkdir ./DEBUG_REPORT}
+redirect ./DEBUG_REPORT/data_slew.rpt {sortprint  -is_clock -slew_max -slack_max get_pins [lsort -u [get_object_name $dps]] }
+redirect ./DEBUG_REPORT/clock_slew.rpt {sortprint  -is_clock -slew_max -slack_max get_pins [lsort -u [get_object_name $clk_slew]] }
+
