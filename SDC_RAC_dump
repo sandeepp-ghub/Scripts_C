@@ -1,0 +1,51 @@
+#### Script to dump Split SDC & Split Untested RAC reports
+
+set view_list [all_analysis_views] ;
+echo $view_list
+
+catch {exec mkdir -p sdc_for_dft_review}
+catch {exec mkdir -p rac_for_dft_review}
+
+foreach view  ${view_list} {
+
+    if { [string match "*setup_ssgnp0p675v125c_rcworstCCwT125c" $view] || [string match "*hold_ffgnp0p825v125c_rcworstCCw125c" $view] } {
+	set mode [lindex [split $view "_"] 0]
+
+	### Writing SDC
+
+	foreach cmd "set_case_analysis set_disable_timing set_false_path set_multicycle_path set_clock_groups set_max_delay set_min_delay" {
+	    puts "INFO : Writing SDC for targated SDC : $cmd "
+	    #puts "write_sdc -commands \"$cmd\" -strict_sdc ./sdc_for_dft_review/[get_object_name [current_design]].${mode}.${cmd}.sdc.gz"
+	    write_sdc -commands "$cmd" -strict_sdc ./sdc_for_dft_review/[get_object_name [current_design]].${mode}.${cmd}.sdc.gz
+	}
+	### End of Writing SDC
+	
+	### Writing Coverage reports
+	set items {false_path const user_disable unknown no_startpoint_clock no_endpoint_clock}
+	set design [get_object_name [current_design]]
+	for {set  i 0} {$i < [llength $items]} {incr i} {
+	    set item [lindex $items $i]
+	    puts "INFO: Writing RAC Untested report for type:  $item "
+	    if [regexp setup $view] {
+		report_analysis_coverage -check_type {recovery clock_gating_setup setup} -exclude_untested [lreplace $items $i $i] -verbose untested  > rac_for_dft_review/${design}.${mode}.${item}_untested.rpt.gz
+	    } else {
+		report_analysis_coverage -check_type {removal clock_gating_hold hold} -exclude_untested [lreplace $items $i $i] -verbose untested  > rac_for_dft_review/${design}.${mode}.${item}_untested.rpt.gz
+	    }
+	}
+
+	### End of Writing Coverage reports
+
+	### Writing Old Format- CheckTiming Unconstrained reports.
+	eval_legacy {set_global timing_report_check_timing_unconstrained_endpoints_due_to_constants true}
+	check_timing -check_only uncons_endpoint -verbose -view $view > rac_for_dft_review/${design}.${mode}.CT_UnconEp_ConstSplit.rpt.gz
+
+	set_db timing_report_check_timing_uncons_endpoint_backward_compatibility_mode true
+	check_timing -check_only uncons_endpoint -verbose -view $view > rac_for_dft_review/${design}.${mode}.CT_UnconEp_ConstSplit_BackwardCompatMode.rpt.gz
+
+	eval_legacy {set_global timing_report_check_timing_unconstrained_endpoints_due_to_constants false}
+	set_db timing_report_check_timing_uncons_endpoint_backward_compatibility_mode false
+
+	### Done
+
+    }
+}
