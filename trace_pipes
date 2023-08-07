@@ -1,0 +1,177 @@
+proc trace_pipes_from_inputs {} {
+    set count 0
+    redirect /dev/null {catch {
+	set DESIGN [get_object_name [current_design]]
+	set all_d_pins [all_registers -data_pins]
+	echo "" > trace.log
+	array unset traced_outputs
+	array unset traced_inputs 
+	
+	array unset traced_outputs_p
+	array unset traced_inputs_p 
+    }}
+    foreach port [get_object_name [all_inputs]] {
+	set traced_inputs($port) ""
+	set traced_inputs_p($port) ""
+    }
+
+    foreach port [get_object_name [all_outputs]] {
+	set traced_outputs($port) ""
+	set traced_outputs_p($port) ""
+    }
+
+
+    foreach port [lrange  [lsort -dict [get_object_name  [all_inputs]]] 0 end] {
+	#set port i_ncx_ch_y0_roc_north___roc__nixrx0_x2p_pkt_bus[1]
+	
+	set pipe_stages 0
+	set port_start ""
+	set out_port ""
+
+	while {1} {
+	    if {$port_start == ""} {set port_start $port}
+	    set fo [remove_from_collection [all_fanout -flat -from $port_start -endpoints_only] [get_ports $port]]
+	    set port_fo  [get_ports -quiet $fo -filter "direction==out"]
+	    set pin_fo  [get_pins -quiet [remove_from_collection -intersect [get_pins -quiet $fo] $all_d_pins] -filter "pin_name=~D* && pin_direction==in"]
+	    set set_break 0
+	    if { [sizeof $fo] < 1} {set set_break 1}
+	    set s_port_fo [sizeof $port_fo]
+	    set s_pin_fo [sizeof $pin_fo]
+	    if {$s_port_fo == "0" && $s_pin_fo >= "1"} {
+		incr pipe_stages
+		set out_pin_name ""
+		foreach_in_collection _pin $pin_fo {
+		    set fo_name [get_object_name $_pin]
+		    set hier_name [file dirname $fo_name]
+		    set in_pin_name [file tail $fo_name]
+		    lappend out_pin_name "${hier_name}/[regsub -all D $in_pin_name Q]"
+		}
+		#set out_pin_name [get_object_name [get_pins -quiet -of [get_cells -quiet -of [get_pins -quiet $pin_fo]] -filter "direction==out && pin_name=~Q*"]]
+		set port_start [get_object_name [get_pins -quiet  $out_pin_name]]
+	    } else {
+		set set_break 1
+	    }
+	    if {$port_start == $port} {set set_break 1}
+	    if {$port_start == ""} {set set_break 1}
+	    if $set_break {set out_port [get_object_name $port_fo ] ; break}
+	}
+	if {$pipe_stages > 0 && $out_port!=""} {
+	    incr count
+	    #echo "$count \t $port \t $pipe_stages \t $out_port"
+	    foreach _out_port $out_port {
+		set traced_outputs_p($_out_port) "$traced_outputs_p($_out_port) $pipe_stages"
+		set traced_inputs_p($port) "$traced_inputs_p($port) $pipe_stages"
+		#set traced_outputs_p($_out_port) "$traced_outputs_p($_out_port) $pipe_stages"
+		#set traced_inputs_p($port) "$traced_inputs_p($port) $pipe_stages"
+
+		set traced_outputs($_out_port) "$traced_outputs($_out_port) $port"
+		set traced_inputs($port) "$traced_inputs($port) $_out_port"
+	    }
+	} else {
+	    #echo "$port --> Cannot be traced" >> trace.log
+	}
+    }
+
+    foreach port [array names traced_inputs] {
+	if { [llength $traced_inputs_p($port) ] == "0"} {
+	    set out_port [get_object_name [get_ports -quiet [all_fanout -flat -from $port -endpoints_only] -filter "direction==out"]]
+	    
+	    if { [llength $out_port] > 0} {
+		#echo "Processing $port"
+		set pipe_stages 0
+		foreach _out_port $out_port {
+		    set traced_outputs_p($_out_port) "$traced_outputs_p($_out_port) $pipe_stages"
+		    set traced_inputs_p($port) "$traced_inputs_p($port) $pipe_stages"
+		    set traced_outputs($_out_port) "$traced_outputs($_out_port) $port"
+		    set traced_inputs($port) "$traced_inputs($port) $_out_port"
+		}
+	    }
+	    
+	}
+    }
+
+    echo "============================================================"
+    echo "Design  : ${DESIGN}"
+    echo "Inputs  : [sizeof [all_inputs]]"
+    echo "Outputs : [sizeof [all_outputs]]"
+    echo "============================================================"
+    echo ""
+
+    set count 0
+    echo "============================================================"
+    echo "Ports With No  - Traces from INput to Output"
+    echo "============================================================"
+    echo [format "%-5s \t %-30s \t %-14s \t %-30s" Count  InPortName  NumPipes  OutPorts]
+    echo ""
+    foreach port [lsort -u -dict [array names traced_inputs]] {
+	if { [llength $traced_inputs_p($port) ] == "0"} {
+	    incr count
+	    echo [format "%-5d \t %-30s \t %-14s \t %-30s" $count  $port  $traced_inputs_p($port)  $traced_inputs($port)]
+	}
+    }
+    echo "============================================================"
+    echo ""
+
+    #set count 0
+    echo "============================================================"
+    echo "Ports With ZERO PIpes from INput to Output"
+    echo "============================================================"
+    echo [format "%-5s \t %-90s \t %-14s \t %-90s" Count  InPortName  NumPipes  OutPorts]
+    echo ""
+    foreach port [lsort -u -dict [array names traced_inputs]] {
+	if { [llength $traced_inputs_p($port) ] == "1" && $traced_inputs_p($port) == "0"} {
+	    incr count
+	    echo [format "%-5d \t %-90s \t %-14s \t %-90s" $count  $port  $traced_inputs_p($port)  $traced_inputs($port)]
+	}
+    }
+    echo "============================================================"
+    echo ""
+
+
+    #set count 0
+    echo "============================================================"
+    echo "Ports With Multi FanOut from INput to Output"
+    echo "============================================================"
+    echo [format "%-5s \t %-90s \t %-14s \t %-90s" Count  InPortName  NumPipes  OutPorts]
+    echo ""
+    foreach port [lsort -u -dict [array names traced_inputs]] {
+	if { [llength $traced_inputs_p($port) ] > "1" } {
+	    incr count
+	    echo [format "%-5d \t %-90s \t %-14s \t %-90s" $count  $port  \{$traced_inputs_p($port)\}  \{$traced_inputs($port)\}]
+	}
+    }
+    echo "============================================================"
+    echo ""
+
+
+    set val ""
+    foreach port [lsort -u -dict [array names traced_inputs]] {
+	if { [llength $traced_inputs_p($port) ] == "1" && $traced_inputs_p($port) != "0"} {
+	    lappend val [lindex $traced_inputs_p($port) 0]
+	}
+    }
+    set val [lsort -integer -increasing  -u $val]
+
+    foreach _v $val {
+	#set count 0
+	echo "============================================================"
+	echo "Ports With -- $_v PIpe STages --  from INput to Output"
+	echo "============================================================"
+	echo [format "%-5s \t %-90s \t %-14s \t %-90s" Count  InPortName  NumPipes  OutPorts]
+	echo ""
+	foreach port [lsort -u -dict [array names traced_inputs]] {
+	    if { [llength $traced_inputs_p($port) ] == "1" && $traced_inputs_p($port) == "${_v}"} {
+		incr count
+		echo [format "%-5d \t %-90s \t %-14s \t %-90s" $count  $port  $traced_inputs_p($port)  $traced_inputs($port)]
+	    }
+	}
+	echo "============================================================"
+	echo ""
+    }
+
+    foreach port [array names traced_outputs] {
+	if { [llength $traced_outputs($port) ] == "0"} {
+	    echo "UnCoveredOutputPort -> $port"
+	}
+    }
+}
