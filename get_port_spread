@@ -1,0 +1,65 @@
+proc get_port_spread {{args ""}} {
+    if {$args==""} {set args [get_object_name [get_ports *]]}
+    set port_list [get_object_name [get_ports $args]]
+    set z ""
+    set _patt {\[}
+    foreach x [lsort -u -dict $port_list] {
+	set y $x
+	if [regexp $_patt $x] {
+	    regsub  {\[\d*\]}  $x "" y
+	}
+	lappend z $y
+    }
+    set z [lsort -u -dict $z]
+    echo [format "%-50s :: %5s :: %-32s :: %-32s :: %-5s :: %-12s :: %-12s" "\nPortName"  "Width"  "\{\$maxx - \$minx = \$dx\}"  "\{\$maxy - \$miny = \$dy\}"  "spread" "direction" "slack\n"]
+
+    set overallmaxx ""
+    set overallminx ""
+    set overallmaxy ""
+    set overallminy ""
+    set totalports 0
+    set allportnames ""
+
+    foreach x $z {
+	deselectAll
+	set ports "${x} ${x}[*]"
+	set dir [lsort -u [get_attribute [get_ports -quiet $ports] direction] ]
+	foreach _port [get_object_name [get_ports -quiet $ports]] {select_obj port:$_port}
+	set n [llength [get_db selected]]
+	set allx "" ; set ally ""
+	foreach __all [get_db selected .location] {set allx "$allx [lindex $__all 0]" ; set ally "$ally [lindex $__all 1]"}
+	set maxx [lindex [lsort -real -decreasing $allx] 0]
+	set minx [lindex [lsort -real -increasing $allx] 0]
+	set maxy [lindex [lsort -real -decreasing $ally] 0]
+	set miny [lindex [lsort -real -increasing $ally] 0]
+	set dx [format %0.3f [expr $maxx -  $minx]]
+	set dy [format %0.3f [expr $maxy -  $miny]]
+	set spread [format %0.3f [expr [expr $dx + $dy] / $n]]
+
+	lappend overallmaxx $maxx
+	lappend overallmaxy $maxy
+	lappend overallminx $minx
+	lappend overallminy $miny
+	set totalports [expr $totalports + $n]
+	lappend allportnames $x
+	set slack NA
+	if {$dir=="in"} {set slack [get_attribute [get_timing_path -from $ports -max_paths 1 ] slack]}
+	if {$dir=="out"} {set slack [get_attribute [get_timing_path -to $ports -max_paths 1 ] slack]}
+	if {$dir=="inout"} {set slack NA}
+	if {$slack == ""} {set slack NA}
+	#puts "$x --> $n --> $dx --> $dy --> $spread"
+	echo [format "%-50s :: %5d :: %-32s :: %-32s :: %-0.3f :: %-12s :: %-12s" "$x"  "$n"  "\{$maxx - $minx = $dx\}"  "\{$maxy - $miny = $dy\}"  $spread $dir $slack]
+    }
+    deselectAll
+    set overallmaxx    [lindex [lsort -real -decreasing $overallmaxx] 0]
+    set overallmaxy    [lindex [lsort -real -decreasing $overallmaxy] 0]
+    set overallminx    [lindex [lsort -real -increasing $overallminx] 0]
+    set overallminy    [lindex [lsort -real -increasing $overallminy] 0]
+    set overalldx [expr $overallmaxx -  $overallminx]
+    set overalldy [expr $overallmaxy -  $overallminy]
+    set overallspread [expr [expr $overalldx + $overalldy] / $totalports]    
+
+    echo [format "%-50s :: %5d :: %-32s :: %-32s :: %-0.3f :: %-12s :: %-12s" "\nAllQueriedPorts"  "$totalports"  "\{$overallmaxx - $overallminx = $overalldx\}"  "\{$overallmaxy - $overallminy = $overalldy\}"  $overallspread "----" "-----\n"]
+}
+
+alias getPortSpread get_port_spread
