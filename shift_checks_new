@@ -1,0 +1,188 @@
+source /proj/cayman/wa/kpavan/Scripts/tempus_procs.tcl
+##############################################################################
+set all_ck_pins [all_registers -clock_pins]
+set all_data_pins [all_registers -data_pins]
+set all_async_pins [all_registers -async_pins]
+#array exists bbm_list
+set block_bbm_list [lsort -u [regsub -all "_bmodel_check.txt" [regsub -all "BBM/" [glob -nocomplain *_bmodel_check.txt] ""] ""]]
+
+set bbm_hinst_list [get_cells -quiet -of  [get_designs -quiet $block_bbm_list]]
+set bbm_regs ""
+set bbm_reg_ck_pins ""
+set bbm_se_pins ""
+set bbm_te_pins ""
+set bbm_async_pins ""
+set bbm_si_pins ""
+
+foreach_in_collection bbm_hinst $bbm_hinst_list {
+    append_to_collection bbm_regs [get_cells -quiet [get_db $bbm_hinst .insts -if {.is_sequential}]]
+    append_to_collection bbm_reg_ck_pins [get_pins -quiet [get_db $bbm_hinst .insts.pins -if {.is_clock}]]
+}
+
+set bbm_se_pins [get_pins -quiet -of $bbm_regs  -filter "lib_pin_name==SE"]
+set bbm_si_pins [get_pins -quiet -of $bbm_regs  -filter "lib_pin_name==SI"]
+set bbm_te_pins [get_pins -quiet -of $bbm_regs  -filter "lib_pin_name==TE"]
+set bbm_async_pins [remove_from_collection -intersect $all_async_pins [get_pins -quiet -of $bbm_regs]]
+
+set mrvl_regs  [get_cells -quiet  -of $all_ck_pins -filter "ref_name=~MRVL* || ref_name==CWGDSK"]
+set mrvl_reg_ckpins [remove_from_collection -intersect [get_pins -quiet -of $mrvl_regs] $all_ck_pins]
+
+## No-clock - without - case
+set no_clock_pins [get_pins -quiet  $all_ck_pins -filter "!defined(case_value) && !defined(clocks)"]
+set no_clock_bbm_pins [remove_from_collection -intersect $bbm_reg_ck_pins $no_clock_pins]
+set no_clock_pins [remove_from_collection   $no_clock_pins $no_clock_bbm_pins]
+
+
+## Tie off CLock Pins
+set case_clock_pins [get_pins -quiet  $all_ck_pins -filter "defined(case_value) && !defined(clocks)"]
+set case_clock_bbm_pins [remove_from_collection -intersect $bbm_reg_ck_pins $case_clock_pins]
+set case_clock_pins [remove_from_collection   $case_clock_pins $case_clock_bbm_pins]
+
+if {[lsort -u [get_property [get_ports -quiet {GPIO[40] CCLK}] case_value]] == "NA"} {
+    set cclk_case_set 0
+} else {
+    set cclk_case_set 1
+}
+
+## CCLK -fanout
+set cclk_fanout_pins [remove_from_collection -intersect [get_pins -quiet [all_fanout -flat -from [get_ports -quiet {GPIO[40] CCLK}]   -endpoints_only -trace_through  case_disable]] $all_ck_pins]
+
+## CWGDSK - clock pins
+set cwgdsk_ck_pin [remove_from_collection -intersect $all_ck_pins [get_pins -quiet -of [get_pins -quiet -of [get_cells -quiet -of [get_lib_cells */CWGDSK]]]]]
+
+
+## Case issues
+set case_clock_spare [get_pins -quiet $case_clock_pins -filter "full_name=~*SPARE_CELL*"]
+set case_clock_mpg [get_pins -quiet $case_clock_pins -filter "lib_pin_name==C"]
+set case_clock_mpg  [remove_from_collection -intersect $case_clock_mpg [get_pins -quiet -of [get_cells -quiet -of  $case_clock_mpg -filter "ref_name=~*MRVLMPG*"]]]
+
+set case_retime_latch   [remove_from_collection -intersect $case_clock_pins [get_pins -quiet  -of [get_cells -quiet -of $case_clock_pins -filter "full_name=~*retime_latch* && (is_negative_level_sensitive || is_positive_level_sensitive)"]]]
+
+##
+set problematic_case_clock_pins  [remove_from_collection [remove_from_collection [remove_from_collection $case_clock_pins $case_clock_spare] $case_clock_mpg]  $case_retime_latch]
+###
+
+### Clock Issues
+set no_clock_spare [get_pins -quiet $no_clock_pins -filter "full_name=~*SPARE_CELL*"]
+set no_clock_mpg [get_pins -quiet $no_clock_pins -filter "lib_pin_name==C"]
+set no_clock_mpg  [remove_from_collection -intersect $no_clock_mpg [get_pins -quiet -of [get_cells -quiet -of  $no_clock_mpg -filter "ref_name=~*MRVLMPG*"]]]
+
+set no_retime_latch   [remove_from_collection -intersect $no_clock_pins [get_pins -quiet  -of [get_cells -quiet -of $no_clock_pins -filter "full_name=~*retime_latch* && (is_negative_level_sensitive || is_positive_level_sensitive)"]]]
+
+##
+set problematic_no_clock_pins  [remove_from_collection [remove_from_collection $no_clock_pins $no_clock_spare] $no_clock_mpg]  
+###
+
+set potential_clk_sources [remove_from_collection [all_fanin -flat -to $problematic_no_clock_pins -startpoints_only] $problematic_no_clock_pins]
+###################################################
+
+#######################################
+## Constant
+redirect WAIVER_Constant_clock_SPARE.rpt {sortprint get_pins -quiet  $case_clock_spare}
+redirect WAIVER_Constant_clock_MPG.rpt {sortprint get_pins -quiet  $case_clock_mpg}
+redirect WAIVER_Constant_clock_retime_latch.rpt {sortprint get_pins -quiet  $case_retime_latch}
+
+redirect Violating_ConstantClock.rpt {sortprint get_pins -quiet  $problematic_case_clock_pins}
+
+## NoClock
+redirect WAIVER_No_clock_SPARE.rpt {sortprint get_pins -quiet  $no_clock_spare}
+redirect WAIVER_No_clock_MPG.rpt {sortprint get_pins -quiet  $no_clock_mpg}
+redirect WAIVER_No_clock_retime_latch.rpt {sortprint get_pins -quiet  $no_retime_latch}
+
+redirect Violating_MissingClock.rpt {sortprint get_pins -quiet  $problematic_no_clock_pins}
+redirect Violating_Missing_ClockSources.rpt { sortprint -nosort -object_type -direction remove_from_collection [all_fanin -flat -to $problematic_no_clock_pins -startpoints_only] $problematic_no_clock_pins }
+
+
+redirect WAIVER_REVIEW_BBM_ConstantClock.rpt {sortprint get_pins $case_clock_bbm_pins}
+redirect WAIVER_REVIEW_BBM_NoClock.rpt {sortprint get_pins $no_clock_bbm_pins}
+#############################################################################################################
+
+redirect WAIVER_Reference_CCLK_fanout_pins.rpt {sortprint get_pins -quiet  $cclk_fanout_pins}
+redirect WAIVER_Reference_CWGDSK_pins.rpt {sortprint get_pins -quiet  $cwgdsk_ck_pin}
+#############################################################################################################
+
+#####################################################################################################
+### Specific to SHift Mode
+######################################################################################################
+## SE pins - without Case
+set no_case_se_pins [get_pins -quiet  $all_data_pins -filter "lib_pin_name==SE && !defined(case_value) && !is_hierarchical"]
+set no_case_se_bbm_pins [remove_from_collection -intersect $no_case_se_pins $bbm_se_pins]
+set no_case_se_pins [remove_from_collection $no_case_se_pins $no_case_se_bbm_pins]
+
+## SI pins -- with Case
+set yes_case_si_pins [get_pins -quiet  $all_data_pins  -filter "lib_pin_name==SI && defined(case_value) && !is_hierarchical"]
+set yes_case_si_cells [remove_from_collection -intersect [get_cells -quiet -of $yes_case_si_pins ] [get_cells -quiet -of [get_pins -quiet  $all_data_pins -filter "lib_pin_name==SE && !defined(case_value) && !is_hierarchical "]]]
+
+set problematic_si_pin [remove_from_collection -intersect  $yes_case_si_pins [get_pins -quiet  -of $yes_case_si_cells]]
+set problematic_si_bbm_pin [remove_from_collection -intersect  $problematic_si_pin $bbm_si_pins]
+set problematic_si_pin [remove_from_collection $problematic_si_pin $problematic_si_bbm_pin]
+
+
+## TE pin problematic
+set no_case_te_pins [get_pins -quiet  $all_data_pins -filter "lib_pin_name==TE && !defined(case_value) && !is_hierarchical"]
+set no_case_te_bbm_pins [remove_from_collection -intersect $no_case_te_pins $bbm_te_pins]
+set no_case_te_pins [remove_from_collection $no_case_te_pins $no_case_te_bbm_pins]
+
+set no_case_se_te_pins [get_pins -quiet [list  $no_case_se_pins $no_case_te_pins]]
+set no_case_se_te_bbm_pins [get_pins -quiet [list  $no_case_se_bbm_pins $no_case_te_bbm_pins]]
+
+
+## Reset problematic
+set no_reset_pins [get_pins -quiet  $all_async_pins -filter "!defined(case_value)"]
+set no_reset_pins [remove_from_collection $no_reset_pins [get_pins -quiet -of [get_cells -quiet -of $no_clock_pins]]]
+set no_reset_pins [remove_from_collection $no_reset_pins [get_pins -quiet -of [get_cells -quiet -of $case_clock_pins]]]
+
+set no_reset_bbm_pins [remove_from_collection -intersect $no_reset_pins $bbm_async_pins]
+set no_reset_pins [remove_from_collection $no_reset_pins $no_reset_bbm_pins]
+
+
+if {0} {
+    set no_scan_elements ""
+    append_to_collection -unique no_scan_elements  $yes_case_si_cells
+    append_to_collection -unique no_scan_elements [get_cells -quiet -of $no_reset_pins]
+    
+    
+    set true_scan_clk_issues [remove_from_collection [get_cells -quiet -of $no_clock_pins] $no_scan_elements]
+    
+    ## POtential -scan - clock issues
+    set true_clk_pin_issues [remove_from_collection -intersect $no_clock_pins [get_pins -quiet  -of $true_scan_clk_issues]]
+    
+    ## Potential clk -sources
+    set potential_clk_sources [all_fanin -flat -to $true_clk_pin_issues -startpoints_only]
+    
+    
+    
+    set no_clk_no_mrvl_pins [remove_from_collection $true_clk_pin_issues $mrvl_reg_ckpins]
+    set potential_clk_sources_no_mrvl [all_fanin -flat -to $no_clk_no_mrvl_pins -startpoints_only]
+}
+
+###################################################
+### Reports
+
+redirect Violating_SHIFT_SE_missing_case.rpt { sortprint   get_pins -quiet  $no_case_se_pins }
+redirect Violating_SHIFT_TE_missing_case.rpt { sortprint   get_pins -quiet  $no_case_te_pins }
+redirect Violating_SHIFT_ASYNC_missing_case.rpt { sortprint get_pins -quiet  $no_reset_pins }
+
+redirect Violating_SHIFT_Missng_case_source_Async_Pins.rpt {sortprint -nosort -object_type -direction remove_from_collection [all_fanin -flat -to $no_reset_pins -startpoints_only] $no_reset_pins}
+redirect Violating_SHIFT_Missng_case_source_SE_TE_Pins.rpt {sortprint -nosort -object_type -direction remove_from_collection [all_fanin -flat -to $no_case_se_te_pins  -startpoints_only] $no_case_se_te_pins }
+redirect Violating_SHIFT_SI_tieoff.rpt { sortprint -case_value  get_pins -quiet  $problematic_si_pin }
+
+
+redirect WAIVER_Review_BBM_SHIFT_SE_missing_case.rpt { sortprint   get_pins -quiet  $no_case_se_bbm_pins }
+redirect WAIVER_Review_BBM_SHIFT_TE_missing_case.rpt { sortprint   get_pins -quiet  $no_case_te_bbm_pins }
+redirect WAIVER_Review_BBM_SHIFT_ASYNC_missing_case.rpt { sortprint get_pins -quiet  $no_reset_bbm_pins }
+
+redirect WAIVER_Review_BBM_SHIFT_Missng_case_source_Async_Pins.rpt {sortprint -nosort -object_type -direction remove_from_collection [all_fanin -flat -to $no_reset_bbm_pins -startpoints_only] $no_reset_bbm_pins}
+redirect WAIVER_Review_BBM_SHIFT_Missng_case_source_SE_TE_Pins.rpt {sortprint -nosort -object_type -direction remove_from_collection [all_fanin -flat -to $no_case_se_te_bbm_pins  -startpoints_only] $no_case_se_te_bbm_pins }
+redirect WAIVER_Review_BBM_SHIFT_SI_tieoff.rpt { sortprint -case_value  get_pins -quiet  $problematic_si_bbm_pin }
+
+
+#redirect SHIFT_CLOCK_missing.rpt { sortprint  -case_value  -cell.ref_name get_pins -quiet  $no_clock_pins }
+#redirect SHIFT_CLOCK_tieoff.rpt { sortprint  -case_value  -cell.ref_name get_pins -quiet  $case_clock_pins }
+#redirect SHIFT_Potential_clk_sources.rpt { sortprint -nosort -object_type -clocks.full_name all_fanin -flat -to $true_clk_pin_issues -startpoints_only }
+
+#redirect SHIFT_MRVL_REGS.rpt { sortprint  -ref_name get_cells -quiet  $mrvl_regs }
+#redirect SHIFT_MRVL_REGS.rp_CK_PINS { sortprint  -case_value -cell.ref_name get_pins -quiet  $mrvl_reg_ckpins }
+
+#redirect SHIFT_CLOCK_missing_no_MRVLMPG.rpt { sortprint   -cell.ref_name get_pins -quiet  $no_clk_no_mrvl_pins }
+#redirect SHIFT_Potential_clk_sources_no_MRVLMPG.rpt { sortprint -nosort -object_type -clocks.full_name all_fanin -flat -to $no_clk_no_mrvl_pins -startpoints_only }
