@@ -1,0 +1,157 @@
+#==========================================================================================================
+source /proj/tools01/wa/kpavan/cadpnr/wa/kpavan/PROCS/PROCS_CUI/dc_pt/generic_procs.tcl
+source /proj/tools01/wa/kpavan/cadpnr/wa/kpavan/PROCS/PROCS_CUI/dc_pt/trace_pipes.tcl
+source /proj/tools01/wa/kpavan/cadpnr/wa/kpavan/PROCS/PROCS_CUI/dc_pt/uncon_info.tcl
+source /proj/tools01/wa/kpavan/cadpnr/wa/kpavan/PROCS/PROCS_CUI/dc_pt/timing_path_procs.tcl
+source /proj/tools01/wa/kpavan/cadpnr/wa/kpavan/PROCS/PROCS_CUI/dc_pt/rtb.tcl
+source /proj/tools01/wa/kpavan/cadpnr/wa/kpavan/PROCS/PROCS_CUI/dc_pt/intf_info.tcl
+source /proj/tools01/wa/kpavan/SCRIPTS/cross_check_dotlib.tcl
+#==========================================================================================================
+alias rac    "report_analysis_coverage -exclude {constant_disabled false_paths}"
+alias rt     "report_timing -voltage -supply -crosstalk_delta -nosplit -include_hierarchical_pins -sig 4 -delay max -derate -net -transition -capacitance -input_pins -path full_clock_expanded"
+alias rt1     "report_timing -voltage -supply -crosstalk_delta -nosplit -include_hierarchical_pins -sig 4 -delay max -derate -net -transition -capacitance -input_pins "
+alias rtmin  "report_timing -voltage -supply -crosstalk_delta -nosplit -include_hierarchical_pins -sig 4 -delay min -derate -net -transition -capacitance -input_pins -path full_clock_expanded"
+alias rtmin1  "report_timing -voltage -supply -crosstalk_delta -nosplit -include_hierarchical_pins -sig 4 -delay min -derate -net -transition -capacitance -input_pins "
+alias racmax "report_constraint -all_vio -max_delay -nosp -sig 4 "
+alias racmin "report_constraint -all_vio -min_delay -nosp -sig 4 "
+alias ractran "report_constraint -all_vio -max_tran -nosp -sig 4 "
+alias raccap "report_constraint -all_vio -max_cap -nosp -sig 4 "
+alias list_property "list_attribute -nosplit -application -class "
+alias list_prop list_property
+alias get_property get_attribute
+alias rac_hold report_analysis_coverage -status untested -nosplit -check_type hold  -exclude_untested {constant_disabled false_paths} 
+alias rac_setup report_analysis_coverage -status untested -nosplit -check_type setup  -exclude_untested {constant_disabled false_paths} 
+alias ga get_attribute
+alias get_dft_pnr_clocks "source /proj/tools01/wa/kpavan/cadpnr/wa/kpavan/PROCS/PROCS_CUI/dc_pt/get_dft_pnr_clocks_1.tcl"
+alias get_pnr_clocks     "source /proj/tools01/wa/kpavan/cadpnr/wa/kpavan/PROCS/PROCS_CUI/dc_pt/get_func_pnr_clocks.tcl"
+alias get_del_pnr_ports  "source /proj/tools01/wa/kpavan/cadpnr/wa/kpavan/PROCS/PROCS_CUI/dc_pt/blocks_with_del_buffers_on_ios.tcl"
+alias gen_pnr_intf_summary_old   "source /proj/tools01/wa/kpavan/SCRIPTS/interface_info_gen.tcl"
+alias gen_pnr_intf_summary   "source /proj/tools01/wa/kpavan/SCRIPTS/interface_info_gen_flop.tcl"
+alias gen_pnr_intf_summary_flop   "source /proj/tools01/wa/kpavan/SCRIPTS/interface_info_gen_flop_new.tcl"
+alias gen_macro_intf_summary   "source /proj/tools01/wa/kpavan/SCRIPTS/macro_interface.tcl"
+#alias run_dotlib_checker   "source /proj/tools01/wa/kpavan/SCRIPTS/cross_check_dotlib.tcl"
+alias run_dotlib_checker   "cross_check_dotlib"
+alias get_intf_ckg_paths "source /proj/tools01/wa/kpavan/SCRIPTS/intf_ckeg.tcl"
+alias gen_clock_info "print_clock_info "
+alias get_dbg_reports1 "get_pnr_clocks ; gen_clock_info ; print_tie_off_icg_enables ; print_combo_cells_on_clock ; gen_pnr_intf_summary ;      gen_macro_intf_summary ; get_intf_ckg_paths;  run_dotlib_checker; get_cross_domain_async_paths ; get_missing_mapped_icg; get_clock_id_summary; dump_seq_info ;"
+#alias get_dbg_reports  "get_pnr_clocks ; gen_clock_info ; print_tie_off_icg_enables ; print_combo_cells_on_clock ; gen_pnr_intf_summary_flop ; gen_macro_intf_summary ; get_intf_ckg_paths;  run_dotlib_checker;  get_cross_domain_async_paths; get_missing_mapped_icg ; get_clock_id_summary; dump_seq_info ${::DEBUG_DIR_FOR_PT};"
+alias get_dbg_reports_non_corner_specific  "dump_seq_info ; get_pnr_clocks ; gen_clock_info ; print_tie_off_icg_enables ; print_combo_cells_on_clock ;     get_missing_mapped_icg ; "
+alias get_dbg_reports_corner_specific "get_clock_id_summary ; get_intf_ckg_paths;  run_dotlib_checker; get_cross_domain_async_paths; gen_pnr_intf_summary_flop ; gen_macro_intf_summary ;  "
+#==========================================================================================================
+proc get_dbg_reports {} {
+    if [regexp max1 ${::run_type_specific}] {
+	get_dbg_reports_non_corner_specific
+    }
+    get_dbg_reports_corner_specific
+}
+#==========================================================================================================
+#lappend search_path .
+#lappend search_path /proj/cadpnr/wa/kpavan/PROCS/PROCS_CUI
+
+proc  my_pt_set {} {
+    set_app_var timing_report_unconstrained_paths_from_nontimed_startpoints true
+    set_app_var timing_report_fixed_width_columns_on_left true
+    set_app_var timing_report_unconstrained_paths true
+    set_app_var timing_report_pin_names_in_header true
+    set_app_var report_default_significant_digits 4
+    history keep 10000
+}
+
+proc  my_pt_unset {} {
+    set_app_var timing_report_unconstrained_paths_from_nontimed_startpoints true
+    set_app_var timing_report_fixed_width_columns_on_left false
+    set_app_var timing_report_unconstrained_paths true
+    set_app_var timing_report_pin_names_in_header true
+    set_app_var report_default_significant_digits 4
+}
+
+proc hier_info {} {
+    ec -col [add_to_collection [get_cells * -filter "is_hierarchical"] [ get_cells  {cpt/*  mlw/* ncx/* ecx/* roc_pcx/* iocx/*} -filter "is_hierarchical"]] -attrib {full_name ref_name number_of_pins} 
+}
+
+#==========================================================================================================
+proc second_to_hrs {_time_taken} {
+    return "[expr $_time_taken / 3600 ]H:[expr $_time_taken % 3600 / 60]M:[expr $_time_taken % 216000 % 60]S"
+}
+
+############################################################################
+proc listAminusB {A B} {
+    set _x ""
+    set _nb [llength $B]
+    set _na [llength $A]
+    foreach p $A {
+	if {[lsearch $B $p] < 0 } {set _x "$_x $p"}
+    }
+    return $_x
+}
+############################################################################
+proc listAcommonB {A B} {
+    set _x ""
+    set _nb [llength $B]
+    set _na [llength $A]
+    foreach p $A {
+	if {[lsearch $B $p] > -1 } {set _x "$_x $p"}
+    }
+    return  $_x
+}
+############################################################################
+
+
+proc get_average {x} {return [format %0.4f [expr [::tcl::mathop::+ {*}$x]/[llength $x]]]}
+############################################################################
+
+# cn_pt_find_clock_tranfers_w_hold_uncertainty_less_than_proj_minimum -minimum_hold_uncertainty 0.010
+
+#  set inst_list [get_object_name [remove_from_collection [get_pnr] [get_cells {sclk_drv* tck_buf* vcross* vgood* gclk_buf* refclk_buf* roc_id pll__ref_buf*}]]]
+#  set clock_list [lsort -u [get_object_name [ga  [get_pins [all_registers -clock_pins] -filter "full_name=~connect_roc_ch3* || full_name=~connect_roc_ch1*"]  clocks]]]
+
+if {0} {
+if {$env(USER) eq "kpavan"} {
+    puts "--I-- Applying Local Settings for Pavan - for analysis"
+    set pteco_steps ""
+    set pteco_scenarios ""
+    set pteco_physical_mode none
+    set pteco_scenarios_pretty "func_max1 scan_atspeed_max1 scan_atspeed_min1 func_min1 scan_stuckat_min1"
+
+    set multi_scenario_working_directory WA_PA1
+    set multi_scenario_merged_error_log  WA_PA1/merged_error.log
+
+    foreach SC $pteco_scenarios_pretty {
+	if [array exists nao_scenario_alias] {
+	    set pteco_scenarios [concat $pteco_scenarios $nao_scenario_alias($SC)]
+	}
+    }
+    
+    puts "ECO-STEPS: $pteco_steps"
+    puts "ECO-SCENARIOS: $pteco_scenarios"
+    
+}
+
+set pteco_hold_buffers {
+
+    BUFFD1BWP210H6P51CNODLVTLL
+    DELAD1BWP210H6P51CNODLVTLL
+    DELBD1BWP210H6P51CNODLVTLL
+    DELCD1BWP210H6P51CNODLVTLL
+    DELDD1BWP210H6P51CNODLVTLL
+    DELED1BWP210H6P51CNODLVTLL
+    DELFD1BWP210H6P51CNODLVTLL
+    DELGD1BWP210H6P51CNODLVTLL
+}
+
+set pteco_hold_buffers {
+
+    BUFFD1BWP210H6P51CNODLVT
+    DELAD1BWP210H6P51CNODLVT
+    BUFFD1BWP210H6P51CNODSVT
+    DELAD1BWP210H6P51CNODSVT
+    BUFFD1BWP210H6P51CNODULVT
+    DELAD1BWP210H6P51CNODULVT
+
+}
+set eco_instance_name_prefix PTECO_HOLD_2022_10_31__PTECO_CPC_MEM_INT_HOLD_BUF
+set eco_net_name_prefix   PTECO_HOLD_2022_10_31__PTECO_CPC_MEM_INT_HOLD_NET
+
+set pteco_hold_buffers {BUFFD2BWP210H6P51CNODULVT DELAD1BWP210H6P51CNODULVT}
+}
+
