@@ -1,0 +1,37 @@
+source ~kpavan/tempus_procs.tcl
+
+if {1} {
+    set high_cap_nets  [get_nets -hier * -filter "total_capacitance_max > 100"] 
+    set all_h_pins [get_pins -quiet -of [get_pnr] -filter "is_hierarchical"]
+    set intf_pins [remove_from_collection -intersect  [get_pins -of [get_nets -seg  $high_cap_nets]  -filter "is_hierarchical"]  $all_h_pins]
+    set intf_nets [sort_collection [remove_from_collection  [get_nets -seg -of $intf_pins] [get_nets -seg -of [get_ports *]]]  -descending total_capacitance_max]
+}
+
+set fp [open high_cap_net_info.rpt w] 
+set i 0
+foreach_in_collection p $intf_nets {
+    set q [remove_from_collection -intersect $all_h_pins [get_pins -of [get_nets -seg $p] -filter "is_hierarchical"]]
+    if {([sizeof_collection $q] > 1) &&  ([sizeof_collection [get_pins -quiet $q -filter "direction==out"]] > 0)} {
+
+	set net_name [lsort -u [get_object_name [get_nets -of $q]]]
+	set cap [lsort -u [get_attribute [get_nets -of $q ] total_capacitance_max]]
+	set fanout_c [ga [get_nets $p] number_of_leaf_loads]
+	set is_clock [get_db $p .is_clock]
+	incr i
+	#echo "$i - $net_name $cap"
+	set str   "$i -Net: $net_name \t CLOCK: $is_clock \t CAP: $cap ff \t Fanout: $fanout_c "
+	#puts $fp "$i :: $net_name \t: $cap ff "
+	set outp [get_pins -quiet $q -filter "direction==out"]
+	set str [string cat $str " " "From: [get_attribute [get_cells -of $outp] ref_name] - [get_object_name $outp] \t TO: "]
+	foreach_in_collection inp [get_pins -quiet $q -filter "direction==in"] {
+	    set str [string cat $str " " " [get_attribute [get_cells -of $inp] ref_name] - [get_object_name $inp] ::  "]
+	}
+	
+	puts $str
+	puts $fp $str
+    }
+}
+close $fp
+
+
+set non_intf_nets [remove_from_collection [remove_from_collection  $high_cap_nets [get_net $intf_nets]]  [get_nets -seg -of [get_ports *]]]
