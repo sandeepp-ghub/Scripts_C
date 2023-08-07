@@ -1,0 +1,20 @@
+#set isnt tpb_dve_wrapper/FE_eco0C101089_psum_rd_if_4__rdata_183
+#set path [report_timing -collection -through $inst -early]
+
+proc get_path_cell_delay {path inst} {
+    set object_list  [get_property -quiet  [get_property -quiet  [get_property -quiet  $path points] object] full_name]
+    set arrival_list [get_property -quiet  [get_property -quiet  $path points] arrival]
+    set cell_delay NA
+    if { [llength $arrival_list] == [llength $object_list]} {
+	set index_list ""
+	set i 0
+	foreach object $object_list {
+	    if [regexp "${inst}/" $object] {lappend index_list $i}
+	    incr i
+	}
+	if { [llength $index_list] == "2"} {
+	    set cell_delay [expr   [lindex $arrival_list [lindex $index_list 1]] -  [lindex $arrival_list [lindex $index_list 0]] ]
+	}
+    }
+    return $cell_delay
+}
