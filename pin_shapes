@@ -1,0 +1,292 @@
+#################################################
+proc get_pin_shapes {inst_pin {layer_list all} {poly 1}} {
+    #set inst_pin "ENDCAP_vpu_sw_PD_4515/VDDB"
+    set layer ""
+    set _t1 [split $inst_pin /]
+    set num [llength $_t1]
+    set pin [lindex $_t1 [expr $num -1]]
+    set inst [join [lrange $_t1 0 [expr $num -2]] /]
+
+    set instPtr [get_db inst:${inst}]
+    set type [get_db    $instPtr .base_cell.base_pins.base_name $pin]
+    if {$type==""} {set signal_pin 0} else {set signal_pin 1}
+    set tranRects ""
+    set tranRects1 ""
+    set rects ""
+    if $signal_pin {
+	set base_pin_ptr [get_db $instPtr .base_cell.base_pins -if {.base_name == $pin}]
+    } else {
+	set base_pin_ptr [get_db $instPtr .base_cell.pg_base_pins -if {.base_name == $pin}]
+    }
+    if {$layer_list == "all"} {
+	set layer_list [lsort -u [get_db $base_pin_ptr .physical_pins.layer_shapes.layer.name]]
+    } 
+
+    foreach layer $layer_list {
+	set tranRects1 ""
+	set layer_shapes_ptr ""
+	foreach _layer_shape [get_db ${base_pin_ptr} .physical_pins.layer_shapes] {if {[get_db ${_layer_shape} .layer.name] == "${layer}"} {lappend layer_shapes_ptr ${_layer_shape}}}
+	if $poly {
+
+	    set rects [get_computed_shapes [get_db $layer_shapes_ptr .shapes.rect] -output polygon]
+	    set rects_p [get_computed_shapes [get_db $layer_shapes_ptr .shapes.polygon] -output polygon]
+	    if {$rects== ""} {set rects $rects_p}
+	    if {$rects_p == ""} {set rects_p $rects}
+	    set rects [get_computed_shapes $rects OR $rects_p -output polygon]
+	    foreach box $rects {
+		set tranRects1 "$tranRects1   [list [list $layer  [get_transform_shapes -inst $instPtr   -local_pt $box]]]"
+	    }
+	    set tranRects "$tranRects  $tranRects1"
+	    
+	} else {
+	    
+	    set rects [get_db $layer_shapes_ptr .shapes.rect]
+	    set rects_p [get_computed_shapes [get_db $layer_shapes_ptr .shapes.polygon] -output rect]
+	    if {$rects== ""} {set rects $rects_p}
+	    if {$rects_p == ""} {set rects_p $rects}
+	    set rects [get_computed_shapes $rects OR $rects_p -output rect]
+	    foreach box $rects {
+		set tranRects1 "$tranRects1   [list [list $layer  [get_transform_shapes -inst $instPtr   -local_pt $box]]]"
+	    }
+	    set tranRects "$tranRects  $tranRects1"
+	}
+    }
+    #puts $tranRects
+    return [lsort -u $tranRects]
+}
+
+proc get_pin_shapes_by_layer {inst_pin layer} {
+    set tranRects1 [get_pin_shapes $inst_pin $layer]
+    set tranRect ""
+    foreach elem $tranRects1 {
+	lappend tranRect [lindex $elem 1]
+    }
+}
+#################################################
+
+proc get_pin_layers {inst_pin} {
+    #set inst_pin "ENDCAP_vpu_sw_PD_4515/VDDB"
+    set layer ""
+    set _t1 [split $inst_pin /]
+    set num [llength $_t1]
+    set pin [lindex $_t1 [expr $num -1]]
+    set inst [join [lrange $_t1 0 [expr $num -2]] /]
+
+    set instPtr [get_db inst:${inst}]
+    set type [get_db    $instPtr .base_cell.base_pins.base_name $pin]
+    if {$type==""} {set signal_pin 0} else {set signal_pin 1}
+    set tranRects ""
+    set tranRects1 ""
+    set rects ""
+    if $signal_pin {
+	set base_pin_ptr [get_db $instPtr .base_cell.base_pins -if {.base_name == $pin}]
+    } else {
+	set base_pin_ptr [get_db $instPtr .base_cell.pg_base_pins -if {.base_name == $pin}]
+    }
+    set layer_list [lsort -u [get_db $base_pin_ptr .physical_pins.layer_shapes.layer.name]]
+    return $layer_list
+}
+
+#################################################
+#################################################
+#################################################
+
+proc createPadPin {args} {
+    array set inputs $args
+    set_message -id IMPSPR-309 -suppress
+    if {[info exists inputs(-term)]} {    set n $inputs(-term)} else {set n ""}
+    if {[info exists inputs(-layers)]} {    set toplayers $inputs(-layers)} else {set toplayers {AP M16 M15}}
+    if {[info exists inputs(-delete)]} {  set deleteExisting $inputs(-delete)  } else {set deleteExisting 1}
+    if {[info exists inputs(-poly)]} {  set poly $inputs(-poly)  } else {set poly 1}
+    if {$deleteExisting} {
+	echo "INFO: Deleting Existing PinShapes for the term $n on all layers"
+	catch {delete_routes  -physical_pin -net $n }
+    } else {
+	foreach layer $toplayers {
+	    echo "INFO: Deleting Existing PinShapes for the term $n on layer $layer"
+	    catch {delete_routes  -physical_pin -net $n -layer $layer}
+	}
+    }
+    #echo "$n $toplayers $deleteExisting"
+    set netptr [get_db net:${n}]
+    if {$netptr==""} { 
+	echo "INFO:: Term/TopNet: $n Not Found in database Not creating any pins...please specify -term options with appropriate toplevel signal terminal name"
+    } else {
+ 	set terms [get_db $netptr .load_pins.name]
+	set terms "$terms [get_db $netptr .driver_pins.name]"
+	if {$terms == ""} {
+	    echo "INFO:: No Connections found for the Term/Net $n Not creating any pins..."
+	} else {
+	    foreach pin $terms {
+		#echo "$pin Loop"
+		foreach layer $toplayers {
+		    #echo "$layer Loop"
+		    echo "Processing Terminal :: $n ==> Pin :: $pin in ==> Layer :: $layer "
+		    set i 0
+		    set finalpoly ""
+		    foreach rect1 [get_pin_shapes  $pin $layer $poly] {
+			#echo "$rect1 loop"
+			set rect [lindex $rect1 1] 
+			if {$i=="0"} {set finalpoly $rect} 
+			incr i
+			catch {set finalpoly [get_computed_shapes $rect OR $finalpoly -output polygon]}
+		    }
+		    if {[llength $finalpoly] < 1} {
+			echo "INFO: No connected pins found in layer $layer for $n net Not creating pins in $layer layer"
+		    } else {
+			echo "INFO: Connected pins found in layer $layer for $n net And creating pins in $layer layer"
+			foreach f_poly $finalpoly {
+			    #echo "$poly loop"
+			    catch {redirect -append create_pad_pin.cmd {puts "INFO-CMD: createPhysicalPin $n -layer $layer -poly  \{$f_poly\} -samePort"}}
+			    catch {create_physical_pin -name $n -layer $layer -polygon  $f_poly -same_port -allow_outside_boundary}
+			}
+		    }
+		    
+		}
+	    }
+	    
+	}
+    }
+    set_message -id IMPSPR-309 -unsuppress
+}
+
+alias createpadPin createPadPin
+alias createpadpin createPadPin
+alias create_pad_pin createPadPin
+
+#################################################
+proc createPadPGPin {args} {
+    array set inputs $args
+    set_message -id IMPSPR-309 -suppress
+    if {[info exists inputs(-term)]} {    set n $inputs(-term)} else {set n ""}
+    if {[info exists inputs(-layers)]} {    set toplayers $inputs(-layers)} else {set toplayers {AP M16 M15}}
+    if {[info exists inputs(-delete)]} {  set deleteExisting $inputs(-delete)  } else {set deleteExisting 0}
+    if {[info exists inputs(-pin)]} {  set terms $inputs(-pin)  } else {set terms ""}
+    if {[info exists inputs(-poly)]} {  set poly $inputs(-poly)  } else {set poly 1}
+    if {$deleteExisting} {
+	#echo "INFO: Deleting Existing PinShapes for the term $n on all layers"
+	#catch {delete_routes  -physical_pin -net $n }
+	foreach layer $toplayers {
+	    echo "INFO: Deleting Existing PinShapes for the term $n on layer $layer"
+	    catch {delete_routes  -physical_pin -net $n -layer $layer}
+	}
+    }
+    #echo "$n $toplayers $deleteExisting"
+    set netptr [get_db net:${n}]
+    if {$netptr==""} { 
+	echo "INFO:: Term/TopNet: $n Not Found in database Not creating any pins...please specify -term options with appropriate toplevel signal terminal name"
+    } else {
+	# 	#set terms [dbget -e [dbget -e top.nets.name $n -p].instterms.name]
+	set a [file dirname $terms]
+	if {$a == "0x0"} {
+	    echo "INFO:: PIN $terms not found in database"
+	} else {
+	    set b [file tail $terms]
+	    # 	    set c [dbget [dbGetObjByName $a].pginstterms.name $b -e]
+	    set c [get_db inst:${a} .pins.base_name $b]
+	    # 	    set d [dbget [dbGetObjByName $a].instterms.name $terms -e]
+	    set d [get_db inst:${a} .pg_pins.base_name $b]
+	    
+	    echo "$c $d"
+	    if {$c == "" && $d == ""} {
+		echo "INFO:: PIN $terms not found in database"
+	    } else {
+		foreach pin $terms {
+		    foreach layer $toplayers {
+			set i 0
+			set finalpoly ""
+			foreach rect1 [get_pin_shapes  $pin $layer $poly] {
+			    set rect [lindex $rect1 1] 
+			    if {$i=="0"} {set finalpoly $rect} 
+			    incr i
+			    catch {set finalpoly [get_computed_shapes $rect OR $finalpoly -output polygon]}
+			}
+			if {[llength $finalpoly] < 1} {
+			    echo "INFO: No connected pins found in layer $layer for $n net  Not creating pins in $layer layer"
+			} else {
+			    foreach f_poly $finalpoly {
+				catch {redirect -append create_pad_pin.cmd {puts "INFO-CMD: createPhysicalPin $n -layer $layer -poly  \{$f_poly\} -samePort"}}
+				catch {create_physical_pin -name $n -layer $layer -polygon  $f_poly -same_port -allow_outside_boundary}
+			    }
+			}
+			
+		    }
+		}
+		
+	    }
+	}
+    }
+    set_message -id IMPSPR-309 -unsuppress
+}
+
+alias createpadPgPin createPadPGPin
+alias createPadPgPin createPadPGPin
+alias createpadPGPin createPadPGPin
+alias createpadpgpin createPadPGPin
+alias create_pad_pg_pin createPadPGPin
+
+#################################################
+proc getPadSignalPorts {args} {
+    array set inputs $args
+    if {[info exists inputs(-layers)]} {    set toplayers $inputs(-layers)} else {set toplayers {AP M16 M15}}
+    set pad_ports ""
+    set pad_pins ""
+    foreach layer $toplayers {
+	#set _t "set pad_pins \"\$pad_pins \[get_db \[all_macros\] .pins -if \{.base_pin.physical_pins.layer_shapes.layer.name == $layer\}\]\""
+	#echo $_t
+	#eval $_t
+	set  pad_pins "$pad_pins  [get_db [all_macros] .pins -if {.base_pin.physical_pins.layer_shapes.layer.name == $layer}] "
+    }
+    foreach layer $toplayers {
+	#set _t "set pad_pins \"\$pad_pins \[get_db \[all_pads\] .pins -if \{.base_pin.physical_pins.layer_shapes.layer.name == $layer\}\]\""
+	#echo $_t
+	#eval $_t
+
+	set  pad_pins "$pad_pins  [get_db [all_pads] .pins -if {.base_pin.physical_pins.layer_shapes.layer.name == $layer}] "
+
+    }
+    set pad_pins [lsort -u $pad_pins]
+    #set pad_ports [lsort -u [get_object_name  [get_ports -quiet [get_object_name [get_nets -quiet -top -seg -of_objects  [get_pins $pad_pins]]]]]]
+    set pad_ports [get_db $pad_pins .net.driver_ports.name]
+    set pad_ports "$pad_ports [get_db $pad_pins .net.load_ports.name]"
+    ## There is a bug in innovus as it is not returning layer names for pad pins correctly... this is just a work around
+    #set pad_ports "$pad_ports [get_object_name [get_nets -quiet  -top -seg -of [get_pins -quiet [remove_from_collection -intersect [get_pins -quiet  [dbget -e  [all_pads].instterms.name]] [get_pins -leaf -quiet -of [get_nets -quiet  -top -seg -of [get_ports -quiet  *]]]]]]]"
+
+    return [lsort -u $pad_ports]
+}
+
+
+alias get_pad_signal_ports getPadSignalPorts
+#################################################
+proc getPadSignals {args} {
+    array set inputs $args
+    if {[info exists inputs(-layers)]} {    set toplayers $inputs(-layers)} else {set toplayers {AP M16 M15}}
+    set pad_ports ""
+    set pad_pins ""
+    foreach layer $toplayers {
+	#set _t "set pad_pins \"\$pad_pins \[get_db \[all_macros\] .pins -if \{.base_pin.physical_pins.layer_shapes.layer.name == $layer\}\]\""
+	#echo $_t
+	#eval $_t
+	set  pad_pins "$pad_pins  [get_db [all_macros] .pins -if {.base_pin.physical_pins.layer_shapes.layer.name == $layer}] "
+    }
+    foreach layer $toplayers {
+	#set _t "set pad_pins \"\$pad_pins \[get_db \[all_pads\] .pins -if \{.base_pin.physical_pins.layer_shapes.layer.name == $layer\}\]\""
+	#echo $_t
+	#eval $_t
+
+	set  pad_pins "$pad_pins  [get_db [all_pads] .pins -if {.base_pin.physical_pins.layer_shapes.layer.name == $layer}] "
+
+    }
+    set pad_pins [lsort -u $pad_pins]
+    #set pad_ports [lsort -u [get_object_name  [get_ports -quiet [get_object_name [get_nets -quiet -top -seg -of_objects  [get_pins $pad_pins]]]]]]
+    #set pad_ports [get_db $pad_pins .net.driver_ports.name]
+    set pad_ports [get_db $pad_pins .name]
+    ## There is a bug in innovus as it is not returning layer names for pad pins correctly... this is just a work around
+    #set pad_ports "$pad_ports [get_object_name [get_nets -quiet  -top -seg -of [get_pins -quiet [remove_from_collection -intersect [get_pins -quiet  [dbget -e  [all_pads].instterms.name]] [get_pins -leaf -quiet -of [get_nets -quiet  -top -seg -of [get_ports -quiet  *]]]]]]]"
+
+    return [lsort -u $pad_ports]
+}
+
+
+alias get_pad_signals getPadSignals
+#################################################
