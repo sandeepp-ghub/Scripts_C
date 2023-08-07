@@ -1,0 +1,367 @@
+
+proc time_stamp {} {return [clock format [clock seconds] -format "%d%m%y_%H%M%S"]}
+
+proc myman {args} {
+    redirect -var __a {man $args} ; puts $__a
+}
+
+proc el {args} {
+    if {[llength $args]== 1 } {set args [lindex $args 0]}
+    foreach elem [lsort -u -dict $args] {
+	puts "$elem"
+    }
+}
+
+proc get_lib_file {{cell *}} {
+    return [get_db [get_lib_cells */${cell}]  .library.files -u]
+}
+alias lib_list get_lib_file
+
+proc expand_collection {args} {
+    set attrib_list name
+    set attrib ""
+    set do_sort 0
+    if { [llength $args] > 1} {
+	array set inputs $args
+	if [info exists inputs(-col)]  {set collection $inputs(-col)}
+	if [info exists inputs(-attrib)] {set attrib_list $inputs(-attrib)  }
+	if [info exists inputs(-sort)] {set do_sort $inputs(-sort)  }
+    } else {
+	set collection $args
+    }
+    set format_str ""
+    foreach attr $attrib_list {
+	if [regexp {^\.} $attr] {lappend attrib  $attr} else {lappend attrib ".${attr}"}
+	if [regexp name $attr] {
+	    if {$attr == "name" || $attr == "full_name" || $attr == ".name" ||  $attr == ".full_name" } {
+		lappend format_str "%-80s" 
+	    } else {
+		lappend format_str "%-20s" 
+	    }
+	} else {
+	    lappend format_str "%-15s" 
+	}
+    }
+    
+    if $do_sort {
+    set sort [lindex $attrib 0]
+    if [get_db distributed_sync_master_client] {
+	catch {set collection [sort_db [sort_db [get_db $collection] obj_type] $sort]}
+    } else {
+	redirect /dev/null {catch {set collection [sort_db [sort_db [get_db $collection] obj_type] $sort]}}
+    }
+    } else {
+	if [get_db distributed_sync_master_client] {
+	    catch {set collection  [get_db $collection] }
+	} else {
+	    redirect /dev/null {catch {set collection [get_db $collection] }}
+	}
+    }
+    set cmd_base "echo \[format \"$format_str\" "
+    set cmd_end "\]"
+    
+    set head_cmd_middle ""
+    set head_cmd_middle2 ""
+    set exec_cmd_middle ""
+    foreach elem $attrib_list {
+	lappend head_cmd_middle "$elem"
+	lappend head_cmd_middle2 "====="
+    }
+
+    foreach elem $attrib {
+	lappend exec_cmd_middle "\$obj\(${elem}\)"
+    }
+
+
+    set head_cmd [string cat $cmd_base $head_cmd_middle $cmd_end]
+    set head_cmd2 [string cat $cmd_base $head_cmd_middle2 $cmd_end]
+
+    set core_cmd [regsub -all \} [regsub -all \{ [string cat $cmd_base $exec_cmd_middle $cmd_end] ""] ""]
+
+    eval $head_cmd
+    eval $head_cmd2
+
+    foreach elem $collection {
+	set exec_cmd_middle ""
+	foreach elem1 $attrib {
+	    if [get_db distributed_sync_master_client] {
+		catch {set _xx "" ; set _xx [get_db $elem $elem1]}
+	    } else {
+		redirect /dev/null {catch {set _xx "" ; set _xx [get_db $elem $elem1]}}
+	    }
+	    if {$_xx == ""} {set _xx NA}
+	    lappend exec_cmd_middle  $_xx
+	}
+	set core_cmd  [string cat $cmd_base $exec_cmd_middle $cmd_end]
+	eval $core_cmd
+    }
+}
+
+alias ec expand_collection
+
+###############################
+
+
+
+proc tim1 {} {
+    set_db timing_report_unconstrained_paths true
+    set_db timing_report_group_based_mode true
+    set_db timing_report_enable_skew_in_reports true
+    set_db timing_report_clock_pin_as_begin_point true
+    set_db timing_report_enable_cppr_point true
+    #set_db timing_disable_report_header_info true
+    #set_db timing_report_fields {load  fanout total_derate socv_derate incr_transition   slew incr_delay  delay annotation  arrival edge phys_info cell  timing_point    }
+    set_db timing_report_fields {load  fanout  incr_transition   slew incr_delay  delay annotation  arrival edge  cell  timing_point    }
+    set_db  timing_report_enable_additional_path_info_in_stylus_header   true
+    #set_db timing_report_enable_verbose_ssta_mode true
+}
+
+
+proc tim2 {} {
+    set_db timing_report_unconstrained_paths true
+    set_db timing_report_group_based_mode true
+    set_db timing_report_enable_skew_in_reports true
+    set_db timing_report_clock_pin_as_begin_point true
+    set_db timing_report_enable_cppr_point true
+    #set_db timing_disable_report_header_info true
+    #set_db timing_report_fields {load  fanout total_derate socv_derate incr_transition   slew incr_delay  delay annotation  arrival edge phys_info cell  timing_point    }
+    set_db timing_report_fields {load  fanout  incr_transition   slew incr_delay user_derate  ssi_derate total_derate  delay annotation  arrival edge  cell  timing_point    }
+    set_db  timing_report_enable_additional_path_info_in_stylus_header   true
+    #set_db timing_report_enable_verbose_ssta_mode true
+}
+
+#############################
+
+
+if {0} {
+    source /proj/cayman/DE3/timing/postdft/sdc.current/common/set_design_hierarchy_vars.tcl
+    set RLM [get_db current_design .name]
+    if [info exist sub_blocks($RLM)]  {set design [get_designs $sub_blocks($RLM)]}
+    
+    set hier_insts [get_db $design .hinsts]
+    set hier_pins [get_db $hier_insts .hpins]
+}
+
+proc get_pnr {{DD .}} {
+    if {![info exists ::__MY_PT_HIER_INSTS] || $::__MY_PT_HIER_INSTS eq "" } {
+	global ::__MY_PT_HIER_INSTS
+	set DIR $DD
+	if [file exists /proj/cayman/DE3/timing/postdft/sdc.current/common/set_design_hierarchy_vars.tcl] {
+	    source /proj/cayman/DE3/timing/postdft/sdc.current/common/set_design_hierarchy_vars.tcl
+	    set RLM [get_db current_design .name]
+	    set VLOG_LIST  ""
+	    if [info exist sub_blocks($RLM)]  {set VLOG_LIST  $sub_blocks($RLM)}
+
+	    set str "\"" ; foreach cell $VLOG_LIST {set str "$str ref_name == $cell || "} ; set str "$str ref_name == PAVAN\""
+	    set ::__MY_PT_HIER_INSTS  [eval get_cells -hier * -filter $str]
+	    
+	} else {
+	    echo "--E-- Msta_conf_vars.tcl not found - use--> get_pnr \$DIR"
+	    set ::__MY_PT_HIER_INSTS  [current_design]
+	}
+    } else {
+	#echo [sizeof $::__MY_PT_HIER_INSTS]
+    }
+    return $::__MY_PT_HIER_INSTS
+}
+
+
+proc get_bbm {{DD .}} {
+    global bbm_list
+    if {![info exists ::__MY_PT_BBM_HIER_INSTS] || $::__MY_PT_BBM_HIER_INSTS eq "" } {
+	global ::__MY_PT_BBM_HIER_INSTS
+	set ::__MY_PT_BBM_HIER_INSTS ""
+	set DIR $DD
+	if [file exists /proj/cayman/DE3/timing/postdft/sdc.current/common/set_design_hierarchy_vars.tcl] {
+	    source /proj/cayman/DE3/timing/postdft/sdc.current/common/set_design_hierarchy_vars.tcl
+	    set bbm_sub_design_list ""
+	    
+	    foreach RLM $bbm_list {
+		if [info exist sub_blocks($RLM)]  {
+		    foreach VLOG_LIST  $sub_blocks($RLM) {
+			lappend bbm_sub_design_list $VLOG_LIST
+		    }
+		}
+	    }
+
+	    set bbm_sub_design_list [listAminusB [lsort -u $bbm_sub_design_list] $bbm_list]
+	    set ::__MY_PT_BBM_HIER_INSTS [get_cells -quiet -of [get_designs -quiet $bbm_sub_design_list]]
+	    #set ::__MY_PT_BBM_HIER_INSTS  [eval get_cells -hier * -filter $str]
+	} else {
+	    echo "--E-- Msta_conf_vars.tcl not found - use--> get_pnr \$DIR"
+	    set ::__MY_PT_BBM_HIER_INSTS  [current_design]
+	}
+    } else {
+	#echo [sizeof $::__MY_PT_BBM_HIER_INSTS]
+    }
+    return $::__MY_PT_BBM_HIER_INSTS
+}
+
+
+
+
+
+proc get_pnr_pins {{DD .}} {
+
+    if {![info exists ::__MY_PT_HIER_INSTS_PINS] || $::__MY_PT_HIER_INSTS_PINS eq "" } {
+	global ::__MY_PT_HIER_INSTS_PINS
+	set ::__MY_PT_HIER_INSTS_PINS [get_pins -of [get_pnr]]
+    }
+    return $::__MY_PT_HIER_INSTS_PINS
+}
+
+
+proc get_bbm_pins {{DD .}} {
+
+    if {![info exists ::__MY_PT_HIER_BBM_INSTS_PINS] || $::__MY_PT_HIER_BBM_INSTS_PINS eq "" } {
+	global ::__MY_PT_HIER_BBM_INSTS_PINS
+	set ::__MY_PT_HIER_BBM_INSTS_PINS [get_pins -of [get_bbm]]
+    }
+    return $::__MY_PT_HIER_BBM_INSTS_PINS
+}
+
+
+
+proc find_pnr {inst} {
+    set all_hier  [get_pnr]
+    set i 0
+    set curr_inst ""
+    set dir_name $inst
+    set prev_dir_name ""
+    while {[llength $dir_name] > 0} {
+	set curr_inst [remove_from_collection -intersect $all_hier [get_cells -quiet $dir_name]]
+	if {[sizeof $curr_inst] > 0} {
+	    break
+	} else {
+	    set prev_dir_name $dir_name
+	    set dir_name [file dirname $dir_name]
+	    if {$prev_dir_name == $dir_name} {
+		if {$i > 0} {
+		    break
+		}
+		incr i
+	    }
+
+	}
+    }
+    if {[llength $curr_inst] > 0} {
+	set curr_inst [get_object_name $curr_inst]
+    } else {
+	set curr_inst NA
+    }
+    return $curr_inst
+}
+
+proc find_pnr_m {inst} {
+    set inst [find_pnr $inst]
+    if {$inst == "NA"} {
+	set master TOP
+    } else {
+	set master [get_attribute -quiet [get_cells -quiet $inst] ref_name]
+    }
+    return $master
+}
+
+proc all_fanout_h {args} {
+    set  coll [eval all_fanout $args]
+    #return [get_pins -quiet -of [get_nets -quiet -seg  -of $coll] -filter "is_hierarchical==true"]
+    return [get_pins -quiet [get_db $coll .net.hnets.name] -filter "is_hierarchical==true"]
+}
+
+
+proc all_fanout_hpnr {args} {
+    set hier_p [get_pins -quiet -of [get_pnr]]
+    set  coll [eval all_fanout_h $args]
+    return [remove_from_collection -intersect $hier_p $coll]
+}
+
+
+
+proc all_fanin_h {args} {
+    set  coll [eval all_fanin $args]
+    return [get_pins -quiet [get_db $coll .net.hnets.name] -filter "is_hierarchical==true"]
+    #return [get_pins -quiet -of [get_nets -quiet -seg  -of $coll] -filter "is_hierarchical==true"]
+}
+
+proc all_fanin_hpnr {args} {
+    set hier_p [get_pins -quiet -of [get_pnr]]
+    set  coll [eval all_fanin_h $args]
+    return [remove_from_collection -intersect $hier_p $coll]
+}
+
+
+###########
+
+proc get_pnr_ck_pins {{DD .}} {
+    set pnrb [get_pnr $DD] 
+    set hpins [get_pins -of $pnrb -filter "direction==in && is_hierarchical==true"]
+    set all_ck_hpins [get_pins -of  [get_nets -seg -of [all_fanout -clock_tree]] -filter "is_hierarchical==true"]
+    set pnr_ck_hpins [remove_from_collection -intersect $all_ck_hpins $hpins]
+    ec -col $pnr_ck_hpins -attrib {cell.ref_name lib_pin_name  net.leaf_drivers.clocks.full_name}
+    foreach_in_collection elem $pnr_ck_hpins {
+	set bname [ga $elem cell.ref_name]
+	set lib_pin_name [ga $elem lib_pin_name]
+	set fc_ck_name [lsort -u [ga $elem net.leaf_drivers.clocks.full_name]]
+	if {$fc_ck_name == ""} {
+	    set fc_ck_name [lsort -u [ga $elem net.leaf_loads.clocks.full_name]]
+	}
+	if {$fc_ck_name == ""} {
+	    foreach_in_collection clk [get_clocks *] {
+		if {[sizeof_collection [remove_from_collection -intersect [ga $clk sources] [ga  $elem  net.leaf_loads]]] > 0} {
+		    break
+		}
+	    }
+	    set fc_ck_name [get_object_name $clk]
+	}
+	if {$fc_ck_name == ""} {set fc_ck_name NA}
+	set block_ck($bname) "$lib_pin_name $fc_ck_name"
+    }
+    foreach elem [lsort -u -dict [array names block_ck]] {
+	puts  [format "%-30s %-80s %-40s" $elem [lindex $block_ck($elem) 0] [lindex $block_ck($elem) 1]]
+    }
+}
+
+
+################
+
+proc listAminusB {A B} {
+    set _x ""
+    set _nb [llength $B]
+    set _na [llength $A]
+    foreach p $A {
+	if {[lsearch $B $p] < 0 } {lappend _x $p}
+    }
+    return $_x
+}
+############################################################################
+proc listAcommonB {A B} {
+    set _x ""
+    set _nb [llength $B]
+    set _na [llength $A]
+    foreach p $A {
+	if {[lsearch $B $p] > -1 } {lappend _x $p}
+    }
+    return  $_x
+}
+
+proc print_path_tran {{type late} {slack -1000} {max_paths 100000} {dtran 500} {cktran 500}} {
+    set dp_pins ""
+    set cp_pins  ""
+    
+    redirect /dev/null {set paths [report_timing -collection -max_slack $slack -nworst 1 -max_paths $max_paths -path_type full_clock -${type}]}
+    if {[sizeof_collection $paths] > 0} {
+	set l_paths [ga $paths launch_clock_path]
+	set c_paths [ga $paths capture_clock_path]
+	
+	redirect /dev/null {append_to_collection -unique dp_pins [ga  -quiet [filter_collection -quiet [ga -quiet $paths timing_points] "slew > $dtran"] object] }
+	redirect /dev/null {append_to_collection -unique cp_pins [ga  -quiet [filter_collection -quiet [ga -quiet  $l_paths timing_points] "slew > $cktran"] object] }
+	redirect /dev/null {append_to_collection -unique cp_pins [ga  -quiet [filter_collection -quiet [ga -quiet $c_paths timing_points] "slew > $cktran"] object] }
+	
+	if  {[sizeof_collection $cp_pins] > 0} {
+	    sortprint -slew_max   -cell.ref_name -net_name get_pins  $cp_pins
+	}
+	if  {[sizeof_collection $dp_pins] > 0} {
+	    sortprint -slew_max   -cell.ref_name -net_name get_pins  $dp_pins 
+	}
+    }
+}
