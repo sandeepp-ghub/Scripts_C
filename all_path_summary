@@ -1,0 +1,718 @@
+
+proc rtsum {args } {
+    
+    set gap_var "\t"
+    #echo "$args"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    #echo "Slack Status Skew  StartPoint                                EndPoint                     Clock     Hpins"
+    echo "Slack${gap_var}pathType${gap_var}Status${gap_var}\(FRom-->TO\)${gap_var}skew${gap_var}StartPoint${gap_var}EndpOint${gap_var}SpClock${gap_var}EpClock${gap_var}NumLevels${gap_var}PathDelay${gap_var}Period${gap_var}launch_index${gap_var}capture_index"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    set paths [sort_collection [eval report_timing -hpin -collection  $args -path_type full_clock] slack]
+    foreach_in_collection path $paths {
+	set skew [get_skew $path]
+	set slack [get_slack $path]
+	set sp [get_startpoint_clock_pin $path]
+	set sp_ref [get_attribute -quiet [get_cells -quiet [find_pnr $sp]] ref_name]
+	set ep [get_object_name [get_attribute  $path endpoint]]
+	set ep_ref [get_attribute -quiet [get_cells -quiet [find_pnr $ep]] ref_name]
+	if {$sp_ref == ""} {set sp_ref TOP}
+	if {$ep_ref == ""} {set ep_ref TOP}
+	if {[find_pnr $sp] ==  [find_pnr $ep]} {set path_region INTERNAL} else {set path_region INTERFACE}
+	set path_type [get_attribute -quiet $path path_type]
+	set ep_c [get_endpoint_clock $path]
+	set sp_c [get_startpoint_clock $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	set num_levels [get_attribute $path num_cell_arcs]
+	set path_delay [get_attribute $path path_delay]
+	set period [get_attribute $path period]
+
+	set launch_clk_path [get_attribute $path launch_clock_path]
+	set launch_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $launch_clk_path timing_points] object]]]
+	set capture_clk_path [get_attribute $path capture_clock_path]
+	set capture_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $capture_clk_path timing_points] object]]]
+
+	set launch_depth [llength $launch_clk_objects]
+	set capture_depth [llength $capture_clk_objects]
+	set cppr_point [get_object_name [get_cells -of [get_attribute $path cppr_branch_point]]]
+	set launch_index [expr $launch_depth - [lsearch -exact $launch_clk_objects $cppr_point]]
+	set capture_index [expr [llength $capture_clk_objects] - [lsearch -exact $capture_clk_objects $cppr_point]]
+	
+	set hpins_launch [get_hpins_path $launch_clk_path]
+	set hpins_capture [get_hpins_path $capture_clk_path]
+
+	#echo "$slack $path_region $path_type $status $skew $sp  $ep  $sp_c $ep_c $launch_depth $capture_depth $launch_index $capture_index  \{$hpins\}"
+	echo "${slack}${gap_var}${path_type}_${path_region}${gap_var}${status}${gap_var}\(${sp_ref}\-\-\>${ep_ref}\)${gap_var}${skew}${gap_var}${sp}${gap_var}${ep}${gap_var}${sp_c}${gap_var}${ep_c}${gap_var}${num_levels}${gap_var}${path_delay}${gap_var}${period}${gap_var}${launch_index}${gap_var}${capture_index}"
+    }
+}
+
+##
+proc rtsum_csv {args } {
+    
+    set gap_var ","
+    #echo "$args"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    #echo "Slack Status Skew  StartPoint                                EndPoint                     Clock     Hpins"
+    echo "Slack${gap_var}pathType${gap_var}Status${gap_var}\(FRom-->TO\)${gap_var}skew${gap_var}StartPoint${gap_var}EndpOint${gap_var}SpClock${gap_var}EpClock${gap_var}NumLevels${gap_var}PathDelay${gap_var}Period${gap_var}launch_index${gap_var}capture_index${gap_var}"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    set paths [sort_collection [eval report_timing -hpin -collection  $args -path_type full_clock] slack]
+    foreach_in_collection path $paths {
+	set skew [get_skew $path]
+	set slack [get_slack $path]
+	set sp [get_startpoint_clock_pin $path]
+	set sp_ref [get_attribute -quiet [get_cells -quiet [find_pnr $sp]] ref_name]
+	set ep [get_object_name [get_attribute  $path endpoint]]
+	set ep_ref [get_attribute -quiet [get_cells -quiet [find_pnr $ep]] ref_name]
+	if {$sp_ref == ""} {set sp_ref TOP}
+	if {$ep_ref == ""} {set ep_ref TOP}
+	if {[find_pnr $sp] == [find_pnr $ep]} {set path_region INTERNAL} else {set path_region INTERFACE}
+	set path_type [get_attribute -quiet $path path_type]
+	set ep_c [get_endpoint_clock $path]
+	set sp_c [get_startpoint_clock $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	set num_levels [get_attribute $path num_cell_arcs]
+	set path_delay [get_attribute $path path_delay]
+	set period [get_attribute $path period]
+
+	set launch_clk_path [get_attribute $path launch_clock_path]
+	set launch_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $launch_clk_path timing_points] object]]]
+	set capture_clk_path [get_attribute $path capture_clock_path]
+	set capture_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $capture_clk_path timing_points] object]]]
+
+	set launch_depth [llength $launch_clk_objects]
+	set capture_depth [llength $capture_clk_objects]
+	set cppr_point [get_object_name [get_cells -of [get_attribute $path cppr_branch_point]]]
+	set launch_index [expr $launch_depth - [lsearch -exact $launch_clk_objects $cppr_point]]
+	set capture_index [expr [llength $capture_clk_objects] - [lsearch -exact $capture_clk_objects $cppr_point]]
+	
+	set hpins_launch [get_hpins_path $launch_clk_path]
+	set hpins_capture [get_hpins_path $capture_clk_path]
+
+	#echo "$slack $path_region $path_type $status $skew $sp  $ep  $sp_c $ep_c $launch_depth $capture_depth $launch_index $capture_index  \{$hpins\}"
+	echo "${slack}${gap_var}${path_type}_${path_region}${gap_var}${status}${gap_var}\(${sp_ref}\-\-\>${ep_ref}\)${gap_var}${skew}${gap_var}${sp}${gap_var}${ep}${gap_var}${sp_c}${gap_var}${ep_c}${gap_var}${num_levels}${gap_var}${path_delay}${gap_var}${period}${gap_var}${launch_index}${gap_var}${capture_index}"
+    }
+}
+
+
+##
+
+proc rtsum1 {args } {
+    #echo "$args"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    #echo "Slack Status Skew  StartPoint                                EndPoint                     Clock     Hpins"
+    echo "slack path_type status \(FRom-->TO\) skew StartPoint  EndpOint  SpClock EpClock NumLevels PathDelay Period  launch_index capture_index  HPins"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    set paths [sort_collection [eval report_timing -hpin -collection  $args -path_type full_clock] slack]
+    foreach_in_collection path $paths {
+	set skew [get_skew $path]
+	set slack [get_slack $path]
+	set sp [get_startpoint_clock_pin $path]
+	set sp_ref [get_attribute -quiet [get_cells -quiet [find_pnr $sp]] ref_name]
+	set ep [get_object_name [get_attribute  $path endpoint]]
+	set ep_ref [get_attribute -quiet [get_cells -quiet [find_pnr $ep]] ref_name]
+	if {$sp_ref == ""} {set sp_ref TOP}
+	if {$ep_ref == ""} {set ep_ref TOP}
+	if {[find_pnr $sp] == [find_pnr $ep]} {set path_region INTERNAL} else {set path_region INTERFACE}
+	set path_type [get_attribute -quiet $path path_type]
+	set ep_c [get_endpoint_clock $path]
+	set sp_c [get_startpoint_clock $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	set num_levels [get_attribute $path num_cell_arcs]
+	set path_delay [get_attribute $path path_delay]
+	set period [get_attribute $path period]
+
+	set launch_clk_path [get_attribute $path launch_clock_path]
+	set launch_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $launch_clk_path timing_points] object]]]
+	set capture_clk_path [get_attribute $path capture_clock_path]
+	set capture_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $capture_clk_path timing_points] object]]]
+
+	set launch_depth [llength $launch_clk_objects]
+	set capture_depth [llength $capture_clk_objects]
+	set cppr_point [get_object_name [get_cells -of [get_attribute $path cppr_branch_point]]]
+	set launch_index [expr $launch_depth - [lsearch -exact $launch_clk_objects $cppr_point]]
+	set capture_index [expr [llength $capture_clk_objects] - [lsearch -exact $capture_clk_objects $cppr_point]]
+	
+	set hpins_launch [get_hpins_path $launch_clk_path]
+	set hpins_capture [get_hpins_path $capture_clk_path]
+
+	#echo "$slack $path_region $path_type $status $skew $sp  $ep  $sp_c $ep_c $launch_depth $capture_depth $launch_index $capture_index  \{$hpins\}"
+	echo "$slack ${path_type}_${path_region}  $status \(${sp_ref} --> ${ep_ref}\) $skew $sp  $ep  $sp_c $ep_c $num_levels $path_delay $period $launch_index $capture_index  \{$hpins\}"
+    }
+}
+
+
+proc get_path_hpins {path} {
+    return [get_object_name [remove_from_collection -intersect [get_pnr_pins ] [get_pins -quiet  -of [get_nets -quiet -seg -of  [ga [ga $path timing_points]  object]]  -filter "is_hierarchical"]]]
+}
+
+
+
+##################################################################
+
+proc rtsum_hpins {args} {
+    #echo "$args"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    #echo "Slack Status Skew  StartPoint                                EndPoint                     Clock     Hpins"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    set paths [sort_collection [eval report_timing -hpin -collection  $args -path_type full_clock] slack]
+    foreach_in_collection path $paths {
+	set skew [get_skew $path]
+	set slack [get_slack $path]
+	set sp [get_startpoint_clock_pin $path]
+	set sp_ref [get_attribute -quiet [get_cells -quiet [find_pnr $sp]] ref_name]
+	set ep [get_object_name [get_attribute  $path endpoint]]
+	set ep_ref [get_attribute -quiet [get_cells -quiet [find_pnr $ep]] ref_name]
+
+	if {$sp_ref == ""} {set sp_ref TOP}
+	if {$ep_ref == ""} {set ep_ref TOP}
+	if {[find_pnr $sp] == [find_pnr $ep]} {set path_region INTERNAL} else {set path_region INTERFACE}
+	set path_type [get_attribute -quiet $path path_type]
+	set ep_c [get_endpoint_clock $path]
+	set sp_c [get_startpoint_clock $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	set num_levels [get_attribute $path num_cell_arcs]
+
+	set launch_clk_path [get_attribute $path launch_clock_path]
+	set launch_clk_pins [get_attribute [get_attribute $launch_clk_path timing_points] object]
+	set launch_clk_objects [get_object_name [get_cells -quiet -of $launch_clk_pins]]
+	set capture_clk_path [get_attribute $path capture_clock_path]
+	set capture_clk_pins [get_attribute [get_attribute $capture_clk_path timing_points] object]
+	set capture_clk_objects [get_object_name [get_cells -quiet -of $capture_clk_pins]]
+
+	set launch_depth [llength $launch_clk_objects]
+	set capture_depth [llength $capture_clk_objects]
+	set cppr_point [get_object_name [get_cells -of [get_attribute $path cppr_branch_point]]]
+	set launch_index [expr $launch_depth - [lsearch -exact $launch_clk_objects $cppr_point]]
+	set capture_index [expr [llength $capture_clk_objects] - [lsearch -exact $capture_clk_objects $cppr_point]]
+	
+	#set hpins_launch [get_hpins_path $launch_clk_path]
+	#set hpins_capture [get_hpins_path $capture_clk_path]
+
+	echo "\n====================="
+	echo "\nSlack: $slack  Skew: $skew Path: ${path_type}_${path_region}"
+	echo "SP :\($sp_ref\) $sp   $sp_c"
+	echo "EP : \($ep_ref\) $ep   $ep_c"
+	echo "\nLaunch CLK - Hpins: \(Uncommon: $launch_index\)"
+
+	echo "\t\t [get_object_name [index_collection $launch_clk_pins 0]]"
+	foreach x [get_path_hpins $launch_clk_path] {
+	    echo "\t\t \([get_attribute [get_cells -quiet -of [get_pins -quiet $x]] ref_name]\) \t\t\([get_attribute [get_pins -quiet $x] direction]\) \t\t$x "
+	}
+	echo "\t\t [get_object_name [index_collection $launch_clk_pins end]]"
+
+	
+	echo "\nDatapath - Hpins: \(Levels: $num_levels\)"
+	echo "\t\t $sp"
+	foreach x [get_path_hpins $path] {
+	    echo "\t\t \([get_attribute [get_cells -quiet -of [get_pins -quiet $x]] ref_name]\) \t\t\([get_attribute [get_pins -quiet $x] direction]\) \t\t$x "
+
+	}
+	echo "\t\t $ep"
+
+
+	echo "\nCapture CLK - Hpins: \(Uncommon: $capture_index\)"
+	echo "\t\t [get_object_name [index_collection $capture_clk_pins 0]]"
+	foreach x [get_path_hpins $capture_clk_path] {
+	    echo "\t\t \([get_attribute [get_cells -quiet -of [get_pins -quiet $x]] ref_name]\) \t\t\([get_attribute [get_pins -quiet $x] direction]\) \t\t$x "
+	}
+	echo "\t\t [get_object_name [index_collection $capture_clk_pins end]]"
+
+    }
+}
+
+##################################################################
+
+global bbm_list
+
+set gen_custom_report {
+    set max_paths 10000
+    set nworst 1
+    set max_slack -200
+    
+    set hpins [remove_from_collection [get_pnr_pins] [get_bbm_pins]]
+    set top [get_object_name [current_design]]
+    
+    redirect top_late_interface_summary.csv {rtsum_csv -max_paths $max_paths -nworst $nworst -max_slack $max_slack -through $hpins -late -uniquepins }
+    redirect top_late_internal_summary.csv {rtsum_csv -max_paths $max_paths -nworst $nworst -max_slack $max_slack -not_through $hpins -late -unique_pins}
+
+    redirect top_late_hier_interface_summary.rpt {rtsum_hpins -max_paths $max_paths -nworst $nworst -max_slack $max_slack -through $hpins -late -unique_pins }
+    redirect top_late_hier_internal_summary.rpt {rtsum_hpins -max_paths $max_paths -nworst $nworst -max_slack $max_slack -not_through $hpins -late -unique_pins}
+
+    
+    redirect top_early_interface_summary.csv {rtsum_csv -max_paths $max_paths -nworst $nworst -max_slack $max_slack -through $hpins -early -unique_pins}
+    redirect top_early_internal_summary.csv {rtsum_csv csv -max_paths $max_paths -nworst $nworst -max_slack $max_slack -not_through $hpins -early -unique_pins}
+
+}
+
+
+###
+
+
+proc rtsum_custom {args } {
+    if [regexp begin_end_pair $args] {set pfix "BEPAIR_"} else {set pfix ""}
+    if [regexp retime $args] {set pfix "${pfix}PBA_"} 
+    set comment "NA"
+    set view [lindex [get_db analysis_views .name] 0]
+    if [regexp setup $view] {set tim_type late} else {set tim_type early}
+    set top [get_object_name [current_design]]
+    set gap_var ","
+
+    if ![file exists ./DEBUG_REPORT] {file mkdir ./DEBUG_REPORT}
+    set fp1 [open ./DEBUG_REPORT/${top}_TIM_${pfix}${tim_type}_${view}.csv w]
+    set fp2 [open ./DEBUG_REPORT/${top}_TIM_${pfix}${tim_type}_${view}_hier.rpt w]
+    set fp3 [open ./DEBUG_REPORT/${top}_TIM_${pfix}${tim_type}_${view}_full.rpt w]
+
+    #echo "Slack${gap_var}pathType${gap_var}Status${gap_var}\(FRom-->TO\)${gap_var}skew${gap_var}StartPoint${gap_var}EndpOint${gap_var}SpClock${gap_var}EpClock${gap_var}NumLevels${gap_var}PathDelay${gap_var}Period${gap_var}launch_index${gap_var}capture_index${gap_var}"
+    puts $fp1 "Comment${gap_var}Slack${gap_var}pathType${gap_var}Status${gap_var}\(FRom-->TO\)${gap_var}skew${gap_var}StartPoint${gap_var}EndpOint${gap_var}SpClock\-\-\>EpClock${gap_var}NumLevels${gap_var}PathDelay${gap_var}Period${gap_var}LauClk_index${gap_var}CapCLk_index${gap_var}MaxDataDel${gap_var}MaxDataTran${gap_var}BufInvCount${gap_var}DataDelta${gap_var}LaunchDelta${gap_var}CaptDelta${gap_var}LaunchDelay${gap_var}LaunchTran${gap_var}CaptDelay${gap_var}CaptTran${gap_var}PathIndex"
+
+    if [regexp begin_end_pair $args] {
+	set paths [sort_collection [eval report_timing  -${tim_type} -hpin -collection  $args -path_type full_clock] slack]
+    } else {
+	set paths [sort_collection [eval report_timing -unique_pins -${tim_type} -hpin -collection  $args -path_type full_clock] slack]
+    }
+
+    if [regexp begin_end_pair $args] {set paths [range_collection $paths 0 20000]}
+    set i 0
+    puts "Total number of paths need to be processed - [sizeof_collection $paths]"
+    foreach_in_collection path $paths {
+	puts "Working on $i path"
+	incr i
+	set skew [get_skew $path]
+	set slack [get_slack $path]
+	set sp [get_startpoint_clock_pin $path]
+	set sp_ref [get_attribute -quiet [get_cells -quiet [find_pnr $sp]] ref_name]
+	set ep [get_object_name [get_attribute  $path endpoint]]
+	set ep_ref [get_attribute -quiet [get_cells -quiet [find_pnr $ep]] ref_name]
+	if {$sp_ref == ""} {set sp_ref TOP}
+	if {$ep_ref == ""} {set ep_ref TOP}
+	if {${sp_ref} == ${ep_ref}} {set path_region INTERNAL} else {set path_region INTERFACE}
+	set path_type [get_attribute -quiet $path path_type]
+	set ep_c [get_endpoint_clock $path]
+	set sp_c [get_startpoint_clock $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	set num_levels [get_attribute $path num_cell_arcs]
+	set path_delay [get_attribute $path path_delay]
+	set period [get_attribute $path period]
+
+	set launch_clk_path [get_attribute $path launch_clock_path]
+	set launch_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $launch_clk_path timing_points] object]]]
+	set capture_clk_path [get_attribute $path capture_clock_path]
+	set capture_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $capture_clk_path timing_points] object]]]
+
+	set launch_depth [llength $launch_clk_objects]
+	set capture_depth [llength $capture_clk_objects]
+	set cppr_point [get_object_name [get_cells -of [get_attribute $path cppr_branch_point]]]
+	set launch_index [expr $launch_depth - [lsearch -exact $launch_clk_objects $cppr_point]]
+	set capture_index [expr [llength $capture_clk_objects] - [lsearch -exact $capture_clk_objects $cppr_point]]
+	
+
+	set launch_clk_pins [get_attribute [get_attribute $launch_clk_path timing_points] object]
+	set launch_clk_objects [get_object_name [get_cells -quiet -of $launch_clk_pins]]
+
+	set capture_clk_pins [get_attribute [get_attribute $capture_clk_path timing_points] object]
+	set capture_clk_objects [get_object_name [get_cells -quiet -of $capture_clk_pins]]
+
+
+	set hpins_launch [get_hpins_path $launch_clk_path]
+	set hpins_capture [get_hpins_path $capture_clk_path]
+
+
+	set max_data_inst_delay [lindex [lsort  -real -increasing [get_cell_delays $path]] end]
+	set max_data_pin_tran [lindex [lsort  -real -increasing [regsub -all NA [get_path_transition $path] ""]] end]
+	set max_launch_inst_delay [lindex [lsort  -real -increasing [get_cell_delays $launch_clk_path]] end]
+	set max_launch_pin_tran [lindex [lsort  -real -increasing [regsub -all NA  [get_path_transition $launch_clk_path] ""]] end]
+	set max_capture_inst_delay [lindex [lsort  -real -increasing [get_cell_delays $capture_clk_path]] end]
+	set max_capture_pin_tran [lindex [lsort  -real -increasing [regsub -all NA [get_path_transition $capture_clk_path] ""]] end]
+
+
+	set buf_inv_count [get_buffer_inv_count $path]
+	
+	set data_delta [eval ::math::sum [get_delta_delay $path]]
+	set launch_clk_delta [eval ::math::sum [get_delta_delay $launch_clk_path]]
+	set capture_clk_delta [eval ::math::sum [get_delta_delay $capture_clk_path]]
+
+	#echo "$slack $path_region $path_type $status $skew $sp  $ep  $sp_c $ep_c $launch_depth $capture_depth $launch_index $capture_index  \{$hpins\}"
+	#echo "${slack}${gap_var}${path_type}_${path_region}${gap_var}${status}${gap_var}\(${sp_ref}\-\-\>${ep_ref}\)${gap_var}${skew}${gap_var}${sp}${gap_var}${ep}${gap_var}${sp_c}${gap_var}${ep_c}${gap_var}${num_levels}${gap_var}${path_delay}${gap_var}${period}${gap_var}${launch_index}${gap_var}${capture_index}"
+	puts $fp1  "${comment}${gap_var}${slack}${gap_var}${path_type}_${path_region}${gap_var}${status}${gap_var}\(${sp_ref}\-\-\>${ep_ref}\)${gap_var}${skew}${gap_var}${sp}${gap_var}${ep}${gap_var}${sp_c}\-\-->${ep_c}${gap_var}${num_levels}${gap_var}${path_delay}${gap_var}${period}${gap_var}${launch_index}${gap_var}${capture_index}${gap_var}${max_data_inst_delay}${gap_var}${max_data_pin_tran}${gap_var}${buf_inv_count}${gap_var}${data_delta}${gap_var}${launch_clk_delta}${gap_var}${capture_clk_delta}${gap_var}${max_launch_inst_delay}${gap_var}${max_launch_pin_tran}${gap_var}${max_capture_inst_delay}${gap_var}${max_capture_pin_tran}${gap_var}${i}"
+
+
+
+
+	puts $fp2 "\n====================="
+	puts $fp2 "Path${i}::"
+	puts $fp2 "\nSlack: $slack  Skew: $skew Path: ${path_type}_${path_region}"
+	puts $fp2 "SP :\($sp_ref\) $sp   $sp_c"
+	puts $fp2 "EP : \($ep_ref\) $ep   $ep_c"
+	puts $fp2 "\nLaunch CLK - Hpins: \(Uncommon: $launch_index\)"
+
+	puts $fp2 "\t\t [get_object_name [index_collection $launch_clk_pins 0]]"
+	if {0} {
+	    foreach x [get_path_hpins $launch_clk_path] {
+		puts $fp2 "\t\t \([get_attribute [get_cells -quiet -of [get_pins -quiet $x]] ref_name]\) \t\t\([get_attribute [get_pins -quiet $x] direction]\) \t\t$x "
+	    }
+	}
+	foreach elem  [print_hier_path $launch_clk_path]  {puts $fp2 $elem}
+
+	puts $fp2 "\t\t [get_object_name [index_collection $launch_clk_pins end]]"
+
+	
+	puts $fp2 "\nDatapath - Hpins: \(Levels: $num_levels\)"
+	puts $fp2 "\t\t $sp"
+	if {0} {
+	    foreach x [get_path_hpins $path] {
+		puts $fp2 "\t\t \([get_attribute [get_cells -quiet -of [get_pins -quiet $x]] ref_name]\) \t\t\([get_attribute [get_pins -quiet $x] direction]\) \t\t$x "
+		
+	    }
+	}
+	foreach elem [print_hier_path $path] {puts $fp2 $elem}
+	puts $fp2 "\t\t $ep"
+
+
+	puts $fp2 "\nCapture CLK - Hpins: \(Uncommon: $capture_index\)"
+	puts $fp2 "\t\t [get_object_name [index_collection $capture_clk_pins 0]]"
+	if {0} {
+	    foreach x [get_path_hpins $capture_clk_path] {
+		puts $fp2 "\t\t \([get_attribute [get_cells -quiet -of [get_pins -quiet $x]] ref_name]\) \t\t\([get_attribute [get_pins -quiet $x] direction]\) \t\t$x "
+	    }
+	}
+	foreach elem  [print_hier_path $capture_clk_path]  {puts $fp2 $elem}
+	puts $fp2 "\t\t [get_object_name [index_collection $capture_clk_pins end]]"
+
+
+	redirect -var _tmp {report_timing -hpin -path_type full_clock $path}
+	puts $fp3 "Path${i}::"
+	puts $fp3 $_tmp
+    }
+    close $fp1
+    close $fp2
+    close $fp3
+}
+
+
+
+
+
+
+
+proc rtsum_custom_csv {args } {
+    if [regexp begin_end_pair $args] {set pfix "BEPAIR_"} else {set pfix ""}
+    if [regexp retime $args] {set pfix "${pfix}PBA_"} 
+    set comment "NA"
+    set view [lindex [get_db analysis_views .name] 0]
+    if [regexp setup $view] {set tim_type late} else {set tim_type early}
+    set top [get_object_name [current_design]]
+    set gap_var ","
+
+    if ![file exists ./DEBUG_REPORT] {file mkdir ./DEBUG_REPORT}
+    set fp1 [open ./DEBUG_REPORT/${top}_TIM_${pfix}${tim_type}_${view}.csv w]
+    #set fp2 [open ./DEBUG_REPORT/${top}_TIM_${pfix}${tim_type}_${view}_hier.rpt w]
+    #set fp3 [open ./DEBUG_REPORT/${top}_TIM_${pfix}${tim_type}_${view}_full.rpt w]
+
+    #echo "Slack${gap_var}pathType${gap_var}Status${gap_var}\(FRom-->TO\)${gap_var}skew${gap_var}StartPoint${gap_var}EndpOint${gap_var}SpClock${gap_var}EpClock${gap_var}NumLevels${gap_var}PathDelay${gap_var}Period${gap_var}launch_index${gap_var}capture_index${gap_var}"
+    puts $fp1 "Comment${gap_var}Slack${gap_var}pathType${gap_var}Status${gap_var}\(FRom-->TO\)${gap_var}skew${gap_var}StartPoint${gap_var}EndpOint${gap_var}SpClock\-\-\>EpClock${gap_var}NumLevels${gap_var}PathDelay${gap_var}Period${gap_var}LauClk_index${gap_var}CapCLk_index${gap_var}MaxDataDel${gap_var}MaxDataTran${gap_var}BufInvCount${gap_var}DataDelta${gap_var}LaunchDelta${gap_var}CaptDelta${gap_var}LaunchDelay${gap_var}LaunchTran${gap_var}CaptDelay${gap_var}CaptTran${gap_var}PathIndex"
+
+    if [regexp begin_end_pair $args] {
+	set paths [sort_collection [eval report_timing  -${tim_type} -hpin -collection  $args -path_type full_clock] slack]
+    } else {
+	set paths [sort_collection [eval report_timing -unique_pins -${tim_type} -hpin -collection  $args -path_type full_clock] slack]
+    }
+
+    #if [regexp begin_end_pair $args] {set paths [range_collection $paths 0 20000]}
+    set i 0
+    puts "Total number of paths need to be processed - [sizeof_collection $paths]"
+    foreach_in_collection path $paths {
+	puts "Working on $i path"
+	incr i
+	set skew [get_skew $path]
+	set slack [get_slack $path]
+	set sp [get_startpoint_clock_pin $path]
+	set sp_ref [get_attribute -quiet [get_cells -quiet [find_pnr $sp]] ref_name]
+	set ep [get_object_name [get_attribute  $path endpoint]]
+	set ep_ref [get_attribute -quiet [get_cells -quiet [find_pnr $ep]] ref_name]
+	if {$sp_ref == ""} {set sp_ref TOP}
+	if {$ep_ref == ""} {set ep_ref TOP}
+	if {[find_pnr $sp] == [find_pnr $ep]} {set path_region INTERNAL} else {set path_region INTERFACE}
+	set path_type [get_attribute -quiet $path path_type]
+	set ep_c [get_endpoint_clock $path]
+	set sp_c [get_startpoint_clock $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	set num_levels [get_attribute $path num_cell_arcs]
+	set path_delay [get_attribute $path path_delay]
+	set period [get_attribute $path period]
+
+	set launch_clk_path [get_attribute $path launch_clock_path]
+	set launch_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $launch_clk_path timing_points] object]]]
+	set capture_clk_path [get_attribute $path capture_clock_path]
+	set capture_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $capture_clk_path timing_points] object]]]
+
+	set launch_depth [llength $launch_clk_objects]
+	set capture_depth [llength $capture_clk_objects]
+	set cppr_point [get_object_name [get_cells -of [get_attribute $path cppr_branch_point]]]
+	set launch_index [expr $launch_depth - [lsearch -exact $launch_clk_objects $cppr_point]]
+	set capture_index [expr [llength $capture_clk_objects] - [lsearch -exact $capture_clk_objects $cppr_point]]
+	
+
+	set launch_clk_pins [get_attribute [get_attribute $launch_clk_path timing_points] object]
+	set launch_clk_objects [get_object_name [get_cells -quiet -of $launch_clk_pins]]
+
+	set capture_clk_pins [get_attribute [get_attribute $capture_clk_path timing_points] object]
+	set capture_clk_objects [get_object_name [get_cells -quiet -of $capture_clk_pins]]
+
+
+	set hpins_launch [get_hpins_path $launch_clk_path]
+	set hpins_capture [get_hpins_path $capture_clk_path]
+
+
+	set max_data_inst_delay [lindex [lsort  -real -increasing [get_cell_delays $path]] end]
+	set max_data_pin_tran [lindex [lsort  -real -increasing [regsub -all NA [get_path_transition $path] ""]] end]
+	set max_launch_inst_delay [lindex [lsort  -real -increasing [get_cell_delays $launch_clk_path]] end]
+	set max_launch_pin_tran [lindex [lsort  -real -increasing [regsub -all NA  [get_path_transition $launch_clk_path] ""]] end]
+	set max_capture_inst_delay [lindex [lsort  -real -increasing [get_cell_delays $capture_clk_path]] end]
+	set max_capture_pin_tran [lindex [lsort  -real -increasing [regsub -all NA [get_path_transition $capture_clk_path] ""]] end]
+
+
+	set buf_inv_count [get_buffer_inv_count $path]
+
+	set data_delta 0
+	set launch_clk_delta 0
+	set capture_clk_delta 0
+	
+	catch {set data_delta [eval ::math::sum [get_delta_delay $path]]}
+	catch {set launch_clk_delta [eval ::math::sum [get_delta_delay $launch_clk_path]]}
+	catch {set capture_clk_delta [eval ::math::sum [get_delta_delay $capture_clk_path]]}
+
+	#echo "$slack $path_region $path_type $status $skew $sp  $ep  $sp_c $ep_c $launch_depth $capture_depth $launch_index $capture_index  \{$hpins\}"
+	#echo "${slack}${gap_var}${path_type}_${path_region}${gap_var}${status}${gap_var}\(${sp_ref}\-\-\>${ep_ref}\)${gap_var}${skew}${gap_var}${sp}${gap_var}${ep}${gap_var}${sp_c}${gap_var}${ep_c}${gap_var}${num_levels}${gap_var}${path_delay}${gap_var}${period}${gap_var}${launch_index}${gap_var}${capture_index}"
+	puts $fp1  "${comment}${gap_var}${slack}${gap_var}${path_type}_${path_region}${gap_var}${status}${gap_var}\(${sp_ref}\-\-\>${ep_ref}\)${gap_var}${skew}${gap_var}${sp}${gap_var}${ep}${gap_var}${sp_c}\-\-->${ep_c}${gap_var}${num_levels}${gap_var}${path_delay}${gap_var}${period}${gap_var}${launch_index}${gap_var}${capture_index}${gap_var}${max_data_inst_delay}${gap_var}${max_data_pin_tran}${gap_var}${buf_inv_count}${gap_var}${data_delta}${gap_var}${launch_clk_delta}${gap_var}${capture_clk_delta}${gap_var}${max_launch_inst_delay}${gap_var}${max_launch_pin_tran}${gap_var}${max_capture_inst_delay}${gap_var}${max_capture_pin_tran}${gap_var}${i}"
+
+
+
+	if {0} {
+	    puts $fp2 "\n====================="
+	    puts $fp2 "Path${i}::"
+	    puts $fp2 "\nSlack: $slack  Skew: $skew Path: ${path_type}_${path_region}"
+	    puts $fp2 "SP :\($sp_ref\) $sp   $sp_c"
+	    puts $fp2 "EP : \($ep_ref\) $ep   $ep_c"
+	    puts $fp2 "\nLaunch CLK - Hpins: \(Uncommon: $launch_index\)"
+
+	    puts $fp2 "\t\t [get_object_name [index_collection $launch_clk_pins 0]]"
+	    if {0} {
+		foreach x [get_path_hpins $launch_clk_path] {
+		    puts $fp2 "\t\t \([get_attribute [get_cells -quiet -of [get_pins -quiet $x]] ref_name]\) \t\t\([get_attribute [get_pins -quiet $x] direction]\) \t\t$x "
+		}
+	    }
+	    foreach elem  [print_hier_path $launch_clk_path]  {puts $fp2 $elem}
+
+	    puts $fp2 "\t\t [get_object_name [index_collection $launch_clk_pins end]]"
+
+	    
+	    puts $fp2 "\nDatapath - Hpins: \(Levels: $num_levels\)"
+	    puts $fp2 "\t\t $sp"
+	    if {0} {
+		foreach x [get_path_hpins $path] {
+		    puts $fp2 "\t\t \([get_attribute [get_cells -quiet -of [get_pins -quiet $x]] ref_name]\) \t\t\([get_attribute [get_pins -quiet $x] direction]\) \t\t$x "
+		    
+		}
+	    }
+	    foreach elem [print_hier_path $path] {puts $fp2 $elem}
+	    puts $fp2 "\t\t $ep"
+
+
+	    puts $fp2 "\nCapture CLK - Hpins: \(Uncommon: $capture_index\)"
+	    puts $fp2 "\t\t [get_object_name [index_collection $capture_clk_pins 0]]"
+	    if {0} {
+		foreach x [get_path_hpins $capture_clk_path] {
+		    puts $fp2 "\t\t \([get_attribute [get_cells -quiet -of [get_pins -quiet $x]] ref_name]\) \t\t\([get_attribute [get_pins -quiet $x] direction]\) \t\t$x "
+		}
+	    }
+	    foreach elem  [print_hier_path $capture_clk_path]  {puts $fp2 $elem}
+	    puts $fp2 "\t\t [get_object_name [index_collection $capture_clk_pins end]]"
+
+	    if {$i < 1000} {
+		redirect -var _tmp {report_timing -hpin -path_type full_clock $path}
+		puts $fp3 "Path${i}::"
+		puts $fp3 $_tmp
+	    }
+	}
+    }
+    close $fp1
+    #close $fp2
+    #close $fp3
+}
+
+
+###########
+
+
+
+
+proc rtsum1 {args } {
+    if [regexp begin_end_pair $args] {set pfix "BEPAIR_"} else {set pfix ""}
+    if [regexp retime $args] {set pfix "${pfix}PBA_"} 
+    set comment "NA"
+    set view [lindex [get_db analysis_views .name] 0]
+    if [regexp setup $view] {set tim_type late} else {set tim_type early}
+    set top [get_object_name [current_design]]
+    set gap_var ","
+
+    #if ![file exists ./DEBUG_REPORT] {file mkdir ./DEBUG_REPORT}
+    #set fp1 [open ./DEBUG_REPORT/${top}_TIM_${pfix}${tim_type}_${view}.csv w]
+    #set fp2 [open ./DEBUG_REPORT/${top}_TIM_${pfix}${tim_type}_${view}_hier.rpt w]
+    #set fp3 [open ./DEBUG_REPORT/${top}_TIM_${pfix}${tim_type}_${view}_full.rpt w]
+
+    #echo "Slack${gap_var}pathType${gap_var}Status${gap_var}\(FRom-->TO\)${gap_var}skew${gap_var}StartPoint${gap_var}EndpOint${gap_var}SpClock${gap_var}EpClock${gap_var}NumLevels${gap_var}PathDelay${gap_var}Period${gap_var}launch_index${gap_var}capture_index${gap_var}"
+    puts "Comment${gap_var}Slack${gap_var}pathType${gap_var}Status${gap_var}\(FRom-->TO\)${gap_var}skew${gap_var}StartPoint${gap_var}EndpOint${gap_var}SpClock\-\-\>EpClock${gap_var}NumLevels${gap_var}PathDelay${gap_var}Period${gap_var}LauClk_index${gap_var}CapCLk_index${gap_var}MaxDataDel${gap_var}MaxDataTran${gap_var}BufInvCount${gap_var}DataDelta${gap_var}LaunchDelta${gap_var}CaptDelta${gap_var}LaunchDelay${gap_var}LaunchTran${gap_var}CaptDelay${gap_var}CaptTran${gap_var}PathIndex"
+
+    if [regexp begin_end_pair $args] {
+	set paths [sort_collection [eval report_timing  -${tim_type} -hpin -collection  $args -path_type full_clock] slack]
+    } else {
+	set paths [sort_collection [eval report_timing -unique_pins -${tim_type} -hpin -collection  $args -path_type full_clock] slack]
+    }
+
+    #if [regexp begin_end_pair $args] {set paths [range_collection $paths 0 20000]}
+    set i 0
+    puts "Total number of paths need to be processed - [sizeof_collection $paths]"
+    foreach_in_collection path $paths {
+	puts "Working on $i path"
+	incr i
+	set skew [get_skew $path]
+	set slack [get_slack $path]
+	set sp [get_startpoint_clock_pin $path]
+	set sp_ref [get_attribute -quiet [get_cells -quiet [find_pnr $sp]] ref_name]
+	set ep [get_object_name [get_attribute  $path endpoint]]
+	set ep_ref [get_attribute -quiet [get_cells -quiet [find_pnr $ep]] ref_name]
+	if {$sp_ref == ""} {set sp_ref TOP}
+	if {$ep_ref == ""} {set ep_ref TOP}
+	if {${sp_ref} == ${ep_ref}} {set path_region INTERNAL} else {set path_region INTERFACE}
+	set path_type [get_attribute -quiet $path path_type]
+	set ep_c [get_endpoint_clock $path]
+	set sp_c [get_startpoint_clock $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	set num_levels [get_attribute $path num_cell_arcs]
+	set path_delay [get_attribute $path path_delay]
+	set period [get_attribute $path period]
+
+	set launch_clk_path [get_attribute $path launch_clock_path]
+	set launch_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $launch_clk_path timing_points] object]]]
+	set capture_clk_path [get_attribute $path capture_clock_path]
+	set capture_clk_objects [get_object_name [get_cells -quiet -of [get_attribute [get_attribute $capture_clk_path timing_points] object]]]
+
+	set launch_depth [llength $launch_clk_objects]
+	set capture_depth [llength $capture_clk_objects]
+	set cppr_point [get_object_name [get_cells -of [get_attribute $path cppr_branch_point]]]
+	set launch_index [expr $launch_depth - [lsearch -exact $launch_clk_objects $cppr_point]]
+	set capture_index [expr [llength $capture_clk_objects] - [lsearch -exact $capture_clk_objects $cppr_point]]
+	
+
+	set launch_clk_pins [get_attribute [get_attribute $launch_clk_path timing_points] object]
+	set launch_clk_objects [get_object_name [get_cells -quiet -of $launch_clk_pins]]
+
+	set capture_clk_pins [get_attribute [get_attribute $capture_clk_path timing_points] object]
+	set capture_clk_objects [get_object_name [get_cells -quiet -of $capture_clk_pins]]
+
+
+	set hpins_launch [get_hpins_path $launch_clk_path]
+	set hpins_capture [get_hpins_path $capture_clk_path]
+
+
+	set max_data_inst_delay [lindex [lsort  -real -increasing [get_cell_delays $path]] end]
+	set max_data_pin_tran [lindex [lsort  -real -increasing [regsub -all NA [get_path_transition $path] ""]] end]
+	set max_launch_inst_delay [lindex [lsort  -real -increasing [get_cell_delays $launch_clk_path]] end]
+	set max_launch_pin_tran [lindex [lsort  -real -increasing [regsub -all NA  [get_path_transition $launch_clk_path] ""]] end]
+	set max_capture_inst_delay [lindex [lsort  -real -increasing [get_cell_delays $capture_clk_path]] end]
+	set max_capture_pin_tran [lindex [lsort  -real -increasing [regsub -all NA [get_path_transition $capture_clk_path] ""]] end]
+
+
+	set buf_inv_count [get_buffer_inv_count $path]
+	
+	set data_delta [eval ::math::sum [get_delta_delay $path]]
+	set launch_clk_delta [eval ::math::sum [get_delta_delay $launch_clk_path]]
+	set capture_clk_delta [eval ::math::sum [get_delta_delay $capture_clk_path]]
+
+	#echo "$slack $path_region $path_type $status $skew $sp  $ep  $sp_c $ep_c $launch_depth $capture_depth $launch_index $capture_index  \{$hpins\}"
+	#echo "${slack}${gap_var}${path_type}_${path_region}${gap_var}${status}${gap_var}\(${sp_ref}\-\-\>${ep_ref}\)${gap_var}${skew}${gap_var}${sp}${gap_var}${ep}${gap_var}${sp_c}${gap_var}${ep_c}${gap_var}${num_levels}${gap_var}${path_delay}${gap_var}${period}${gap_var}${launch_index}${gap_var}${capture_index}"
+	puts  "${comment}${gap_var}${slack}${gap_var}${path_type}_${path_region}${gap_var}${status}${gap_var}\(${sp_ref}\-\-\>${ep_ref}\)${gap_var}${skew}${gap_var}${sp}${gap_var}${ep}${gap_var}${sp_c}\-\-->${ep_c}${gap_var}${num_levels}${gap_var}${path_delay}${gap_var}${period}${gap_var}${launch_index}${gap_var}${capture_index}${gap_var}${max_data_inst_delay}${gap_var}${max_data_pin_tran}${gap_var}${buf_inv_count}${gap_var}${data_delta}${gap_var}${launch_clk_delta}${gap_var}${capture_clk_delta}${gap_var}${max_launch_inst_delay}${gap_var}${max_launch_pin_tran}${gap_var}${max_capture_inst_delay}${gap_var}${max_capture_pin_tran}${gap_var}${i}"
+
+
+
+    }
+}
+
+
+proc report_timing_pba {args} {
+    eval  report_timing  -retime path_slew_propagation -retime_mode exhaustive  $args 
+}
+
+proc report_timing_pbac {args} {
+    return  report_timing -collection  -retime path_slew_propagation -retime_mode exhaustive  $args 
+}
+
+proc report_timing_uncon {args} {
+    eval  report_timing    -unconstrained -debug unconstrained  $args 
+}
+
+proc report_timing_debug {args} {
+    eval  report_timing    -unconstrained -debug unconstrained  $args 
+}
