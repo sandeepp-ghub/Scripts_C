@@ -1,0 +1,60 @@
+##
+
+set top_design [get_object_name [current_design]]
+set scen_name [lindex [all_analysis_views -type  active] 0]
+set dataout_prefix ./DEBUG_REPORT/TRAN_${scen_name}
+if ![file exists ./DEBUG_REPORT] {file mkdir ./DEBUG_REPORT}
+
+set all_h_pins [get_pins -quiet -of [get_pnr]  -filter "is_hierarchical"]
+set all_leaf_h_pins [get_pins -leaf -of [get_nets -quiet -of $all_h_pins] -filter "direction==in"]
+
+set max_tran_limits [lsort -u [get_attribute $all_leaf_h_pins  max_transition]]
+
+
+set vio_pins ""
+foreach max_tran $max_tran_limits {
+    append_to_collection vio_pins [get_pins -quiet $all_leaf_h_pins -filter "max_transition== $max_tran && slew_max > $max_tran"]
+}
+
+
+if { [sizeof_collection $vio_pins] > 0} {
+    set fp [open ${dataout_prefix}_INTF_TRAN_VIO.rpt w]
+    #puts $fp  [format  "%-20s %-150s  %-10s %-10s %-10s %-50s  %-30s  %-150s %-30s" DESIGN_NAME  PIN_NAME TRAN_VAL TRAN_LIMIT TRAN_VIO CLOCK CLK_PERIOD  DRIVER DRIV_MASTER]
+    puts  $fp [format  "%-30s --> %-30s %-10s %-150s \(%-15s\) -->  %-150s %-10s %-10s  %-10s %-10s %-30s " DRIVER_DESIGN\/DRIV_PIN LOAD_DESIGN\/LOAD_PIN TYPE  DRIV_NAME DRIV_REF LOAD_PIN TRAN_VAL TRAN_LIMIT TRAN_VIO LOAD FANOUT ]
+    set max_tran_limits [lsort -u -real -increasing [get_attribute -quiet $vio_pins  max_transition]]
+    foreach max_tran $max_tran_limits {
+	foreach_in_collection intf_pin [sort_collection [get_pins -quiet $all_leaf_h_pins -filter "max_transition== $max_tran && slew_max > $max_tran"] slew_max -descending] {
+
+	    if [get_attribute $intf_pin is_clock_used_as_clock] {set pin_type CLOCK} else {set pin_type DATA}
+	    set h_pins [get_pins -quiet -of [get_nets -quiet -seg -of $intf_pin] -filter "is_hierarchical"]
+	    
+	    set pin_name [get_object_name $intf_pin]
+	    set design_name [get_attribute [get_cells -quiet [find_pnr $pin_name]] ref_name]
+	    if {$design_name == ""} {set design_name $top_design}
+	    set rec_pin "" ;  set xx ""; foreach _xx [lsort -u [get_object_name [get_pins -quiet $h_pins -filter "full_name=~[find_pnr $pin_name]/*"]]] {lappend xx [file tail $_xx]} ; set rec_pin [lsort -u $xx]
+	    set inst_name [file dirname $pin_name]
+	    set ref_name [get_attribute [get_cells -quiet $inst_name] ref_name]
+	    set lib_pin_name [file tail $pin_name]
+	    set clocks [index_collection [sort_collection [get_attribute -quiet $intf_pin clocks] period] 0]
+	    set clock_name [get_attribute $clocks full_name]
+	    set clock_period [get_attribute $clocks period]
+	    set clock_sources [get_object_name [get_attribute $clocks sources]]
+	    
+	    set driver [get_attribute -quiet [get_nets -quiet -of $intf_pin] driver_pins]
+	    set driver_name [get_object_name $driver]
+	    set driver_design_name [get_attribute [get_cells -quiet [find_pnr $driver_name]] ref_name]
+	    if {$driver_design_name == ""} {set driver_design_name $top_design}
+	    set h_pins_d [get_pins -quiet -of [get_nets -quiet -seg -of $driver] -filter "is_hierarchical"]
+	    set drv_pin "" ;  set xx ""; foreach _xx [lsort -u [get_object_name [get_pins -quiet $h_pins_d -filter "full_name=~[find_pnr $driver_name]/*"]]] {lappend xx [file tail $_xx]} ; set drv_pin [lsort -u $xx]
+	    set driver_ref [get_attribute -quiet [get_cells -quiet -of $driver]  ref_name]
+	    set slew_max [get_attribute $intf_pin slew_max]
+	    set tran_vio [expr $max_tran - $slew_max]
+	    set load [get_attribute [get_nets -of $intf_pin] capacitance_max]
+	    set fanout [get_attribute [get_nets -of $intf_pin] num_load_pins]
+
+	    puts  $fp [format  "%-30s --> %-30s %-10s  %-150s \(%-15s\) --> %-150s %-10s %-10s  %-10s %-10s %-30s" ${driver_design_name}\/${drv_pin} ${design_name}\/${rec_pin} $pin_type  $driver_name $driver_ref $pin_name $slew_max $max_tran $tran_vio $load $fanout ]
+	    
+	}
+    }
+    close $fp
+}
