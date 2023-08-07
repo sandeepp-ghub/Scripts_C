@@ -1,0 +1,61 @@
+proc get_pnr {{DD .}} {
+    if {![info exists ::__MY_PT_HIER_INSTS] || $::__MY_PT_HIER_INSTS eq "" } {
+	global ::__MY_PT_HIER_INSTS
+	set DIR $DD
+	mVar DESIGN [get_db current_design .name]
+	if [file exists /proj/cayman/DE3/timing/postdft/sdc.current/common/set_design_hierarchy_vars.tcl] {
+	    source /proj/cayman/DE3/timing/postdft/sdc.current/common/set_design_hierarchy_vars.tcl
+	    set RLM [get_db current_design .name]
+	    if [info exist sub_blocks($RLM)]  {set VLOG_LIST  $sub_blocks($RLM)}
+
+	    set str "\"" ; foreach cell $VLOG_LIST {set str "$str ref_name == $cell || "} ; set str "$str ref_name == PAVAN\""
+	    set ::__MY_PT_HIER_INSTS  [eval get_cells -hier * -filter $str]
+	    
+	} else {
+	    echo "--E-- Msta_conf_vars.tcl not found - use--> get_pnr \$DIR"
+	    set ::__MY_PT_HIER_INSTS  [current_design]
+	}
+    } else {
+	#echo [sizeof $::__MY_PT_HIER_INSTS]
+    }
+    return $::__MY_PT_HIER_INSTS
+}
+
+proc find_pnr {inst} {
+    set all_hier  [get_pnr]
+    set i 0
+    set curr_inst ""
+    set dir_name $inst
+    set prev_dir_name ""
+    while {[llength $dir_name] > 0} {
+	set curr_inst [remove_from_collection -intersect $all_hier [get_cells -quiet $dir_name]]
+	if {[sizeof $curr_inst] > 0} {
+	    break
+	} else {
+	    set prev_dir_name $dir_name
+	    set dir_name [file dirname $dir_name]
+	    if {$prev_dir_name == $dir_name} {
+		if {$i > 0} {
+		    break
+		}
+		incr i
+	    }
+
+	}
+    }
+    if {[llength $curr_inst] > 0} {
+	set curr_inst [get_object_name $curr_inst]
+    } else {
+	set curr_inst NA
+    }
+    return $curr_inst
+}
+
+##source /proj/asictools/wa/thelvey/scripts/m1dpe/clk_unapproved_cell.tcl
+#clk_unapproved_cell
+proc report_timing_pba {args} {
+    eval  report_timing  -retime path_slew_propagation -retime_mode exhaustive  $args 
+}
+if {!([llength [info proc mVar]] || [llength [info command mVar]])} {
+    catch {source /proj/mkit/tsmc005/2022.06.000/mInfra/mFlow/mflow_package/mPackages}    
+}
