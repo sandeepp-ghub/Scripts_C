@@ -1,0 +1,32 @@
+## mVar FLOW(sta_clock_map_file)  clock_map_file
+## Refer to:
+## shift: /proj/cayman/wa/kpavan/WORK/DEBUG/0210_cayman_top/shift_max1/DEBUG_REPORT/CLK_shift_setup_ssgnp0p675v0c_cworstCCwT0c_PNR_CLK_PORT.rpt
+## capt:  /proj/cayman/wa/kpavan/WORK/DEBUG/0210_cayman_top/capt_max1/DEBUG_REPORT/CLK_capt_setup_ssgnp0p675v0c_cworstCCwT0c_PNR_CLK_PORT.rpt
+## asst : /proj/cayman/wa/kpavan/WORK/DEBUG/0210_cayman_top/asst_max1/DEBUG_REPORT/CLK_asst_setup_ssgnp0p675v0c_cworstCCwT0c_PNR_CLK_PORT.rpt
+
+set scenario_name [all_analysis_views -type active]
+
+if [regexp shift $scenario_name] {
+    set_timing_context_clock_mapping -view $scenario_name  -top_clock tessent_ssn_bus_clock_scan_slow_0      -block_clock tessent_ssn_bus_clock_scan_slow_0
+    set_timing_context_clock_mapping -view $scenario_name  -top_clock tessent_ssn_bus_clock_network          -block_clock tessent_ssn_bus_clock_network
+    set_timing_context_clock_mapping -view $scenario_name  -top_clock tessent_ssn_bus_clock_scan_fast_0      -block_clock tessent_ssn_bus_clock_scan_fast_0
+    set_timing_context_clock_mapping -view $scenario_name  -top_clock tessent_tck                            -block_clock tessent_tck
+}
+
+if [regexp capt $scenario_name] {
+    set_timing_context_clock_mapping -view $scenario_name  -top_clock tessent_ssn_bus_clock_scan_slow_0      -block_clock tessent_ssn_bus_clock_scan_slow_0
+    set_timing_context_clock_mapping -view $scenario_name  -top_clock tessent_ssn_bus_clock_network          -block_clock tessent_ssn_bus_clock_network
+    set_timing_context_clock_mapping -view $scenario_name  -top_clock tessent_ssn_bus_clock_scan_fast_0      -block_clock tessent_ssn_bus_clock_scan_fast_0
+    set_timing_context_clock_mapping -view $scenario_name  -top_clock tessent_tck                            -block_clock tessent_tck
+}
+
+
+if [regexp asst $scenario_name] {
+}
+
+if [regexp lsmode $scenario_name] {
+}
+
+if [regexp func $scenario_name] {
+}
+
