@@ -92,3 +92,98 @@ source /proj/cayman/wa/kpavan/Scripts/PROCS_CUI/inv_tempus/get_double_attackers.
 ## proc mVar {args} {uplevel 1  set $args}
 ## proc mPuts {args} {uplevel 1  puts $args}
 ## proc mSource {args} {uplevel 1  source $args}
+
+if {!([llength [info proc mVar]] || [llength [info command mVar]])} {
+    proc mVar {args} {uplevel 1  set $args}
+    proc mPuts {args} {uplevel 1  puts $args}
+    proc mSource {args} {uplevel 1  source  $args}
+}
+## 
+
+if {!([llength [info proc mVar]] || [llength [info command mVar]])} {
+    catch {source /proj/mkit/tsmc005/2022.06.000/mInfra/mFlow/mflow_package/mPackages}    
+}
+# namespace eval mortar { proc echo {args} {puts $args}}
+package require math
+package require math::statistics
+
+mVar DESIGN [get_db current_design .name]
+set_db source_verbose false
+## From Tx3
+source /proj/cayman/wa/kpavan/Scripts/TX3/paul_procs_no_namespace.tcl
+## From T106
+source /proj/cayman/wa/kpavan/Scripts/PROCS_CUI/inv_tempus/timing_path_procs.tcl
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/my_procs.tcl
+
+####################################
+alias rtf0 "set_db timing_report_fields {timing_point  net flags cell  load  fanout total_derate socv_derate incr_transition   slew incr_delay  delay annotation  arrival edge voltage  power_domain }"
+alias rtf1 "set_db timing_report_fields {timing_point  net  cell  load  fanout total_derate socv_derate incr_transition   slew incr_delay  delay annotation  arrival edge voltage  power_domain }"
+alias rtf2 "set_db timing_report_fields {timing_point   flags cell  load  fanout total_derate socv_derate incr_transition   slew incr_delay  delay annotation  arrival edge voltage  power_domain }"
+alias rtf3 "set_db timing_report_fields {timing_point    cell  load  fanout total_derate socv_derate incr_transition   slew incr_delay  delay annotation  arrival edge voltage  power_domain }"
+alias rtf4 "set_db timing_report_fields {load  fanout total_derate socv_derate incr_transition   slew incr_delay  delay annotation  arrival edge cell timing_point   voltage  power_domain }"
+alias rtf5 "set_db timing_report_fields {load  fanout total_derate socv_derate incr_transition   slew incr_delay  delay annotation  arrival edge phys_info cell  timing_point   net }"
+alias rtf6 "set_db timing_report_fields {load  fanout total_derate socv_derate incr_transition   slew incr_delay  delay annotation  arrival edge phys_info flags cell  timing_point    }"
+alias rtfo "set_db timing_report_fields {delay delay_sigma incr_delay user_derate arrival transition load fanout voltage edge phase cell hpin net pin_location phys_info annotation}"
+alias rtf7 "set_db timing_report_fields {delay delay_mean delay_sigma incr_delay user_derate socv_derate  arrival_mean arrival_sigma arrival transition load fanout voltage edge phase cell hpin net pin_location phys_info annotation}"
+alias rtf8 "set_db timing_report_fields { delay_mean delay_sigma delay incr_delay user_derate socv_derate total_derate  arrival_mean arrival_sigma arrival transition load fanout voltage edge phase cell hpin net pin_location phys_info annotation adjustment}"
+## set_db timing_report_enable_verbose_ssta_mode true
+
+alias list_property report_object_property_names
+alias report_collection report_property
+alias get_attribute get_property
+alias ga get_attribute
+alias report_global_timing report_analysis_summary
+
+##########################
+source /proj/cayman/wa/kpavan/Scripts/clock_qor1.tcl
+source /proj/cayman/wa/kpavan/Scripts/all_path_summary.tcl
+source /proj/cayman/wa/kpavan/Scripts/generic_procs.tcl
+#########################
+set_db source_verbose true
+set_db source_verbose false
+#check_timing -verbose -check_only {clock_expected  no_gen_clock_source  master_clk_edge_not_reaching clocks_masked_by_another_clock clock_gating_controlling_edge_unknown} > ct_verbose.rpt
+#check_timing -verbose -check_only {no_gen_clock_source  master_clk_edge_not_reaching clocks_masked_by_another_clock clock_gating_controlling_edge_unknown} > ct_verbose.rpt
+if [array exists bbm_list] {array unset bbm_list}
+global bbm_list
+
+set ::bbm_list {cc_top_wrapper d2d_subsys_wrapper d2d_subsys_wrapper_flip hbm_top_0 hbm_top_1 hbm_xbar_wrapper_0 hbm_xbar_wrapper_1 io_fabric pcie_x8_wrapper pcie_x8_wrapper_a0m0 peb_top sdma_arith sdma_arith_east sdma_arith_west sdma_wrap sengine_fabric_top tpb_array_sequencer tpb_array_wrapper tpb_aseq_aengine_wrapper tpb_dve_wrapper tpb_interconnect tpb_pb_wrapper tpb_pe_seq tpb_pseq_pengine_wrapper tpb_sb_wrapper tpb_top_sp_seq}
+
+catch {if [mVar -exists FLOW(sta_bbm_modules)] {set ::bbm_list [mVar FLOW(sta_bbm_modules)]}}
+
+proc unset_var {} {
+    unset ::bbm_list
+    set ::bbm_list ""
+    unset ::__MY_PT_HIER_INSTS
+    unset ::__MY_PT_BBM_HIER_INSTS
+    unset ::__MY_PT_HIER_INSTS_PINS
+    unset ::__MY_PT_HIER_BBM_INSTS_PINS
+}
+
+
+alias gen_clk_qor "catch {source /proj/cayman/wa/kpavan/Scripts/clock_qor.tcl}"
+alias gen_tim_csv "rtsum_custom -max_paths 20000 -nworst 1 -max_slack -100 "
+alias gen_tim_csv_pba "rtsum_custom -max_paths 20000 -nworst 1 -max_slack -100 -retime path_slew_propagation -retime_mode exhaustive"
+alias gen_tim_csv_bepair "rtsum_custom   -max_slack -100 -begin_end_pair"
+#alias gen_tim_csv_bepair_pba "rtsum_custom   -max_slack -100 -begin_end_pair -retime path_slew_propagation -retime_mode exhaustive"
+alias gen_ct_checks "catch {source /proj/cayman/wa/kpavan/Scripts/shift_checks.tcl}"
+alias gen_intf_drv "catch {source /proj/cayman/wa/kpavan/Scripts/interface_drv.tcl}"
+
+#alias gen_custom_reports "gen_tim_csv ; gen_ct_checks ; gen_clk_qor"
+#alias gen_custom_reports_be "gen_tim_csv_bepair ; gen_ct_checks ; gen_clk_qor"
+source /proj/cayman/wa/kpavan/Scripts/ECO/eco_procs.tcl
+## 
+#âtiming_enable_get_ports_for_current_instanceâ
+source /proj/cayman/wa/kpavan/Scripts/PROCS_CUI/inv_tempus/get_double_attackers.tcl
+## check_model_consistency
+## report_cell_instance_timing
+## eval_legacy { setEcoMode -replicatedModules true }
+# set_clock_exclusivity
+# eval_legacy  { redirect "_timing_graph_stats" > tgs.stat}
+# get_clock_to_clock_association
+## eval_legacy {set_global timing_report_check_timing_unconstrained_endpoints_due_to_constants true}
+## Hidden: set_db timing_report_check_timing_uncons_endpoint_backward_compatibility_mode true
+## report_timing_summary
+## sengine_0/TPB_0_u_tpb_top sengine_0
+## proc mVar {args} {uplevel 1  set $args}
+## proc mPuts {args} {uplevel 1  puts $args}
+## proc mSource {args} {uplevel 1  source $args}
