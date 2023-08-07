@@ -1,0 +1,36 @@
+proc print_ssn_info {path} {
+    #set path [index_collection [sort_collection [report_timing -through channel_vr_top/ssn_forward_bus_in[39] -collection -path_type full_clock -hpin -nworst 1 -max_paths 1]  slack] 0]  
+
+    set all_h_pin [get_pins -of [get_pnr]]
+    set sp_design [find_pnr [get_object_name [ga $path startpoint]]]
+    set ep_design [find_pnr [get_object_name [ga $path endpoint]]]
+
+    set data_hpins    [remove_from_collection -intersect $all_h_pin [get_pins [ga [ga $path timing_points] object]  -filter "is_hierarchical"]]
+    set launch_hpins  [remove_from_collection -intersect $all_h_pin [get_pins [ga [ga [ga $path launch_clock_path] timing_points] object]  -filter "is_hierarchical"]]
+    set capt_hpins  [remove_from_collection -intersect $all_h_pin [get_pins [ga [ga [ga $path capture_clock_path] timing_points] object]  -filter "is_hierarchical"]]
+
+    set ep_data_in [get_object_name [remove_from_collection -intersect [get_pins ${ep_design}/* -filter "direction==in"] $data_hpins]]
+    set sp_data_out [get_object_name [remove_from_collection -intersect [get_pins ${sp_design}/* -filter "direction==out"] $data_hpins]]
+
+    set ep_clock_in [get_object_name [remove_from_collection -intersect [get_pins ${ep_design}/* -filter "direction==in"] $capt_hpins]]
+    set sp_clock_in [get_object_name [remove_from_collection -intersect [get_pins ${sp_design}/* -filter "direction==in"] $launch_hpins]]
+
+    set trace_clock_capt NA
+    set trace_clock_launch NA
+    set trace_clock_capt NA
+    set trace_clock_launch NA
+    set CON_STATUS ERROR
+
+    set slack [ga $path slack]
+    if [regexp forward $ep_data_in] {
+	set trace_clock_capt  [get_object_name [remove_from_collection -intersect [all_fanin_hpnr -to $ep_clock_in] [get_pins ${sp_design}/* -filter "direction==out"]]]
+	set trace_clock_launch NA
+	if { [llength $trace_clock_capt] == "1"} {set CON_STATUS GOOD} else {set CON_STATUS ERROR}
+    } else {
+	set trace_clock_capt NA
+	set trace_clock_launch [get_object_name [remove_from_collection -intersect [all_fanin_hpnr -to $sp_clock_in] [get_pins ${ep_design}/* -filter "direction==in"]]]
+	if { [llength $trace_clock_launch] == "1"} {set CON_STATUS GOOD} else {set CON_STATUS ERROR}
+    }
+
+    echo "$CON_STATUS \($slack\) \t $sp_data_out \($sp_clock_in :: $trace_clock_launch\) \t==>\t $ep_data_in \($ep_clock_in :: $trace_clock_capt\)"
+}
