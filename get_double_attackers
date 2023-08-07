@@ -1,0 +1,53 @@
+#
+
+proc get_arriv_clocks {worst_net} {
+    set arriv_window [get_db [get_nets -seg -top $worst_net]  .drivers.arrival_window]
+    set unwrap ""
+    foreach elem $arriv_window {
+	foreach filed $elem {
+	    set _X [get_property -quiet [get_clocks -quiet $filed] full_name]
+	    if {[llength $_X] > 0} {
+		lappend unwrap  $_X
+	    }
+	}
+    }
+
+
+    set arriv_clocks [lsort -u [get_property -quiet [get_clocks -quiet [lsort -u $unwrap]] full_name]]
+    return $arriv_clocks
+}
+proc get_delta_attackers {path}  {
+    #set path [report_timing -to sengine_1/TPB_1_u_tpb_top/tpb_interconnect/u_tpb_fis/FIS_NTS_GEN_8__u_fis_nts/genblk1_1__u_nts_perf_counters/CDN_MBIT_arvalid_r_reg_MB_awvalid_r_reg/D2 -early -collection]
+    set max_delta 0
+    set worst_net ""
+    set data_path_nets [remove_from_collection [get_nets -of [get_attribute [get_attribute $path timing_points] object]] [get_nets -of [get_attribute $path startpoint]]]
+    foreach_in_collection tp $data_path_nets  {
+	set dd [expr [get_attribute $tp delta_delay_max] + [expr abs([get_attribute $tp delta_delay_min])]]
+	if {$dd >= $max_delta } {
+	    set max_delta $dd
+	    set worst_net [get_object_name $tp]
+	}
+    }
+
+
+    set sp [get_object_name [get_attribute $path startpoint]]
+    set ep [get_object_name [get_attribute $path endpoint]]
+    set slack [get_attribute $path slack]
+
+    set victim_clocks [get_arriv_clocks $worst_net]
+    set victim_clocks_c [llength $victim_clocks]
+    foreach attacker [get_object_name [get_attribute [get_nets $worst_net] attackers]] {
+	set FIELD OKAY
+	set aggr_clocks [get_arriv_clocks $attacker]
+	set aggr_clocks_c [llength $aggr_clocks]
+	set extra_aggr_clocks [listAminusB $aggr_clocks $victim_clocks]
+	set extra_aggr_clocks_c [llength $extra_aggr_clocks]
+	if {$extra_aggr_clocks_c > 0} {set FIELD CHECK}
+	if {$aggr_clocks_c > 1} {set FIELD CHECK}
+	if {$victim_clocks_c > 1} {set FIELD CHECK}
+	if {$extra_aggr_clocks == ""} {set extra_aggr_clocks NA}
+	if [regexp ssh $extra_aggr_clocks] {set FIELD ERROR}
+	echo "\{$slack $sp $ep\} \{$FIELD\} \{Victim:$worst_net\} \{$victim_clocks\} \{$victim_clocks_c\} \{Attacker:$attacker\} \{$aggr_clocks\} \{$aggr_clocks_c\} \{$extra_aggr_clocks\} \{$extra_aggr_clocks_c\}"
+    }
+}
+alias get_double_attackers get_delta_attackers
