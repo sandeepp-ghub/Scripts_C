@@ -1,0 +1,107 @@
+sh mkdir -p ./${::DEBUG_DIR_FOR_PT}/LIBCHK
+if ![info exists DESIGN] {set DESIGN [get_object_name [current_design]]}
+#foreach {block partition_instance } $PT_PARTITION_CONFIG_LIST(roc) {echo $partition_instance}
+#source /user/noleksinski/tcl/ptime_proc/clocks_on_pnr_pins.tcl
+global clk
+proc get_tdb_ck_period {clk1} {
+    global clk
+    global period
+    set ::clk $clk1
+    uplevel #0 {set ::period 0}
+    uplevel #0  {set period [lindex [lindex [lindex [lindex [::mtdb::getVal _tdb_top/CLOCK/CLOCKSPEC/${::clk}/scenarios] 0] 1] 1] 1]}
+    return $period
+}
+
+proc dft_clocks_on_pnr_pins {SPEC} {
+
+    global clk
+    global period
+    global pnr_blks
+
+    set cell [get_cells -hier -quiet -filter "ref_name==$SPEC"]
+    if {[sizeof_collection $cell] == 0} {
+	set cell [get_cells -quiet $SPEC]
+    } elseif {[sizeof_collection $cell] > 1} {
+	#puts "WARNING: Picking the first instance of $SPEC"
+	set cell [index_collection [sort_collection $cell full_name] 0]
+    }
+
+    suppress_message SEL-003
+    foreach_in_collection pin [sort_collection [get_pins -of $cell] full_name] {
+	set pindir [get_attribute $pin direction]
+	set net [get_nets -quiet -of $pin]
+	set drpin [get_pins -quiet -leaf -of $net -filter "direction==out"]
+	set drpinclks_all [lsort -u [get_object_name [get_attribute -quiet $drpin clocks]]]
+	
+	if {$drpinclks_all != ""} {
+
+	    set num_clks [llength $drpinclks_all]
+	    foreach drpinclks $drpinclks_all {
+		if ![regexp pi_tck $drpinclks] {
+		    if [get_attribute [get_clocks $drpinclks] is_generated] {set drpinclks [get_attribute [get_clocks $drpinclks] master_clock.full_name]}
+		    regsub -all  ${::PT_MODE}_ $drpinclks {} _clk
+		    regsub -all  _pllout $_clk {} _clk1
+
+		    regsub -all _iobb0 $_clk1 {} _clk2
+		    regsub -all _ioba0 $_clk2 {} _clk3
+		    regsub -all _ioba1 $_clk3 {} _clk4
+
+		    set clk $_clk4
+
+		    set period [get_tdb_ck_period $clk]
+		    if {$period == "" && [regexp pi_ $clk]} {set clk1 $clk; set period [get_tdb_ck_period pi_refclk] ; set clk $clk1}
+		    set block [get_attribute $pin cell.ref_name]
+		    set pin_name [get_attribute $pin lib_pin_name]
+		    #set load_str "${pindir},1,${drpinclks},${clk},${::period}"
+		    if [regexp scan_stuckat_capture ${drpinclks}] {
+			set load_str "${pindir},1,${drpinclks},gpio_scan_${clk},9.074"
+		    } else {
+			set load_str "${pindir},1,${drpinclks},${clk},${::period}"
+		    }
+
+		    if {[info exists ${block}($pin_name)]} {
+			set cur_value [set ${block}($pin_name)]
+			set cur_period [lindex [split $cur_value \,] end]
+			if {${cur_period} > ${::period}} {
+			    set ${block}($pin_name) $load_str
+			}
+		    } else {
+			set ${block}($pin_name) $load_str
+		    }
+		    #echo  [format "%-30s %-55s  %-10s %-15s %-50s %-25s %-15s" [get_attribute $pin cell.ref_name] [get_attribute $pin lib_pin_name] $pindir $num_clks $drpinclks $clk $::period]  
+		}
+	    }
+	}
+    }
+    set block $SPEC
+    echo "lappend pnr_block_name $block " >> ${::PT_MODE}_dft_clocks_on_pnr_blocks.tcl
+    foreach pin_name [array names ${block}] {
+	set cur_value [split [set ${block}($pin_name)] \,]
+	echo  [format "%-30s %-55s %-10s %-15s %-50s %-25s %-15s" ${block} ${pin_name} [lindex $cur_value 0] [lindex $cur_value 1] [lindex $cur_value 2] [lindex $cur_value 3] [lindex $cur_value 4]]
+	echo "set ${block}(${pin_name}) [set ${block}(${pin_name})]" >> ${::PT_MODE}_dft_clocks_on_pnr_blocks.tcl
+    }
+    unsuppress_message SEL-003
+}
+
+#Here is how I used it in mission mode:
+#set homefile /user/noleksinski/clocks_on_pnr_blocks.rpt
+set homefile ${PT_MODE}_dft_clocks_on_pnr_blocks.rpt
+set homefile_tcl ${::PT_MODE}_dft_clocks_on_pnr_blocks.tcl
+file delete -force $homefile
+file delete -force $homefile_tcl
+echo "if !\[info exists pnr_block_name \] \{ set pnr_block_name \{\}\}" > ${homefile_tcl}
+echo  [string repeat = 220]  > $homefile
+echo  [format "%-30s %-55s %-10s %-15s %-50s %-25s %-15s" BLOCK_NAME PIN_NAME PIN_DIR NUM_CLKS TEST_CLOCK MISSION_CLOCK MISSION_MAX1_PERIOD]  >> $homefile
+echo  [string repeat = 220]  >> $homefile
+set pnr_blks_orig $pnr_blks
+foreach {block partition_instance } $PT_PARTITION_CONFIG_LIST(roc) {lappend pnr_blks $partition_instance}
+if {[get_object_name [current_design]] == "fc"} {
+foreach {block partition_instance } $PT_PARTITION_CONFIG_LIST(fc) {lappend pnr_blks $partition_instance}
+}
+foreach blk $pnr_blks {
+    echo "\nPROCESSING $blk ..."
+    #echo "\nCLOCKS ON BLOCK: $blk" >> $homefile
+    echo "\n" >> $homefile
+    dft_clocks_on_pnr_pins $blk >> $homefile
+}
+puts "DONE! - Generated ${homefile}"
