@@ -1,0 +1,132 @@
+if {0} {
+    echo "" > atpg_exception.tcl
+    if  [regexp setup [lindex  [get_db analysis_views .name] 0]] {set delay_type late} else {set delay_type early}
+
+    set paths_gba [report_timing  -${delay_type} -begin_end_pair -collection -max_slack 0]
+    set path_count [sizeof_collection $paths_gba]
+    set eps [get_property $paths_gba endpoint]
+    set eps_name [get_object_name $eps]
+    set ep_count [llength [lsort -u  $eps_name]]
+
+    set nworst 1
+    foreach ep [lsort -u $eps_name] {
+	set ep_occur [llength [lsearch -all  $eps_name $ep]]
+	if {$ep_occur > $nworst} {
+	    set nworst $ep_occur
+	}
+    }
+
+    set i 1
+    set paths [report_timing -retime path_slew_propagation -retime_mode exhaustive -${delay_type} -to $eps -max_paths $path_count -nworst $nworst -collection -max_slack 0]
+
+    while {[sizeof_collection $paths] > 0} {
+	echo "starting iteration - $i"
+	incr i
+	foreach_in_collection path $paths {
+	    set path_objects [get_property [get_property $path timing_points] object]
+	    echo "set_false_path -from [get_object_name [index_collection $path_objects 0]] -through  [get_object_name [index_collection $path_objects 1]] -to [get_object_name [index_collection $path_objects end]]" >> atpg_exception.tcl
+	}
+	source atpg_exception.tcl
+	report_timing  -${delay_type}
+
+
+	set paths_gba [report_timing  -${delay_type} -begin_end_pair -collection -max_slack 0]
+	set path_count [sizeof_collection $paths_gba]
+	set eps [get_property $paths_gba endpoint]
+	set eps_name [get_object_name $eps]
+	set ep_count [llength [lsort -u  $eps_name]]
+
+	set nworst 1
+	foreach ep [lsort -u $eps_name] {
+	    set ep_occur [llength [lsearch -all  $eps_name $ep]]
+	    if {$ep_occur > $nworst} {
+		set nworst $ep_occur
+	    }
+	}
+
+	#set i 1
+	set paths [report_timing -retime path_slew_propagation -retime_mode exhaustive -${delay_type} -to $eps -max_paths $path_count -nworst $nworst -collection -max_slack 0]
+
+	#set paths [report_timing -${delay_type} -begin_end_pair -collection -max_slack 0]
+	if {$i > 100} {break}
+    }
+
+    puts "ATPG-Exception SDC generated"
+}
+
+###############
+#report_timing_summary -checks {setup hold} -expand_views -sort_by wns -expand_clocks launch_capture > ${design}_pre_exception_summary_${view}.rpt
+
+if  [regexp setup [lindex  [get_db analysis_views .name] 0]] {set delay_type late} else {set delay_type early}
+
+set full_fp 1
+set view [lindex  [get_db analysis_views .name] 0]
+set design [get_object_name [current_design]]
+
+if $full_fp {
+    if [file exists ${design}_${view}_atpg_exceptions.tcl] {file delete ${design}_${view}_atpg_exceptions.tcl} 
+} else {
+    if [file exists ${design}_${view}_atpg_exceptions_bepair.tcl] {file delete ${design}_${view}_atpg_exceptions_bepair.tcl}
+}
+
+set pba_paths  [report_timing_pba -${delay_type}  -max_slack 0   -collection]
+report_timing_pba -${delay_type}  -max_slack 0   > ${design}_pre_exception_timing_${view}.rpt
+
+set i 1
+while {[sizeof_collection $pba_paths] > 0} {
+    
+    if $full_fp {
+	set fp [open ${design}_${view}_atpg_exceptions.tcl a+]
+    } else {
+	set fp [open ${design}_${view}_atpg_exceptions_bepair.tcl a+]
+    }
+    puts $fp "# Iteration $i"
+    echo "Performing Iteration : $i" ; incr i
+
+    set be_pair_paths [report_timing -${delay_type} -begin_end_pair -max_slack 0   -collection]
+    set be_pair "" 
+    foreach_in_collection path $be_pair_paths  {lappend be_pair [get_object_name [get_property $path startpoint]] ; lappend be_pair [get_object_name [get_property $path endpoint]]}
+
+    foreach {sp ep} $be_pair  {
+	set paths [report_timing -retime path_slew_propagation -retime_mode exhaustive -${delay_type} -from $sp -to $ep -max_paths 100000 -nworst 10000 -collection -max_slack 0]
+	if {[sizeof $paths] > 0} {
+	    foreach_in_collection path $paths {
+		set path_objects [get_property [get_property $path timing_points] object]
+		if $full_fp {
+		    puts $fp "set_false_path -from [get_object_name [index_collection $path_objects 0]] -through  [get_object_name [index_collection $path_objects 1]] -to [get_object_name [index_collection $path_objects end]]" 
+		} else {
+		    puts $fp "set_false_path -from [get_object_name [index_collection $path_objects 0]]  -to [get_object_name [index_collection $path_objects end]]" 
+		}
+	    }
+	}
+    }
+
+    close $fp
+
+    if $full_fp {
+	source ${design}_${view}_atpg_exceptions.tcl
+    } else {
+	source  ${design}_${view}_atpg_exceptions_bepair.tcl
+    }
+
+    set pba_paths  [report_timing_pba -${delay_type}  -max_slack 0   -collection]
+    if {$i > 10} {echo "Warning: Breaking after $i iterations - Not all paths are covered" ; break}
+
+}
+
+report_timing_pba -${delay_type}  -max_slack 0
+
+if {$i > 1} {
+    if $full_fp {
+	echo "Generated ${design}_${view}_atpg_exceptions.tcl"
+    } else {
+	echo  "Generated ${design}_${view}_atpg_exceptions_bepair.tcl"
+    }
+
+}
+
+#report_timing_summary -checks {setup hold} -expand_views -sort_by wns -expand_clocks launch_capture > ${design}_post_exception_summary_${view}.rpt
+report_timing_pba -${delay_type}  -max_slack 0   > ${design}_post_exception_timing_${view}.rpt
+
+######################
+
