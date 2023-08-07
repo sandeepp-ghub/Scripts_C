@@ -1,0 +1,329 @@
+proc clear_gui {} {
+    gui_clear_highlight -all
+    gui_remove_marker -all
+    delete_obj [get_db texts]
+    deselect_obj -all
+}
+
+proc createCustomPartialPBBoxes {args} {
+    array set pbinfo $args
+    set box $pbinfo(-box)
+    set percent $pbinfo(-density)
+    set step $pbinfo(-step)
+    set noflop $pbinfo(-noflop)
+    foreach {llx lly urx ury} $box {}
+    set dy [get_rect -dy $box]
+    set dx [get_rect -dx $box]
+    set xc [format "%0.0f" [expr floor($dx/$step) + 1]]    
+    set yc [format "%0.0f" [expr floor($dy/$step) + 1]]    
+    for {set i 0} {$i <=$xc} {incr i} {
+	for {set j 0} {$j <=$yc} {incr j} {
+	    set nllx [expr $llx + [expr $step * $i]]
+	    set nlly [expr $lly + [expr $step * $j]]
+	    set curbox [get_computed_shapes [list $nllx $nlly [expr $nllx + $step] [expr $nlly + $step]   ] AND $box -output rect]
+	    if {$curbox == ""} {
+	    } else {          
+		if {$noflop} {
+		    puts "createPlaceBlockage -type partial -density $percent -box $curbox -excludeFlops -name PB_custom_partialPBat_${percent}_${llx}_${lly}_${i}_${j}" 
+		    create_place_blockage -type partial -density $percent -rects $curbox -exclude_flops -name PB_custom_partialPBat_${percent}_${llx}_${lly}_${i}_${j}
+		} else {
+		    puts "createPlaceBlockage -type partial -density $percent -box $curbox  -name PB_custom_partialPBat_${percent}_${llx}_${lly}_${i}_${j}" 
+		    create_place_blockage -type partial -density $percent -rects $curbox -name PB_custom_partialPBat_${percent}_${llx}_${lly}_${i}_${j}
+		}
+	    }
+	}
+    }
+    puts "$box $percent"
+    puts "[llength $box]"
+
+}
+
+
+
+proc createTraingleBlockage {args} {
+    array set pbinfo $args
+    set bbox $pbinfo(-box)
+    set percent $pbinfo(-density)
+    set step $pbinfo(-step)
+    set noflop $pbinfo(-noflop)
+    set dir $pbinfo(-dir)
+    echo $bbox
+    echo [llength $bbox]    
+    #set dir right
+    #set bbox {10 10 60 90}
+    #set step 5
+    set width [get_rect $bbox -width]
+    set length [get_rect $bbox -length]
+    set llx [get_rect $bbox -llx]
+    set lly [get_rect $bbox -lly]
+    set urx [get_rect $bbox -urx]
+    set ury [get_rect $bbox -ury]
+    if {$dir=="right"} {
+	set count [format %0.0f [expr $width/$step]]
+	set grad [expr [expr $length/$count] / 2]
+	for {set i 0} {$i <$count} {incr i} {
+	    set nllx [expr $llx + $i*$step]
+	    set nlly [expr $lly + $i * $grad]
+	    set nurx [expr $nllx + $step]
+	    set nury [expr $ury - $i * $grad]
+	    eval "createCustomPartialPBBoxes -box  [dbshape $bbox AND [list $nllx $nlly $nurx $nury]] -noflop $noflop -dir $dir -step $step -density $percent"
+	}
+    }
+    if {$dir=="left"} {
+	set count [format %0.0f [expr $width/$step]]
+	set grad [expr [expr $length/$count] / 2]
+	for {set i $count} {$i > 0} {incr i -1} {
+	    set nurx [expr $llx + $i*$step]
+	    set nlly [expr $lly + [expr $count - $i] * $grad]
+	    set nllx [expr $nurx - $step]
+	    set nury [expr $ury - [expr $count - $i] * $grad]
+	    eval "createCustomPartialPBBoxes -box  [dbshape $bbox AND [list $nllx $nlly $nurx $nury]] -noflop $noflop -dir $dir -step $step -density $percent"
+	}
+    }
+    if {$dir=="top"} {
+	set count [format %0.0f [expr $length/$step]]
+	set grad [expr [expr $width/$count] / 2]
+	for {set i 0} {$i <$count} {incr i} {
+	    set nllx [expr $llx + $i*$grad]
+	    set nlly [expr $lly + $i * $step]
+	    set nurx [expr $urx - $i * $grad]
+	    set nury [expr $nlly + $step]
+	    eval "createCustomPartialPBBoxes -box  [dbshape $bbox AND [list $nllx $nlly $nurx $nury]] -noflop $noflop -dir $dir -step $step -density $percent"
+	}
+    }
+    if {$dir=="bottom"} {
+	set count [format %0.0f [expr $length/$step]]
+	set grad [expr [expr $width/$count] / 2]
+	for {set i 0} {$i <$count} {incr i} {
+	    set nllx [expr $llx + $i*$grad]
+	    set nury [expr $lly + [expr $count - $i] * $step]
+	    set nurx [expr $urx - $i * $grad]
+	    set nlly [expr $nlly - $step]
+	    eval "createCustomPartialPBBoxes -box  [dbshape $bbox AND [list $nllx $nlly $nurx $nury]] -noflop $noflop -dir $dir -step $step -density $percent"
+	}
+    }
+}
+
+
+
+proc get_partial_pb {} {
+    return [get_db place_blockages -if {.type == partial}]
+}
+
+proc convert_partial_pb {} {
+    set outfile "PB_convert_[pid].tcl"
+    redirect  $outfile {}
+    foreach ptr [get_partial_pb] {
+	set isnoflop [get_db  $ptr .is_no_flop]
+	set density [format %0.0f [get_db $ptr .density]]
+	foreach box [get_db $ptr .rects ] {
+	    redirect -append $outfile {echo "redirect /dev/null \{createCustomPartialPBBoxes -noflop $isnoflop -density $density -step 5 -box \{$box\}\}"}
+	}
+    }
+    delete_obj [get_partial_pb]
+    source $outfile
+}
+
+##
+
+## 
+proc create_generic_pb {{hard 2} {soft 7} {partial 13}} {
+    echo "Hard : $hard"
+    echo "Soft : $soft"
+    echo "Partial : $partial"
+
+    #set i 0; foreach box  [get_computed_shapes  [get_db  [all_macros] .overlap_rects] -output rect] {create_place_blockage -rects  [get_computed_shapes  $box SIZE $hard]   -type hard -name PB_HARD_MACRO_${i} ; incr i}
+    set i 0; foreach box  [get_computed_shapes  [get_db  [all_macros] .overlap_rects] -output rect] {create_place_blockage -rects  [get_computed_shapes  $box SIZE $soft]   -type soft -name PB_SOFT_MACRO_${i} ; incr i}
+    set i 0; foreach box  [get_computed_shapes  [get_db  [all_macros] .overlap_rects] -output rect] {create_place_blockage -rects  [get_computed_shapes  $box SIZE $partial]   -type partial -exclude_flops -density 70 -name PB_PART_NOFLOP_MACRO_${i} ; incr i}
+
+    create_pb_at_ports
+    create_pb_at_bndry
+    
+    catch {foreach box [report_narrow_channel -active_objects softblkg -width 15] {set _t "create_place_blockage -name PB_SOFT_CH_FILL_ -type soft -rects \{$box\}" ; echo $_t; eval $_t}}
+    catch {foreach box [report_narrow_channel -active_objects softblkg -width 15] {set _t "create_place_blockage -name PB_SOFT_CH_FILL_ -type soft -rects \{$box\}" ; echo $_t; eval $_t}}
+    catch {foreach box [report_narrow_channel -active_objects softblkg -width 15] {set _t "create_place_blockage -name PB_SOFT_CH_FILL_ -type soft -rects \{$box\}" ; echo $_t; eval $_t}}
+    catch {foreach box [report_narrow_channel -active_objects softblkg -width 15] {set _t "create_place_blockage -name PB_SOFT_CH_FILL_ -type soft -rects \{$box\}" ; echo $_t; eval $_t}}
+    catch {foreach box [report_narrow_channel -active_objects softblkg -width 15] {set _t "create_place_blockage -name PB_SOFT_CH_FILL_ -type soft -rects \{$box\}" ; echo $_t; eval $_t}}
+    catch {foreach box [report_narrow_channel -active_objects softblkg -width 15] {set _t "create_place_blockage -name PB_SOFT_CH_FILL_ -type soft -rects \{$box\}" ; echo $_t; eval $_t}}
+    catch {foreach box [report_narrow_channel -active_objects softblkg -width 15] {set _t "create_place_blockage -name PB_SOFT_CH_FILL_ -type hard -rects \{$box\}" ; echo $_t; eval $_t}}
+
+    catch {foreach box [report_narrow_channel -active_objects softblkg -width 50] {set _t "create_place_blockage -name PB_SOFT_CH_FILL_ -type partial -density 50 -rects \{$box\}" ; echo $_t; eval $_t}}
+    catch {delete_obj [get_db markers  -if {.user_type == narrowChannels}]}
+
+}
+
+proc create_pb_at_ports {{soft 20} {partial 30} {density 5}} {
+    echo "Soft: $soft"
+    echo "Partial : $partial"
+    set i 0
+    foreach edge [get_db ports .pin_edge -u] {
+	if {$edge > 0} {
+	    set terms [get_db ports -if {.pin_edge == $edge}]
+	    set all_rects [get_db $terms .physical_pins.layer_shapes.shapes.rect]
+	    foreach bbox [get_computed_shapes [get_db current_design .boundary.bbox] AND [get_computed_shapes [get_computed_shapes  $all_rects] SIZE $soft]] {
+		catch {create_place_blockage -type soft -rects $bbox -name PB_CUSTOM_PORT_SOFT_${i}}
+		incr i
+	    }
+	    foreach bbox [get_computed_shapes [get_db current_design .boundary.bbox] AND [get_computed_shapes [get_computed_shapes  $all_rects] SIZE $partial]] {
+		catch {create_place_blockage -type partial -rects $bbox -name PB_CUSTOM_PORT_PARTIAL_${i} -density $density -exclude_flops}
+		incr i
+	    }
+	}
+    }
+
+}
+
+proc create_pb_at_bndry {{soft 10} {partial 20} {density 5}} {
+    create_place_blockage -type partial -rects [get_computed_shapes [get_computed_shapes [get_db current_design .boundary]  SIZE [expr -1 * $partial]  ] XOR [get_db current_design .boundary] -output rect] -name PB_CUSTOM_BNDRY_PARTIAL -density $density -exclude_flops
+    create_place_blockage -type soft -rects [get_computed_shapes [get_computed_shapes [get_db current_design .boundary]  SIZE [expr -1 * $soft]  ] XOR [get_db current_design .boundary] -output rect] -name PB_CUSTOM_BNDRY_SOFT
+}
+
+####
+
+set mem_hier_list {
+    cevaxc_cevaxc_dmem_dmem_blk_0__dmem_bnk_*__PG_BLK_IDX_dmem_blk_bnk_m_m_0_0 
+    cevaxc_cevaxc_dmem_dmem_blk_1__dmem_bnk_*__PG_BLK_IDX_dmem_blk_bnk_m_m_0_0 
+    cevaxc_cevaxc_dmem_dmem_blk_2__dmem_bnk_*__PG_BLK_IDX_dmem_blk_bnk_m_m_0_0 
+    cevaxc_cevaxc_dmem_dmem_blk_3__dmem_bnk_*__PG_BLK_IDX_dmem_blk_bnk_m_m_0_0 
+    cevaxc_cevaxc_pmem_PG_B0_MEM_pmem_blk0_bnk_*__m_m_0_0 
+    cevaxc_cevaxc_pmem_PG_modules_REAL_MEM_n_PG_MEM_ECC_pmem_blk*_parity_m_m_0_0 
+    cevaxc_cevaxc_pmem_PG_modules_REAL_MEM_n_PG_MEM_n_tag_parity_pmem_tag_parity_m_m_0_0
+    cevaxc_cevaxc_pmem_PG_pmem_blk1_bnk*_m_m_0_0
+    cevaxc_cevaxc_pmem_PG_pmem_tag_1kX18_m_m_0_0
+}
+
+proc highlight_all_mems {macro_hier_list} {
+    gui_clear_highlight
+    set i 0
+    set color_list {red blue green yellow magenta cyan lightpink purple teal olive plum navy pink lime orange brown lightblue gold chocolate lightgreen maroon salmon violet darkcyan royalblue darkgreen tomato chartreuse wheat deepskyblue darkorange darkred red blue green yellow magenta cyan lightpink purple teal olive plum navy pink lime orange brown lightblue gold chocolate lightgreen maroon salmon violet darkcyan royalblue darkgreen tomato chartreuse wheat deepskyblue darkorange darkred}
+    foreach elem $macro_hier_list {
+	deselect_obj -all
+	select_obj [get_db insts .name $elem]
+	echo "$elem --> [lindex $color_list $i] --> [llength [get_db selected ]]"
+	
+	gui_highlight [get_db selected] -color [lindex $color_list $i] -index [expr $i + 1]
+	incr i
+	incr i
+    }
+    deselect_obj -all
+}
+
+
+proc create_custom_route_blk_over_memory {} {
+    set layer_list {M4 M5 M6 M7 M8 M9 }
+    set macro_bbox [get_db [all_macros] .bbox]
+    redirect _custom_rb_over_macros.tcl {echo ""}
+    foreach bbox $macro_bbox {
+	foreach layer $layer_list {
+	    redirect -append _custom_rb_over_macros.tcl {create_custom_route_blk_in_area $layer 40 $bbox}
+	}
+    }
+}
+
+proc create_custom_route_blk_in_area {{layer M0} {percent 25} {box {0 0 0 0}}} {
+
+    #set layer M5
+    #set percent 50 
+    #set box [get_db $ptr .bbox]
+
+    set direction [get_db layer:$layer .direction]
+    if {$direction == "horizontal"} {set track_dir y} else {set track_dir x}
+    set width [get_db layer:$layer .min_width]
+    set spacing [get_db layer:$layer .min_spacing]
+    set pitch [expr $width + $spacing]
+    set mask_list [get_db [get_db track_patterns  -if {.layers.name==$layer && .direction == "$track_dir"}] .mask -u] 
+    set percent [expr $percent / [llength $mask_list]]
+    foreach mask $mask_list {
+	set track_start [get_db [get_db track_patterns  -if {.layers.name==$layer && .direction == "$track_dir" && .mask==$mask}  -unique] .start]
+	set track_step  [get_db [get_db track_patterns  -if {.layers.name==$layer && .direction == "$track_dir" && .mask == $mask}  -unique] .step]
+	set factor [expr ceil([format %0.0f [expr 100.00 / $percent]])]
+	set i 0
+	set llx [expr [get_rect -llx $box] + 0.3]
+	set lly [expr [get_rect -lly $box] + 0.3]
+	set urx [expr [get_rect -urx $box] - 0.3]
+	set ury [expr [get_rect -ury $box] - 0.3]
+
+
+	if {$direction=="horizontal"} {
+	    set _lly $lly
+	    while {$track_start < $_lly} {
+		set track_start [expr $track_start + $track_step]
+	    }
+	    set lly [expr $track_start - [expr $width/2]]
+
+	    for {set i 0} {$_lly < $ury} {incr i} {
+		set _lly [expr $lly + [expr $i * $factor * $pitch]]
+		set rbox [list  $llx $_lly $urx [expr $_lly + $width]]
+		echo "create_route_blockage -layers $layer -except_pg_nets -rects \{$rbox\} -name RB_CUSTOM_RESERVE_${layer}_${mask}_${percent}_${i}"
+		create_route_blockage -layers $layer  -except_pg_nets -rects $rbox -name RB_CUSTOM_RESERVE_${layer}_${mask}_${percent}_${i}
+	    }
+	} 
+	if {$direction == "vertical"} {
+	    set _llx $llx
+	    #echo $_llx
+	    while {$track_start < $_llx} {
+		set track_start [expr $track_start + $track_step]
+	    }
+	    #echo $track_start
+	    set llx [expr $track_start - [expr $width/2]]
+	    #echo $llx
+	    for {set i 0} {$_llx < $urx} {incr i} {
+		set _llx [expr $llx + [expr $i * $factor * $pitch]]
+		set rbox [list  $_llx $lly [expr $_llx + $width] $ury]
+		echo "create_route_blockage -layers $layer -except_pg_nets -rects \{$rbox\} -name RB_CUSTOM_RESERVE_${layer}_${mask}_${percent}_${i}"
+		create_route_blockage -layers $layer  -except_pg_nets -rects $rbox -name RB_CUSTOM_RESERVE_${layer}_${mask}_${percent}_${i}
+	    }
+	}
+    }
+
+}
+
+
+
+proc print_macro_aspects {{track h210}} {
+    set YY [get_db [all_macros] .base_cell -u]
+    if {$track == "h210"} {
+
+	echo "Checking Height with Double the Std-Cell height .. Should get Integer"
+	foreach _x [get_db $YY] {set x [get_db $_x .bbox.dy -u]; echo "[get_db $_x .base_name] :: [expr $x/0.42]"}
+	echo "Checking Height with  the Std-Cell height .. Shoulg get integer better even number"
+	foreach _x [get_db $YY] {set x [get_db $_x .bbox.dy -u]; echo "[get_db $_x .base_name] :: [expr $x/0.21]"}
+	echo "Checking Height with  the 0.1x of Std-Cell height ..Should get integer .. multiple of 10"
+	foreach _x [get_db $YY] {set x [get_db $_x .bbox.dy -u]; echo "[get_db $_x .base_name] :: [expr $x/0.021]"}
+	echo "Checking Width with  the Site width ..Should get ODD integer"
+	foreach _x [get_db $YY] {set x [get_db $_x .bbox.dx -u]; echo "[get_db $_x .base_name] :: [expr $x/0.051]"}
+
+	get_db [all_macros]  -foreach {if ![expr [format %0.0f [expr  [lindex $obj(.bbox) 0] / 0.051]] % 2] {echo "$obj(.name) Is at Even Site - X"}}
+	get_db [all_macros]  -foreach {if [expr [format %0.0f [expr  [lindex $obj(.bbox) 1] / 0.21]] % 2] {echo "$obj(.name) Is at ODD ROW - Y"}}
+
+	set box [get_db current_design .bbox]
+	if  [expr [format %0.0f [expr [get_rect $box -dx] / 0.051]] % 2] {echo "GOOD: DIE WIDTH is Multiple of ODD SITES"} else {echo "ERROR: DIE width is multiples of Even Site."}
+	if ![expr [format %0.0f [expr [get_rect $box -dy] / 0.21]] % 2] {echo "GOOD: DIE HEIGHT is Multiple of EVEN ROWS"} else {echo "ERROR: DIE height is multiples of ODD ROWS."}
+
+	set box [get_db current_design .core_bbox]
+	if  [expr [format %0.0f [expr [get_rect $box -dx] / 0.051]] % 2] {echo "GOOD: CORE WIDTH is Multiple of ODD SITES"} else {echo "ERROR: CORE width is multiples of Even Site."}
+	if ![expr [format %0.0f [expr [get_rect $box -dy] / 0.21]] % 2] {echo "GOOD: CORE HEIGHT is Multiple of EVEN ROWS"} else {echo "ERROR: CORE height is multiples of ODD ROWS."}
+
+    } else {
+	echo "Checking Height with Double the Std-Cell height ..Should get Integer"
+	foreach _x [get_db $YY] {set x [get_db $_x .bbox.dy -u]; echo "[get_db $_x .base_name] :: [expr $x/0.56]"}
+	echo "Checking Height with  the Std-Cell height ..Should get Even Integer"
+	foreach _x [get_db $YY] {set x [get_db $_x .bbox.dy -u]; echo "[get_db $_x .base_name] :: [expr $x/0.28]"}
+	echo "Checking Height with  the 0.1x of Std-Cell height ..Should get Integer ..multiple of 10"
+	foreach _x [get_db $YY] {set x [get_db $_x .bbox.dy -u]; echo "[get_db $_x .base_name] :: [expr $x/0.028]"}
+	echo "Checking Width with  the Site width ..Should get ODD Integer"
+	foreach _x [get_db $YY] {set x [get_db $_x .bbox.dx -u]; echo "[get_db $_x .base_name] :: [expr $x/0.057]"}
+	get_db [all_macros]  -foreach {if ![expr [format %0.0f [expr  [lindex $obj(.bbox) 0] / 0.056]] % 2] {echo "$obj(.name) Is at Even Site - X"}}
+	get_db [all_macros]  -foreach {if [expr [format %0.0f [expr  [lindex $obj(.bbox) 1] / 0.28]] % 2] {echo "$obj(.name) Is at ODD ROW - Y"}}
+
+	set box [get_db current_design .bbox]
+	if  [expr [format %0.0f [expr [get_rect $box -dx] / 0.056]] % 2] {echo "GOOD: DIE WIDTH is Multiple of ODD SITES"} else {echo "ERROR: DIE width is multiples of Even Site."}
+	if ![expr [format %0.0f [expr [get_rect $box -dy] / 0.28]] % 2] {echo "GOOD: DIE HEIGHT is Multiple of EVEN ROWS"} else {echo "ERROR: DIE height is multiples of ODD ROWS."}
+
+	set box [get_db current_design .core_bbox]
+	if  [expr [format %0.0f [expr [get_rect $box -dx] / 0.056]] % 2] {echo "GOOD: CORE WIDTH is Multiple of ODD SITES"} else {echo "ERROR: CORE width is multiples of Even Site."}
+	if ![expr [format %0.0f [expr [get_rect $box -dy] / 0.28]] % 2] {echo "GOOD: CORE HEIGHT is Multiple of EVEN ROWS"} else {echo "ERROR: CORE height is multiples of ODD ROWS."}
+
+    }
+
+}
