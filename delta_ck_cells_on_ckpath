@@ -1,0 +1,46 @@
+#set pfix shift
+set tpaths_vio [get_timing_path -cover_design -path_type full_clock_expanded ]
+set non_ck_cell [add_to_collection -unique  [get_nets -quiet -top -of [ga $tpaths_vio launch_clock_paths.points.object] -filter "annotated_delay_delta_max > 0.01 || annotated_delay_delta_min < -0.01"] [get_nets -top  -quiet -of [ga $tpaths_vio capture_clock_paths.points.object] -filter "annotated_delay_delta_max > 0.01 || annotated_delay_delta_min < -0.01"]]
+
+#ec -col [get_pins -leaf -of $non_ck_cell] -attrib {full_name net.annotated_delay_delta_max net.annotated_delay_delta_min net.leaf_driver.full_name net.leaf_drivers.ref_name   net.full_name}
+ec -col [get_pins -leaf -of $non_ck_cell] -attrib {full_name net.annotated_delay_delta_max net.annotated_delay_delta_min net.leaf_drivers.full_name net.leaf_drivers.cell.ref_name   net.full_name} > SH_delta_ck.rpt
+#annotated_delay_delta_max > 0.01 || annotated_delay_delta_min < -0.01
+#set all_vio_del_cells [get_cells -of [ga $tpaths_vio points.object] -filter "ref_name=~DELC* || ref_name=~DELD* || ref_name=~DELE* || ref_name=~DELF* || ref_name=~DELG*"]
+#ec -col $all_vio_del_cells  -attrib {full_name ref_name } > ${pfix}_all_dellc.rpt
+
+set non_ck_cell [get_cells $non_ck_cell_list]
+ec -col $non_ck_cell  -attrib {full_name ref_name } > ${pfix}_all_non_ck.rpt
+
+if {1} {
+    redirect ${pfix}_non_ck.rpt {
+	#redirect ${pfix}_dell_cell_vio.rpt {
+	set target_list $non_ck_cell
+	set hier_info ""
+	#foreach cell [get_object_name $non_ck_cell] {lappend hier_info [file dirname $cell]}
+	set designs $pnr_blks
+	set cur_design [get_object_name [current_design]]
+	foreach {inst part } $PT_PARTITION_CONFIG_LIST($cur_design) {lappend designs $part}
+	foreach design $designs {
+	    set cur_inst [get_object_name [index_collection [all_instances -hier $design] 0]]
+	    set cur_non_ck [get_cells -quiet $target_list -filter "full_name=~${cur_inst}/*"]
+	    if {[sizeof_collection $cur_non_ck] > 0} {
+		foreach des [get_object_name [all_instances -hier $design]] {
+		    set target_list [remove_from_collection $target_list [get_cells -quiet $target_list -filter "full_name=~${des}/*"]]
+		}
+		echo ""
+		echo "======================================"
+		echo "Design :: $design"
+		echo "======================================"
+		ec -col $cur_non_ck  -attrib {full_name ref_name }
+		echo ""
+	    }
+	}
+
+	echo ""
+	echo "======================================"
+	echo "Design :: $cur_design"
+	echo "======================================"
+	ec -col $target_list  -attrib {full_name ref_name }
+	echo ""
+    }
+}
