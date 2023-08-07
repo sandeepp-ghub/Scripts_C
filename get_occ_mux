@@ -1,0 +1,37 @@
+#[get_cells  [get_db  [get_cells -hier *tessent_persistent_cell_clock_out_mux -filter "is_hierarchical"] .local_insts.name *anpa_keep_clk_mux] ]
+
+set tck_clk [get_clocks *tck*]
+
+set all_occ_clkout_mux "" ; foreach clkout_mux [get_object_name [get_cells -hier *u_occ -filter "is_hierarchical"]] {lappend all_occ_clkout_mux [get_object_name [get_cells ${clkout_mux}/*tessent_persistent_cell_clock_out*mux*/*anpa_keep_clk_mux* -filter "!is_hierarchical"]]}
+foreach occ_mux [lsort -u [get_object_name [get_cells $all_occ_clkout_mux]]] {
+    set occ_pnr  [find_pnr $occ_mux]
+    set occ_pnr_ref  [find_pnr_m $occ_mux] 
+    set sel_case [get_property -quiet [get_pins -quiet ${occ_mux}/S] case_value]
+    if {$sel_case == ""} {set sel_case NA}
+
+    #echo "processing $occ_mux"
+    set i0_clocks [get_property -quiet [get_pins -quiet ${occ_mux}/I0] clocks]
+    set i1_clocks [get_property -quiet [get_pins -quiet ${occ_mux}/I1] clocks]
+    set z_clocks [remove_from_collection [get_property -quiet [get_pins -quiet ${occ_mux}/Z] clocks] $tck_clk]
+    if {[sizeof_collection $z_clocks] > 0} {
+	if {[sizeof_collection $i0_clocks] > 0 } {
+	    set i0_z_clocks [remove_from_collection -intersect $i0_clocks $z_clocks]
+	    set i1_z_clocks [remove_from_collection -intersect $i1_clocks $z_clocks]
+	    if {[sizeof_collection $i0_z_clocks] > 0} {
+		if {[sizeof_collection $i0_z_clocks] > 0} {
+		    foreach stop_clock [get_object_name $i0_z_clocks] {
+			set clk_pnr  [find_pnr [get_object_name [get_property -quiet [get_clocks $stop_clock] sources]]]
+			set clk_pnr_ref [find_pnr_m [get_object_name [get_property -quiet [get_clocks $stop_clock] sources]]]
+
+			echo "Warning: Clock ${stop_clock} (Generated at ${clk_pnr_ref}:${clk_pnr} ) propagates through (${occ_pnr_ref}:${occ_pnr}) ${occ_mux}/I0 CaseValueOn-Select: ${sel_case}"
+		    }
+		} else {
+		    echo "Error: No Clock Propagates through (${occ_pnr_ref}:${occ_pnr}) ${occ_mux}/I1 -> Z CaseValueOn-Select: ${sel_case}"
+		}
+	    }
+	}
+    } else {
+	echo "Error: No Clock Propagates through (${occ_pnr_ref}:${occ_pnr}) ${occ_mux}/Z CaseValueOn-Select: ${sel_case}"
+    }
+}
+
