@@ -1,0 +1,39 @@
+proc clk_unapproved_cell {} {
+    set top_design [get_object_name [current_design]]
+    set scen_name [lindex [all_analysis_views -type  active] 0]
+    set dataout_prefix ./DEBUG_REPORT/CLK_${scen_name}
+    if ![file exists ./DEBUG_REPORT] {file mkdir ./DEBUG_REPORT}
+
+    set all_clock_pins [get_pins -quiet -hier * -filter "!is_hierarchical && (direction==out || direction==inout) && is_clock_used_as_clock "]
+    set all_clock_nets [get_nets -quiet -of $all_clock_pins]
+
+    set fp [open ${dataout_prefix}_UNAPPROVED_TYPE.rpt w]
+    set ck_cells [get_cells -quiet -of $all_clock_pins  -filter "ref_name!~XSRPHY* && ref_name!~DCCK*ULVT && ref_name!~PLLTS5FFPLAFRACN && ref_name!~CK*ULVT && ref_name!~DCCK*ULVT && ref_name!~MRVLSPBUF*DULVT && ref_name!~*DRO* && ref_name!~*PAD* && ref_name!~*dwc_* && ref_name!~*CWGDSK* && ref_name!~MRVCK*ULVT  && pin_count > 1"]
+    set ck_seq_cells [get_cells -quiet $ck_cells  -filter "is_sequential && ref_name!~*DULVT"]
+    set ck_non_seq_cells [get_cells -quiet $ck_cells  -filter "!is_sequential"]
+
+    set unapproved_cells $ck_seq_cells
+    append_to_collection unapproved_cells $ck_non_seq_cells
+
+    set unapproved_clock_pins [sort_collection [remove_from_collection -intersect $all_clock_pins [get_pins -quiet -of $unapproved_cells]] clocks]
+
+
+    puts $fp  [format  "%-20s %-150s %-30s %-5s %-25s %-10s %-40s" DESIGN_NAME INST_NAME REF_NAME LIB_PIN CLOCK PERIOD CK_SOURCE]
+    foreach_in_collection ck_pin $unapproved_clock_pins {
+
+	set pin_name [get_object_name $ck_pin]
+	set design_name [get_property [get_cells -quiet [find_pnr $pin_name]] ref_name]
+	if {$design_name == ""} {set design_name $top_design}
+	set inst_name [file dirname $pin_name]
+	set ref_name [get_property [get_cells -quiet $inst_name] ref_name]
+	set lib_pin_name [file tail $pin_name]
+	set clocks [index_collection [sort_collection [get_property -quiet $ck_pin clocks] period] 0]
+	set clock_name [get_property $clocks full_name]
+	set clock_period [get_property $clocks period]
+	set clock_sources [get_object_name [get_property $clocks sources]]
+
+	puts $fp  [format  "%-20s %-150s %-30s %-5s %-25s %-10s %-40s" $design_name $inst_name $ref_name $lib_pin_name $clock_name $clock_period $clock_sources]
+    }
+
+    close $fp
+}
