@@ -1,0 +1,10 @@
+set all_hpins [get_pins -of [get_pnr]]
+## Missing Driver
+redirect driver_less_in_port.rpt {get_db $all_hpins -if {.hnet.net.num_drivers == 0 && .hnet.net.num_loads > 0 && .direction==in}  -foreach {echo $obj(.hinst.module.name) $obj(.direction) $obj(.name)  }}
+
+## Missing Load
+redirect load_less_out_port.rpt {get_db $all_hpins -if {.hnet.net.num_drivers > 0 && .hnet.net.num_loads < 1 && .direction==out}  -foreach {echo $obj(.hinst.module.name) $obj(.direction) $obj(.name) }}
+redirect load_less_in_port.rpt {get_db $all_hpins -if {.hnet.net.num_drivers > 0 && .hnet.net.num_loads < 1 && .direction==in}  -foreach {echo $obj(.hinst.module.name) $obj(.direction) $obj(.name)  }}
+
+## Missing Driver & Load
+redirect load_and_driver_less_port.rpt {get_db $all_hpins -if {.hnet.net.num_drivers < 1 && .hnet.net.num_loads < 1 }  -foreach {echo $obj(.hinst.module.name) $obj(.direction) $obj(.name)  }}
