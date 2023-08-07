@@ -1,0 +1,311 @@
+alias ga get_property
+alias get_timing_path report_timing -collection
+proc get_period {clk} {
+    return [lsort -u [get_property [get_clocks $clk] period]]
+}
+proc get_endpoint_clock_pin {path} {
+    redirect /dev/null {return [get_object_name [get_property $path endpoint_clock_pin]]}
+}
+
+proc get_ck2q {path} {
+    redirect /dev/null {
+	set tps [get_property  $path timing_points]
+	if {[sizeof_collection $tps] > 0} {
+	    set arrivals [get_property $tps arrival]
+	} else {
+	    set arrivals ""
+	}
+	if {[llength $arrivals] > 2} {
+	    set  ck2q [expr [lindex $arrivals 1] - [lindex $arrivals 0]]
+	} else {
+	    set ck2q NA
+	}
+	return $ck2q
+    }
+}
+
+proc get_endpoint_clock {path} {
+    return [lsort -u [get_object_name [get_property $path endpoint_clock]]]
+}
+
+proc get_endpoint_clock_latency {path} {
+    redirect /dev/null {return  [get_property $path endpoint_clock_latency]}
+}
+
+proc get_startpoint_clock_pin {path} {
+    redirect /dev/null {return [get_object_name [get_property $path startpoint]]}
+}
+
+proc get_startpoint_clock_latency {path} {
+    redirect /dev/null {return  [get_property $path startpoint_clock_latency]}
+}
+
+
+proc get_startpoint_clock {path} {
+    return [lsort -u [get_object_name [get_property $path startpoint_clock]]]
+}
+
+proc get_slack {path} {
+    redirect /dev/null {
+	set slack [lindex [lsort -real -increasing [get_property $path slack]] 0]
+	if {$slack == ""} {set slack NA}
+	return  $slack 
+    }
+}
+
+proc get_skew {path} {
+    set skew  [get_property $path skew]
+    set path_type [get_attribute $path path_type]
+    if [regexp max $path_type] {
+	set skew [expr [get_attribute $path capturing_clock_latency] - [get_attribute $path launching_clock_latency] + [get_attribute $path cppr_adjustment]]
+    }
+    if [regexp min $path_type]  {
+	set skew [expr [get_attribute $path capturing_clock_latency] - [get_attribute $path launching_clock_latency] - [get_attribute $path cppr_adjustment]]
+    }
+    return $skew
+}
+
+proc get_path_pins {path} {
+    return [get_object_name [get_property  [get_property $path timing_points] pin]]
+}
+
+proc get_path_pins_collection {path} {
+    return  [get_property  [get_property $path timing_points] pin]
+}
+
+proc get_first_combo_pin {path} {
+    set pinlist [get_object_name [get_pins [get_property  [get_property $path timing_points] pin] -filter "direction==in"]]
+    set n [llength $pinlist]
+    set spin ""
+    for {set i 1} {$i < [expr $n -1]} {incr i} {
+	set pin [lindex $pinlist $i]
+	set multiin [sizeof_collection [get_pins -of [get_cells -of [get_pins $pin]] -filter "direction==in"]]
+	if {$multiin > 1} {set spin $pin; break}
+    }
+    return $spin
+}
+
+proc get_first_buff_pin {path} {
+    set pinlist [get_object_name [get_pins [get_property  [get_property $path timing_points] pin] -filter "direction==in"]]
+    set n [llength $pinlist]
+    set spin ""
+    for {set i 1} {$i < [expr $n -1]} {incr i} {
+	set pin [lindex $pinlist $i]
+	set multiin [sizeof_collection [get_pins -of [get_cells -of [get_pins $pin]] -filter "direction==in"]]
+	if {$multiin == 1} {set spin $pin; break}
+    }
+    return $spin
+}
+
+proc get_last_combo_pin {path} {
+    set pinlist [get_object_name [get_pins [get_property  [get_property $path timing_points] pin] -filter "direction==in"]]
+    set n [llength $pinlist]
+    set spin ""
+    for {set i [expr $n -2]} {$i > 0} {incr i -1} {
+	set pin [lindex $pinlist $i]
+	set multiin [sizeof_collection [get_pins -of [get_cells -of [get_pins $pin]] -filter "direction==in"]]
+	if {$multiin > 1} {set spin $pin; break}
+    }
+    return $spin
+}
+
+proc get_last_buff_pin {path} {
+    set pinlist [get_object_name [get_pins [get_property  [get_property $path timing_points] pin] -filter "direction==in"]]
+    set n [llength $pinlist]
+    set spin ""
+    for {set i [expr $n -2]} {$i > 0} {incr i -1} {
+	set pin [lindex $pinlist $i]
+	set multiin [sizeof_collection [get_pins -of [get_cells -of [get_pins $pin]] -filter "direction==in"]]
+	if {$multiin == 1} {set spin $pin; break}
+    }
+    return $spin
+}
+
+
+
+proc get_start_point {path} {
+    set a [lindex [get_path_pins $path] 0]
+    if {[sizeof_collection [get_ports -quiet $a]] == "0"} {
+	set a  [lindex [get_path_pins $path] 1]
+    }
+    return $a
+}
+
+proc get_end_point {path} {
+    set _tmp [get_path_pins $path]
+    set a [lindex $_tmp  [expr [llength $_tmp] - 1]]
+    return $a
+}
+
+proc get_setup_time {path} {
+    set _su ""
+    set _su [get_property $path setup]
+    if {$_su == ""} {set _su NA}
+    return $_su
+}
+
+proc get_hold_time {path} {
+    set _su ""
+    set _su  [get_property $path hold]    
+    if {$_su == ""} {set _su NA}
+    return $_su
+}
+
+
+proc get_tran {pin} {
+    return [get_property [get_pins -quiet $pin] slew_max]
+}
+
+proc get_path_summary {path {inst {}}} {
+    echo "Slack Skew CK2Q SpClkTran SetupTime EpClkTran EpDataTran SpClk SpClkP SpClkLatency EpClk EpClkP EpClkLatency"
+    set summ "[get_slack $path] [get_skew $path] [get_ck2q $path] [get_tran [get_startpoint_clock_pin $path]] [get_setup_time $path] [get_tran [get_endpoint_clock_pin $path]] [get_tran [get_property $path endpoint]] [get_startpoint_clock $path] [get_period [get_startpoint_clock $path]] [get_startpoint_clock_latency $path] [get_endpoint_clock $path] [get_period [get_endpoint_clock $path]] [get_endpoint_clock_latency $path]"
+    echo $summ
+    return $summ
+}
+
+
+proc get_inst_intf_summary {inst_list} {
+
+    #echo "INput[string repeat , 12]Output[string repeat , 12],RefName,InstName"
+    set str  "IP_Slack,IP_Skew,IP_CK2Q,IP_SpClkTran,IP_SetupTime,IP_EpClkTran,IP_EpDataTran,IP_SpClk,IP_SpClkP,IP_SpClkLatency,IP_EpClk,IP_EpClkP,IP_EpClkLatency,"
+    set str1  "OUTP_Slack,OUTP_Skew,OUTP_CK2Q,OUTP_SpClkTran,OUTP_SetupTime,OUTP_EpClkTran,OUTP_EpDataTran,OUTP_SpClk,OUTP_SpClkP,OUTP_SpClkLatency,OUTP_EpClk,OUTP_EpClkP,OUTP_EpClkLatency,"
+
+    set str2 "RefName,${str}${str1}InstName"
+    echo $str2
+    #set inst gsbuslows3/SbuSbbWcu3_SbuSlowSouth/SbuSbbSlowClkTop/SbuSbbSlowAsyncMacros_BsiRdCmplAsynFifo_subarray_0_0
+    
+    foreach inst $inst_list {
+	set ck_pins [get_pins -quiet ${inst}/* -filter "is_clock"]
+	set in_pins [get_pins -quiet ${inst}/* -filter "is_clock==false && direction==in"]
+	set out_pins [get_pins -quiet ${inst}/* -filter "direction!=in"]
+	set in_path [index_collection [sort_collection [report_timing -collection -to $in_pins -max_paths 1 -nworst 1 -not_through [all_inputs -no_clock] ] slack] 0]
+	if { [sizeof_collection $in_path] == 0} {
+	    set in_path [index_collection [sort_collection [report_timing -collection -to $in_pins -max_paths 1 -nworst 1  ] slack] 0]
+	}
+	set out_path [index_collection [sort_collection [report_timing -collection -from $ck_pins -through $out_pins -not_through [all_outputs] -max_paths 1 -nworst 1 ] slack] 0]
+	if { [sizeof_collection $out_path] == 0} {
+	    set out_path [index_collection [sort_collection [report_timing -collection -from $ck_pins -through $out_pins  -max_paths 1 -nworst 1 ] slack] 0]
+	}
+	echo "[get_property [get_cells -quiet $inst] ref_name],[regsub -all " " [concat [get_path_summary $in_path] [get_path_summary $out_path]] ,],$inst"
+    }
+}
+
+
+proc get_path_summary {path {inst {}}} {
+    #echo "Slack Skew CK2Q SpClkTran SetupTime EpClkTran EpDataTran SpClk SpClkP SpClkLatency EpClk EpClkP EpClkLatency"
+    set summ "[get_slack $path] [get_skew $path] [get_ck2q $path] [get_tran [get_startpoint_clock_pin $path]] [get_setup_time $path] [get_tran [get_endpoint_clock_pin $path]] [get_tran [get_property $path endpoint]] [get_startpoint_clock $path] [get_period [get_startpoint_clock $path]] [get_startpoint_clock_latency $path] [get_endpoint_clock $path] [get_period [get_endpoint_clock $path]] [get_endpoint_clock_latency $path]"
+    #echo $summ
+    redirect /dev/null {return $summ}
+}
+
+
+proc get_arcs_info {ref_name} {
+    #set ref_name sacrls0g4u2p64x22m2b4w0c1p0d0r1rm4sdrw00
+
+    #set ref_name sacrls0g4u2p64x22m2b4w0c1p0d0r1rm4sdrw00
+    set all_arcs [get_lib_arcs -of [index_collection [get_lib_cell */${ref_name}] 0] ]
+    set all_checks [lsort -u [ga $all_arcs timing_type]]
+    set all_sps [lsort -u [get_object_name [ga $all_arcs from_lib_pin]]]
+    set all_related_pins [get_db [ga $all_arcs from_lib_pin] .base_name -u]
+
+    echo "LibCell\t::\t${ref_name}"
+    echo "AllChecks\t::\t${all_checks}"
+    echo "AllRelatedPins\t::\t${all_related_pins}"
+
+    foreach check $all_checks {
+	echo "\nCheck - ${check} ::"
+	foreach related_pin $all_related_pins {
+	    set to_pins [get_db [get_db $all_arcs -if { .from_lib_pin.base_name == $related_pin && .timing_type == $check} ] .to_lib_pin.base_name -u]
+	    if {[llength $to_pins] > 0} {
+		echo "\n\tRelatedPin::  ${related_pin}"
+		foreach ppin $to_pins {
+		    echo "\t\t\t$ppin"
+		}
+	    }
+	}
+    }
+
+}
+
+
+
+proc get_arcs_info {ref_name} {
+    #set ref_name sacrls0g4u2p64x22m2b4w0c1p0d0r1rm4sdrw00
+
+    #set ref_name sacrls0g4u2p64x22m2b4w0c1p0d0r1rm4sdrw00
+    set all_arcs [get_lib_arcs -of [index_collection [get_lib_cell */${ref_name}] 0] ]
+    set all_checks [lsort -u [ga $all_arcs timing_type]]
+    set all_sps [lsort -u [get_object_name [ga $all_arcs from_lib_pin]]]
+    set all_related_pins [get_db [ga $all_arcs from_lib_pin] .base_name -u]
+
+    echo "LibCell\t::\t${ref_name}"
+    echo "AllRelatedPins\t::\t${all_related_pins}"
+    echo "AllChecks\t::\t${all_checks}"
+
+    foreach related_pin $all_related_pins {
+	echo "\nRelatedPin::  ${related_pin} \([lindex [get_property [get_lib_pins */${ref_name}/${related_pin}] direction] 0]\)"
+	foreach check $all_checks {
+	    set to_pins [get_db [get_db $all_arcs -if { .from_lib_pin.base_name == $related_pin && .timing_type == $check} ] .to_lib_pin.base_name -u]
+	    if {[llength $to_pins] > 0} {
+		echo "\n\tCheck - ${check} ::"
+		
+		foreach ppin $to_pins {
+		    echo "\t\t\t$ppin \([lindex [get_property [get_lib_pins */${ref_name}/${ppin}] direction] 0]\)"
+		}
+	    }
+	}
+    }
+}
+
+proc get_cell_delays {path} {
+    set arrivals [get_attribute [get_attribute $path timing_points] arrival]
+    set delays ""
+    for {set  i 0} {$i < [expr [llength $arrivals] - 1]} {incr i} {
+	lappend delays [expr [lindex $arrivals [expr $i + 1] ] - [lindex $arrivals $i]]
+	incr i
+    }
+    return $delays
+}
+
+proc get_net_delays {path} {
+    set arrivals [get_attribute [get_attribute $path timing_points] arrival]
+    set delays ""
+    for {set  i 1} {$i < [expr [llength $arrivals] - 0]} {incr i} {
+	lappend delays [expr [lindex $arrivals [expr $i + 1] ] - [lindex $arrivals $i]]
+	incr i
+    }
+    return $delays
+}
+
+proc print_hier_path {path} {
+    set my_tim_var ""
+    #get_db [get_db $path .timing_points -if {.pin.obj_type==hpin || .pin.obj_type==port}] -foreach {echo "\t\t$obj(.pin.name) \t\t$obj(.arrival)"}
+    get_db [get_db $path .timing_points -if {.pin.obj_type==hpin}] -foreach {lappend my_tim_var "[format "\t\t%-200s %-10s %-20s" $obj(.pin.name) $obj(.direction) $obj(.arrival)]"}
+    return $my_tim_var
+}
+proc get_delta_delays {path} {
+    set delays [get_attribute [get_attribute $path timing_points] delta_delay]
+    if {[llength $delays] < 1} {set delays 0}
+    return $delays
+}
+
+#get_db [get_db $path .timing_points -if { .pin.obj_type!=hpin}] .pin.inst -if  {.is_buffer || .is_inverter}
+proc get_buffer_inv_count {path} {
+    return [expr [llength [get_db [get_db $path .timing_points -if { .pin.obj_type!=hpin && .pin.obj_type!=port}] .pin.inst -if {.is_buffer || .is_inverter}]] / 2]
+}
+
+proc get_buffer_count {path} {
+    return [expr [llength [get_db [get_db $path .timing_points -if { .pin.obj_type!=hpin && .pin.obj_type!=port}] .pin.inst -if {.is_buffer}]] / 2]
+}
+
+proc get_inv_count {path} {
+    return [expr [llength [get_db [get_db $path .timing_points -if { .pin.obj_type!=hpin && .pin.obj_type!=port}] .pin.inst -if {.is_inverter}]] / 2]
+}
+
+proc get_del_count {path} {
+    return [expr [llength [get_db [get_db $path .timing_points -if { .pin.obj_type!=hpin && .pin.obj_type!=port}] .pin.inst.base_cell.name DEL*]] /2 ]
+}
+
+proc get_path_transition {path} {
+    return [get_attribute [get_attribute $path timing_points] transition]
+}
