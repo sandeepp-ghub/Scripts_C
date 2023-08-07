@@ -1,0 +1,393 @@
+#puts "defining procname:  rtb <report_timing options>"
+proc rtb {args} {
+    suppress_message ATTR-3
+    suppress_message SEL-003
+   global FullChip
+   global DesignName
+   #  report_timing with block summary
+   #  This procedure takes "report_timing/get_timing_path" arguments.
+   #  Attempt to summarize a path trace from startpoint to endpoint, printing just the blocks that it passes through.
+   #  Report for each block RC/cell/totaldelay, # of stages.  Also top-level netname between blocks, with RC noted.
+   #  Inter-block RC is lumped to the receiving block.
+   #  Proc does not currently handle DMC or CPU blocks (top-level hierarchy only)
+   #  PS 09/04/15
+   #  PS 07/19/16  Fixed double-counting bug in blockdelay & stagecount, if path trace included hierarchical pin
+   #  PS 02/09/18  Add --ref option to include cell ref_name, helpful for within-block-level timing reports
+
+   if {$args == "" || $args == "-help"} {
+      puts "-I- procedure: rtb (report_timing with per-block delay summary style)"
+      puts "-I-                {-from/-through/-to the usual report_timing arguments are accepted}"
+      puts "-I- Also accepts --leaf (to force it to print each leaf cell ref & instance name)"
+      puts "-I-          and --top (to print only the single worst path)"
+      puts "-I-          and --ref (to force it to print cell ref names)"
+      puts "-I-          and --fc (to force assuming blocks are 2nd-level / grandchild hierarchy)"
+      return
+   }
+   set pba ""
+   set comment ""
+   set header4cellref ""
+   set ofmtcellref "%0s"
+   set ofmtblkref "%-20s"
+   set leaf 0 
+   set toponly 0
+   # need to set this "1" only when we are running on a pdt11k-like fc hierarchy with fc-complex-block 
+   if {[info exists FullChip] && $FullChip == 1 && [info exists DesignName] && $DesignName == "pdt11kI"} {set fc 1;set ofmtblkref "%-32s"} else {set fc 0}
+   if {[string match {*--pba*} $args] == 1} {
+     set pba "-retime_mode exhaustive -retime path_slew_propagation -max_slack 10"
+     set comment "\n#   Found \"--pba\" option, using \"-retime_mode exhaustive -retime path_slew_propagation -max_slack 10\""
+     set args [string map {--pba ""} $args]
+   } 
+   if {[string match {*--ref*} $args] == 1} {
+     set args [string map {--ref ""} $args]
+     set header4cellref [format "%-30s " cell_ref_name]
+     set ofmtcellref "%-30s "
+   } 
+   if {[string match {*--leaf*} $args] == 1} {
+     set args [string map {--leaf ""} $args]
+     set header4cellref [format "%-30s " cell_ref_name]
+     set ofmtcellref "%-30s "
+     set leaf 1
+   } 
+   if {[string match {*--top*} $args] == 1} {
+     set args [string map {--top ""} $args]
+     set toponly 1
+   }
+   if {[string match {*--fc*} $args] == 1} {
+     set args [string map {--fc ""} $args]
+     set fc 1
+     set ofmtblkref "%-32s "
+   }
+
+   echo "#  Arguments:  " $args $comment
+   echo "#  Note that Cell Delay and Total Delay do not include the path setup time or skew charge."
+   echo "#"
+
+   set pathcol [eval get_timing_path -path_type full_clock $pba $args]
+   if {[sizeof_collection $pathcol] == 0 } { puts "-W- No paths found in collection. Exiting..." ; return }
+   if {$toponly == 0} {
+     set pathcol [sort_collection $pathcol slack ]
+   } else {  
+     set pathcol [index_collection [sort_collection $pathcol slack ] 0]   ;# select only the single worst path
+   }
+   set frompin ""
+   set pathnum 0
+
+   foreach_in_collection path $pathcol {
+     set frompin ""
+     set sumrc 0
+     set sumcell 0
+     set sumtotal 0
+     set sumstage 1
+     set blkrc 0
+     set blkcell 0
+     set blktotal 0
+     set blkstage 1
+     set capclk_sumrc 0
+     set capclk_sumcell 0
+     set capclk_sumtotal 0
+     set lauclk_sumrc 0
+     set lauclk_sumcell 0
+     set lauclk_sumtotal 0
+     set maxcellreflen 30
+     #
+   
+     set startpoint [get_attribute $path startpoint]
+     set endpoint [get_attribute $path endpoint]
+     set slack [get_attribute $path slack]
+     #set pathper [get_attribute $path period]
+       #Pavan 
+       set pathper [get_attribute [get_attribute $path endpoint_clock] period]
+     set points [get_attribute $path points]
+     set lauclktime [get_attribute $path startpoint_clock_open_edge_value]
+     set capclktime [get_attribute $path endpoint_clock_open_edge_value]
+     set lauclklat [get_attribute $path startpoint_clock_latency]
+     set capclklat [get_attribute $path endpoint_clock_latency]
+     set lauclkper [get_attribute [get_attribute $path startpoint_clock] period]
+     set capclkper [get_attribute [get_attribute $path endpoint_clock] period]
+     set locallauclkedge [get_attribute $path startpoint_clock_open_edge_type]   ;# rise or fall
+     set localcapclkedge [get_attribute $path endpoint_clock_close_edge_type]
+     set uncert [get_attribute $path clock_uncertainty]
+     set cppr [get_attribute $path common_path_pessimism]
+     set commonpt [get_attribute $path crpr_common_point]
+       if {$commonpt == ""} {set commonpt NA}
+     if {[get_attribute $path path_type] == "max"} { 
+       set type "Setup"
+       set setupholdval [get_attribute $path endpoint_setup_time_value]
+     } else {
+       set type "Hold"
+       set setupholdval [get_attribute $path endpoint_hold_time_value]
+     }
+     # root clock rise/fall edge might be opposite of local clock edge, if "capturing/launching_clock_is_inverted" is true
+     if {$locallauclkedge == "rise" && [get_attribute $path startpoint_clock_is_inverted] == false || $locallauclkedge == "fall" && [get_attribute $path startpoint_clock_is_inverted] == true} {
+       set lauclkedge ^ 
+     } else {
+       set lauclkedge v 
+     }
+     if {$localcapclkedge == "rise" && [get_attribute $path endpoint_clock_is_inverted] == false || $localcapclkedge == "fall" && [get_attribute $path endpoint_clock_is_inverted] == true} {
+       set capclkedge ^ 
+     } else {
+       set capclkedge v 
+     }
+
+     # try to get longest cell ref_name in the path for output formatting
+     foreach_in_collection pt $points {
+       set refname [get_attribute [get_cells -of_obj [get_attribute $pt object]] ref_name ]
+       set maxcellreflen [expr [string length $refname] > $maxcellreflen ? [string length $refname] : $maxcellreflen ]
+     }
+     if {$ofmtcellref != "%0s"} {
+       set ofmtcellref "%-${maxcellreflen}s "
+       set header4cellref [format "%-${maxcellreflen}s " cell_ref_name]
+     }
+
+     # grab RC&cell delays of capture and launch clock paths, starting after the common_point
+     foreach clock_path {capture_clock_paths launch_clock_paths} {
+       if {$clock_path == "capture_clock_paths"} { set clkper $capclkper } else { set clkper $lauclkper }
+       set frompin ""
+       set clk_sumrc 0
+       set clk_sumcell 0
+       set clk_sumtotal 0
+       set clk_comment {}
+       set clkpath [get_attribute $path $clock_path] 
+       foreach_in_collection pt [get_attribute $clkpath points] {
+         set ptobj  [get_attribute $pt object]
+         set ptarr  [get_attribute $pt arrival]
+         set ptname [get_attribute $ptobj full_name]
+         set net [get_attribute [get_nets -quiet -of_object $ptobj] full_name]
+         if { $frompin != "" }  {
+           if {[get_attribute $ptobj direction] == "in" && [get_attribute $ptobj object_class] == "pin"} {
+             set rcdelay [expr $ptarr - $frompinarr]
+             #echo "     Clk RC delay is $rcdelay, trigger is [expr 0.5 * $clkper]"
+             if {$rcdelay >= [expr 0.5 * $clkper]} {set clk_comment "*may need to adj for gen clk"}
+             set clk_sumrc [expr $clk_sumrc + $rcdelay]
+             set clk_sumtotal [expr $clk_sumtotal + $rcdelay]
+           } else {
+             set celldelay [expr $ptarr - $frompinarr]
+             if {$celldelay >= [expr 0.5 * $clkper]} {set clk_comment "*may need to adj for gen clk"}
+             #echo "     Clk Cell delay is $celldelay, trigger is [expr 0.5 * $clkper]"
+             set clk_sumcell [expr $clk_sumcell + $celldelay]
+             set clk_sumtotal [expr $clk_sumtotal + $celldelay]
+           }
+         }
+         set frompin $ptobj
+         set frompinarr $ptarr
+         if {[string match [get_attribute $commonpt full_name] $ptname]} {
+           # if common_point is found, then reset the clock count (else we've been counting since the beginning of clock path)
+           set clk_sumrc 0
+           set clk_sumcell 0
+           set clk_sumtotal 0
+         }
+       }
+       if {$clock_path == "capture_clock_paths"} {
+         set capclk_sumrc    $clk_sumrc
+         set capclk_sumcell  $clk_sumcell
+         set capclk_sumtotal $clk_sumtotal
+         set capclk_comment  $clk_comment
+       } elseif {$clock_path == "launch_clock_paths"} {
+         set lauclk_sumrc    $clk_sumrc
+         set lauclk_sumcell  $clk_sumcell
+         set lauclk_sumtotal $clk_sumtotal
+         set lauclk_comment  $clk_comment
+       }
+     }
+
+     incr pathnum
+       puts "Path: $pathnum     Slack: $slack      Pathgroup: {[get_object_name [get_attribute $path path_group]]}"
+     puts "#     LaunchClkArr: $lauclktime     CaptureClkArr: $capclktime      Path_period: $pathper      $type: $setupholdval     Uncertainty: $uncert"
+     puts [format "#     LaunchClk(Latency):  %-40s    PostCmnPt(RC/cell/total): ( %s / %s / %s ) %s" "[get_attribute [get_attribute $path startpoint_clock] full_name] ($lauclklat) $lauclkedge" $lauclk_sumrc $lauclk_sumcell $lauclk_sumtotal $lauclk_comment]
+     puts [format "#     CaptureClk(Latency): %-40s    PostCmnPt(RC/cell/total): ( %s / %s / %s ) %s" "[get_attribute [get_attribute $path endpoint_clock] full_name] ($capclklat) $capclkedge" $capclk_sumrc $capclk_sumcell $capclk_sumtotal $capclk_comment]
+     if {$cppr == "NA"} {
+       set CPPRAdjLatencyDiff  0
+     } else {
+       set CPPRAdjLatencyDiff  [expr {$capclklat > $lauclklat ? [expr $capclklat - $lauclklat - $cppr] : [expr $capclklat - $lauclklat + $cppr]}]
+     }
+     puts "#     RawLatencyDiff: [expr $capclklat - $lauclklat]   CPPR: $cppr    CPPRAdjLatDiff: $CPPRAdjLatencyDiff   Common_point: [get_attribute $commonpt full_name]"
+     #puts "#     RawLatencyDiff: [expr $capclklat - $lauclklat]   CPPR: $cppr    CPPRAdjLatencyDiff: [expr {$capclklat > $lauclklat ? [expr $capclklat - $lauclklat - $cppr] : [expr $capclklat - $lauclklat + $cppr]}]   Common_point: [get_attribute $commonpt full_name]"
+
+     set ofmt "% 5.3f / %5.3f / %5.3f %3s    ${ofmtcellref}${ofmtblkref}   %-2s"
+
+     if {$leaf == 1} {set stgstr "#FO "} else {set stgstr "#stg"} ;# header is stagecount or fanout 
+     if {$leaf == 1} {set opstr "cell_input_pin (or top-level-net) "} else {set opstr "block_instance          output_net"} ;# header is block output netname, or leaf-cell input pin name
+     if {$leaf == 1} {set laststr "(& input pin slew)"} else {set laststr "(& netRC, assigned to receiver block)"}  
+     puts "#"
+     puts "#  RC / cell / total   ${stgstr}   ${header4cellref}${opstr} ${laststr}"
+     puts "#----------------------------------------------------------------------------------------------------------------------------"
+     set blk [lindex [split [get_attribute $startpoint full_name] {/}] 0]
+     puts "Startpoint:   [format "$ofmtcellref" ""]                [get_attribute $startpoint full_name]  "
+     if {$leaf == 1} {set blk [get_attribute [get_attribute $path startpoint] full_name]}
+     #debug   puts "new blk is: $blk"
+     unset frompin
+     set rcdelay 0  ;# otherwise, we are counting the last rcdelay to the launch clk pin
+     set inpin ""
+     set printsolonet ""
+     set inptslew 0
+     set prev_inptslew ""
+     foreach_in_collection pt $points {
+       set ptobj  [get_attribute $pt object]
+       set ptarr  [get_attribute $pt arrival]
+       set ptname [get_attribute $ptobj full_name]
+       set net [get_attribute [get_nets -of_object $ptobj] full_name]
+       #echo ""
+       #echo "   debug: Net name is:  $net"
+       #echo "   debug: Full name of point is:   $ptname"
+       #echo "   debug: point arrival is: $ptarr"
+       # if path startpoint is an input port, then don't count it as a stage
+       if {[get_attribute $ptobj direction] == "in" && [get_attribute $ptobj object_class] == "port"} {incr sumstage -1}
+       if {[get_attribute $ptobj direction] == "in"} {set prev_inptslew $inptslew; set inptslew [get_attribute $pt transition]}
+       if { [get_attribute $ptobj is_hierarchical] == "true" } {continue}
+       if { [info exists frompin] == 1 }  {
+         if {[get_attribute $ptobj direction] == "in" && [get_attribute $ptobj object_class] == "pin"} {
+           set rcdelay [expr $ptarr - $frompinarr]
+           set sumrc [expr $sumrc + $rcdelay]
+           set sumtotal [expr $sumtotal + $rcdelay]
+           incr sumstage
+           if {$leaf == 0 || ($leaf == 1 && $printsolonet == "")} {   ;#skip if leaf==1 and this is a top-level net
+             set blkrc [expr $blkrc + $rcdelay]
+             set blktotal [expr $blktotal + $rcdelay]
+           }
+           incr blkstage
+           set inpin $ptobj
+         } elseif {[get_attribute $ptobj direction] == "out" && [get_attribute $ptobj object_class] == "port"} {
+           # we hit an output port of the design, add RC to totals but don't incr stagecounts
+           set rcdelay [expr $ptarr - $frompinarr]
+           set sumrc [expr $sumrc + $rcdelay]
+           set sumtotal [expr $sumtotal + $rcdelay]
+           set blkrc [expr $blkrc + $rcdelay]
+           set blktotal [expr $blktotal + $rcdelay]
+         } else {
+           set celldelay [expr $ptarr - $frompinarr]
+           set sumcell [expr $sumcell + $celldelay]
+           set sumtotal [expr $sumtotal + $celldelay]
+           set blkcell [expr $blkcell + $celldelay]
+           set blktotal [expr $blktotal + $celldelay]
+         }
+       } else {
+         # frompin=={}, so this must be first point of path; set cellref
+         set cellref [get_attribute [get_cells -of $ptobj] ref_name]
+         #debug puts "-D- frompin is blank, cellref: $cellref"
+         set inpin $ptobj
+       }
+       #echo "   debug: ptname: $ptname   net: $net"  ; #debug 
+       # if --leaf option is set, then treat every net as a istopnet and print "cell/inputpin" instead of cell
+       set istopnet [expr ![string match {*/*} $net] || $leaf]
+       set isfctopnet [expr [string match {pd*/*} $ptname] && [regexp -all {/} $net] == 1 && $fc == 1  ]
+       set iscputopnet [expr [string match {pdCPUCMPLX*/*} $ptname] && [regexp -all {/} $net] == 1 ]
+       set isdmctopnet [expr [string match {pdDMCCMPLX_????/*} $ptname] && [regexp -all {/} $net] == 1 ]
+       #echo "   debug: istopnet: $istopnet   isfctopnet: $isfctopnet   iscputopnet: $iscputopnet   isdmctopnet: $isdmctopnet"  ; #debug
+       set frompin $ptobj
+       set frompinarr $ptarr
+	 #if { !($istopnet || $isfctopnet || $iscputopnet || $isdmctopnet)} {set istopnet 1}
+       if {[get_attribute $ptobj object_class] == "port" && [get_attribute $ptobj direction] == "in" ||\
+           [get_attribute $ptobj object_class] == "pin" && [get_attribute $ptobj direction] == "out" && ($istopnet || $isfctopnet || $iscputopnet || $isdmctopnet)} {
+         if {$iscputopnet || ($istopnet && [string match {pdCPUCMPLX*/*} $ptname])} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+         } elseif {$isdmctopnet || ($istopnet && [string match {pdDMCCMPLX_????/*} $ptname])} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+         } elseif {$isfctopnet || ($fc && $istopnet && [string match {pd*/*} $ptname])} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+         } elseif {$istopnet && $leaf == 0} {
+           set blk [lindex [split $ptname {/}] 0]
+         } elseif {$istopnet && $leaf == 1} {
+           #set blk [get_attribute [get_cells -of [get_attribute $pt pin]] full_name]  ;# leaf cell is the second-to-last field in full pin name 
+           #set blk [get_attribute [get_attribute $pt pin] full_name]  ;# now blk == pin name because of --leaf
+           set blk [get_attribute $inpin full_name]  ;# now blk == leaf input pin name because of --leaf
+           if {! [string match {*/*} $net]} {set printsolonet $net}
+         }
+         #debug  puts " -D-    blk: $blk"
+         #if {$header4cellref != "" && [sizeof_collection [get_cells -quiet $blk]] > 0 && $leaf == 1} { }
+         if {$header4cellref != "" && [sizeof_collection [get_pins -quiet $blk]] > 0 && $leaf == 1} {
+           set cellref [get_attribute [get_cells -of $ptobj] ref_name] 
+           #debug puts "    blk: $blk     ptobj: [get_object_name $ptobj]     ptname: $ptname"
+         } elseif {$header4cellref != "" && [sizeof_collection [get_cells -quiet $blk]] > 0 } {
+           set cellref [get_attribute [get_cells $blk] ref_name] 
+         } else {
+           set cellref {}
+         }
+	   #set str [format $ofmt $blkrc $blkcell $blktotal $blkstage $cellref $blk $net] 
+         if {$leaf == "0"} {
+           set str [format $ofmt $blkrc $blkcell $blktotal $blkstage $cellref $blk $net] 
+           set blkrc 0
+           set blkcell 0
+           set blktotal 0
+           set blkstage 0
+         } else {   ;# leaf == 1
+           set net {}
+           #set fanout [format "%3s" [get_attribute $ptobj fanout_load]]
+	   set fanout [format "%3s" [get_attribute $ptobj net.number_of_leaf_loads]]
+           set str [format $ofmt $rcdelay $celldelay [expr $rcdelay+$celldelay] $fanout $cellref $blk $net] 
+         }
+       } elseif {[get_attribute $ptobj object_class] == "port" && [get_attribute $ptobj direction] == "out" ||\
+                 ($istopnet || $iscputopnet || $isdmctopnet || $isfctopnet) \
+                     && [get_attribute $ptobj object_class] == "pin" && [get_attribute $ptobj direction] == "in" && [get_attribute $ptobj full_name] != [get_attribute $startpoint full_name]} { 
+         #set blk [lindex [split $ptname {/}] 0]
+	   #Pavan
+	   #if {![info exists str]} {set str [format $ofmt $blkrc $blkcell $blktotal $blkstage $cellref $blk $net] }
+         if {$leaf == 0} {
+	     #Pavan
+	     if {[info exists str]}  {
+		 puts "$str ($rcdelay)"
+	     }
+         } else {   ;# leaf == 1
+	     #Pavan
+	     if {[info exists str]}  {
+		 puts "$str ($prev_inptslew)"
+	     }
+         }
+         if {$printsolonet != ""} {
+           #puts "                                                              $printsolonet"   ; # this should only be during --leaf and net is top-level net
+           puts "                              ( $blkrc / $blkcell / $blktotal )         $printsolonet"   ; # this should only be during --leaf and net is top-level net
+           set printsolonet ""
+           set blkrc $rcdelay
+           set blkcell 0
+           set blktotal $rcdelay
+           set blkstage 0
+         }
+       } elseif { $iscputopnet && [get_attribute $ptobj direction] == "in"} {
+         set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+	   #Pavan
+	   if {[info exists str]} {
+	       puts "$str ($rcdelay)"
+	   }
+         if {$printsolonet != ""} {
+           #puts "                                                              $printsolonet"   ; # this should only be during --leaf and net is top-level net
+           puts "                              ( $blkrc / $blkcell / $blktotal )         $printsolonet"   ; # this should only be during --leaf and net is top-level net
+           set printsolonet ""
+           set blkrc $rcdelay
+           set blkcell 0
+           set blktotal $rcdelay
+           set blkstage 0
+         }
+       }
+     }
+     # now process endpoint   
+     unset frompin
+     set net "(endpoint)"
+     if {$leaf == 1} {
+            set blk [get_attribute [get_cells -of $ptobj] full_name]
+            set prev_inptslew $inptslew
+            set net "($prev_inptslew  endpoint)"
+     } elseif {[string match {pdCPUCMPLX*/*} $ptname]} {
+            set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+     } elseif {[string match {pdDMCCMPLX_????/*} $ptname]} {
+            set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+     } elseif {$fc == 1 && [string match {pd*/*} $ptname]} {
+            set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+     } else {
+            set blk [lindex [split $ptname {/}] 0]
+     }
+     if {$header4cellref != "" && [sizeof_collection [get_cells -quiet $blk]] > 0} {set cellref [get_attribute [get_cells $blk] ref_name] } else {set cellref {}}
+     if {$leaf == 1} {
+       puts [format $ofmt $rcdelay    0     $rcdelay    ""      $cellref $blk $net] 
+     } else {
+       puts [format $ofmt $blkrc   $blkcell $blktotal $blkstage $cellref $blk $net] 
+     }
+     if {$leaf == 1} {
+       puts "                              ( $blkrc / $blkcell / $blktotal )         $printsolonet"   ; # this should only be during --leaf and net is top-level net
+     }
+     puts "Endpoint:                    [format "$ofmtcellref" ""] [get_attribute $endpoint full_name]"
+     puts [format $ofmt $sumrc $sumcell $sumtotal $sumstage "<--Total_path_delay (RC/cell/total)" {} {} ]
+     puts ""
+   }
+    unsuppress_message ATTR-3
+    unsuppress_message SEL-003
+}
+#define_proc_arguments rtb -info "report_timing with block path summary information" 
