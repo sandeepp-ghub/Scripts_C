@@ -1,0 +1,181 @@
+!([llength [info proc mVar]] || [llength [info command mVar]])} {
+    proc mVar {args} {uplevel 1  set $args}
+    proc mPuts {args} {uplevel 1  puts $args}
+}
+
+set _design_name [get_object_name [current_design]]
+set _scenario_name [lindex [all_analysis_views] 0]
+
+if [regexp setup $_scenario_name]  {set type "-late" } else {set type "-early"}
+####################
+## Generate - PGV-DERATE REPORT
+proc get_path_cell_delay {path inst} {
+    set object_list  [get_property -quiet  [get_property -quiet  [get_property -quiet  $path points] object] full_name]
+    set arrival_list [get_property -quiet  [get_property -quiet  $path points] arrival]
+    set cell_delay NA
+    if { [llength $arrival_list] == [llength $object_list]} {
+	set index_list ""
+	set i 0
+	foreach object $object_list {
+	    if [regexp "${inst}/" $object] {lappend index_list $i}
+	    incr i
+	}
+	if { [llength $index_list] == "2"} {
+	    set cell_delay [expr   [lindex $arrival_list [lindex $index_list 1]] -  [lindex $arrival_list [lindex $index_list 0]] ]
+	}
+    }
+    return $cell_delay
+}
+####################
+
+if ![file exists ${_design_name}_${_scenario_name}_PGV_USER_DERATE.rpt] {
+    report_timing_derate > ${_design_name}_${_scenario_name}_PGV_USER_DERATE.rpt
+}
+
+if ![info exists cell_with_pgv_derates_applied] {
+
+    sleep 3
+    set hdl3 [open ${_design_name}_${_scenario_name}_PGV_USER_DERATE.rpt r] 
+    set derate_cell_list "" ; 
+
+    while {![eof $hdl3]} {
+	set line [gets $hdl3]
+	if [regexp {Cell\s+\(leaf\)\:\s+(\S+)} $line match cell] {
+	    lappend derate_cell_list $cell
+	}
+    }
+
+    close $hdl3
+} else {
+
+    set derate_cell_list [mVar cell_with_pgv_derates_applied]
+}
+####################
+
+set clock_elements     [get_cells -quiet -of [get_pins -quiet -leaf -of [get_cell -quiet $derate_cell_list] -filter "is_clock_used_as_clock"]]
+set non_clock_elements [remove_from_collection [get_cells -quiet $derate_cell_list] $clock_elements]
+
+######################
+
+## PGV-DERATE_CELL- SLACK- INFO
+set hdl4 [open ${_design_name}_${_scenario_name}_PGV_DERATE_SLACK.rpt w]
+puts $hdl4 [format "%-230s %-15s %-40s%-15s  %-10s %-15s %-15s %-15s" INST TYPE REFNAME  INST_DELAY SLACK PGV_DERATE_COUNT LATE_DERATE EARLY_DERATE]
+set slack_data ""
+set _cell_type DATA
+if { [sizeof_collection $clock_elements] > 0}  {
+    foreach_in_collection inst  [range_collection $clock_elements 0 end] {
+	if [get_property $inst is_sequential] {
+	    set tim_path [index_collection [report_timing $type -collection -through $inst -max_paths 1 -nworst 1 -max_slack 10000] 0]
+	    set _cell_type SEQUENTIAL
+	} else {
+	    set tim_path ""
+	    set _cell_type CLOCK
+	}
+	if { [sizeof_collection $tim_path] > 0} {
+	    set slack [get_property $tim_path slack]
+	    set inst_delay [get_path_cell_delay $tim_path [get_object_name $inst]]
+	    set pgv_inst_count [sizeof_collection [remove_from_collection -intersect [get_cells -quiet $derate_cell_list ] [get_cells -quiet -of [get_property -quiet  [get_property -quiet  $tim_path points] object]]]]
+	} else {
+	    set slack NA
+	    set inst_delay NA
+	    set pgv_inst_count NA
+	}
+
+
+	#set early_derate [get_property -quiet $inst early_rise_clock_cell_derate_factor]
+	#set late_derate [get_property -quiet $inst late_rise_clock_cell_derate_factor]
+
+	set early_derate [get_property -quiet $inst early_rise_data_derate_factor]
+	set late_derate [get_property -quiet $inst late_rise_data_derate_factor]
+
+	puts $hdl4 [format "%-235s %-40s%-15s  %-10s %-15s %-15s %-15s" [get_object_name $inst] ${_cell_type} [get_property -quiet $inst ref_name] $inst_delay $slack $pgv_inst_count $late_derate $early_derate]
+	if {$slack == "NA"} {} else {lappend slack_data $slack}
+    }
+}
+
+set _cell_type DATA
+#puts $hdl4 "\n"
+#puts $hdl4 [format "%-150s %-15s %-40s%-15s  %-10s %-15s %-15s %-15s" INST TYPE REFNAME  INST_DELAY SLACK PGV_DERATE_COUNT LATE_DERATE EARLY_DERATE]
+
+foreach_in_collection inst  [range_collection $non_clock_elements 0 end] {
+    set tim_path [index_collection [report_timing $type -collection -through $inst -max_paths 1 -nworst 1 -max_slack 10000] 0]
+    if { [sizeof_collection $tim_path] > 0} {
+	set slack [get_property $tim_path slack]
+	set inst_delay [get_path_cell_delay $tim_path [get_object_name $inst]]
+	set pgv_inst_count [sizeof_collection [remove_from_collection -intersect [get_cells -quiet $derate_cell_list ] [get_cells -quiet -of [get_property -quiet  [get_property -quiet  $tim_path points] object]]]]
+    } else {
+	set slack NA
+	set inst_delay NA
+	set pgv_inst_count NA
+    }
+    set early_derate [get_property -quiet $inst early_rise_data_cell_derate_factor]
+    set late_derate [get_property -quiet $inst late_rise_data_cell_derate_factor]
+    puts $hdl4 [format "%-150s %-15s %-40s%-15s  %-10s %-15s %-15s %-15s" [get_object_name $inst] ${_cell_type} [get_property -quiet $inst ref_name] $inst_delay $slack $pgv_inst_count $late_derate $early_derate]
+    if {$slack == "NA"} {} else {lappend slack_data $slack}
+}
+close $hdl4
+
+
+#####################
+# Collect - Cells MIssing Derates ##
+#####################
+
+if {0} {
+    if [file exists PGV_DERATE.log] {
+	set hdl5 [open PGV_DERATE.log r] 
+
+	set missing_derate_inst ""
+	while {![eof $hdl5]} {
+	    set line [gets $hdl5]
+	    if [regexp {\S*Working on Design\:\s+(\S+)\s+\-\-\s+Instance\:\s+(\S+)\s+\S+} $line match design instance] {
+		set hier "${instance}/"
+		#echo $hier
+	    }
+	    if [regexp {\S*Working on TopDesign} $line match design instance] {
+		set hier ""
+	    }
+	    if [regexp {\*\*WARN: \(TCLCMD-513\):The software could not find a matching object of the specified type for the pattern (\S+)} $line match inst1] {
+		set inst [regsub -all \' $inst1 ""]
+		#echo $inst
+		lappend missing_derate_inst "${hier}${inst}"
+		#echo "${hier}${inst}"
+	    } else {
+		#echo $line
+	    }
+	}
+
+	close $hdl5
+
+	set hdl6  [open ${_design_name}_${_scenario_name}_PGV_MISSING_DERATE_INST.rpt w]
+	foreach elem $missing_derate_inst {
+	    puts $hdl6 $elem
+	}
+	close $hdl6
+
+	#######################
+
+    } else {
+	echo "--I-- PGV_DERATE.log is not found"
+    }
+}
+
+
+if [info exists cell_with_pgv_derates_ignored] {
+    set hdl6  [open ${_design_name}_${_scenario_name}_PGV_MISSING_DERATE_INST.rpt w]
+    foreach elem [mVar cell_with_pgv_derates_ignored] {
+	puts $hdl6 $elem
+    }
+    close $hdl6
+}
+###################################################################
+if { [llength $slack_data] > 0} {
+    source ~kpavan/scripts/histogram.tcl
+    if [regexp -nocase baseline [pwd]] {
+	set title ${_design_name}-${_scenario_name}-BaseLine-NO-PgvDerate-GBA-SlackHistoGram 
+    } else {
+	set title ${_design_name}-${_scenario_name}-PgvDerateSlack-GBAHistoGram 
+    }
+    catch {plot_histogram -bin_width 25 -xlabel slack -ylabel NumPaths -title $title -outfile  ${_design_name}_${_scenario_name}_pgvderate_histogram.ps -data $slack_data}
+}
+###################################################################
+
