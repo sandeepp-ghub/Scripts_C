@@ -1,0 +1,138 @@
+
+proc plot_histogram {args} {
+    array set inputs $args
+    set run_flag 1
+    package require math::statistics
+    if [info exists inputs(-bin_width)] {set bin_width  $inputs(-bin_width)} else {set bin_width 0.05}
+    if [info exists inputs(-xlabel)] {set xlabel  $inputs(-xlabel)} else {set xlabel "slack"}
+    if [info exists inputs(-ylabel)] {set ylabel  $inputs(-ylabel)} else {set ylabel "PathCount"}
+    if [info exists inputs(-outfile)] {set outfile  $inputs(-outfile)} else {set outfile "histogram.ps"}
+    if [info exists inputs(-data)] {set data $inputs(-data)} else {set run_flag 0 ; set data ""}
+    if [info exists inputs(-title)] {set title  $inputs(-title)} else {set title "HistoGram ${xlabel}-BinWidth: ${bin_width} vs ${ylabel}  Total: [llength $data]"}
+
+    if [info exists inputs(-centre)] {set centre_point $inputs(-centre)} else {set centre_point NA}
+    if [info exists inputs(-xmax)] {set xmax_point $inputs(-xmax)} else {set xmax_point NA}
+    if [info exists inputs(-xmin)] {set xmin_point $inputs(-xmin)} else {set xmin_point NA}
+    if [info exists inputs(-ymax)] {set ymax_point $inputs(-ymax)} else {set ymax_point NA}
+    if [info exists inputs(-ymin)] {set ymin_point $inputs(-ymin)} else {set ymin_point NA}
+    if [info exists inputs(-box_width)] {set box_width $inputs(-box_width)} else {set box_width 0.5}
+
+    if [info exists inputs(-text_offset)] {set text_offset $inputs(-text_offset)} else {set text_offset 200}
+
+
+    if $run_flag {
+	set basic_stat_data [math::statistics::basic-stats $data]
+	foreach {mean min max count stdev var psd pv} $basic_stat_data {}
+
+	if {$centre_point=="NA"} {set centre_point 0.00}
+	if {$xmax_point=="NA"} { } else {set max $xmax_point}
+	if {$xmin_point=="NA"} { } else {set min $xmin_point}
+
+	set limits $centre_point
+
+	
+	set num_bins [expr ceil(($max-$centre_point)/$bin_width)]
+
+	for {set i 0} {$i <= $num_bins} {incr i} {
+	    lappend limits [expr ($i+1) * $bin_width]
+	}
+
+	set num_bins [expr ceil(($centre_point - $min)/$bin_width)]
+	for {set i 0} {$i <  $num_bins} {incr i} {
+	    set limits [linsert $limits 0 [expr ($i+1) * $bin_width * -1]]
+	}
+	
+	set xtic_val $bin_width
+	set max_num_bins 20
+	if {$num_bins > $max_num_bins} {
+	    set xtic_val [format %0.2f [expr [expr $num_bins * $bin_width]/$max_num_bins]]
+	    set xtic_val [format %0.2f [expr $xtic_val - [expr [format %0.0f [expr $xtic_val * 100]] % 5] / 100.0]]
+	}
+	set bin_counts [math::statistics::histogram $limits $data]
+
+	set max_val 0
+	set fp1 [open plot.dat w]
+
+	    puts $fp1 "#point PathDelay NumCunt Mean SD 2SD 3SD"
+	    for {set i 0} {$i < [llength $limits]} {incr i} {
+		puts $fp1 "[expr $i + 1] [lindex $limits $i] [lindex $bin_counts $i] $mean $stdev [expr 2*$stdev] [expr 3*$stdev]"
+		if { [lindex $bin_counts $i] > $max_val} {set max_val [lindex $bin_counts $i]}
+	    }
+	close $fp1
+
+	set fp [open gnu_plot.tcl w]
+
+	puts $fp    "unset label"
+	puts $fp    "set xlabel \"$xlabel\""
+	puts $fp    "set ylabel \"$ylabel\""
+	puts $fp    "set style data linespoints"
+	puts $fp    "set autoscale  "
+	puts $fp    "set title \"$title\""
+	puts $fp    ""
+
+	puts $fp    "set term postscript landscape color solid  "
+	puts $fp    "set out \"${outfile}\""
+	puts $fp    "set key top left"
+	puts $fp
+	puts $fp    "set style line 1 lw 2 lc rgb '#990042' ps 2 pt 6 pi 50000"
+	puts $fp    "set style line 2 lw 2 lc rgb '#31f120' ps 2 pt 12 pi 51000"
+	puts $fp    "set style line 3 lw 2 lc rgb '#0044a5' ps 2 pt 9 pi 52000"
+	puts $fp    "set style line 4 lw 2 lc rgb '#888888' ps 2 pt 7 pi 53000"
+	puts $fp    ""
+
+	puts $fp    "set datafile commentschars \"#%\""
+	puts $fp    ""
+
+	puts $fp    "unset log"
+	puts $fp    "set xtic auto;"
+	puts $fp    "set ytic auto ;"
+	puts $fp
+	puts $fp   ""
+
+	if {${box_width} > 1} {set box_width 1}
+	if {${box_width} < 0} {set box_width 0.01}
+
+	puts $fp    "set boxwidth ${box_width} relative"
+	#puts $fp    "set boxwidth ${box_width} "
+	puts $fp
+
+	if {$ymax_point=="NA"} { set ymax [expr $max_val + 1000]} else {set ymax $ymax_point}
+	if {$ymin_point=="NA"} { set ymin -500} else {set ymin $ymin_point}
+
+	puts $fp    "set yr \[${ymin}:${ymax}\] "
+	puts $fp    "set xtics  $xtic_val"
+	puts $fp    "set xtics rotate by  270"
+	puts $fp    ""
+	#puts $fp    "set style fill solid 4"
+	puts $fp    "set style fill pattern 4"
+	puts $fp    ""
+	puts $fp    "set grid ytics mytics"
+	puts $fp    "set grid xtics mxtics"
+	puts $fp    "set mytics 2"
+	puts $fp    "set mxtics 1"
+	puts $fp    "set grid"
+	#puts $fp    "plot  	\"./plot.dat\" using 2:3 title \"NumPaths\" with impulses ,	\"./plot.dat\" using 2:3:(0.025) title \"NumPaths\" with boxes "
+	#puts $fp    "plot \"./plot.dat\" using 2:3:(0.025) title \"NumPaths\" with boxes "
+	# puts $fp    "plot \"./plot.dat\" using 2:3 title \"NumPaths\" with boxes "
+	
+	#puts $fp    "plot \"./plot.dat\" using 2:3 title \"NumPaths\" with boxes, \'\' using 2:\(\$3 + 200 \):\(\$3\)  with labels  "
+	puts $fp    "plot \"./plot.dat\" using 2:3 title \"NumPaths\" with boxes, \'\' using 2:\(\$3 + $text_offset \):\(\$3\)  with labels  offset 1 rotate by 90"
+
+	close $fp
+
+	catch {exec /proj/asictools/bin/gnuplot ./gnu_plot.tcl }
+	catch {echo "${outfile} generated"}
+
+	#catch {exec /proj/cadpnr/bin/pdf_viewer_cadpnr ${outfile} &}
+
+	#catch {file delete ./gnu_plot.tcl }
+	#catch {file delete ./plot.dat }
+	
+	catch {puts "Done"}
+
+    } else {
+	puts "plot_histogram -data tcl_data_list_to_plot -bin_width BinWidth  -xlabel XLabel -ylabel Ylabel -title Title "
+    }
+    
+}
+proc get_average {x} {return [format %0.4f [expr [::tcl::mathop::+ {*}$x]/[llength $x]]]}
