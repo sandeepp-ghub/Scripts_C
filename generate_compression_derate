@@ -1,0 +1,107 @@
+#usage:
+#  This proc needs to be passed a list of psi_highlight_fails files, their ideal voltages and percent thresholds for a violation
+#  set pgv_inputs [list \
+#                       psi_highlight_fails1 825 0.94
+#                       psi_highlight_fails2 825 0.94
+#  generate_compression_derates $pgv_inputs output_derates.tcl
+#  source output_derates.tcl
+
+proc generate_compression_derates {infiles outfile} {
+  # these are from the ssg 675mv 0c tables
+  # VT pattern, voltage compression, derate
+
+  # set delta_table {
+  #   DELVT 3.4 0.7
+  #   DLVT 3.4 1.3
+  #   DLVTLL 3.4 1.5
+  #   DSVT 3.4 2.0
+  #   DULVT 3.4 0.8
+  #   DULVTLL 3.4 1.1
+  # }
+
+  set delta_table {
+    DELVT 6.8 1.4
+    DLVT 6.8 2.5
+    DLVTLL 6.8 3.1
+    DSVT 6.8 4.0
+    DULVT 6.8 1.7
+    DULVTLL 6.8 2.2
+  }
+
+
+  puts "opening $outfile for debug output"
+  if { [catch {open "$outfile" "w"} hdl2] } {
+    puts  "ERROR: Couldn't open ${outfile} for writing."
+    return
+  }
+
+  foreach {infile ideal_voltage threshold} $infiles {
+    puts "opening $infile"
+    puts $hdl2 "#######################################"
+    puts $hdl2 "#Reading $infile"
+    puts $hdl2 "#######################################"
+    if { [catch {open "$infile" "r"} hdl1] } {
+      puts  "ERROR: Couldn't open ${infile} for reading."
+      return
+    }
+    array set pgv_derates {}
+    while {![eof $hdl1]} {
+      set line [gets $hdl1]
+      #  puts $hdl2 "# $line"
+      if {[regexp {set inst_name (\S+)\s*; +# *(\S+).*WORST\s*(\S+)V.*WORSTAVG\s*\S+ } $line match inst type comp_worst ]} {
+        puts $hdl2 "\n#$comp_worst $type $inst"
+        set match 0
+        foreach {pattern table_delta_voltage delta_derate} $delta_table {
+          if {[regexp "$pattern\$" $type]} {
+            #convert delta to a percent
+            set delta_voltage [expr ($ideal_voltage * $threshold) - ($comp_worst * 1000) ]
+            #        puts $hdl2 "$delta_voltage = expr ($ideal_voltage * $threshold) - $comp_worst"
+            set match 1
+            break
+          }
+        }
+        if {$match == 0} {
+          puts "ERROR: couldn't match VT of $type"
+          continue
+        }
+
+        set delta_voltage [format "%0.3f" $delta_voltage]
+        set percent [format "%0.3f" [expr 100.0 * $delta_voltage / $ideal_voltage]]
+        if {$percent > 5.0} {
+          puts "ERROR: excessive compression (>5%) $percent on $inst"
+        }
+        set ratio [expr $delta_voltage / $table_delta_voltage]
+        set derate [expr $ratio * $delta_derate]
+        set derate2 [format "%0.3f" [expr ($derate / 100) + 1.0]]
+        puts $hdl2 "# delta_voltage: ${delta_voltage}mv derate: $derate2"
+        if {$derate2 > 1.005} {
+          if {[info exist pgv_derates($inst)]} {
+            if {$pgv_derates($inst) < $derate2} {
+              puts $hdl2 "#raising derate from $pgv_derates($inst) to $derate2"
+              set pgv_derates($inst) $derate2
+            } else {
+              puts $hdl2 "#keeping derate $pgv_derates($inst) and ignoring $derate2"
+            }
+          } else {  ; # not already set
+            set pgv_derates($inst) $derate2
+          } ; # end if set or not
+        } else { 
+          puts $hdl2 "# ignore little derate"
+        }
+      }
+    }
+    close $hdl1
+  }
+
+  puts $hdl2 "\n\nputs \"Applying pgv derates created from $infiles\""
+  puts $hdl2 "foreach c \[all_delay_corners\] {"
+  foreach inst [array names pgv_derates] {
+      puts $hdl2 "  catch {set_timing_derate -late -multiply $pgv_derates($inst) -cell_delay -mean -delay_corner \$c \[get_cells $inst\]}"
+  }
+  puts $hdl2 "}"
+
+
+
+
+  close $hdl2
+}
