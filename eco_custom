@@ -1,0 +1,288 @@
+#############################################################################################
+
+proc set_eco_mode {{prefix ECO} {lec true}} {
+    catch {set_db eco_batch_mode false}
+    catch {set_db eco_honor_dont_touch false}
+    catch {set_db eco_honor_dont_use false}
+    catch {set_db eco_honor_fixed_wires false}
+    catch {set_db eco_honor_fixed_status false}
+    catch {set_db eco_check_logical_equivalence $lec}
+    catch {set_db eco_prefix $prefix}
+    catch {set_db eco_refine_place false}
+    catch {set_db eco_update_timing false}
+    catch {set_db eco_batch_mode true}
+}
+
+proc reset_eco_mode {} {
+    catch {set_db eco_batch_mode false}
+    catch {set_db eco_honor_dont_touch true}
+    catch {set_db eco_honor_dont_use true}
+    catch {set_db eco_honor_fixed_wires true}
+    catch {set_db eco_honor_fixed_status true}
+    catch {set_db eco_check_logical_equivalence true}
+    catch {set_db eco_prefix ECO}
+    catch {set_db eco_refine_place true}
+    catch {set_db eco_update_timing true}
+}
+
+proc select_net_p2p_cadence {driverpin loadpin} {
+    catch {select_obj [getNetObjFromPinName $driverpin $loadpin]}
+}
+
+#############################################################################################
+proc getFarthestLoad {net} {
+    set driver [get_db net:$net .drivers.name]
+    set driv_loc [get_location [get_db net:$net .drivers.name]]
+    set max_dist 0
+    set farthest_load ""
+    foreach load_ [get_db net:$net .loads.name] {
+	deselect_obj -all
+	#select_net_p2p [get_obj_by_name $driver] [get_obj_by_name $load_]
+	select_net_p2p_cadence  $driver $load_
+	set dist 0
+	
+	foreach Wire [get_db selected -if {.obj_type == wire}] {
+	    set dist [expr $dist + [get_db $Wire .length]]
+	}
+	deselect_obj -all
+	#set load_loc [get_location $load_]
+	#set dist [get_distance $driv_loc $load_loc]
+	#echo "$dist $load_"
+	if {$dist > $max_dist} {
+	    set max_dist $dist
+	    set farthest_load $load_
+	}
+    }
+    return $farthest_load
+}
+
+#proc addBuffAlongRoute {NetName {PinName ""} {buff_cell BUFFD6BWP210H6P51CNODULVT } {inv_cell INVD6BWP210H6P51CNODULVT} {prefix on_route_buff} {inv_length 700}} {
+proc addBuffAlongRoute {args} {
+    set okay 0
+    if {![expr [llength $args] %2 ]} {
+	array set inputs $args
+	if [info exists inputs(-net_name)] {set NetName $inputs(-net_name) ; set okay 1} else {set NetName ""}
+	if [info exists inputs(-pin_name)] {set PinName $inputs(-pin_name) ; set okay 1} else {set PinName ""}
+    }
+    if {$okay} {
+	if {$PinName == ""} {set PinName [getFarthestLoad $NetName] ; echo "INFO:: LoadPin is not mentioned - Considering FarthestPin $PinName for buffering."}
+	if {$NetName == ""} {set NetName [get_db pin:$PinName .net.name] ; echo "INFO:: Considering  $NetName for buffering."}
+	if [info exists inputs(-buff_cell)] {set buff_cell $inputs(-buff_cell) } else {set buff_cell BUFFD6BWP210H6P51CNODULVT} ; echo "INFO:: Buff-Ref-Cell used for buffering $buff_cell"
+	if [info exists inputs(-inv_cell)] {set inv_cell $inputs(-inv_cell) } else {set inv_cell INVD6BWP210H6P51CNODULVT} ; echo "INFO:: INV-Ref-Cell used for buffering $inv_cell"
+	if [info exists inputs(-prefix)] {set prefix $inputs(-prefix) } else {set prefix on_route_buff } ; echo "INFO:: ECO cell prefix  $prefix"
+	if [info exists inputs(-inv_length)] {set inv_length $inputs(-inv_length) } else {set inv_length 7000 } ; echo "INFO:: Segments with Length beyond $inv_length are buffered using Inverters "
+	if [info exists inputs(-buff_dist)] {set buff_dist $inputs(-buff_dist) } else {set buff_dist 0.3 } ; echo "INFO:: Segments Will be broken at [expr $buff_dist * 100] %   From Driver using Buffers"
+	if [info exists inputs(-inv_dist)] {set inv_dist $inputs(-inv_dist) } else {set inv_dist 0.05 } ; echo "INFO:: Segments Will be broken at [expr $inv_dist * 100] % And [expr [expr 1 - $inv_dist] * 50]   From Driver using INverters "
+
+	global k
+	if {![info exists k]} {set k [format %0.0f [expr ceil([expr rand()] * 100000)]]}
+	set BufBased 1; set InvBased 0
+
+	set ViolTerm [db_get_term_by_name $PinName]
+	set NetObj [db_get_net_by_name $NetName] 
+
+	#set driveTerm [dbGet -e  $NetObj.allTerms.isOutput 1 -p1]
+	set driveTerm [get_db $NetObj .drivers]
+	set recvTerms [get_db $NetObj .loads]
+	#if {$driveTerm == ""} {set driveTerm [dbget -e  [dbget -e top.terms.name $NetName -p].direction input -p]}
+	#if {$recvTerms == ""} {set recvTerms [dbget -e  [dbget -e top.terms.name $NetName -p].direction output -p]}
+	if {$recvTerms != "" && $driveTerm != ""} {
+	    set numInTerms [llength $recvTerms]
+
+	    foreach Wire [get_db  $NetObj .wires] {
+		foreach recvTerm $recvTerms {
+		    set WireHash($Wire,$recvTerm) 0
+		}
+	    }
+
+	    foreach recvTerm $recvTerms {
+		gui_deselect -all
+		#select_net_p2p [get_obj_by_name [get_db $driveTerm .name]] [get_obj_by_name [get_db $recvTerm .name]]
+		select_net_p2p_cadence  [get_db $driveTerm .name]  [get_db $recvTerm .name]
+		foreach Wire [get_db selected -if {.obj_type == wire}] {
+		    set WireHash($Wire,$recvTerm) 1   
+		}
+	    }
+
+	    set TotalWire 0
+	    gui_deselect -all
+	    #select_net_p2p [get_obj_by_name [get_db $driveTerm .name]] [get_obj_by_name [get_db  $ViolTerm .name]]
+	    select_net_p2p_cadence  [get_db $driveTerm .name]  [get_db  $ViolTerm .name]
+
+	    set LongestWireLength [get_db [lindex [get_db selected -if {.obj_type == wire}] 0] .length]
+	    set LongestWire [lindex [get_db selected -if {.obj_type == wire}] 0]
+	    foreach Wire  [get_db selected -if {.obj_type == wire}] {
+		set WireLength [get_db $Wire .length]
+		if {$WireLength > $LongestWireLength} {
+		    set LongestWire $Wire
+		    set LongestWireLength $WireLength
+		}
+		set TotalWire [expr $TotalWire + $WireLength]
+	    }  
+
+	    gui_deselect -all
+	    set ReCt [get_db  $LongestWire .rect]
+	    
+	    set LLX [get_rect $ReCt -llx]
+	    set LLY [get_rect $ReCt -lly]
+	    set URX [get_rect $ReCt -urx]
+	    set URY [get_rect $ReCt -ury]
+
+	    set ReqTerms ""
+	    foreach recvTerm $recvTerms {
+		if {$WireHash($LongestWire,$recvTerm)==1} {
+		    lappend ReqTerms [get_db $recvTerm .name]
+		}
+	    }
+
+	    set  llx_lly_dist  [get_distance [get_db   $driveTerm .location] [list $LLX $LLY]]
+	    set  urx_ury_dist  [get_distance [get_db   $driveTerm .location] [list $URX $URY]]
+
+	    if {$LongestWireLength >= $inv_length } {set BufBased 0; set InvBased 1} else {set BufBased 1; set InvBased 0}
+	    if {$BufBased} {
+		if {$urx_ury_dist > $llx_lly_dist} {
+		    #set Scale 0.3
+		    set Scale $buff_dist
+		} else {
+		    #set Scale 0.7
+		    set Scale [expr 1 - $buff_dist]
+		}
+		set NewX [expr ($LLX + $Scale*($URX-$LLX))]
+		set NewY [expr ($LLY + $Scale*($URY-$LLY))]
+	    }
+	    if ($InvBased) {
+		if {$urx_ury_dist > $llx_lly_dist} {
+		    #set Scale 0.05
+		    set Scale $inv_dist
+		    set NewX1 [expr ($LLX + $Scale*($URX-$LLX))]
+		    set NewY1 [expr ($LLY + $Scale*($URY-$LLY))]
+		    #set Scale 0.5
+		    set Scale [expr [expr [expr 1 - $inv_dist] /2.0 ] + $inv_dist]
+		    set NewX2 [expr ($LLX + $Scale*($URX-$LLX))]
+		    set NewY2 [expr ($LLY + $Scale*($URY-$LLY))]
+		} else {
+		    #set Scale 0.95
+		    set Scale [expr 1 - $inv_dist]
+		    set NewX1 [expr ($LLX + $Scale*($URX-$LLX))]
+		    set NewY1 [expr ($LLY + $Scale*($URY-$LLY))]
+		    #set Scale 0.5
+		    set Scale [expr [expr [expr 1 - $inv_dist] /2.0 ] + $inv_dist]
+		    set NewX2 [expr ($LLX + $Scale*($URX-$LLX))]
+		    set NewY2 [expr ($LLY + $Scale*($URY-$LLY))]
+
+		}
+	    }
+
+	    if {$BufBased} {
+		incr k
+		catch {eco_add_repeater -pins $ReqTerms  -cells $buff_cell  -name u_${prefix}_${k} -new_net_name n_${prefix}_${k} -location [list  $NewX $NewY ]}
+		echo "eco_add_repeater -pins \{$ReqTerms\}  -cells $buff_cell  -name u_${prefix}_${k} -new_net_name n_${prefix}_${k} -location \[list  $NewX $NewY \]"
+	    } elseif {$InvBased} {
+		catch {set_db eco_check_logical_equivalence false}
+		incr k
+		#catch {eco_add_repeater -pins $ReqTerms -cells $inv_cell -location [list $NewX1 $NewY1 ] -name [list u_${prefix}_${k}_1 u_${prefix}_${k}_2] -new_net_name [list n_${prefix}_${k}_1 n_${prefix}_${k}_2]}
+		catch {eco_add_repeater -pins $ReqTerms -cells $inv_cell -location [list $NewX1 $NewY1 ] -name [list u_${prefix}_${k}] -new_net_name [list n_${prefix}_${k}]}
+		echo "eco_add_repeater -pins \{$ReqTerms\} -cells $inv_cell -location \[list $NewX1 $NewY1 \] -name u_${prefix}_${k} -new_net_name n_${prefix}_${k}"
+		incr k
+		catch {eco_add_repeater -pins $ReqTerms -cells $inv_cell -location [list $NewX2 $NewY2 ] -name [list u_${prefix}_${k}] -new_net_name [list n_${prefix}_${k}]}
+		echo "eco_add_repeater -pins \{$ReqTerms\} -cells $inv_cell -location \[list $NewX2 $NewY2 \] -name u_${prefix}_${k} -new_net_name n_${prefix}_${k}"
+		catch {set_db eco_check_logical_equivalence true}
+	    }
+	}  else {
+	    echo "INFO:: ------> Terms not found for $NetName"
+	}
+	#echo $ReqTerms
+    } else {
+	echo " add_buff_along_route -help"
+        echo " INFO: Considers Longest WireSegment On a DetailRouted Net to break the net"
+	echo "\t -net_name \tNetname \t\t(If NetName is not given pin_name should be given as input)"
+	echo "\t -pin_name \tLoadPinName \t\t(If PinName is not given - By default Farthest Load Pin is considered for Buffering)"
+	echo "\t -prefix \tEcoPrefix \t\t(Default: on_route_buff ; eco_cell will get u_on_route_buff_ as prefix and eco_nets will get n_on_route_buff_ as prefix)"
+	echo "\t -buff_cell \tBufferCell \t\t(Default: BUFFD6BWP210H6P51CNODULVT)"
+	echo "\t -inv_cell \tInverterRefCell \t\t(Default: INVD6BWP210H6P51CNODULVT)"
+	echo "\t -inv_length \tSegMents Length Beyond Which Inverters are Used to buffer Segments \t(Default: 7000)"
+	echo "\t -buff_dist \tSegments Will be broken at  (\$buff_dist \* 100)%   From Driver Direction\t(Default: 0.3 i.e. 30%) - 0.0 < buff_dist < 1.0"
+	echo "\t -inv_dist \tSegments Will be broken at  (\$inv_dist \* 100)% && ((1- \$inv_dist) /2) * 100)%   From Driver Direction\t(Default: 0.05 i.e. 5% & 47.5%) - 0.0 < inv_dist < 0.5"
+    }
+}
+alias add_buff_along_route  addBuffAlongRoute
+
+#################################################################################################
+
+proc get_my_upsize_cell {cell_list {combo 4} {seq 2} {swap_ulvt 1}} {
+    foreach cell $cell_list {
+	set flag 1
+	set ref_name [get_attribute [get_cells $cell] ref_name]
+	if {![regexp TIE $ref_name]} {
+	    set targetD 4
+	    if {[sizeof_collection [get_cells -quiet  $cell -filter "is_sequential==true"]] > 0} {set targetD $seq} else {set targetD $combo}
+	    regexp {(\S+)D(\d+)BWP(\S+)} $ref_name f pre D post
+	    set orig_d $D
+	    if {$D < $targetD} {
+		set D $targetD
+		set new_ref_name "CK${pre}D${D}BWP${post}"
+		if {[get_db lib_cells .base_cell.name $new_ref_name -u] == ""} {
+		    set new_ref_name "${pre}D${D}BWP${post}"
+		}
+		if {[get_db lib_cells .base_cell.name $new_ref_name -u] == ""} {
+		    incr D -1
+		    set new_ref_name "${pre}D${D}BWP${post}"
+		}
+		if {[get_db lib_cells .base_cell.name $new_ref_name -u] == ""} {
+		    incr D -1
+		    set new_ref_name "${pre}D${D}BWP${post}"
+		}
+		if {[get_db lib_cells .base_cell.name $new_ref_name -u] == ""} {
+		    incr D -1
+		    set new_ref_name "${pre}D${D}BWP${post}"
+		}
+		if {[get_db lib_cells .base_cell.name $new_ref_name -u] == ""} {
+		    set new_ref_name ""
+		}
+		if {$ref_name == "$new_ref_name"} {	    set flag 0	} 
+		if {$D < $orig_d} {set flag 0}
+		if {$new_ref_name==""} {set flag 0}
+		if {$flag} {
+		    if [regexp (\.*)DLVT $new_ref_name  a  b] {
+			if {$swap_ulvt} {
+			    set _a [get_db lib_cells .base_cell.name -u "${b}DULVT"]
+			} else {
+			    set _a [get_db lib_cells .base_cell.name -u "${b}DLVT"]
+			}
+			if {$_a == ""} {} else {set new_ref_name $_a}
+		    }
+
+		    if [regexp (\.*)DSVT $new_ref_name  a  b] {
+			if {$swap_ulvt} {
+			    set _a [dbget head.libcells.name "${b}DULVT"]
+			} else {
+			    set _a [dbget head.libcells.name "${b}DSVT"]
+			}
+			if {$_a == ""} {} else {set new_ref_name $_a}
+		    }
+		    echo "\# $ref_name ==> $new_ref_name  :: $cell"
+		    echo "catch \{ecoChangeCell -inst $cell -cell $new_ref_name \}"
+		}
+	    } else {
+		set new_ref_name $ref_name
+		if {$swap_ulvt} {
+		    if [regexp DLVT  $ref_name ] {
+			set new_ref_name [regsub -all DLVT $ref_name DULVT]
+		    }
+		    
+		    if [regexp DSVT  $ref_name ] {
+			set new_ref_name [regsub -all DSVT $ref_name DULVT]
+		    }
+		}
+		if {$new_ref_name == $ref_name } {
+		} else {
+		    echo "\# $ref_name ==> $new_ref_name  :: $cell"
+		    echo "catch \{ecoChangeCell -inst $cell -cell $new_ref_name \}"
+		}
+	    }
+
+	}
+    }
+}
+
+##################################################################################
