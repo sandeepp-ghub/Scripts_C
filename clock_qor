@@ -1,0 +1,258 @@
+
+
+###############################################################
+source /proj/cayman/wa/kpavan/Scripts/tempus_procs.tcl
+#################################################################
+
+set top_design [get_object_name [current_design]]
+set scen_name [lindex [all_analysis_views -type  active] 0]
+set dataout_prefix ./DEBUG_REPORT/CLK_${scen_name}
+if ![file exists ./DEBUG_REPORT] {file mkdir ./DEBUG_REPORT}
+
+set all_clock_pins [get_pins -quiet -hier * -filter "!is_hierarchical && (direction==out || direction==inout) && is_clock_used_as_clock "]
+set all_clock_nets [get_nets -quiet -of $all_clock_pins]
+
+################ UNapproved CLock Cells #################################################################
+
+set fp [open ${dataout_prefix}_UNAPPROVED_TYPE.rpt w]
+set ck_cells [get_cells -quiet -of $all_clock_pins  -filter "ref_name!~XSRPHY* && ref_name!~DCCK*ULVT && ref_name!~PLLTS5FFPLAFRACN &&  ref_name!~CK*ULVT && ref_name!~MRVLSPBUF*DULVT && ref_name!~*DRO* && ref_name!~*PAD* && ref_name!~*dwc_* && ref_name!~*CWGDSK* && ref_name!~MRVCK*ULVT  && pin_count > 1"]
+set ck_seq_cells [get_cells -quiet $ck_cells  -filter "is_sequential && ref_name!~*DULVT"]
+set ck_non_seq_cells [get_cells -quiet $ck_cells  -filter "!is_sequential"]
+
+set unapproved_cells $ck_seq_cells
+append_to_collection unapproved_cells $ck_non_seq_cells
+
+set unapproved_clock_pins [sort_collection [remove_from_collection -intersect $all_clock_pins [get_pins -quiet -of $unapproved_cells]] clocks]
+
+
+puts $fp  [format  "%-20s %-150s %-30s %-5s %-25s %-10s %-40s" DESIGN_NAME INST_NAME REF_NAME LIB_PIN CLOCK PERIOD CK_SOURCE]
+foreach_in_collection ck_pin $unapproved_clock_pins {
+
+    set pin_name [get_object_name $ck_pin]
+    set design_name [get_attribute [get_cells -quiet [find_pnr $pin_name]] ref_name]
+    if {$design_name == ""} {set design_name $top_design}
+    set inst_name [file dirname $pin_name]
+    set ref_name [get_attribute [get_cells -quiet $inst_name] ref_name]
+    set lib_pin_name [file tail $pin_name]
+    set clocks [index_collection [sort_collection [get_attribute -quiet $ck_pin clocks] period] 0]
+    set clock_name [get_attribute $clocks full_name]
+    set clock_period [get_attribute $clocks period]
+    set clock_sources [get_object_name [get_attribute $clocks sources]]
+
+    puts $fp  [format  "%-20s %-150s %-30s %-5s %-25s %-10s %-40s" $design_name $inst_name $ref_name $lib_pin_name $clock_name $clock_period $clock_sources]
+}
+
+close $fp
+
+######################################################################################
+### High Xtalk Clock Nets ###########################################################
+
+set fp [open ${dataout_prefix}_HIGH_DELTA.rpt w]
+
+set high_delta_ck_nets [sort_collection [get_nets -quiet $all_clock_nets -filter "delta_delay_max >=5 || delta_delay_max <=-5"] delta_delay_max -descending]
+
+puts $fp  [format  "%-20s %-150s  %-10s %-10s %-10s %-150s  %-40s %-40s %-10s" DESIGN CK_NET MAX_DELTA MIN_DELTA ABS_DELTA DRIVER_PIN DRIV_CELL CLK_NAME PERIOD]
+foreach_in_collection ck_net $high_delta_ck_nets {
+
+    set net_name [get_object_name $ck_net]
+    set pin_name [lindex [get_object_name [get_attribute -quiet $ck_net driver_pins]] 0]
+    set design_name [get_attribute [get_cells -quiet [find_pnr $pin_name]] ref_name]
+    if {$design_name == ""} {set design_name $top_design}
+    set inst_name [file dirname $pin_name]
+    set ref_name [get_attribute [get_cells -quiet $inst_name] ref_name]
+    set lib_pin_name [file tail $pin_name]
+
+    set clocks [index_collection [sort_collection [get_attribute -quiet [get_pins -quiet $pin_name] clocks] period] 0]
+    set clock_name [get_attribute $clocks full_name]
+    set clock_period [get_attribute $clocks period]
+    set clock_sources [get_object_name [get_attribute $clocks sources]]
+
+    set max_delta [get_attribute $ck_net delta_delay_max]
+    set min_delta [get_attribute $ck_net delta_delay_min]
+    set abs_delta [expr $max_delta - $min_delta]
+
+    puts $fp  [format  "%-20s %-150s  %-10s %-10s %-10s %-150s  %-40s %-40s %-10s" $design_name $net_name $max_delta $min_delta $abs_delta $pin_name $ref_name $clock_name $clock_period]
+}
+close $fp
+
+######################################################################################
+### High Tran  Clock Nets ###########################################################
+
+
+set fp [open ${dataout_prefix}_VIO_TRAN.rpt w]
+set all_valid_ck_pins [get_pins -leaf -quiet -of  $all_clock_nets ]
+set max_tran_limits [lsort -u [get_attribute $all_valid_ck_pins  max_transition]]
+set vio_pins ""
+foreach max_tran $max_tran_limits {
+    append_to_collection vio_pins [get_pins -quiet $all_valid_ck_pins -filter "max_transition== $max_tran && slew_max > $max_tran"]
+}
+
+if { [sizeof_collection $vio_pins] > 0} {
+    puts $fp  [format  "%-20s %-150s  %-10s %-10s %-10s %-50s  %-30s  %-150s %-30s" DESIGN_NAME  PIN_NAME TRAN_VAL TRAN_LIMIT TRAN_VIO CLOCK CLK_PERIOD  DRIVER DRIV_MASTER]
+    set max_tran_limits [lsort -u -real -increasing [get_attribute -quiet $vio_pins  max_transition]]
+    foreach max_tran $max_tran_limits {
+	foreach_in_collection ck_pin [sort_collection [get_pins -quiet $all_valid_ck_pins -filter "max_transition== $max_tran && slew_max > $max_tran"] slew_max -descending] {
+
+	    set pin_name [get_object_name $ck_pin]
+	    set design_name [get_attribute [get_cells -quiet [find_pnr $pin_name]] ref_name]
+	    if {$design_name == ""} {set design_name $top_design}
+	    set inst_name [file dirname $pin_name]
+	    set ref_name [get_attribute [get_cells -quiet $inst_name] ref_name]
+	    set lib_pin_name [file tail $pin_name]
+	    set clocks [index_collection [sort_collection [get_attribute -quiet $ck_pin clocks] period] 0]
+	    set clock_name [get_attribute $clocks full_name]
+	    set clock_period [get_attribute $clocks period]
+	    set clock_sources [get_object_name [get_attribute $clocks sources]]
+	    
+	    set driver [get_attribute -quiet [get_nets -quiet -of $ck_pin] driver_pins]
+	    set driver_name [get_object_name $driver]
+	    set driver_ref [get_attribute -quiet [get_cells -quiet -of $driver]  ref_name]
+	    set slew_max [get_attribute $ck_pin slew_max]
+	    set tran_vio [expr $max_tran - $slew_max]
+	    
+	    puts $fp  [format  "%-20s %-150s  %-10s %-10s %-10s %-50s  %-30s %-150s %-30s" $design_name  $pin_name $slew_max $max_tran $tran_vio $clock_name $clock_period $driver_name $driver_ref ]
+	    
+	}
+    }
+}
+close $fp
+
+######################################################################################
+### High  Cap Clock Nets ###########################################################
+
+set fp [open ${dataout_prefix}_VIO_CAP.rpt w]
+
+set all_valid_ck_nets   $all_clock_nets 
+set all_valid_ck_pins $all_clock_pins
+
+set max_cap_limits [lsort -u -real  -increasing [get_attribute $all_valid_ck_pins  max_capacitance]]
+set vio_nets ""
+foreach max_cap $max_cap_limits {
+    append_to_collection vio_nets [remove_from_collection -intersect $all_valid_ck_nets [get_nets -quiet -of [get_pins -quiet $all_valid_ck_pins -filter "max_capacitance==$max_cap"] -filter "capacitance_max > $max_cap"]] -unique 
+}
+
+if { [sizeof_collection $vio_nets] > 0} {
+    set vio_pins [remove_from_collection -intersect $all_valid_ck_pins [get_pins -leaf -of $vio_nets] ]
+    puts $fp  [format  "%-20s %-150s  %-10s %-10s %-10s %-50s  %-30s  %-150s %-30s" DESIGN_NAME  NET_NAME CAP_VAL CAP_LIMIT CAP_VIO CLOCK CLK_PERIOD  DRIVER DRIV_MASTER]
+    set max_cap_limits [lsort -u -real -increasing [get_attribute -quiet $vio_pins  max_capacitance]]
+    foreach max_cap $max_cap_limits {
+	foreach_in_collection ck_net  [get_nets -quiet -of [get_pins -quiet $vio_pins -filter "max_capacitance == $max_cap"] -filter "capacitance_max > $max_cap"] {
+
+	    set net_name [get_object_name $ck_net]
+
+	    set driver [get_attribute -quiet $ck_net driver_pins]
+	    set driver_name [get_object_name $driver]
+	    set driver_ref [get_attribute -quiet [get_cells -quiet -of $driver]  ref_name]
+
+	    set design_name [get_attribute [get_cells -quiet [find_pnr $driver_name]] ref_name]
+
+	    if {$design_name == ""} {set design_name $top_design}
+
+	    set clocks [index_collection [sort_collection [get_attribute -quiet $driver clocks] period] 0]
+	    set clock_name [get_attribute $clocks full_name]
+	    set clock_period [get_attribute $clocks period]
+	    set clock_sources [get_object_name [get_attribute $clocks sources]]
+	    
+	    #set cap_max_rise [get_attribute $ck_net total_capacitance_max_rise]
+	    #set cap_max_fall [get_attribute $ck_net total_capacitance_max_fall]
+	    #if {$cap_max_rise > $cap_max_fall} {set cap_max $cap_max_rise} else {set cap_max $cap_max_rise}
+	    set cap_max [get_attribute $ck_net capacitance_max]
+
+	    set cap_vio [expr $max_cap - $cap_max]
+	    
+	    puts $fp  [format  "%-20s %-150s  %-10s %-10s %-10s %-50s  %-30s %-150s %-30s" $design_name  $net_name $cap_max $max_cap $cap_vio $clock_name $clock_period $driver_name $driver_ref ]
+	    
+	}
+    }
+}
+close $fp
+
+######################################################################################
+### Port Vs Clock  ###########################################################
+
+set fp [open ${dataout_prefix}_PNR_CLK_PORT.rpt w]
+
+set pnr_insts [sort_collection [get_pnr] ref_name]
+set design_list [lsort -u [get_attribute $pnr_insts ref_name]]
+
+foreach design $design_list {
+    if [array exists ${design}_in_clk_info ] {array unset ${design}_in_clk_info}
+    if [array exists ${design}_out_clk_info ] {array unset ${design}_out_clk_info}
+}
+
+foreach_in_collection pnr_inst $pnr_insts {
+    set  design [get_attribute $pnr_inst ref_name]
+
+    foreach_in_collection inst_pin  [get_pins -of  $pnr_inst -filter "direction==in"] {
+	set lib_pin [file tail [get_object_name $inst_pin]]
+	set pin_w_clock [get_pins -quiet -leaf -of [get_nets -of $inst_pin] -filter "direction==out && defined(clocks)"]
+	if {[sizeof_collection $pin_w_clock] > 0} {
+	    set clk_string ""
+	    set clk_info [get_attribute $pin_w_clock clocks]
+	    set clk_c [sizeof_collection $clk_info]
+	    set clk_string [string cat ${clk_string} " " ClkCount:${clk_c} " "]
+	    foreach_in_collection pin_clk $clk_info {
+		set clk_string [string cat ${clk_string} " " [get_object_name $pin_clk]\([get_attribute $pin_clk period]\)]
+	    }
+	    if [info exists ${design}_in_clk_info($lib_pin)] {
+		set ${design}_in_clk_info($lib_pin) "[set ${design}_in_clk_info($lib_pin)] $clk_string"
+	    } else {
+		set ${design}_in_clk_info($lib_pin) $clk_string
+	    }
+	    #puts "$design   $lib_pin IN :: $clk_string "
+	}
+    }
+}
+
+
+
+foreach_in_collection pnr_inst $pnr_insts {
+    set  design [get_attribute $pnr_inst ref_name]
+
+    foreach_in_collection inst_pin  [get_pins -of  $pnr_inst -filter "direction==out"] {
+	set lib_pin [file tail [get_object_name $inst_pin]]
+	set pin_w_clock [get_pins -quiet -leaf -of [get_nets -of $inst_pin] -filter "direction==out && defined(clocks)"]
+	if {[sizeof_collection $pin_w_clock] > 0} {
+	    set clk_string ""
+	    set clk_info [get_attribute $pin_w_clock clocks]
+	    set clk_c [sizeof_collection $clk_info]
+	    set clk_string [string cat ${clk_string} " " ClkCount:${clk_c} " "]
+	    foreach_in_collection pin_clk $clk_info {
+		set clk_string [string cat ${clk_string} " " [get_object_name $pin_clk]\([get_attribute $pin_clk period]\)]
+	    }
+	    if [info exists ${design}_out_clk_info($lib_pin)] {
+		set ${design}_out_clk_info($lib_pin) "[set ${design}_out_clk_info($lib_pin)] $clk_string"
+	    } else {
+		set ${design}_out_clk_info($lib_pin) $clk_string
+	    }
+	    #puts "$design   $lib_pin IN :: $clk_string "
+	}
+    }
+}
+
+
+
+puts $fp  [format "%-60s %-50s %-5s %-200s" DESIGN PIN_NAME DIR CLOCK_INFO]
+foreach design $design_list {
+
+    if [array exists ${design}_in_clk_info] {
+	foreach key [array names ${design}_in_clk_info ]  {
+	    set direction IN
+	    set value [lsort -u [set ${design}_in_clk_info($key)]]
+	    puts $fp  [format "%-60s %-50s %-5s %-200s" $design $key $direction $value]
+	}
+    }
+    
+    if [array exists ${design}_out_clk_info] {
+	foreach key [array names ${design}_out_clk_info ]  {
+	    set direction OUT
+	    set value [lsort -u [set ${design}_out_clk_info($key)]]
+	    puts $fp  [format "%-60s %-50s %-5s %-200s" $design $key $direction $value]
+	}
+    }
+
+}
+
+close $fp
+
+#################################################################################################
