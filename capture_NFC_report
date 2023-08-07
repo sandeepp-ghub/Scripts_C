@@ -1,0 +1,27 @@
+### No full -clock
+set dir report
+set design cayman_top
+mPuts "Maxslack: [mVar FLOW(sta_report_max_slack)]"
+mPuts "MaxPaths: [mVar FLOW(sta_report_max_paths)]"
+
+#set FLOW(sta_report_max_slack) 0
+#set FLOW(sta_report_max_paths) 2500000
+
+report_timing -late -split_delay -max_slack [mVar FLOW(sta_report_max_slack)] -nworst 1 -max_paths [mVar FLOW(sta_report_max_paths)] -path_type full \
+    -retime path_slew_propagation -retime_mode   exhaustive \
+    -analysis_summary_file "${dir}/${design}.rptTmg.pba_nfc.late.summary"  \
+    > "${dir}/${design}.rptTmg.pba_nfc.late.gz"
+report_timing -early -split_delay -max_slack [mVar FLOW(sta_report_max_slack)] -nworst 1 -max_paths [mVar FLOW(sta_report_max_paths)] -path_type full \
+    -retime path_slew_propagation -retime_mode   exhaustive \
+    -analysis_summary_file "${dir}/${design}.rptTmg.pba_nfc.early.summary"  \
+    > "${dir}/${design}.rptTmg.pba_nfc.early.gz"
+
+
+#report_timing -late -split_delay -max_slack $FLOW(sta_report_max_slack) -nworst 1 -max_paths  $FLOW(sta_report_max_paths) -path_type full \
+    -retime path_slew_propagation -retime_mode   exhaustive \
+    -analysis_summary_file "${dir}/${design}.rptTmg.pba_nfc.late.summary"  \
+    > "${dir}/${design}.rptTmg.pba_nfc.late.gz"
+#report_timing -early -split_delay -max_slack $FLOW(sta_report_max_slack) -nworst 1 -max_paths $FLOW(sta_report_max_paths) -path_type full \
+    -retime path_slew_propagation -retime_mode   exhaustive \
+    -analysis_summary_file "${dir}/${design}.rptTmg.pba_nfc.early.summary"  \
+    > "${dir}/${design}.rptTmg.pba_nfc.early.gz"
