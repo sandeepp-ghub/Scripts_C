@@ -1,0 +1,30 @@
+set all_data_pins [all_registers -data_pins]
+set all_clock_pins [all_registers -clock_pins]
+set all_icgs [get_cells -quiet [all_registers] -filter "is_integrated_clock_gating_cell"]
+
+
+set all_icgs_LNQ_tpe [get_cells -quiet $all_icgs -filter "ref_name=~CKLNQ*"]
+set all_icgs_LHQ_tpe [get_cells -quiet $all_icgs -filter "ref_name=~CKLHQ*"]
+
+set lnq_case_outputs [get_pins -quiet  -of [get_cells -quiet -of [get_pins -quiet  -of $all_icgs_LNQ_tpe -filter "lib_pin_name==E && defined(case_value) && case_value==0"]] -filter "direction==out"]
+set lhq_case_outputs [get_pins -quiet  -of [get_cells -quiet -of [get_pins -quiet  -of $all_icgs_LHQ_tpe -filter "lib_pin_name==E && defined(case_value) && case_value==1"]] -filter "direction==out"]
+
+
+set all_first_icg_case $lnq_case_outputs
+append_to_collection all_first_icg_case $lhq_case_outputs
+set cascade_icg_outputs ""
+if {[sizeof $all_first_icg_case] > 0} {
+    set startpoints $all_first_icg_case
+    while {[sizeof_collection $startpoints] > 0} {
+	set next_stage [get_pins -quiet -of [get_cells -quiet -of [remove_from_collection -intersect [get_pins -of $all_icgs] [get_pins -quiet [remove_from_collection [all_fanout -flat -from $startpoints -endpoints_only] $startpoints] -filter "lib_pin_name=~CP* && is_clock_used_as_clock && !defined(case_value)"]] -filter "is_integrated_clock_gating_cell"] -filter "direction==out"]
+	append_to_collection -unique cascade_icg_outputs $next_stage
+	set startpoints $next_stage
+    }
+}
+
+set all_icg_case_outputs $all_first_icg_case
+append_to_collection -unique all_icg_case_outputs $cascade_icg_outputs
+
+
+redirect icg_case_prop_endpoints.rpt { foreach elem  [lsort -u [get_object_name [remove_from_collection -intersect $all_clock_pins  [get_pins -quiet [all_fanout -flat -from $all_icg_case_outputs -endpoints_only] -filter "is_clock_used_as_clock && direction==in && !defined(case_value) && defined(clocks)"]]]] {echo $elem}}
+echo "Generated: icg_case_prop_endpoints.rpt"
