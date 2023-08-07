@@ -1,0 +1,8 @@
+set tim_report = $1
+#set tim_report = /mrvl2g/cayman_extvol09/cayman/cayman/wa_009/ggawali/impl/cayman_top.1.0A/track.Feb16_045927_top_all_bbm_shift%max1_shift%min1_shift%max2_shift%min5/tempuscui.signoff.sta/shift_setup_ssgnp0p675v125c_rcworstCCwT125c.001.2023-02-16-11:17:22/report/cayman_top.rptTmg.pba.late.gz
+#set tim_report = /mrvl2g/cayman_extvol09/cayman/cayman/wa_009/ggawali/impl/cayman_top.1.0A/track.Feb16_045927_top_all_bbm_shift%max1_shift%min1_shift%max2_shift%min5/tempuscui.signoff.sta/shift_setup_ssgnp0p675v125c_rcworstCCwT125c.001.2023-02-16-11:17:22/report/cayman_top.rptTmg.pba.early.gz
+
+set tim_report = /mrvl2g/cayman_extvol09/cayman/cayman/wa_009/rjose/impl/cayman_top.1.0A/track.Feb16_063939_bbm_capt_mmax2_min5/tempuscui.signoff.sta/capt_setup_ssgnp0p675v125c_rcworstCCwT125c.001.2023-02-16-07:08:14/report/cayman_top.rptTmg.pba.late.gz
+
+set tim_report =
+zcat $tim_report  | gawk '($6 > 1000) && ($7 ~ /\-/)' | gawk '{print $6,$12,$13}' | sort -k1 -n -r | sort -k3,3 -u | sort -k1 -n -r > high_tran_nets.rpt
