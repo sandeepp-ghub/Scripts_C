@@ -1,0 +1,34 @@
+redirect /dev/null {source /proj/cayman/wa/kpavan/WORK/DEBUG/DEBUG_shift_feb19/TTR/shift/sengine_internal}
+
+set all_hpins [get_pins -of [get_pnr]]
+
+echo [format "%-10s  %-50s %-50s %-100s %-100s" VIO Out-H-PIN In-H-Pin StartPoint Endpoint ]
+foreach elem [lrange  $vio_info 0 end] {
+    set sp [lindex $elem 1]
+    set ep [lindex $elem 2]
+    set sp_pnr [find_pnr $sp]
+    set ep_pnr [find_pnr $ep]
+    if {$sp_pnr == $ep_pnr } {
+    } else {
+	set vio [lindex $elem 0]
+	set path [report_timing -collection -from $sp -to $ep -late -hpin]
+	set sp1 [get_uniq_pin $sp]
+	set ep1 [get_uniq_pin $ep]
+	set sp_design [lindex [split $sp1 :] 0]
+	set ep_design [lindex [split $ep1 :] 0]
+	set path_h_pins [remove_from_collection -intersect [get_pins [ga [ga $path points] object]  -filter "is_hierarchical"] $all_hpins]
+	set out_hpin ""
+	foreach mypin [get_object_name [get_pins $path_h_pins -filter "direction==out"]] {
+	    if {$out_hpin == ""} {
+		set out_hpin [lsearch -all -inline -regexp [get_uniq_pin $mypin] ${sp_design}:]
+	    }
+	}
+	set in_hpin ""
+	foreach mypin [get_object_name [get_pins $path_h_pins -filter "direction==in"]] {
+	    if {$in_hpin == ""} {
+		set in_hpin [lsearch -all -inline -regexp [get_uniq_pin $mypin] ${ep_design}:]
+	    }
+	}
+	echo [format "%-10s %-50s %-50s %-100s %-100s " $vio $out_hpin $in_hpin $sp1 $ep1 ]
+    }
+}
