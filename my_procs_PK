@@ -1,0 +1,621 @@
+
+
+############################ PROCS #####################################
+if [info exists suppress_message] {
+} else {
+    proc suppress_message {args} {}
+}
+
+if [info exists unsuppress_message] {
+} else {
+    proc unsuppress_message {args} {}
+}
+
+proc myman {args} {
+    redirect -variable _man {man $args} ; puts $_man
+}
+
+proc get_endpoint_clock_pin {path} {
+    redirect /dev/null {return [get_object_name [get_attribute $path endpoint_clock_pin]]}
+}
+
+if {0} {
+proc get_skew {$path} {
+    set epclk_arrival [get_attribute $path capturing_clock_latency]
+    set spclk_arrival [get_attribute $path launching_clock_latency]
+    set skew [expr $epclk_arrival - $spclk_arrival]
+    return $skew
+
+}
+}
+
+proc get_ck2q {path} {
+    redirect /dev/null {
+	set tps [get_attribute  $path timing_points]
+	if {[sizeof_collection $tps] > 0} {
+	    set arrivals [get_attribute $tps arrival]
+	} else {
+	    set arrivals ""
+	}
+	if {[llength $arrivals] > 2} {
+	    set  ck2q [expr [lindex $arrivals 1] - [lindex $arrivals 0]]
+	} else {
+	    set ck2q NA
+	}
+	return $ck2q
+    }
+}
+
+proc get_endpoint_clock {path} {
+    return [lsort -u [get_object_name [get_attribute $path endpoint_clock]]]
+}
+
+proc get_startpoint_clock_pin {path} {
+    redirect /dev/null {return [get_object_name [get_attribute $path startpoint]]}
+}
+
+proc get_startpoint_clock {path} {
+    return [lsort -u [get_object_name [get_attribute $path startpoint_clock]]]
+}
+
+proc get_slack {path} {
+    redirect /dev/null {
+	set slack [lindex [lsort -real -increasing [get_attribute $path slack]] 0]
+	if {$slack == ""} {set slack NA}
+	return  $slack 
+    }
+}
+
+
+proc get_skew {path} {
+    set skew  [get_property $path skew]
+    set path_type [get_attribute $path path_type]
+    if [regexp max $path_type] {
+	set skew [expr [get_attribute $path capturing_clock_latency] - [get_attribute $path launching_clock_latency] + [get_attribute $path cppr_adjustment]]
+    }
+    if [regexp min $path_type]  {
+	set skew [expr [get_attribute $path capturing_clock_latency] - [get_attribute $path launching_clock_latency] - [get_attribute $path cppr_adjustment]]
+    }
+    return $skew
+}
+
+proc get_path_pins {path} {
+    return [get_object_name [get_attribute  [get_attribute $path timing_points] pin]]
+}
+
+proc get_path_pins_collection {path} {
+    return  [get_attribute  [get_attribute $path timing_points] pin]
+}
+
+proc get_first_combo_pin {path} {
+    set pinlist [get_object_name [get_pins [get_attribute  [get_attribute $path timing_points] pin] -filter "direction==in"]]
+    set n [llength $pinlist]
+    set spin ""
+    for {set i 1} {$i < [expr $n -1]} {incr i} {
+	set pin [lindex $pinlist $i]
+	set multiin [sizeof_collection [get_pins -quiet -of [get_cells -quiet -of [get_pins -quiet $pin]] -filter "direction==in"]]
+	if {$multiin > 1} {set spin $pin; break}
+    }
+    return $spin
+}
+
+proc get_first_buff_pin {path} {
+    set pinlist [get_object_name [get_pins [get_attribute  [get_attribute $path timing_points] pin] -filter "direction==in"]]
+    set n [llength $pinlist]
+    set spin ""
+    for {set i 1} {$i < [expr $n -1]} {incr i} {
+	set pin [lindex $pinlist $i]
+	set multiin [sizeof_collection [get_pins -quiet -of [get_cells -quiet -of [get_pins -quiet $pin]] -filter "direction==in"]]
+	if {$multiin == 1} {set spin $pin; break}
+    }
+    return $spin
+}
+
+proc get_last_combo_pin {path} {
+    set pinlist [get_object_name [get_pins [get_attribute  [get_attribute $path timing_points] pin] -filter "direction==in"]]
+    set n [llength $pinlist]
+    set spin ""
+    for {set i [expr $n -2]} {$i > 0} {incr i -1} {
+	set pin [lindex $pinlist $i]
+	set multiin [sizeof_collection [get_pins -quiet -of [get_cells -quiet -of [get_pins -quiet $pin]] -filter "direction==in"]]
+	if {$multiin > 1} {set spin $pin; break}
+    }
+    return $spin
+}
+
+proc get_last_buff_pin {path} {
+    set pinlist [get_object_name [get_pins [get_attribute  [get_attribute $path timing_points] pin] -filter "direction==in"]]
+    set n [llength $pinlist]
+    set spin ""
+    for {set i [expr $n -2]} {$i > 0} {incr i -1} {
+	set pin [lindex $pinlist $i]
+	set multiin [sizeof_collection [get_pins -quiet -of [get_cells -quiet -of [get_pins -quiet $pin]] -filter "direction==in"]]
+	if {$multiin == 1} {set spin $pin; break}
+    }
+    return $spin
+}
+
+
+
+proc get_start_point {path} {
+    set a [lindex [get_path_pins $path] 0]
+    if {[sizeof_collection [get_ports -quiet $a]] == "0"} {
+	set a  [lindex [get_path_pins $path] 1]
+    }
+    return $a
+}
+
+proc get_end_point {path} {
+    set _tmp [get_path_pins $path]
+    set a [lindex $_tmp  [expr [llength $_tmp] - 1]]
+    return $a
+}
+
+proc  freqinfo {} { foreach clk [lsort -u [get_object_name [all_clocks]]] {echo "$clk :: [format %0.0f [expr 1000.000/[lindex [get_attribute [get_clocks $clk] period] 0]]] MHz -- [sizeof [all_registers -clock $clk]]"}}
+
+proc get_clock_info {clk {verbose 0}} {
+    set ck [get_clocks $clk]
+    set name [get_object_name $ck]
+    set period [get_attribute $ck period]
+    set freq [format %0.3f [expr 1000.000/${period}]]
+    set is_gen [get_attribute $ck is_generated]
+    set num [sizeof [all_registers -clock $clk]]
+    if {$is_gen == "true"} {set is_gen GenClk} else {set is_gen MainClk}
+    puts "Name :: [get_object_name $ck]"
+    puts "Source ($is_gen) :: [get_object_name [get_attribute $ck sources]]"
+    puts "period :: $period -- $freq MHz"
+    puts "NUmOf Sinks :: $num"
+    if {$verbose} {
+	puts "[report_clock_timing  -type latency -histogram  -histogram_range 0.1 -clock $name]"
+    }
+    puts "[report_clocks -groups -clock $name]"
+    puts "[report_clocks $name]"
+
+}
+#pdicicomplex/gicicomplex_IciSerdesWrapperI0_DT_IciSerdesI/core_tx_genclk_2_NRZ_20_OSR1
+
+proc rte {args} {
+    eval report_timing -path_type endpoint $args
+}
+proc rtpba {args} {
+    eval report_timing  -retime path_slew_propagation -retime_mode exhaustive $args
+}
+
+
+
+proc get_hpins_path {paths} {
+    set hpins1 [get_pins -quiet -hier [get_attribute [get_attribute $paths timing_points] object] -filter "is_hierarchical==true"]
+    if {[sizeof_collection $hpins1] > 0} {
+	set hpins [lsort -u [get_object_name [remove_from_collection -intersect [get_pnr_pins] $hpins1]]]
+    } else {
+	set hpins ""
+    }
+    return $hpins
+}
+
+proc get_hpins_path_sel {paths {allh ""}} {
+    #echo [sizeof_collection $allh]
+    if {$allh == ""} {
+	set hpins1 [get_pins -quiet -hier [get_attribute [get_attribute $paths timing_points] object] -filter "is_hierarchical==true"]
+    } else {
+	set hpins1 [remove_from_collection -intersect $allh [get_pins -quiet -hier [get_attribute [get_attribute $paths timing_points] object] -filter "is_hierarchical==true"]]
+    }
+    if {[sizeof_collection $hpins1] > 0} {
+	set hpins [lsort -u [get_object_name [remove_from_collection -intersect [get_pnr_pins] $hpins1]]]
+    } else {
+	set hpins ""
+    }
+    return $hpins
+}
+
+proc O_rtsum {args } {
+    #echo "$args"
+    echo "---------------------------------------------------------------------------------------------------------"
+    echo "Slack Status Skew  StartPoint                                EndPoint                     Clock     Hpins"
+    echo "---------------------------------------------------------------------------------------------------------"
+    set paths [eval report_timing -hpin -collection  $args]
+    foreach_in_collection path $paths {
+	set slack [get_slack $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	echo "$slack $status [get_skew $path] - [get_startpoint_clock_pin $path] \t [get_object_name [get_attribute  $path endpoint]] \t [get_endpoint_clock $path] \t \{$hpins\}"
+    }
+}
+
+proc O_rtsum_csv {args } {
+    #echo "$args"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    echo "Slack,Status,Skew,StartPoint,EndPoint,Clock,Hpins"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    set paths [eval report_timing -hpin -collection  $args]
+    foreach_in_collection path $paths {
+	set slack [get_slack $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	echo "$slack,$status,[get_skew $path],[get_startpoint_clock_pin $path],[get_object_name [get_attribute  $path endpoint]],[get_endpoint_clock $path],\{$hpins\}"
+    }
+}
+
+proc O_rtsumH {args } {
+    #echo "---------------------------------------------------------------------------------------------------------"
+    #echo "Slack Status Skew  StartPoint                                EndPoint                     Clock     Hpins"
+    #echo "---------------------------------------------------------------------------------------------------------"
+    set paths [eval report_timing -hpin -collection  $args]
+    foreach_in_collection path $paths {
+	set slack [get_slack $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	echo "$slack $status [get_skew $path] - [get_startpoint_clock_pin $path] \t [get_object_name [get_attribute  $path endpoint]] \t [get_endpoint_clock $path] \t \{$hpins\}"
+    }
+}
+
+
+
+proc rtsall {args } {
+    array set inputs $args
+    if [info exists inputs(-to)] {set ep $inputs(-to) ; set flag 1} else {set flag 0}
+    if [info exists inputs(-nworst)] {set nworst $inputs(-nworst)} else {set nworst 1}
+    if [info exists inputs(-max_paths)] {set max_paths $inputs(-max_paths)} else {set max_paths 1}
+    if [info exists inputs(-max_slack)] {set max_slack $inputs(-max_slack)} else {set max_slack 0}
+    if $flag {
+	set path_coll ""
+	
+	set sps [get_pins [all_fanin -flat -to $ep -startpoints_only] ]
+	foreach_in_collection sp $sps {
+	    set path [report_timing -collection -from $sp -to $ep -max_paths ${max_paths} -max_slack ${max_slack} -nworst ${nworst} -unique_pins]
+	    if {[sizeof_collection $path] > 0} {append_to_collection path_coll $path -unique}
+	}
+	
+
+
+	set path_coll [sort_collection $path_coll slack]
+
+	if { [sizeof_collection $path_coll] > 0} {
+
+	    foreach_in_collection path $path_coll {
+		echo [get_slack $path] \t [get_object_name [get_attribute $path startpoint]] \t [get_object_name [get_attribute $path endpoint]] 
+	    }
+	}
+    }
+}
+
+proc O_rtsum1 {args } {
+    echo "---------------------------------------------------------------------------------------------------------"
+    echo "Slack Status Skew  StartPoint                                EndPoint                     Clock          "
+    echo "---------------------------------------------------------------------------------------------------------"
+    set paths [eval report_timing -hpin -collection  $args]
+    foreach_in_collection path $paths {
+	set slack [get_slack $path]
+	if {$slack == "NA"} {
+	    set status UNC
+	} else {
+	    if {$slack < 0} {
+		set status VIO
+	    } else {
+		set status MET
+	    }
+	}
+	set hpins [get_hpins_path $path]
+	echo "$slack $status [get_skew $path] - [get_startpoint_clock_pin $path] \t [get_object_name [get_attribute  $path endpoint]] \t [get_endpoint_clock $path]"
+    }
+}
+
+proc rts1 {args} {
+    eval report_timing -path_type summary $args
+}
+proc get_cmd {args} {
+    foreach x [lsort -u -dict [info command "*${args}*"]] {echo $x}
+}
+
+proc all_sp {args} {
+    all_fanin -flat -to $args -startpoints_only 
+}
+proc all_sp_c {args} {
+    return [get_object_name [all_fanin -flat -to $args -startpoints_only  -only_cells]]
+}
+proc all_sp_p {args} {
+    return [get_object_name [get_ports -quiet [all_fanin -flat -to $args -startpoints_only  -only_cells]]]
+}
+
+proc all_ep {args} {
+    all_fanout -flat -from $args -endpoints_only 
+}
+proc all_ep_c {args} {
+    return [get_object_name [all_fanout -flat -from $args -endpoints_only  -only_cells]]
+}
+proc all_ep_p {args} {
+    return [get_object_name [get_ports -quiet [all_fanout -flat -from $args -endpoints_only  -only_cells]]]
+}
+
+proc expand_collection {arg} {
+    foreach x [lsort -dict [get_object_name $arg]] {echo $x}
+}
+
+proc expand_list {arg} {
+    foreach x [lsort -dict  $arg] {echo $x}
+}
+
+proc gen_untested {} {
+    set items {false_path const user_disable unknown no_startpoint_clock no_endpoint_clock}
+    set design [get_object_name [current_design]]
+    for {set  i 0} {$i < [llength $items]} {incr i} {
+	set item [lindex $items $i]
+	report_analysis_coverage -check_type setup -exclude_untested [lreplace $items $i $i] -verbose untested  > ${design}_${item}_untested.rpt
+    }
+}
+
+proc reportGrpIntfPaths {grp} {
+    catch {#suppress_message TCLCMD 917}
+    catch {report_clocks $grp}
+    echo "==========================================================================="
+    set vio_paths [get_timing_path -hpin -path_group $grp -max_slack -0.1 -nworst 1 -max_paths 10000000 -path_type full_clock]
+    set i 1
+    foreach_in_collection path $vio_paths {
+	set slack [get_attribute $path slack]
+	set sp [get_object_name [get_attribute $path launching_point]]
+	set ep [get_object_name [get_attribute $path capturing_point]]
+	set skew  [get_attribute $path skew]
+	set hpins [get_pins  -quiet [get_attribute [get_attribute $path timing_points] object] -filter "is_hierarchical==true"]
+
+	set spclk [lindex  [get_object_name  [get_attribute [get_attribute [ga $path launch_clock_path] timing_points] object]] 0]
+	set epclk [lindex  [get_object_name  [get_attribute [get_attribute [ga $path capture_clock_path] timing_points] object]] 0]
+
+	if {[sizeof $hpins] > 0 } {
+	    echo "PATH_${i}"
+	    incr i
+	    echo "Slack : $slack"
+	    echo "Skew : $skew"
+	    echo "STARTPOINT: $sp ($spclk)"
+	    
+	    echo "HIERPINS : "
+	    foreach _x [get_object_name $hpins] {
+		echo \t $_x
+	    }
+	    echo "ENDPOINT: $ep ($epclk)"
+	    echo "==========================================================================="
+	}
+    }
+    catch {#unsuppress_message TCLCMD 917}
+}
+
+proc reportGrpNonIntfPaths {grp} {
+}
+
+############################ ALIASES #####################################
+
+#===============================================================
+alias ec expand_collection
+alias el expand_list
+alias get_timing_path report_timing -collection 
+
+
+
+alias histo {report_clock_timing  -type latency -histogram  -histogram_range 0.1}
+alias rac report_analysis_coverage -exclude_untested {false_path const user_disable}
+alias ts set_table_style -nosplit -no_frame_fix_width
+alias ga get_attribute
+proc allsp {args} {return eval [all_fanin -flat  -startpoints_only -to $args ]}
+proc allep {args} {return eval [all_fanin -flat  -endpoints_only -from $args ]}
+#===============================================================
+proc get_hpin {hpin} {
+    return [dbget -e [ dbGetHTerm $hpin].net.hNets.hinstterms.name  [file dirname $hpin]/* -v -e]
+}
+
+proc get_hpin_net {nets} {
+    deselectAll
+    selectNet $nets
+    set hpins [dbget selected.hnets.hinstterms.name -u -e]
+    deselectAll
+    return $hpins
+}
+proc get_hpin_port {port} {
+    return [lsort -dict -u [get_object_name [remove_from_collection -intersect [get_pins -quiet [dbget [dbget [dbget top.nets.name $port -p].hnets.hinstterms -e].name]] [get_pins -quiet pd*/* -filter "is_hierarchical==true"]]]]
+}
+
+proc get_period {clk} {
+    set p [get_attribute [get_clocks $clk] period]
+    #echo $p
+    return $p
+}
+
+proc get_source {clk {verbose 0}} {
+    set p [get_attribute [get_clocks $clk] sources]
+    #echo $p
+    return $p
+}
+
+
+proc get_best_slack_point {path_pins {factor 1}} {
+    set slack -10000000000
+    set best_pin ""
+    foreach pin $path_pins {
+	if {[sizeof_collection [get_pins -quiet  $pin]] > 0} {
+	    set nslack [get_slack [report_timing -collection -through $pin -max_paths 1 -nworst 1]]
+	    if { $nslack > $slack} {
+		set slack $nslack
+		set best_pin $pin
+	    }
+	    
+	}
+
+    }
+	echo \{$best_pin [expr $factor * $slack]\}
+    
+    #echo $best_pin 
+}
+proc get_best_slack_point0p7 {path_pins} {
+    set slack -10000000000
+    set best_pin ""
+    foreach pin $path_pins {
+	set nslack [get_slack [report_timing -collection -through $pin -max_paths 1 -nworst 1]]
+	if { $nslack > $slack} {
+	    set slack $nslack
+	    set best_pin $pin
+	}
+    }
+    echo \{$best_pin [expr 0.7 * $slack]\}
+    #echo $best_pin 
+}
+proc get_best_slack_point0p45 {path_pins} {
+    set slack -10000000000
+    set best_pin ""
+    foreach pin $path_pins {
+	set nslack [get_slack [report_timing -collection -through $pin -max_paths 1 -nworst 1]]
+	if { $nslack > $slack} {
+	    set slack $nslack
+	    set best_pin $pin
+	}
+    }
+    echo \{$best_pin [expr 0.45 * $slack]\}
+    #echo $best_pin 
+}
+
+proc get_bad_nets {block {clock1 ""} {delta_limit 0.05} {net_delay_limit 0.05}} {
+    #set block pdPCIEX16_00
+    echo "Processing $block  in Clock : $clock1"
+    if {$clock1 == ""} {
+	set allcp [all_registers -clock_pins]
+	set alldat [all_registers -data_pins]
+    } else {
+	set allcp [all_registers -clock_pins -clock $clock1]
+	set alldat [all_registers -data_pins -clock $clock1]
+    }
+    #set delta_limit 0.05
+    #set net_delay_limit 0.05
+
+    set block_cp [get_pins $allcp -filter "full_name=~${block}*"]
+    set block_dat [get_pins $alldat -filter "full_name=~${block}*"]
+
+    set setup_paths [report_timing -collection -from $block_cp -to $block_dat -max_paths 10000 -nworst 20 -max_slack 0 -not_through [get_pins ${block}/*] -unique_pins]
+    set n1 [llength [lsort -u [get_object_name [ga $setup_paths endpoint]]]]
+    set _nets [get_nets -of  [ga  [filter_collection [filter_collection [ga $setup_paths timing_points]  @direction==in ]  @delta_delay>=${delta_limit}||@delay>=${net_delay_limit}] object]]
+    echo "Slack \t NVP \t Delta \t DelayMax \t NetName"
+    foreach_in_collection net [sort_collection  -descending $_nets delta_delay_max] {
+	set t2 [lindex  [lsort -real -decreasing [ga [get_pins -of $net -filter "direction==in"] arrival_max]] 0]
+	set t1 [lindex  [lsort -real -increasing [ga [get_pins -of $net -filter "direction==out"] arrival_max]] end]
+	set delta [ga $net delta_delay_max]
+	set _pp [report_timing -collection -through $net -max_slack 0 -nworst 1 -max_paths 100000]
+	set nvp [sizeof_collection $_pp]
+	set slack [get_slack $_pp]
+	echo "$slack \t $nvp \t $delta \t [expr $t2 - $t1] \t  [get_object_name $net]"
+    }
+
+    set setup_paths1 [report_timing -collection -from $block_cp -to $block_dat -max_paths 10000 -nworst 20 -max_slack 0 -not_through [list [get_pins ${block}/*] [get_nets $_nets]] -unique_pins]
+    set n2 [llength [lsort -u [get_object_name [ga $setup_paths1 endpoint]]]]
+    #set n2 [sizeof $setup_paths1]
+    echo "Once ABove NetDelays are addressed - WhatIF? Will achieve:: From NVP of: $n1 (WNS of: [get_slack $setup_paths]) TO NVP of $n2 (WN ofS: [get_slack $setup_paths1])"
+
+}
+
+catch {
+proc gnl {net} {
+    return [expr [expr [dbNetWireLenY $net] / 2000.000] + [expr [dbNetWireLenX $net] / 2000.000]]
+}
+}
+
+proc get_driver_cell {net} {
+    set driver NA
+    set a [get_pins -quiet  -leaf -of [get_nets -quiet $net] -filter "direction==out"]
+    if {[sizeof_collection $a] > 0} {
+	set driver [lsort -u [get_attribute [get_cells -quiet -of $a] ref_name]]
+    }
+    return $driver
+}
+
+proc get_driver {net} {
+    set driver NA
+    set a [get_pins -quiet  -leaf -of [get_nets -quiet $net] -filter "direction==out"]
+    if {[sizeof_collection $a] > 0} {
+	set driver [lsort -u [get_object_name [get_cells -quiet -of $a] ]]
+    }
+    return $driver
+}
+
+proc get_strength {ref_name} {
+    set D NA
+    if [regexp BWP $ref_name] {
+	regexp {(\S+)D(\d+)BWP(\S+)} $ref_name f pre D post
+    }
+    return $D
+}
+
+proc get_location {object} {
+    return [lindex [dbget -e [dbGetObjByName $object].pt] 0]
+}
+
+proc get_distance {pt1 pt2} {
+    set x1 [db_pt $pt1 -x]
+    set y1 [db_pt $pt1 -y]
+    set x2 [db_pt $pt2 -x]
+    set y2 [db_pt $pt2 -y]
+    set distance [expr [expr abs([expr $x1 - $x2])] +   [expr abs([expr $y1 - $y2])]]
+    return $distance
+}
+
+
+proc get_mid {pt1 pt2} {
+    set x1 [db_pt $pt1 -x]
+    set y1 [db_pt $pt1 -y]
+    set x2 [db_pt $pt2 -x]
+    set y2 [db_pt $pt2 -y]
+    set x [format %0.3f [expr $x1/2.00 + $x2/2.00]]
+    set y [format %0.3f [expr $y1/2.00 + $y2/2.00]]
+    return [list $x $y]
+}
+
+
+
+#===============================================================
+#alias mcpu set_multi_cpu_usage -localCpu 24
+#alias sim set timing_enable_simultaneous_setup_hold_mode true
+#alias simoff set timing_enable_simultaneous_setup_hold_mode false
+alias ts set_table_style -nosplit -no_frame_fix_width
+alias gc get_clocks
+alias gci get_clock_info
+#alias mcpu setMultiCpuUsage -localCpu 16
+#alias  mcpu24 set_multi_cpu_usage -localCpu 24
+#alias mcpu32 set_multi_cpu_usage -localCpu 32
+alias get_attribute get_property
+#catch {source ~psebata/ts_aliases}
+#catch { source /user/psebata/ts_aliases}
+#restore_db_file_check to 0
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/get_interface_tran_vio.tcl
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/get_interface_timing_vio.tcl
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/get_interface_timing_vio_new.tcl
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/intf_latency.tcl
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/get_delay_cell.tcl
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/get_delay_cell_tmode.tcl
+#echo "USAGE:: get_intf_latency clock_name min/max"
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/pcie_ring_procs.tcl
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/pcie_ring_procs_non_flatten.tcl
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/eco_upsize_cell.tcl
+source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/get_xtalk_net_info.tcl
+#echo "USAGE:: get_intf_timing -from block -to block -cmd usercmd -clock clockname "
+#alias rtn report_timing -net 
+#source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/uniquify_pin.tcl
+#source /proj/cayman/wa/kpavan/Scripts/TX3/scripts/AddBufAlongRoute.tcl
+################################
