@@ -1,0 +1,34 @@
+
+set minpaths [report_timing -collection -early  -through pdPCIEPHY_0/* -through pdPCIEPHYBOT_0/* -max_slack 0.00 -unique_pins -hpin -nworst 1000 -max_paths 100000000  ]
+array set pin_delay ""
+array set pin_clock ""
+foreach_in_collection path $minpaths {
+    set hpins [lsort -u [get_object_name [get_pins [get_path_pins_collection $path] -filter "is_hierarchical==true"]]]
+    foreach _h $hpins {
+	if [regexp  pdPCIEPHY_0 $_h] {set _hpin [file tail $_h]}
+	set vio_hpin "$vio_hpin $_hpin"
+    }
+    set epclk [get_endpoint_clock $path]
+    set slack [get_slack $path]
+    echo "$_hpin $slack"
+    if {$slack == "NA"} {
+    } else {
+	set pin_clock($_hpin) $epclk
+	
+	if {[info exists pin_delay($_hpin)]} {
+	    if {$slack < $pin_delay($_hpin) } {set pin_delay($_hpin) $slack}
+	} else {
+	    set pin_delay($_hpin) -0.2
+	}
+
+    }
+}
+
+echo "" > incr_hold.sdc 
+foreach hpin [array names pin_delay] {
+    if {[ga [get_pins pdPCIEPHY_0/${hpin}] direction] == "in"} {
+	echo "set_input_delay  $pin_delay($hpin) $hpin -min -clock $pin_clock($hpin) -add_delay" >>incr_hold.sdc 
+    } else {
+	echo "set_output_delay  $pin_delay($hpin) $hpin -min -clock $pin_clock($hpin) -add_delay" >> incr_hold.sdc 
+    }
+}
