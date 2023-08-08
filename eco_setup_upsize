@@ -1,0 +1,35 @@
+set allcp [all_registers -clock_pins -clock SOCSCLK]
+set alldat [all_registers -data_pins -clock SOCSCLK]
+
+set mem_dat [get_pins $alldat -filter "full_name=~pdMemCmplx_bot/pdsbufasts1*"]
+set sbus_cp [get_pins $allcp -filter "full_name=~pdSocSCmplx/pdsbuslows*"]
+
+set paths [report_timing -collection -from $sbus_cp -to $mem_dat -max_slack 0 -max_paths 100000 -nworst 20 -unique_pins]
+
+set path_cell [lsort -u [get_object_name [get_cells -of [get_pins [ga [ga $paths timing_points] object] -filter "direction==out"]]]]
+
+set cell_list [get_object_name [get_cells $path_cell -filter "full_name=~pdSocSCmplx*"]]
+redirect south_setup_socsclk.eco {get_my_upsize_cell $cell_list}
+set cell_list [get_object_name [get_cells $path_cell -filter "full_name=~pdMemCmplx_bot*"]]
+redirect mem_setup_socsclk.eco {get_my_upsize_cell $cell_list}
+
+redirect block_setup.tcl {
+foreach_in_collection inst [get_cells $path_cell -filter "ref_name=~*DLVT || ref_name=~*DSVT"] {
+    set ref_name [ga $inst ref_name]
+    set inst_name [get_object_name $inst]
+    if [regexp DLVT $ref_name] {
+	set new_ref_name [regsub -all DLVT $ref_name DULVT]
+    }
+    if [regexp DSVT $ref_name] {
+	set new_ref_name [regsub -all DSVT $ref_name DULVT]
+    }
+    echo "# $inst_name ==> from: $ref_name -> $new_ref_name"
+    echo "catch \{ecoChangeCell -inst $inst_name -cell $new_ref_name\}"
+
+}
+}
+
+set xtalk_nets [get_nets -of [get_pins -of [get_cells $path_cell] -filter "direction==out"] -filter "delta_delay_max > 0.005"]
+set path_cell1  [lsort -u [get_object_name [get_cells -of [get_pins -of $xtalk_nets -filter "direction==out"]]]]
+redirect block_setup_xtalk.tcl {get_my_upsize_cell $path_cell1 2 2}
+
