@@ -1,0 +1,135 @@
+set allcp [all_registers -clock_pins]
+set alldat [all_registers -data_pins]
+
+set block pdsbuslows
+set fromcp [get_pins $allcp -filter "full_name=~${block}*"]
+set todat [get_pins $alldat -filter "full_name=~${block}*"]
+
+set paths [get_timing_path -to $todat -from $fromcp -not_through [get_pins pdPCIEX*/* -filter "direction==out"] -max_slack 0 -nworst 10 -max_paths 1000000000 -hpin -unique_pins]
+set path_cell [lsort -u [get_object_name [get_cells -of [get_pins [ga [ga $paths timing_points] object] -filter "direction==out"]]]]
+
+set xtalk_nets [get_nets -of [get_pins -of [get_cells $path_cell] -filter "direction==out"] -filter "delta_delay_max > 0.005"]
+
+set path_cell1  [lsort -u [get_object_name [get_cells -of [get_pins -of $xtalk_nets -filter "direction==out"]]]]
+
+set path_cell2  [get_object_name [remove_from_collection [get_cells $path_cell]  [get_cells $path_cell1]]]
+
+redirect block_setup_xtalk.tcl {get_my_upsize_cell $path_cell1 2 2}
+
+redirect block_setup_swap.tcl {get_my_upsize_cell $path_cell2 1 1}
+
+
+set best_setup ""
+set all_path_pins ""
+
+set paths [get_timing -early -not_through [get_pins "${block}/* ${block}/*BIST_INPUT_SELECT*/Q*"] -max_slack 0 -nworst 1 -max_paths 1000000 -unique_pins -from $fromcp -to $todat]
+#set paths [get_timing -early -not_through [get_pins ${block}/*] -max_slack 0 -nworst 1 -max_paths 1000000 -unique_pins -from $fromcp -to $todat]
+#############################
+#set bips [get_pins -hier *BIST*INPUT*SELECT*/Q*]
+#set paths [get_timing -early -through $bips -max_slack 0 -nworst 1 -max_paths 1000000 -unique_pins]
+if {$best_setup == ""} {
+    set paths [get_timing -early -to $pcie_dat -from $slow_clk -not_through [get_pins pdPCIEX*/* -filter "direction==out"] -max_slack 0 -nworst 1 -max_paths 1000000000 -hpin -unique_pins] 
+
+    #set paths [get_timing -early -from $pcie_clk -to $slow_dat -not_through [get_pins pdPCIEX*/* -filter "direction==in"] -max_slack 0 -nworst 1 -max_paths 1000000000 -hpin -unique_pins] 
+} else {
+    set paths [get_timing -early -to $pcie_dat -from $slow_clk -max_slack 0 -nworst 1 -max_paths 1000000000 -hpin -unique_pins -not_through [get_pins -quiet  $best_setup]]
+}
+#set paths1 [range_collection [sort_collection $paths slack] 0 99]
+set i 0
+echo "" > for_setup_session.tcl
+
+foreach_in_collection path $paths {
+
+    set pins [get_pins -quiet  [remove_from_collection [get_pins -quiet  [ga [ga $path timing_points] object] -filter "direction==in"] [ga $path startpoint]] -filter " is_hierarchical==false "]
+    if { [sizeof_collection $pins] == "0"} {
+    }
+    incr i
+    
+    echo "set path_pins \{" >> for_setup_session.tcl
+    foreach _pin [get_object_name $pins ] {
+	set _pin [regsub -all {pdPCIEX8_\d\d} $_pin pdPCIEX8_?? ]
+	set _pin [regsub -all {pdPCIEX4_\d\d} $_pin pdPCIEX4_?? ]
+	set _pin [regsub -all {pdPCIEX16_\d\d} $_pin pdPCIEX16_?? ]
+	set _pin [regsub -all {pdPCIEPHY_\d} $_pin pdPCIEPHY_? ]
+	set _pin [regsub -all {pdPCIEPHYBOT_\d} $_pin pdPCIEPHYBOT_? ]
+
+	set _pin [regsub -all {pdMemCmplx_bot/pdsbufasts\d} $_pin pdMemCmplx_bot/pdsbufasts? ]
+	set _pin [regsub -all {pdMemCmplx_bot/pdsbufastn\d} $_pin pdMemCmplx_bot/pdsbufastn? ]
+	set _pin [regsub -all {pdDmcCmplx_botl} $_pin pdDmcCmplx_bot? ]
+	set _pin [regsub -all {pdDmcCmplx_botr} $_pin pdDmcCmplx_bot? ]
+	set _pin [regsub -all {pdMemCmplx_top/pdaggr_dmc_topl} $_pin pdMemCmplx_top/pdaggr_dmc_top?]
+	set _pin [regsub -all {pdMemCmplx_top/pdaggr_dmc_topr} $_pin pdMemCmplx_top/pdaggr_dmc_top?]
+
+	echo "$_pin" >>  for_setup_session.tcl
+    }
+    echo "\}" >>  for_setup_session.tcl
+    echo "if \{\[llength \$path_pins\] > 0\} \{get_best_slack_point \$path_pins\}" >>  for_setup_session.tcl
+    append_to_collection all_path_pins $pins -unique
+}
+
+if {0} {
+    ##################################
+    #### in setup session ###############
+
+    echo "set best_setup_info \{" > best_Setup_pins.list
+    redirect -append best_Setup_pins.list {source for_setup_session.tcl }
+    echo " \}" >> best_Setup_pins.list
+
+    ###########################
+    ### In hold session
+    redirect /dev/null {source  best_Setup_pins.list}
+    array unset _setup_slack
+    foreach elem $best_setup_info {
+	set point [lindex $elem 0]
+	set slack [lindex $elem 1]
+	set _setup_slack($point) $slack
+	set best_setup "$best_setup $point"
+    }
+    #from_sp
+    #set pathsN [get_timing -early -from  [get_pins -quiet  $all_cp -filter "full_name=~pdsbuslows1*"]  -to [get_pins -quiet  $all_dat -filter "full_name=~pdsbuslows1*"] -not_through [get_pins -quiet  $best_setup] -unique_pins -nworst 1 -max_paths 1000000 -max_slack 0]
+
+}
+
+
+############### Finishing ECO
+if {0} {
+    set eco_file ${block}_internal_holdfix.tcl
+    set prefix "holdfix_block_internal_1010"
+
+    echo "" > ${eco_file}
+    set k 0
+    foreach point [array names _setup_slack] {
+
+	set pindir [lsort -u [get_attribute [get_pins $point] direction]]
+	if {$pindir=="in"} {
+	    set cell [get_my_delay_cells [get_slack [get_timing -early -through $point]] $_setup_slack($point) min 0]
+	} else {
+	    set cell [get_my_delay_cells [get_slack [get_timing -early -through $point]] [expr $_setup_slack($point) - 0.035] min 0]
+	}
+	if {[llength $cell] == "0"} {
+	    echo "#HoldFix Rejected through $point" >> ${eco_file}
+	} else {
+	    if {$pindir=="out"} {
+		incr k
+		echo "catch \{ecoAddRepeater -term $point -cell BUFFSKPD6BWP300H8P64PDULVT  -name u_${prefix}_${k} -new_net_name n_${prefix}_${k}\}" >> ${eco_file}
+	    }
+
+	    if { [llength $cell] > 1} {
+		foreach _cell $cell {
+		    incr k
+		    echo "catch \{ecoAddRepeater -term $point -cell $_cell  -name u_${prefix}_${k} -new_net_name n_${prefix}_${k}\}" >> ${eco_file}
+		}
+	    } else {
+		if {$pindir == "out"} {
+		    incr k
+		    echo "catch \{ecoAddRepeater -term $point -cell $cell  -name u_${prefix}_${k} -new_net_name n_${prefix}_${k}\}" >> ${eco_file}
+
+		} else {
+		    incr k
+		    echo "catch \{ecoAddRepeater -term $point -cell $cell -relativeDistToSink 0.1 -name u_${prefix}_${k} -new_net_name n_${prefix}_${k}\}" >> ${eco_file}
+		}
+	    }
+	}
+    }
+
+}
