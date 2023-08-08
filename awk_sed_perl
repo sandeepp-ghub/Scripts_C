@@ -1,0 +1,30 @@
+mkdir -p RING
+cd RING
+cp ../latest_sta_reports/timing.biuRingIntf.pdSocSCmplx.funct1.summ_verb.rpt .
+cp ../latest_sta_reports_hold/timing.biuRingIntf.pdSocSCmplx.funct25.hold.summ_verb.rpt .
+
+grep "ARGS :: -cmd {rtb -unique_pins -max_paths 100000 -nworst 1} -from" ./timing.biuRingIntf.pdSocSCmplx.funct1.summ_verb.rpt  -A6 | egrep "rtb|Slack" | perl -p -i -e 'if ($. %2) {chomp}' | perl -p -i -e 's/Path: 1//gc' | gawk -F\} '{print $2}' | column -t | perl -p -i -e 's/Pathgroup:  {SOCSCLK//g'| column -t > setup.summ
+
+grep "ARGS :: -cmd {rtb -unique_pins -max_paths 100000 -nworst 1} -from" -A18 ./timing.biuRingIntf.pdSocSCmplx.funct1.summ_verb.rpt  > _setup.summ
+
+
+grep "ARGS :: -cmd {rtb -unique_pins -max_paths 100000 -nworst 1} -early 1 -from" ./timing.biuRingIntf.pdSocSCmplx.funct1.summ_verb.rpt  -A6 | egrep "rtb|Slack" | perl -p -i -e 'if ($. %2) {chomp}' | perl -p -i -e 's/Path: 1//gc' | gawk -F\} '{print $2}' | column -t | perl -p -i -e 's/Pathgroup:  {SOCSCLK//g'| column -t > hold_slow.summ
+
+grep "ARGS :: -cmd {rtb -unique_pins -max_paths 100000 -nworst 1} -early 1 -from" -A18 ./timing.biuRingIntf.pdSocSCmplx.funct1.summ_verb.rpt  > _hold_slow.summ
+
+
+grep "ARGS :: -cmd {rtb -unique_pins -max_paths 100000 -nworst 1} -early 1 -from" ./timing.biuRingIntf.pdSocSCmplx.funct25.hold.summ_verb.rpt  -A6 | egrep "rtb|Slack" | perl -p -i -e 'if ($. %2) {chomp}' | perl -p -i -e 's/Path: 1//gc' | gawk -F\} '{print $2}' | column -t | perl -p -i -e 's/Pathgroup:  {SOCSCLK//g'| column -t > hold.summ
+
+grep "ARGS :: -cmd {rtb -unique_pins -max_paths 100000 -nworst 1} -early 1 -from" -A18 ./timing.biuRingIntf.pdSocSCmplx.funct25.hold.summ_verb.rpt  > _hold.summ
+
+
+cd ..
+
+echo "\n#SETUP\n" > phy.rpt
+grep pdPCIEPHY_0 ./tmp_cmplx_from/nocomp/from_setup.summary | column -t  >>  phy.rpt
+
+echo "\n#FAST HOLD\n" >> phy.rpt
+grep pdPCIEPHY_0 ./tmp_cmplx_hold_from/nocomp/from_hold.summary | column -t   >>  phy.rpt
+
+echo "\n#SLOW HOLD\n" >> phy.rpt
+grep pdPCIEPHY_0 ./tmp_cmplx_slowhold_from/nocomp/from_slowhold.summary | column -t   >>  phy.rpt
