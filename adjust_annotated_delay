@@ -1,0 +1,47 @@
+proc adjust_ck2q {fc_slack pin} {
+    #set pin pdsbuslows1/gsbuslows1_SbuSbbWcu1_SbuSlowSouth_SmmuComplexI_SmmuTopI_SmmuTlb_I_ramAddrN03_q_reg_5_/CP
+    #set fc_slack -0.029
+    set _path [index_collection [sort_collection [get_timing_path -from  $pin -max_paths 1 -nworst 1 ] slack] 0]
+    set cur_slack [get_slack $_path]
+    set out_pins [get_object_name [get_pins -of [get_cells -of [get_pins $pin]] -filter "direction==out"]]
+    set diff_slack [expr $cur_slack - $fc_slack]
+    set _dels [lrange [ga [ga $_path timing_points] arrival] 0 1]
+    set ck2q [expr [lindex $_dels 1]  - [lindex $_dels 0]]
+    set new_ck2q [expr $ck2q + $diff_slack]
+    if {[llength $out_pins] < 3} {
+	echo "## From $pin --> Cmplx/Block-Slack:: $cur_slack  FC-Slack:: $fc_slack  CurrentCk2Q:: $ck2q NewCk2Q:: $new_ck2q "
+	foreach out_pin $out_pins {
+	    #echo "set_annotated_delay $new_ck2q -cell -from $pin -to $out_pin -max"
+	    echo "set_annotated_delay $diff_slack -increment -cell -from $pin -to $out_pin -max"
+	}
+    }
+}
+
+
+proc adjust_uncert {fc_slack pin} {
+    set fc_slack [expr $fc_slack + 0.005]
+
+    if {$fc_slack < -0.000} {
+    #set pin pdsbuslows1/gsbuslows1_SbuSbbWcu1_SbuSlowSouth_SmmuComplexI_SmmuTopI_SmmuTlb_I_ramAddrN03_q_reg_5_/CP
+    #set fc_slack -0.029
+    set _path [index_collection [sort_collection [get_timing_path -to  $pin -max_paths 1 -nworst 1 ] slack] 0]
+    set cur_slack [get_slack $_path]
+    set out_pins [get_object_name [get_pins -of [get_cells -of [get_pins $pin]] -filter "direction==out"]]
+    set uncert [ga $_path clock_uncertainty]
+    set diff_slack [expr $cur_slack - $fc_slack]
+    if {$diff_slack > 0} {
+    set _dels [lrange [ga [ga $_path timing_points] arrival] 0 1]
+    set ck2q [expr [lindex $_dels 1]  - [lindex $_dels 0]]
+    set new_ck2q [expr $ck2q + $diff_slack]
+    set new_uncert [expr $uncert + $diff_slack]
+	set ep_clk [get_object_name [ga $_path endpoint_clock_pin]]
+    if {[llength $out_pins] < 3} {
+	echo "## From $pin --> Cmplx/Block-Slack:: $cur_slack  FC-Slack:: $fc_slack  CurrentUncert:: $uncert NewUncert:: $new_uncert "
+	foreach out_pin $out_pins {
+	    #echo "set_clock_uncertainty $new_uncert -setup -to $pin"
+	    echo " set_clock_uncertainty $new_uncert -setup -to $ep_clk"
+	}
+    }
+    }
+}
+}
