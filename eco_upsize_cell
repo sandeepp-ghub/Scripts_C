@@ -1,0 +1,75 @@
+proc get_my_upsize_cell {cell_list {combo 4} {seq 2} {swap_ulvt 1}} {
+    foreach cell $cell_list {
+	set flag 1
+	set ref_name [get_attribute [get_cells $cell] ref_name]
+	if {![regexp TIE $ref_name]} {
+	set targetD 4
+	if {[sizeof_collection [get_cells -quiet  $cell -filter "is_sequential==true"]] > 0} {set targetD $seq} else {set targetD $combo}
+	regexp {(\S+)D(\d+)BWP(\S+)} $ref_name f pre D post
+	set orig_d $D
+	if {$D < $targetD} {
+	    set D $targetD
+	    set new_ref_name "CK${pre}D${D}BWP${post}"
+	    if {[dbget head.libcells.name $new_ref_name -e] == ""} {
+		set new_ref_name "${pre}D${D}BWP${post}"
+	    }
+	    if {[dbget head.libcells.name $new_ref_name -e] == ""} {
+		incr D -1
+		set new_ref_name "${pre}D${D}BWP${post}"
+	    }
+	    if {[dbget head.libcells.name $new_ref_name -e] == ""} {
+		incr D -1
+		set new_ref_name "${pre}D${D}BWP${post}"
+	    }
+	    if {[dbget head.libcells.name $new_ref_name -e] == ""} {
+		incr D -1
+		set new_ref_name "${pre}D${D}BWP${post}"
+	    }
+	    if {[dbget head.libcells.name $new_ref_name -e] == ""} {
+		set new_ref_name ""
+	    }
+	    if {$ref_name == "$new_ref_name"} {	    set flag 0	} 
+	    if {$D < $orig_d} {set flag 0}
+	    if {$new_ref_name==""} {set flag 0}
+	    if {$flag} {
+		if [regexp (\.*)DLVT $new_ref_name  a  b] {
+		    if {$swap_ulvt} {
+			set _a [dbget head.libcells.name "${b}DULVT"]
+		    } else {
+			set _a [dbget head.libcells.name "${b}DLVT"]
+		    }
+		    if {$_a == ""} {} else {set new_ref_name $_a}
+		}
+
+		if [regexp (\.*)DSVT $new_ref_name  a  b] {
+		    if {$swap_ulvt} {
+			set _a [dbget head.libcells.name "${b}DULVT"]
+		    } else {
+			set _a [dbget head.libcells.name "${b}DSVT"]
+		    }
+		    if {$_a == ""} {} else {set new_ref_name $_a}
+		}
+		echo "\# $ref_name ==> $new_ref_name  :: $cell"
+		echo "catch \{ecoChangeCell -inst $cell -cell $new_ref_name \}"
+	    }
+	} else {
+	    set new_ref_name $ref_name
+	    if {$swap_ulvt} {
+		if [regexp DLVT  $ref_name ] {
+		    set new_ref_name [regsub -all DLVT $ref_name DULVT]
+		}
+		
+		if [regexp DSVT  $ref_name ] {
+		    set new_ref_name [regsub -all DSVT $ref_name DULVT]
+		}
+	    }
+	    if {$new_ref_name == $ref_name } {
+	    } else {
+		echo "\# $ref_name ==> $new_ref_name  :: $cell"
+		echo "catch \{ecoChangeCell -inst $cell -cell $new_ref_name \}"
+	    }
+	}
+
+    }
+    }
+}
