@@ -1,0 +1,145 @@
+set REF_SLACK 0.1
+#set REF_SLACK 100
+set design_list [lsort -u [get_attribute [get_cells pd* -filter "is_hierarchical==true"] ref_name]]
+redirect -var _dt {date}
+foreach design $design_list {
+    if [array exists ${design}_in] {array unset ${design}_in}
+    if [array exists ${design}_in_clock ] {array unset ${design}_in_clock }
+    if [array exists ${design}_out] {array unset ${design}_out}
+    if [array exists ${design}_out_clock ] {array unset ${design}_out_clock }
+
+    array set ${design}_in {}
+    array set ${design}_in_clock {}
+    #array unset ${design}_in
+    #array unset ${design}_in_clock 
+
+    array set ${design}_out {}
+    array set ${design}_out_clock {}
+    #array unset ${design}_out
+    #array unset ${design}_out_clock 
+
+
+    echo "\#Design :: $design \n# Incremental Timing SDC - for IO Delays   \n\#Considering min - max delay range as 70% to 95%\n\#User need to replace clock names with appropriate block level clock names\n\#Generated From Complex Session On $_dt\n\#\#\#\#\#|#\#\#" > ${design}_iodelay.sdc
+}
+
+set instance_list [get_object_name [get_cells pd* -filter "is_hierarchical==true"]]
+set all_hpins [get_pins -of [get_cells $instance_list] -filter "is_hierarchical==true"]
+set all_hpins_in [get_pins $all_hpins -filter "direction==in"]
+set all_hpins_out [get_pins $all_hpins -filter "direction==out"]
+
+if {1} {
+    set all_vio_paths [report_timing -through $all_hpins_out -through $all_hpins_in -max_slack $REF_SLACK -max_paths [sizeof_collection $all_hpins] -nworst 1 -collection -hpin]
+    #sizeof_collection  $all_vio_paths
+    set t1   [filter_collection [get_attribute $all_vio_paths points] @is_hierarchical==true] 
+    set t2 [lsort -u [get_object_name [get_attribute $t1 object]]]
+    set t3 $t2
+}
+####################
+date
+foreach p $t3 {
+    set paths [report_timing -collection -through $p    -max_slack $REF_SLACK -max_paths 1 -nworst 1 -hpin ]
+    foreach_in_collection path $paths {
+
+	set spclk [get_object_name [get_attribute $path startpoint_clock]]
+	set epclk [get_object_name [get_attribute $path endpoint_clock]]
+
+	set spclk_latency [get_attribute $path startpoint_clock_latency]
+	#set epclk_latency [get_attribute $path endpoint_clock_latency]
+	#set skew [expr $epclk_latency - $spclk_latency]
+
+	set arrival_time [get_attribute $path arrival]
+	set datapath_delay [expr $arrival_time - $spclk_latency]
+
+
+	foreach_in_collection hpin [filter_collection [get_attribute $path points] @is_hierarchical==true] {
+	    if {[get_object_name [get_attribute $hpin object]] == "$p"} {
+		#echo "[get_object_name [get_attribute $hpin object]] == $p"
+		set hpin_arrival [expr [get_attribute $hpin arrival] -  $spclk_latency]
+		set hpin_direction  [get_attribute $hpin direction]
+	    }
+	}
+
+	if {$hpin_direction == "out"} {
+	    set period [get_attribute [get_clocks $spclk] period]
+	} else {
+	    set period [get_attribute [get_clocks $epclk] period]
+	}
+	#set slack [get_attribute $path slack]
+	set min_limit [expr 0.60 * $period]
+	set max_limit [expr 0.90 * $period]
+
+
+	set external_delay $hpin_arrival
+	if {$hpin_direction == "out"} {
+	    set external_delay [expr $datapath_delay - $hpin_arrival]
+	}
+
+	if {$external_delay < $min_limit} {set external_delay $min_limit}
+	if {$external_delay > $max_limit} {set external_delay $max_limit}
+
+	set design_name [get_attribute [get_cells [file dirname $p]] ref_name]
+	set pin_name [file tail $p]
+
+	if {$hpin_direction == "out"} {
+	    set ${design_name}_${hpin_direction}_clock($pin_name) $spclk
+	} else {
+	    set ${design_name}_${hpin_direction}_clock($pin_name) $epclk
+	}
+	
+
+	if [info exists ${design_name}_${hpin_direction}($pin_name)] {
+	    set tmp_delay [set ${design_name}_${hpin_direction}($pin_name)]
+	    if {$tmp_delay < $external_delay} {
+		set ${design_name}_${hpin_direction}($pin_name) $external_delay
+		#set ${design_name}_${hpin_direction}_clock($pin_name) $epclk
+	    } else {
+		#set ${design_name}_${hpin_direction}_clock($pin_name) $epclk
+	    }
+	}  else {
+	    set ${design_name}_${hpin_direction}($pin_name) $external_delay
+	    #set ${design_name}_${hpin_direction}_clock($pin_name) $epclk
+	}
+	
+    }
+
+}
+
+foreach design $design_list {
+    foreach pin  [array names ${design}_in ]  {
+	set delay [set ${design}_in($pin)]
+	set clock_name [set ${design}_in_clock($pin)]
+	echo [format "%-18s %-6s %-180s" "set_input_delay" "$delay"  "\[get_ports \{$pin\}\] -clock \[get_clocks $clock_name\] -add_delay"] >> ${design}_iodelay.sdc
+    }
+    foreach pin [array names ${design}_out ]  {
+	set delay [set ${design}_out($pin)]
+	set clock_name [set ${design}_out_clock($pin)]
+	echo [format "%-18s %-6s %-180s" "set_output_delay" "$delay"  "\[get_ports \{$pin\}\] -clock \[get_clocks $clock_name\] -add_delay"] >> ${design}_iodelay.sdc
+    }
+}
+
+redirect  clock.mapping {
+
+foreach_in_collection _ck [remove_from_collection [get_clocks *] [get_clocks * -filter "is_library_created==true"] ] {
+    set ckname [get_object_name $_ck] 
+    #echo $ckname
+    set sources [get_attribute $_ck sources]
+    set localsources ""
+    set pinsources [get_pins -quiet $sources]
+    set portsources [get_ports -quiet $sources]
+    if { [sizeof_collection $portsources] > 0 } {
+	foreach port [get_object_name  $portsources] {
+	    set _t  [dbget [dbget [dbget top.nets.name $port -p -e].hnets.hinstterms -e].name -e]
+	    lappend  localsources $_t
+	}
+    }
+    if { [sizeof_collection $pinsources] > 0} {    
+	set localsources "$localsources [get_object_name  $pinsources] "
+    }
+    echo "=============================================="
+    echo "Clock :: $ckname \t Period :: [get_attribute $_ck period] ==> It Connects to ..."
+    echo "=============================================="
+    foreach _p [lsort -u -dict  $localsources] {
+    echo  \t $_p
+    }
+}
+}
