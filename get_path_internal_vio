@@ -1,0 +1,6 @@
+set inst pdsbuslows0
+set ckgrp SOCSCLK
+set ckpins [get_pins -quiet  [all_registers -clock $ckgrp -clock_pins] -filter "full_name=~${inst}*"]
+set datapins [get_pins -quiet  [all_registers -clock $ckgrp -data_pins] -filter "full_name=~${inst}*"]
+set hierpins [get_pins -quiet  ${inst}/* -filter "is_hierarchical==true"]
+set path_coll [report_timing -from $ckpins -to $datapins -not_through  $hierpins -max_slack 0 -max_paths [sizeof_collection $ckpins] -nworst 1 -collection]
