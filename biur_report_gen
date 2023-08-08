@@ -1,0 +1,114 @@
+source /proj/txfour00l/wa/kpavan/DATA_IN/STA_TX3_PAVAN/COPY/scripts/my_procs.tcl
+alias timN eval {
+    set_db timing_disable_report_header_info true
+    set_db timing_report_unconstrained_paths true
+    set_db  timing_report_group_based_mode true
+    set_db  timing_report_enable_skew_in_reports true
+    set_db  timing_report_clock_pin_as_begin_point true
+    set_db  timing_report_enable_cppr_point true
+
+    set_table_style -nosplit -no_frame_fix_width
+    #set_db timing_report_enable_cppr_point true
+    set_db timing_report_default_formatting split_delay
+    #set_db timing_report_fields [list delay delay_sigma incr_delay user_derate arrival transition load fanout edge cell hpin net phase pin_location phys_info annotation]
+    set_db timing_report_fields [list delay \
+				     delay_sigma incr_delay user_derate \
+				     arrival transition load fanout \
+				     edge cell hpin net phase pin_location annotation voltage phys_info]
+
+}
+timN
+global _allh
+set _allh [get_pins pd*/* -filter "is_hierarchical==true"]
+
+if {0} {
+    forech pcie {0 1 2 3} {
+	rtsum1 -from [get_pcie_ckpins -stage 0 -pcie 0 -slow 0]  -to  [get_pcie_datpins -stage 1 -pcie 0 -slow 0]
+	rtsum1 -from [get_pcie_ckpins -stage 1 -pcie 0 -slow 0]  -to  [get_pcie_datpins -stage 0 -pcie 1 -slow 0]
+
+	rtsum1 -from [get_pcie_ckpins -stage 1 -pcie 1 -slow 0]  -to  [get_pcie_datpins -stage 1 -pcie 1 -slow 0]
+    }
+
+
+    >> get_intf_timing -from pdPCIEX16_00 -to pdsbuslows0 -path_group SOCSCLK -max_paths 10
+
+    [get_pins pdPCIEX16_00/gpciex16_Pciex16CoreI_PcieHbuI_PcieBiuSbbI_BiuSbbBsiMux_BiuSbbBsiTop_BiuSbbBsi_BsiSlaveWrCmdFifoAsyncCtl_syncwrptr_ff_u_*__DT_synch/CP]
+    [get_pins pdPCIEX16_00/gpciex16_Pciex16CoreI_PcieHbuI_PcieBiuSbbI_BiuSbbBsiMux_BiuSbbBsiTop_BiuSbbBsi_BsiSlaveRdCmdFifoAsyncCtl_syncwrptr_ff_u_*__DT_synch/CP]
+    [get_pins pdPCIEX16_00/gpciex16_Pciex16CoreI_PcieHbuI_PcieBiuSbbI_BiuSbbBmi_BmiRspAsyncCtl_syncwrptr_ff_u_*__DT_synch/CP]
+    [get_pins pdPCIEX16_00/gpciex16_Pciex16CoreI_PcieHbuI_PcieBiuSbbI_BiuSbbRing_BiuDat_RSDFFCG_q_reg_*_/CP]
+
+
+    >>
+}
+alias rtsplit report_timing -split -hpin  
+#foreach cmd { rtsum2 rtb report_timing} 
+foreach cmd { rtsum3H rtb  rtsplit} {
+    redirect BiuRing_${cmd}.rpt {
+	#set cmd "$cmd -max_slack 0.05 -max_paths 100000 -nworst 1"
+	set cmd "$cmd -unique_pins -max_paths 100000 -nworst 1"
+	if {1} {
+	    foreach S {0 1 2 3} {
+		echo "==============="  
+		echo "SBUS${S} -RING SETUP"
+		echo "==============="
+		echo "---------------------------------------------------------------------------------------------------------"
+		echo "Slack Status Skew (LID - CID)  StartPoint                                EndPoint                     Clock     Hpins"
+		echo "---------------------------------------------------------------------------------------------------------"
+
+		echo ""
+		eval ${cmd} -to [get_pcie_datpins -slow $S -pcie 0 -stage 0] -path_group SOCSCLK
+		echo ""
+		get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX16_${S}0/*
+		get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdPCIEX16_${S}0 -path_group SOCSCLK
+		get_intf_timing -cmd $cmd -from pdPCIEX16_${S}0 -to pdsbuslows${S}  -path_group SOCSCLK
+		echo ""
+		get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX4_${S}0/*
+		get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdPCIEX4_${S}0  -path_group SOCSCLK
+		get_intf_timing -cmd $cmd -from pdPCIEX4_${S}0  -to pdsbuslows${S}  -path_group SOCSCLK
+		echo ""
+		get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX8_${S}0/*
+		get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdPCIEX8_${S}0  -path_group SOCSCLK
+		get_intf_timing -cmd $cmd -from pdPCIEX8_${S}0  -to pdsbuslows${S}  -path_group SOCSCLK
+		echo ""
+		get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX4_${S}1/*
+		get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdPCIEX4_${S}1  -path_group SOCSCLK
+		get_intf_timing -cmd $cmd -from pdPCIEX4_${S}1  -to pdsbuslows${S}  -path_group SOCSCLK
+		echo ""
+		eval ${cmd} -from [get_pcie_ckpins -slow ${S} -pcie 4 -stage 0] -path_group SOCSCLK
+
+	    }
+	}
+	if {0} {
+	    foreach S {0 1 2 3} {
+		echo "==============="
+		echo "SBUS${S} -RING - HOLD"
+		echo "==============="
+		echo "---------------------------------------------------------------------------------------------------------"
+		echo "Slack Status Skew (LID - CID)  StartPoint                                EndPoint                     Clock     Hpins"
+		echo "---------------------------------------------------------------------------------------------------------"
+
+		echo ""
+		eval ${cmd} -early  -to [get_pcie_datpins -slow $S -pcie 0 -stage 0] -path_group SOCSCLK
+		echo ""
+		get_intf_timing -cmd $cmd -early 1  -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX16_${S}0/*
+		get_intf_timing -cmd $cmd -early 1 -from pdsbuslows${S}  -to pdPCIEX16_${S}0 -path_group SOCSCLK
+		get_intf_timing -cmd $cmd -early 1 -from pdPCIEX16_${S}0 -to pdsbuslows${S}  -path_group SOCSCLK
+		echo ""
+		get_intf_timing -cmd $cmd -early 1 -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX4_${S}0/*
+		get_intf_timing -cmd $cmd -early 1 -from pdsbuslows${S}  -to pdPCIEX4_${S}0  -path_group SOCSCLK
+		get_intf_timing -cmd $cmd -early 1 -from pdPCIEX4_${S}0  -to pdsbuslows${S}  -path_group SOCSCLK
+		echo ""
+		get_intf_timing -cmd $cmd -early 1 -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX8_${S}0/*
+		get_intf_timing -cmd $cmd -early 1 -from pdsbuslows${S}  -to pdPCIEX8_${S}0  -path_group SOCSCLK
+		get_intf_timing -cmd $cmd -early 1 -from pdPCIEX8_${S}0  -to pdsbuslows${S}  -path_group SOCSCLK
+		echo ""
+		get_intf_timing -cmd $cmd -early 1 -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX4_${S}1/*
+		get_intf_timing -cmd $cmd -early 1 -from pdsbuslows${S}  -to pdPCIEX4_${S}1  -path_group SOCSCLK
+		get_intf_timing -cmd $cmd -early 1 -from pdPCIEX4_${S}1  -to pdsbuslows${S}  -path_group SOCSCLK
+		echo ""
+		eval ${cmd} -early -from [get_pcie_ckpins -slow ${S} -pcie 4 -stage 0] -path_group SOCSCLK
+
+	    }
+	}
+    }
+}
