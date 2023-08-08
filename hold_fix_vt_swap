@@ -1,0 +1,76 @@
+ source /t11k/pnrwork35/users/kpavan/WORK/nov_14_B_socs/ECO/3pshold_s2
+
+set insert_pins ""
+set exclude_pin ""
+set cell_list ""
+foreach vio $vio_list {
+#set vio pdsbuslows2/LOCKUP_gsbuslows2_SbuSbbWcu2_SbuSlowSouth_SmmuComplexI_SmmuTopI_LookHashPgSzMatchNnnR_1_/D
+set path_setup [index_collection [sort_collection [get_timing_path -to $vio] slack] 0]
+set path [index_collection [sort_collection [get_timing_path -early -to $vio] slack] 0]
+set setup_slack [get_slack $path_setup]
+set ep [ga $path endpoint_clock_pin]
+set sp [ga $path startpoint]
+set sp_cell [get_cells -of $sp]
+set prev_slack [get_slack [get_timing_path -to [remove_from_collection [get_pins -of $sp_cell -filter "direction==in"] $sp]]]
+set next_slack [get_slack [get_timing_path -from $ep]]
+
+set ulvt_cells [remove_from_collection [get_cells -quiet  -of [ga [ga $path timing_points] object] -filter "ref_name=~*DULVT"] $sp_cell]
+set ulvt_count [sizeof_collection $ulvt_cells]
+set lvt_cells [remove_from_collection [get_cells -quiet  -of [ga [ga $path timing_points] object] -filter "ref_name=~*DLVT"] $sp_cell]
+set lvt_count [sizeof_collection $lvt_cells]
+
+set flag 1
+if {$lvt_count > 0} {
+    for {set i [expr $lvt_count -1]} {$i >=0} {incr i -1} {
+	if $flag {
+
+	    set cell1 [index_collection $lvt_cells $i]
+	    set slk1 [get_slack [get_timing_path -through $cell1]]
+	    if {$slk1 == "NA"} {set slk1 100}
+	    if {$slk1 >= 0.03} {
+		set cell_list "$cell_list [get_object_name $cell1]"
+		set flag 0
+	    }
+	}
+    }
+}
+
+if {$ulvt_count > 0} {
+    for {set i [expr $ulvt_count -1]} {$i >=0} {incr i -1} {
+	if $flag {
+
+	    set cell1 [index_collection $ulvt_cells $i]
+	    set slk1 [get_slack [get_timing_path -through $cell1]]
+	    if {$slk1 == "NA"} {set slk1 100}
+	    if {$slk1 >= 0.035} {
+		set cell_list "$cell_list [get_object_name cell1]"
+		set flag 0
+	    }
+	}
+    }
+}
+
+
+if $flag {
+    if {$prev_slack == "NA"} {set prev_slack 100}
+    if {$prev_slack > 0.03 } {
+	if { [get_slack [get_timing_path -from $sp]]> 0.05} {
+	    set cell1 [get_cells -quiet -of $sp -filter "ref_name=~*LVT"]
+	    if { [sizeof_collection $cell1] > 0} {
+		set cell_list "$cell_list [get_object_name $cell1]"
+		set flag 0
+	    }
+	}
+    }
+}
+
+if $flag {
+    if {$next_slack == "NA"} {set next_slack 100}
+    if {$next_slack > 0.05} {
+	set cell1 [get_cells -quiet -of $ep -filter "ref_name=~*LVT"]
+	if { [sizeof_collection $cell1] > 0} {
+	    set cell_list "$cell_list [get_object_name $cell1]"
+	}
+    }
+}
+}
