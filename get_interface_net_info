@@ -1,0 +1,102 @@
+if {0} {
+    set min_val 0.05
+    set step 0.1
+    set max_range 1
+    for {set i $min_val} {$i <= $max_range} {set i [expr $i + $step]} {
+	set lim1 $i
+	set lim2 [expr $i + $step]
+	set nets [get_nets -quiet * -filter "delta_delay_max >= $lim1 && delta_delay_max < $lim2"] 
+	if { [sizeof_collection $nets] > 0} {
+	    foreach_in_collection net [sort_collection $nets delta_delay_max] {
+		echo "[ga $net delta_delay_max] :: [get_object_name $net] ==> \{[get_hpin_net [get_object_name $net]]\}" >> From_${lim1}_to_${lim2}_delta_nets.rpt
+	    }
+	    
+	}
+    }
+
+
+    set lim1 $i
+    set nets [get_nets -quiet * -filter "delta_delay_max >= $lim1 "] 
+    if { [sizeof_collection $nets] > 0} {
+	foreach_in_collection net [sort_collection $nets delta_delay_max] {
+	    echo "[ga $net delta_delay_max] :: [get_object_name $net] ==> \{[get_hpin_net [get_object_name $net]]\}" >> From_${lim1}_to_ALL_delta_nets.rpt
+	}
+	
+    }
+
+
+
+}
+
+exec rm -f *.ports
+exec rm -f *.list
+foreach cell [lsort -u [get_attribute [get_cells pd* -filter "is_hierarchical==true"] ref_name]] {
+    echo "Processing $cell ..........."
+    set nets [get_nets -of [get_pins -of [get_cells pd* -filter "ref_name==$cell"] -filter "is_hierarchical==true"]]
+    set nets_d [get_nets -quiet $nets -filter "delta_delay_max > 0.2"]
+    
+
+    foreach net [get_object_name $nets] {
+
+	set hpins [get_pins -quiet [get_hpin_net $net]]
+	if {[sizeof_collection $hpins] > 0} {
+	    set in_pins [sizeof_collection [get_pins -quiet  $hpins -filter "direction==in"]]
+	    set out_pins [sizeof_collection [get_pins -quiet  $hpins -filter "direction==out"]]
+	    set ports [sizeof_collection [get_ports -quiet -of [get_nets -of $hpins]]]
+	    set in_ports [sizeof_collection [get_ports -quiet -of [get_nets -of $hpins] -filter "direction==in"]]
+	    set out_ports [sizeof_collection [get_ports -quiet -of [get_nets -of $hpins] -filter "direction==out"]]
+
+	    if {($in_pins > 0 && $in_ports > 0) || ($out_pins > 0 && $out_ports) } {
+		redirect -append  ${cell}_connecting_to_complex.ports {ec $hpins }
+	    } else {
+		if {($in_pins > 0 && $out_pins < 1 && $in_ports < 1 ) || ($in_pins < 1 && $out_pins > 0 && $out_ports < 1 ) } {
+		    foreach_in_collection hp $hpins {
+			set _net [get_nets -quiet -of $hp]
+			set _name [get_object_name $hp]
+			set _dir [get_attribute $hp direction]
+			set _load [get_attribute $_net  load_pins]
+			set _loadc [sizeof_collection $_load]
+			if {$_loadc > 0} {set _load_list [get_object_name $_load]} else {set _load_list {}}
+			set _driver [get_attribute $_net  driver_pins]
+			set _driverc [sizeof_collection $_driver]
+			if {$_driverc > 0} {set _driver_list [get_object_name $_driver]} else {set _driver_list {}}
+
+			echo "$_name :: DIR ==> $_dir :: LoadPInsCount ==> $_loadc :: DriverPinCOunt ==> $_driverc :: LoadCells ==> $_load_list :: DriverCells ==> $_driver_list" >> ${cell}_unconnected.ports
+		    }
+		    #redirect -append  ${cell}_unconnected.ports {ec $hpins }
+
+	    }
+	}
+	} else {
+	    echo $net
+	}
+    }
+    if {[sizeof_collection $nets_d] > 0} {
+    set nets1 [sort_collection $nets_d delta_delay_max -descending]
+    foreach_in_collection net1 $nets1 {
+	echo "[ga $net1 delta_delay_max] :: [get_object_name $net1] ==> \{[get_hpin_net [get_object_name $net1]]\}" >> ALL_intf_nets_delta_above_200ps.list
+	echo "NetDelta:: [ga $net1 delta_delay_max] <==> netName ::: [get_object_name $net1] \n ================= \n PortList:: \n" >> ${cell}_intf_nets_delta_above_200ps.list
+	foreach_in_collection _hp [get_pins [get_hpin_net [get_object_name $net1]]] {
+	    #echo "[get_object_name $_hp]"
+	    if { [sizeof_collection [get_cells -quiet -of $_hp -filter "ref_name == ${cell}"]] > 0} {
+		echo "\t[file tail [get_object_name $_hp]]" >> ${cell}_intf_nets_delta_above_200ps.list
+	    }
+	}
+	echo "====================" >> ${cell}_intf_nets_delta_above_200ps.list
+    }
+    }
+    
+}
+suppress_message TCLCMD-746
+foreach port [get_object_name [get_ports -of  [remove_from_collection [get_nets *] [get_nets -of [get_pins pd*/* -filter "is_hierarchical==true"]]]]] {
+    set port_list [get_ports -quiet -of [get_nets -quiet $port]]
+    set _cc [sizeof_collection $port_list]
+    if {$_cc > 0} {set port_names [get_object_name $port_list]} else {set port_names {}}
+    set hpin_list [get_hpin_port $port]
+    set hpincc [llength $hpin_list]
+    #echo "$port :: NumOfHpins ==> $hpincc :: \{ \} :: NUmOfPorts\/FeedThrough ==> $_cc :: HpinList ==> \{$hpin_list\} :: PortList ==> \{$port_names\}" 
+    if {$hpincc == "0" && $_cc <2} {
+	echo "$port :: Direction ==> [get_attribute [get_ports $port] direction] :: NumOfHpins ==> $hpincc :: \{ \} :: NUmOfPorts\/FeedThrough ==> $_cc :: HpinList ==> \{$hpin_list\} :: PortList ==> \{$port_names\}" >> Complex_unconnected.ports
+    }
+    
+}
