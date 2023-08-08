@@ -1,0 +1,66 @@
+set clk *
+#set ckpath_cells1 [remove_from_collection [add_to_collection -unique [all_fanout -flat  -from  [get_attribute [get_clocks $clk] sources] -only_cells] [all_fanin  -flat -to  [all_registers -clock_pins -clock [get_clocks $clk]] -only_cells]] [all_registers ]]
+
+#set ckpath_cells1 [remove_from_collection [add_to_collection -unique [all_fanout -flat  -from  [list [get_pins -of [get_cells [all_registers] -filter "is_integrated_clock_gating_cell == true"]  -filter "pin_direction==out"] [get_ports [get_attribute [get_clocks $clk] sources]] [get_pins [get_attribute [get_clocks $clk] sources] -filter "pin_direction==out"]] -only_cells] [all_fanin  -flat -to  [all_registers -clock_pins -clock [get_clocks $clk]] -only_cells]] [all_registers ]]
+
+set ckpath_cells1 [remove_from_collection [all_fanout -flat  -from  [list [get_pins -of [get_cells [all_registers] -filter "is_integrated_clock_gating_cell == true"]  -filter "pin_direction==out"] [get_ports [get_attribute [get_clocks $clk] sources]] [get_pins [get_attribute [get_clocks $clk] sources] -filter "pin_direction==out"]] -only_cells]  [all_registers ]]
+set ckpath_cells2 [all_fanin  -flat -to  [all_registers -clock_pins -clock [get_clocks $clk]] -only_cells]
+set ckpath_cells3 [get_cells  [all_registers] -filter "is_integrated_clock_gating_cell == true"]
+set ckpath_cells4 [get_cells  [all_registers] -filter "is_integrated_clock_gating_cell == true"]
+
+set t1 [get_ports [get_attribute [get_clocks $clk] sources]]
+set t2 [get_ports [all_fanout -flat -from $t1 -endpoints_only] -filter "direction==out"]
+set t3 [all_fanin -flat -to $t2 -only_cells]
+set t4 [get_cells  [remove_from_collection -intersect [all_fanout -flat -from $t1 -only_cells] $t3] -filter "is_sequential==false"]
+set ckpath_cells [get_cells   [add_to_collection -unique [add_to_collection -unique [remove_from_collection [remove_from_collection -intersect $ckpath_cells1 $ckpath_cells2] [all_registers]] $ckpath_cells3] $t4 ] -filter "ref_name=~*DSVT || ref_name=~*DLVT"]
+
+echo "" > ckpathcells_verbose.rpt
+foreach_in_collection ck_cell $ckpath_cells {
+    echo "[get_object_name $ck_cell] [ga $ck_cell ref_name]" >>  ckpathcells_verbose.rpt
+}
+
+set t1 [get_pins -hier * -filter "is_clock==true && pin_direction==in"]
+set t2 [get_pins -hier * -filter "is_clock_used_as_clock==true && pin_direction==in"]
+set t3 [all_registers -clock_pins]
+set ckpath_cells2 [get_cells -of [all_fanin -flat -to [remove_from_collection $t1 $t3] ]]
+set ckpath_cells3 [get_cells -of [all_fanin -flat -to [remove_from_collection $t2 $t3] ]]
+
+set ckpath_cells4 [add_to_collection -unique [add_to_collection -unique $ckpath_cells1  $ckpath_cells2] $ckpath_cells3]
+
+
+#set ckpath_cells [get_cells $ckpath_cells4 -filter "early_clk_cell_derate_factor==1.000 && late_clk_cell_derate_factor==1.000 && is_sequential==false && ref_name!~CK* && late_data_cell_derate_factor!=1.000"]
+#set ckpath_cells [get_cells $ckpath_cells4 -filter "early_clk_cell_derate_factor==1.000 && late_clk_cell_derate_factor==1.000 && is_sequential==false && ref_name!~CK* "]
+
+set ckpath_cells [get_cells $ckpath_cells4 -filter "ref_name=~*DLVT ||  ref_name=~*DSVT"]
+set hclk_pins [lsort -u [get_object_name [get_pins [get_hpin_net [lsort -u [get_object_name [get_nets -of [get_pins -of $ckpath_cells]]]]] -filter "direction==in"]]]
+
+set cell_masters  [lsort -u -dict [ga $ckpath_cells ref_name]]
+
+set count 0
+echo "" > ckpathcells_summary.rpt
+echo "" > ckpathcells_verbose.rpt
+foreach master $cell_masters {
+    if {[regexp ^CK $master]} {
+    } else {
+	set newcol [filter_collection $ckpath_cells @ref_name==$master]
+	set cc [sizeof_collection $newcol]
+	set count [expr $count + $cc]
+	echo "$master \t $cc" >> ckpathcells_summary.rpt
+	foreach inst [get_object_name $newcol] {
+	    echo "$inst \t  $master" >> ckpathcells_verbose.rpt
+	}
+    }
+}
+
+
+if {0} {
+ perl -p -i -e 's/^pdPCIEPHY_\d+/pdPCIEX8_*/g' ckpathcells_verbose.rpt
+ perl -p -i -e 's/^pdPCIEX8_\d+/pdPCIEX8_*/g' ckpathcells_verbose.rpt
+ perl -p -i -e 's/^pdPCIEX4_\d+/pdPCIEX4_*/g' ckpathcells_verbose.rpt
+ perl -p -i -e 's/^pdPCIEX16_\d+/pdPCIEX16_*/g' ckpathcells_verbose.rpt
+cat ckpathcells_verbose.rpt | sort -u > ckpathcells_verbose1.rpt
+    
+}
+
+#ga [get_pins pdpciemisc/gpciemisc_PcieVtmonWrapper_brcm_LIB_VTMON_TS7FFP_ALL_NP_X_E_Wrapper_sbus2apb_bridge_in_IO/sbus_clk_in] is_clock_used_as_clock
+#ga [get_pins pdpciemisc/gpciemisc_PcieVtmonWrapper_brcm_LIB_VTMON_TS7FFP_ALL_NP_X_E_Wrapper_sbus2apb_bridge_in_IO/sbus_clk_in] is_clock_used_as_clock
