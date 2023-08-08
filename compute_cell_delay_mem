@@ -1,0 +1,207 @@
+package require math
+package require math::statistics
+
+#set target_insts [dbget top.insts.name pdMemCmplx_bot/pdsbufasts1* -p]
+#set del_refs [lsort -u -dict [dbget top.insts.cell.name  *DEL*]]
+set del_refs [lsort -u -dict [dbget ${target_insts}.cell.name *DEL* -u]]
+set del_refs ""
+#set buff_refs  [lsort -u -dict [dbget top.insts.cell.name BUF*D1BWP*VT]]
+set buff_refs  [lsort -u -dict [dbget ${target_insts}.cell.name *BUF*D2BWP*VT]]
+set del_refs  [lsort -u -dict [dbget ${target_insts}.cell.name *BUF*D3BWP*VT]]
+array set del_inst_count {}
+array set del_min_delay {}
+array set del_max_delay {}
+
+array set min_del_values {}
+array set max_del_values {}
+
+foreach cell [concat $buff_refs $del_refs] {
+    set min_del_values($cell) ""
+    set max_del_values($cell) ""
+
+}
+
+foreach cell [concat $buff_refs $del_refs] {
+    if {$cell == "0x0"} {
+    } else {
+    set inst_list [dbget [dbget ${target_insts}.cell.name $cell -e -p2].name]
+
+    set del_inst_count($cell) [llength $inst_list] 
+    set del_min_delay($cell) 0
+    set del_max_delay($cell) 0
+
+    foreach inst $inst_list {
+	set minf [list [lindex [ga [get_pins ${inst}/* -filter "direction==in"] arrival_mean_min_fall] 0] [lindex [ga [get_pins ${inst}/* -filter "direction==out"] arrival_mean_min_fall] 0]]
+	set minr [list [lindex [ga [get_pins ${inst}/* -filter "direction==in"] arrival_mean_min_rise] 0] [lindex [ga [get_pins ${inst}/* -filter "direction==out"] arrival_mean_min_rise] 0]]
+	set maxf [list [lindex [ga [get_pins ${inst}/* -filter "direction==in"] arrival_mean_max_fall] 0] [lindex [ga [get_pins ${inst}/* -filter "direction==out"] arrival_mean_max_fall] 0]]
+	set maxr [list [lindex [ga [get_pins ${inst}/* -filter "direction==in"] arrival_mean_max_rise] 0] [lindex [ga [get_pins ${inst}/* -filter "direction==out"] arrival_mean_max_rise] 0]]
+	
+#	if {[lindex $minf 1] != "NA" && [lindex $minf 0] != "NA" && [lindex $maxf 1] != "NA" && [lindex $maxf 0] != "NA"}
+	if {([lindex $minf 1] != "NA") && ([lindex $minf 0] != "NA") && ([lindex $maxf 1] != "NA") && ([lindex $maxf 0] != "NA") && ([lindex $minr 1] != "NA") && ([lindex $minr 0] != "NA") && ([lindex $maxr 1] != "NA") && ([lindex $maxr 0] != "NA")} {
+	set minf1 [expr [lindex $minf 1] - [lindex $minf 0]]
+	set minr1 [expr [lindex $minr 1] - [lindex $minr 0]]
+	set maxf1 [expr [lindex $maxf 1] - [lindex $maxf 0]]
+	set maxr1 [expr [lindex $maxr 1] - [lindex $maxr 0]]
+
+	if {$minr1 > $minf1} {set minD $minf1} else {set minD $minr1}
+	if {$maxr1 < $maxf1} {set maxD $maxf1} else {set maxD $maxr1}
+	
+	set del_min_delay($cell) [expr $del_min_delay($cell) + $minD]
+	set del_max_delay($cell) [expr $del_max_delay($cell) + $maxD]
+	    
+	    set min_del_values($cell) "$min_del_values($cell) $minD"
+	    set max_del_values($cell) "$max_del_values($cell) $maxD"
+	}
+    }
+
+    set del_min_delay($cell) [format %0.3f [expr $del_min_delay($cell) / $del_inst_count($cell)]]
+    set del_max_delay($cell) [format %0.3f [expr $del_max_delay($cell) / $del_inst_count($cell)]]
+    
+}
+}
+foreach cell [array names del_inst_count] {
+    #puts "$cell \t\t $del_max_delay($cell) \t\t $del_min_delay($cell)"
+}
+
+
+foreach cell [lsort -dict [array names max_del_values]] {
+    if {$cell == "0x0"} {
+    } else {
+    set SD_MAX [format %0.3f [::math::statistics::stdev $max_del_values($cell)]]
+    set AVG_MAX [format %0.3f [::math::statistics::mean $max_del_values($cell)]]
+
+    set SD_MIN [format %0.3f [::math::statistics::stdev $min_del_values($cell)]]
+set AVG_MIN [format %0.3f [::math::statistics::mean $min_del_values($cell)]]
+
+    echo "$cell \t $AVG_MIN \t $SD_MIN \t $AVG_MAX \t $SD_MAX"
+}
+}
+
+
+set mult 0.5
+foreach cell [lsort -dict [array names max_del_values]] {
+    if {$cell == "0x0"} {
+    } else {
+set mult 0.5
+#echo $cell
+    if [regexp  DSVT $cell] {
+    } else  {
+    set SD_MAX [format %0.3f [::math::statistics::stdev $max_del_values($cell)]]
+    set AVG_MAX [format %0.3f [::math::statistics::mean $max_del_values($cell)]]
+
+    set SD_MIN [format %0.3f [::math::statistics::stdev $min_del_values($cell)]]
+    set AVG_MIN [format %0.3f [::math::statistics::mean $min_del_values($cell)]]
+	if {[regexp BUFF $cell]} {set mult 0.1}
+	if {[regexp DELA $cell]} {set mult 0.2}
+    if {[regexp DELB $cell]} {set mult 1}
+    if {[regexp DELC $cell]} {set mult 1.5}
+    if {[regexp DELD $cell]} {set mult 1.5}
+    if {[regexp DELE $cell]} {set mult 2}
+    if {[regexp DELF $cell]} {set mult 2.5}
+    if {[regexp DELG $cell]} {set mult 3}
+  
+    set min_delay [format %0.3f [expr $AVG_MIN - [expr $mult * $SD_MIN]]]
+    set max_delay [format %0.3f [expr $AVG_MAX + [expr $mult * $SD_MAX]]]
+    echo "$cell \t\t $min_delay \t $max_delay"
+    }
+}
+}
+
+
+if {0} {
+CELL_f6                    MIN_f6  MAX_f6	CELL_f10                     MIN_f10  Max_f10	CELL_f7                     MIN_f7  MAX_f7	CELL_f8                    MIN_f8  MAX_f8   CELL_F24                    MIN_F24  max_F24
+BUFFSKPD1BWP300H8P64PDLVT   0.017  0.029	BUFFSKPD1BWP300H8P64PDLVT   0.015  0.020	BUFFSKPD1BWP300H8P64PDLVT   0.011  0.015	BUFFSKPD1BWP300H8P64PDLVT   0.008  0.012   BUFFSKPD1BWP300H8P64PDLVT   0.006  0.009
+DELAD1BWP300H8P64PDULVT     0.024  0.035	DELAD1BWP300H8P64PDULVT     0.021  0.026	DELAD1BWP300H8P64PDULVT     0.016  0.022	DELAD1BWP300H8P64PDULVT     0.014  0.018   DELAD1BWP300H8P64PDULVT     0.011  0.014
+BUFFSKND1BWP300H8P64PDLVT   0.020  0.037	BUFFSKND1BWP300H8P64PDLVT   0.019  0.026	BUFFSKND1BWP300H8P64PDLVT   0.012  0.019	BUFFSKND1BWP300H8P64PDLVT   0.009  0.015   BUFFSKND1BWP300H8P64PDLVT   0.008  0.012
+BUFFSKND1BWP300H8P64PDULVT  0.019  0.040	BUFFSKND1BWP300H8P64PDULVT  0.018  0.031	BUFFSKND1BWP300H8P64PDULVT  0.013  0.025	BUFFSKND1BWP300H8P64PDULVT  0.011  0.020   BUFFSKND1BWP300H8P64PDULVT  0.009  0.017
+BUFFSKPD1BWP300H8P64PDULVT  0.019  0.040	BUFFSKPD1BWP300H8P64PDULVT  0.017  0.032	BUFFSKPD1BWP300H8P64PDULVT  0.013  0.026	BUFFSKPD1BWP300H8P64PDULVT  0.011  0.021   BUFFSKPD1BWP300H8P64PDULVT  0.009  0.017
+BUFFD1BWP300H8P64PDULVT     0.026  0.042	BUFFD1BWP300H8P64PDULVT     0.024  0.034	BUFFD1BWP300H8P64PDULVT     0.018  0.026	BUFFD1BWP300H8P64PDULVT     0.015  0.022   BUFFD1BWP300H8P64PDULVT     0.013  0.018
+DELAD1BWP300H8P64PDLVT      0.030  0.046	DELAD1BWP300H8P64PDLVT      0.026  0.032	DELAD1BWP300H8P64PDLVT      0.018  0.024	DELAD1BWP300H8P64PDLVT      0.014  0.019   DELAD1BWP300H8P64PDLVT      0.012  0.015
+BUFFD1BWP300H8P64PDLVT      0.030  0.051	BUFFD1BWP300H8P64PDLVT      0.026  0.035	BUFFD1BWP300H8P64PDLVT      0.017  0.025	BUFFD1BWP300H8P64PDLVT      0.013  0.020   BUFFD1BWP300H8P64PDLVT      0.011  0.017
+DELBD1BWP300H8P64PDULVT     0.042  0.071	DELBD1BWP300H8P64PDULVT     0.040  0.058	DELBD1BWP300H8P64PDULVT     0.028  0.044	DELBD1BWP300H8P64PDULVT     0.023  0.037   DELBD1BWP300H8P64PDULVT     0.019  0.029
+DELBD1BWP300H8P64PDLVT      0.058  0.095	DELBD1BWP300H8P64PDLVT      0.053  0.068	DELBD1BWP300H8P64PDLVT      0.034  0.049	DELBD1BWP300H8P64PDLVT      0.026  0.037   DELBD1BWP300H8P64PDLVT      0.022  0.030
+DELCD1BWP300H8P64PDULVT     0.067  0.101	DELCD1BWP300H8P64PDULVT     0.062  0.080	DELCD1BWP300H8P64PDULVT     0.042  0.061	DELCD1BWP300H8P64PDULVT     0.035  0.047   DELCD1BWP300H8P64PDULVT     0.028  0.040
+DELCD1BWP300H8P64PDLVT      0.091  0.142	DELCD1BWP300H8P64PDLVT      0.084  0.102	DELCD1BWP300H8P64PDLVT      0.053  0.072	DELCD1BWP300H8P64PDLVT      0.040  0.052   DELCD1BWP300H8P64PDLVT      0.033  0.042
+DELDD1BWP300H8P64PDULVT     0.105  0.144	DELDD1BWP300H8P64PDULVT     0.099  0.115	DELDD1BWP300H8P64PDULVT     0.068  0.087	DELDD1BWP300H8P64PDULVT     0.054  0.068   DELDD1BWP300H8P64PDULVT     0.046  0.056
+DELED1BWP300H8P64PDULVT     0.132  0.174	DELED1BWP300H8P64PDULVT     0.123  0.140	DELED1BWP300H8P64PDULVT     0.084  0.105	DELED1BWP300H8P64PDULVT     0.068  0.081   DELED1BWP300H8P64PDULVT     0.055  0.066
+DELDD1BWP300H8P64PDLVT      0.144  0.203	DELDD1BWP300H8P64PDLVT      0.130  0.145	DELDD1BWP300H8P64PDLVT      0.081  0.102	DELDD1BWP300H8P64PDLVT      0.062  0.075   DELDD1BWP300H8P64PDLVT      0.051  0.061
+DELFD1BWP300H8P64PDULVT     0.167  0.218	DELFD1BWP300H8P64PDULVT     0.157  0.173	DELFD1BWP300H8P64PDULVT     0.108  0.129	DELFD1BWP300H8P64PDULVT     0.085  0.101   DELFD1BWP300H8P64PDULVT     0.070  0.083
+DELED1BWP300H8P64PDLVT      0.183  0.250	DELED1BWP300H8P64PDLVT      0.162  0.180	DELED1BWP300H8P64PDLVT      0.103  0.125	DELED1BWP300H8P64PDLVT      0.075  0.091   DELED1BWP300H8P64PDLVT      0.062  0.074
+DELGD1BWP300H8P64PDULVT     0.192  0.273	DELGD1BWP300H8P64PDULVT     0.181  0.218	DELGD1BWP300H8P64PDULVT     0.124  0.161	DELGD1BWP300H8P64PDULVT     0.099  0.124   DELGD1BWP300H8P64PDULVT     0.080  0.102
+DELFD1BWP300H8P64PDLVT      0.225  0.318	DELFD1BWP300H8P64PDLVT      0.203  0.224	DELFD1BWP300H8P64PDLVT      0.128  0.158	DELFD1BWP300H8P64PDLVT      0.095  0.113   DELFD1BWP300H8P64PDLVT      0.078  0.092
+DELGD1BWP300H8P64PDLVT      0.260  0.391	DELGD1BWP300H8P64PDLVT      0.236  0.280	DELGD1BWP300H8P64PDLVT      0.148  0.194	DELGD1BWP300H8P64PDLVT      0.110  0.141   DELGD1BWP300H8P64PDLVT      0.090  0.114
+
+CKBD1BWP300H8P64PDULVT 	    0.029  0.049
+
+
+CELL_f6                        min_f6 max_f6 min_f10 max_f10  cell_f24                 min_f24 max_f24
+BUFFSKPD1BWP300H8P64PDULVT    0.032 0.017 0.025 0.019   BUFFSKPD1BWP300H8P64PDULVT  0.009  0.017
+BUFFSKPD1BWP300H8P64PDLVT     0.020 0.015 0.029 0.017	BUFFSKPD1BWP300H8P64PDLVT   0.006  0.009
+BUFFSKND1BWP300H8P64PDULVT    0.031 0.018 0.040 0.019	BUFFSKND1BWP300H8P64PDULVT  0.009  0.017
+BUFFSKND1BWP300H8P64PDLVT     0.026 0.019 0.037 0.020	BUFFSKND1BWP300H8P64PDLVT   0.008  0.012
+DELAD1BWP300H8P64PDULVT       0.026 0.021 0.035 0.024	DELAD1BWP300H8P64PDULVT     0.011  0.014
+BUFFD1BWP300H8P64PDULVT       0.034 0.024 0.042 0.026	BUFFD1BWP300H8P64PDULVT     0.013  0.018
+BUFFD1BWP300H8P64PDLVT        0.035 0.026 0.051 0.030	BUFFD1BWP300H8P64PDLVT      0.011  0.017
+DELAD1BWP300H8P64PDLVT        0.032 0.026 0.046 0.030	DELAD1BWP300H8P64PDLVT      0.012  0.015
+DELBD1BWP300H8P64PDULVT       0.058 0.040 0.071 0.042	DELBD1BWP300H8P64PDULVT     0.019  0.029
+DELBD1BWP300H8P64PDLVT        0.068 0.053 0.095 0.058	DELBD1BWP300H8P64PDLVT      0.022  0.030
+DELCD1BWP300H8P64PDULVT       0.080 0.062 0.101 0.067	DELCD1BWP300H8P64PDULVT     0.028  0.040
+DELCD1BWP300H8P64PDLVT        0.102 0.084 0.142 0.091	DELCD1BWP300H8P64PDLVT      0.033  0.042
+DELDD1BWP300H8P64PDULVT       0.115 0.099 0.144 0.105	DELDD1BWP300H8P64PDULVT     0.046  0.056
+DELED1BWP300H8P64PDULVT       0.140 0.123 0.174 0.132	DELED1BWP300H8P64PDULVT     0.055  0.066
+DELDD1BWP300H8P64PDLVT        0.145 0.130 0.203 0.144	DELDD1BWP300H8P64PDLVT      0.051  0.061
+DELFD1BWP300H8P64PDULVT       0.173 0.157 0.218 0.167	DELFD1BWP300H8P64PDULVT     0.070  0.083
+DELED1BWP300H8P64PDLVT        0.180 0.162 0.250 0.183	DELED1BWP300H8P64PDLVT      0.062  0.074
+DELGD1BWP300H8P64PDULVT       0.218 0.181 0.273 0.192	DELGD1BWP300H8P64PDULVT     0.080  0.102
+DELFD1BWP300H8P64PDLVT        0.224 0.203 0.318 0.225	DELFD1BWP300H8P64PDLVT      0.078  0.092
+DELGD1BWP300H8P64PDLVT        0.280 0.236 0.391 0.260	DELGD1BWP300H8P64PDLVT      0.090  0.114
+
+## F17_f17_f17 - mem-delays
+## fastmax- fastmin - slowmax slowmin
+
+BUFFD1BWP300H8P64PDULVT     0.020  0.035
+BUFFSKND1BWP300H8P64PDLVT   0.015  0.029
+BUFFSKND1BWP300H8P64PDULVT  0.016  0.034
+BUFFSKPD1BWP300H8P64PDLVT   0.013  0.021
+BUFFSKPD1BWP300H8P64PDULVT  0.015  0.033
+DELAD1BWP300H8P64PDLVT      0.022  0.034
+DELAD1BWP300H8P64PDULVT     0.019  0.028
+DELBD1BWP300H8P64PDLVT      0.043  0.071
+DELBD1BWP300H8P64PDULVT     0.034  0.059
+DELCD1BWP300H8P64PDLVT      0.068  0.106
+DELCD1BWP300H8P64PDULVT     0.053  0.081
+DELDD1BWP300H8P64PDLVT      0.107  0.150
+DELDD1BWP300H8P64PDULVT     0.083  0.116
+DELED1BWP300H8P64PDLVT      0.133  0.186
+DELED1BWP300H8P64PDULVT     0.104  0.142
+DELFD1BWP300H8P64PDLVT      0.167  0.230
+DELFD1BWP300H8P64PDULVT     0.131  0.175
+DELGD1BWP300H8P64PDLVT      0.195  0.287
+
+
+## latest all mem_top_mem_bot f1_f6 (f6 delay)
+BUFFD1BWP300H8P64PDLVT      0.029  0.043
+BUFFD1BWP300H8P64PDULVT     0.027  0.037
+BUFFSKND1BWP300H8P64PDLVT   0.019  0.029
+BUFFSKND1BWP300H8P64PDULVT  0.018  0.028
+BUFFSKPD1BWP300H8P64PDLVT   0.018  0.026
+BUFFSKPD1BWP300H8P64PDULVT  0.021  0.032
+DELAD1BWP300H8P64PDLVT      0.031  0.045
+DELAD1BWP300H8P64PDULVT     0.024  0.032
+DELBD1BWP300H8P64PDLVT      0.055  0.091
+DELBD1BWP300H8P64PDULVT     0.041  0.066
+DELCD1BWP300H8P64PDLVT      0.091  0.142
+DELCD1BWP300H8P64PDULVT     0.066  0.100
+DELDD1BWP300H8P64PDLVT      0.143  0.203
+DELDD1BWP300H8P64PDULVT     0.104  0.143
+DELED1BWP300H8P64PDLVT      0.177  0.270
+DELED1BWP300H8P64PDULVT     0.128  0.178
+DELFD1BWP300H8P64PDLVT      0.224  0.322
+DELFD1BWP300H8P64PDULVT     0.166  0.217
+DELGD1BWP300H8P64PDLVT      0.262  0.382
+DELGD1BWP300H8P64PDULVT     0.188  0.261
+
+}
+
+
+
