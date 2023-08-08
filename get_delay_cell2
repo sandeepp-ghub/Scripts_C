@@ -1,0 +1,463 @@
+#Del-Cell                 Fast-Setup Fast-Hold Slow-Setup Slow-Hold
+
+proc get_my_delay_cells {{vio -0.01} {setup_slack 1} {corner min} {conservative_delay_cell_addition 1} {cmplx soc}} {
+
+    set hvio $vio
+    if {$hvio >= -0.001} {set hvio -0.001}
+    set smargin $setup_slack
+    set type $corner
+    if {$cmplx == "soc"} {
+	if {$conservative_delay_cell_addition == "1"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFSKPD1BWP300H8P64PDLVT   0.017  0.010  0.035  0.018}
+		{DELAD1BWP300H8P64PDLVT   0.018  0.012  0.034  0.022}
+		{DELAD1BWP300H8P64PDULVT  0.024  0.013  0.043  0.021}
+		{DELBD1BWP300H8P64PDULVT  0.030  0.020  0.056  0.031}
+		{DELBD1BWP300H8P64PDLVT   0.036  0.022  0.075  0.040}
+		{DELCD1BWP300H8P64PDULVT  0.056  0.028  0.104  0.050}
+		{DELCD1BWP300H8P64PDLVT   0.051  0.035  0.107  0.063}
+		{DELDD1BWP300H8P64PDULVT  0.065  0.049  0.120  0.081}
+		{DELDD1BWP300H8P64PDLVT   0.075  0.058  0.160  0.106}
+	    }
+	}
+	if {$conservative_delay_cell_addition == "3"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFSKPD1BWP300H8P64PDLVT   0.017  0.010  0.035  0.018}
+		{DELAD1BWP300H8P64PDLVT   0.018  0.012  0.034  0.022}
+		{DELAD1BWP300H8P64PDULVT  0.024  0.013  0.043  0.021}
+		{DELBD1BWP300H8P64PDULVT  0.030  0.020  0.056  0.031}
+		{DELBD1BWP300H8P64PDLVT   0.036  0.022  0.075  0.040}
+		{DELCD1BWP300H8P64PDULVT  0.056  0.028  0.104  0.050}
+		{DELCD1BWP300H8P64PDLVT   0.051  0.035  0.107  0.063}
+	    }
+	}
+	if {$conservative_delay_cell_addition == "4"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFSKPD1BWP300H8P64PDLVT   0.017  0.010  0.035  0.018}
+	    }
+	}
+	if {$conservative_delay_cell_addition == "5"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDLVT   0.017  0.010  0.035  0.018}
+	    }
+	}
+
+	if {$conservative_delay_cell_addition == "6"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFD1BWP300H8P64PDULVT  0.019    0.012  0.036  0.02}
+		{DELAD1BWP300H8P64PDULVT  0.024  0.013  0.043  0.021}
+	    }
+	}
+
+	if {$conservative_delay_cell_addition == "7"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFD1BWP300H8P64PDULVT  0.019    0.012  0.036  0.02}
+	    }
+	}
+
+
+	if {$conservative_delay_cell_addition == "0"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFD1BWP300H8P64PDLVT      0.018  0.012  0.041  0.019}
+		{DELAD1BWP300H8P64PDLVT   0.018  0.012  0.034  0.022}
+		{DELAD1BWP300H8P64PDULVT  0.024  0.013  0.043  0.021}
+		{DELAD1BWP300H8P64PDSVT   0.023  0.016  0.054  0.030}
+		{DELBD1BWP300H8P64PDULVT  0.030  0.020  0.056  0.031}
+		{DELBD1BWP300H8P64PDLVT   0.036  0.022  0.075  0.040}
+		{DELBD1BWP300H8P64PDSVT   0.038  0.026  0.098  0.054}
+		{DELCD1BWP300H8P64PDULVT  0.056  0.028  0.104  0.050}
+		{DELCD1BWP300H8P64PDLVT   0.051  0.035  0.107  0.063}
+		{DELCD1BWP300H8P64PDSVT   0.058  0.042  0.154  0.086}
+		{DELDD1BWP300H8P64PDULVT  0.065  0.049  0.120  0.081}
+		{DELDD1BWP300H8P64PDLVT   0.075  0.058  0.160  0.106}
+		{DELED1BWP300H8P64PDULVT  0.091  0.061  0.168  0.104}
+		{DELDD1BWP300H8P64PDSVT   0.093  0.068  0.243  0.140}
+		{DELED1BWP300H8P64PDLVT   0.105  0.070  0.223  0.131}
+		{DELFD1BWP300H8P64PDULVT  0.099  0.077  0.185  0.130}
+		{DELED1BWP300H8P64PDSVT   0.113  0.086  0.295  0.176}
+		{DELFD1BWP300H8P64PDLVT   0.121  0.089  0.255  0.165}
+		{DELGD1BWP300H8P64PDULVT  0.124  0.094  0.226  0.156}
+		{DELGD1BWP300H8P64PDLVT   0.138  0.102  0.296  0.191}
+		{DELFD1BWP300H8P64PDSVT   0.148  0.108  0.382  0.226}
+		{DELGD1BWP300H8P64PDSVT   0.168  0.128  0.438  0.263}
+	    }
+	}
+
+	if {$conservative_delay_cell_addition == "2"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFSKPD1BWP300H8P64PDLVT   0.017  0.010  0.035  0.018}
+		{DELAD1BWP300H8P64PDLVT   0.018  0.012  0.034  0.022}
+		{DELAD1BWP300H8P64PDULVT  0.024  0.013  0.043  0.021}
+		{DELBD1BWP300H8P64PDULVT  0.030  0.020  0.056  0.031}
+		{DELBD1BWP300H8P64PDLVT   0.036  0.022  0.075  0.040}
+		{DELCD1BWP300H8P64PDULVT  0.056  0.028  0.104  0.050}
+		{DELCD1BWP300H8P64PDLVT   0.051  0.035  0.107  0.063}
+		{DELDD1BWP300H8P64PDULVT  0.065  0.049  0.120  0.081}
+		{DELDD1BWP300H8P64PDLVT   0.075  0.058  0.160  0.106}
+		{DELED1BWP300H8P64PDULVT  0.091  0.061  0.168  0.104}
+		{DELED1BWP300H8P64PDLVT   0.105  0.070  0.223  0.131}
+		{DELFD1BWP300H8P64PDULVT  0.099  0.077  0.185  0.130}
+		{DELFD1BWP300H8P64PDLVT   0.121  0.089  0.255  0.165}
+		{DELGD1BWP300H8P64PDULVT  0.124  0.094  0.226  0.156}
+		{DELGD1BWP300H8P64PDLVT   0.138  0.102  0.296  0.191}
+	    }
+	}
+    }
+
+    if {$cmplx == "mem_f10"} {
+	set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT    0.020 0.017 0.025 0.019}
+	}
+
+	if {$conservative_delay_cell_addition == "0"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT    0.020 0.017 0.025 0.019}
+		{BUFFSKPD1BWP300H8P64PDLVT     0.020 0.015 0.029 0.017}
+		{BUFFSKND1BWP300H8P64PDULVT    0.031 0.018 0.040 0.019}
+		{BUFFSKND1BWP300H8P64PDLVT     0.026 0.019 0.037 0.020}
+		{DELAD1BWP300H8P64PDULVT       0.026 0.021 0.035 0.024}
+		{BUFFD1BWP300H8P64PDULVT       0.034 0.024 0.042 0.026}
+		{BUFFD1BWP300H8P64PDLVT        0.035 0.026 0.051 0.030}
+		{DELAD1BWP300H8P64PDLVT        0.032 0.026 0.046 0.030}
+		{DELBD1BWP300H8P64PDULVT       0.058 0.040 0.071 0.042}
+		{DELBD1BWP300H8P64PDLVT        0.068 0.053 0.095 0.058}
+		{DELCD1BWP300H8P64PDULVT       0.080 0.062 0.101 0.067}
+		{DELCD1BWP300H8P64PDLVT        0.102 0.084 0.142 0.091}
+		{DELDD1BWP300H8P64PDULVT       0.115 0.099 0.144 0.105}
+		{DELED1BWP300H8P64PDULVT       0.140 0.123 0.174 0.132}
+		{DELDD1BWP300H8P64PDLVT        0.145 0.130 0.203 0.144}
+		{DELFD1BWP300H8P64PDULVT       0.173 0.157 0.218 0.167}
+		{DELED1BWP300H8P64PDLVT        0.180 0.162 0.250 0.183}
+		{DELGD1BWP300H8P64PDULVT       0.218 0.181 0.273 0.192}
+		{DELFD1BWP300H8P64PDLVT        0.224 0.203 0.318 0.225}
+		{DELGD1BWP300H8P64PDLVT        0.280 0.236 0.391 0.260}
+	    }
+	}
+
+	if {$conservative_delay_cell_addition == "1"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT    0.02 0.017 0.025 0.019}
+		{BUFFSKND1BWP300H8P64PDLVT     0.026 0.019 0.037 0.020}
+		{DELAD1BWP300H8P64PDULVT       0.026 0.021 0.035 0.024}
+		{BUFFD1BWP300H8P64PDULVT       0.034 0.024 0.042 0.026}
+		{BUFFD1BWP300H8P64PDLVT        0.035 0.026 0.051 0.030}
+		{DELAD1BWP300H8P64PDLVT        0.032 0.026 0.046 0.030}
+	    }
+	}
+	if {$conservative_delay_cell_addition == "2" || $conservative_delay_cell_addition == "3" || $conservative_delay_cell_addition == "4"} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT    0.02 0.017 0.025 0.019}
+		{BUFFD1BWP300H8P64PDULVT       0.034 0.024 0.042 0.026}
+	    }
+	}
+    }
+
+
+
+
+
+
+    set del_cell_list ""
+    foreach elem $del_info {
+	set cell [lindex $elem 0]
+	set del_cell_list "$del_cell_list $cell"
+	set del_slow_max($cell) [lindex $elem 3]
+	set del_slow_min($cell) [lindex $elem 4]
+	set del_fast_max($cell) [lindex $elem 1]
+	set del_fast_min($cell) [lindex $elem 2]
+    }
+
+    set eco_cell_list ""
+
+    set eco_cell [get_my_delay_cells_core $hvio $smargin $type $conservative_delay_cell_addition $cmplx]
+    set flag 1
+    set eco_cell_list "$eco_cell_list $eco_cell"
+    if {$eco_cell == ""} {set flag 0}
+    if {[regexp BUFF $eco_cell ] && ($conservative_delay_cell_addition != "4")} {set flag 0}
+    
+    set _cc 0
+    while {$flag} {
+	if {$_cc > 0} {if {$hvio > 0} {set flag 0}}
+	if {$eco_cell == ""} {set flag 0}
+	if {[regexp BUFF $eco_cell ]  && ($conservative_delay_cell_addition != "4")} {set flag 0}
+	if {$flag} {
+	    #echo "Before: $hvio $smargin"
+	    if {$type == "max"} {
+		set hvio [expr $hvio + $del_slow_min($cell)]
+		set smargin [expr $smargin - $del_slow_max($cell)]
+	    } else {
+		set hvio [expr $hvio + $del_fast_min($cell)]
+		set smargin [expr $smargin - $del_slow_max($cell)]
+	    }
+	    #echo "After: $hvio $smargin"
+	    set eco_cell [get_my_delay_cells_core $hvio $smargin $type $conservative_delay_cell_addition $cmplx]
+	    set eco_cell_list "$eco_cell_list $eco_cell"
+	}
+	incr _cc
+    }
+
+    return $eco_cell_list
+
+}
+
+proc get_my_delay_cells_core {{vio -0.01} {setup_slack 1} {corner min} {conservative_delay_cell_addition 1} {cmplx soc}} {
+
+    if {$cmplx == "soc"} {
+	if {$conservative_delay_cell_addition} {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFSKPD1BWP300H8P64PDLVT   0.017  0.010  0.035  0.018}
+		{DELAD1BWP300H8P64PDLVT   0.018  0.012  0.034  0.022}
+		{DELAD1BWP300H8P64PDULVT  0.024  0.013  0.043  0.021}
+		{DELBD1BWP300H8P64PDULVT  0.030  0.020  0.056  0.031}
+		{DELBD1BWP300H8P64PDLVT   0.036  0.022  0.075  0.040}
+		{DELCD1BWP300H8P64PDULVT  0.056  0.028  0.104  0.050}
+		{DELCD1BWP300H8P64PDLVT   0.051  0.035  0.107  0.063}
+		{DELDD1BWP300H8P64PDULVT  0.065  0.049  0.120  0.081}
+		{DELDD1BWP300H8P64PDLVT   0.075  0.058  0.160  0.106}
+	    }
+	} else {
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFD1BWP300H8P64PDLVT      0.018  0.012  0.041  0.019}
+		{DELAD1BWP300H8P64PDLVT   0.018  0.012  0.034  0.022}
+		{DELAD1BWP300H8P64PDULVT  0.024  0.013  0.043  0.021}
+		{DELAD1BWP300H8P64PDSVT   0.023  0.016  0.054  0.030}
+		{DELBD1BWP300H8P64PDULVT  0.030  0.020  0.056  0.031}
+		{DELBD1BWP300H8P64PDLVT   0.036  0.022  0.075  0.040}
+		{DELBD1BWP300H8P64PDSVT   0.038  0.026  0.098  0.054}
+		{DELCD1BWP300H8P64PDULVT  0.056  0.028  0.104  0.050}
+		{DELCD1BWP300H8P64PDLVT   0.051  0.035  0.107  0.063}
+		{DELCD1BWP300H8P64PDSVT   0.058  0.042  0.154  0.086}
+		{DELDD1BWP300H8P64PDULVT  0.065  0.049  0.120  0.081}
+		{DELDD1BWP300H8P64PDLVT   0.075  0.058  0.160  0.106}
+		{DELED1BWP300H8P64PDULVT  0.091  0.061  0.168  0.104}
+		{DELDD1BWP300H8P64PDSVT   0.093  0.068  0.243  0.140}
+		{DELED1BWP300H8P64PDLVT   0.105  0.070  0.223  0.131}
+		{DELFD1BWP300H8P64PDULVT  0.099  0.077  0.185  0.130}
+		{DELED1BWP300H8P64PDSVT   0.113  0.086  0.295  0.176}
+		{DELFD1BWP300H8P64PDLVT   0.121  0.089  0.255  0.165}
+		{DELGD1BWP300H8P64PDULVT  0.124  0.094  0.226  0.156}
+		{DELGD1BWP300H8P64PDLVT   0.138  0.102  0.296  0.191}
+		{DELFD1BWP300H8P64PDSVT   0.148  0.108  0.382  0.226}
+		{DELGD1BWP300H8P64PDSVT   0.168  0.128  0.438  0.263}
+	    }
+	}
+
+	if {$conservative_delay_cell_addition == "2"} {
+	    unset del_info
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFSKPD1BWP300H8P64PDLVT   0.017  0.010  0.035  0.018}
+		{DELAD1BWP300H8P64PDLVT   0.018  0.012  0.034  0.022}
+		{DELAD1BWP300H8P64PDULVT  0.024  0.013  0.043  0.021}
+		{DELBD1BWP300H8P64PDULVT  0.030  0.020  0.056  0.031}
+		{DELBD1BWP300H8P64PDLVT   0.036  0.022  0.075  0.040}
+		{DELCD1BWP300H8P64PDULVT  0.056  0.028  0.104  0.050}
+		{DELCD1BWP300H8P64PDLVT   0.051  0.035  0.107  0.063}
+		{DELDD1BWP300H8P64PDULVT  0.065  0.049  0.120  0.081}
+		{DELDD1BWP300H8P64PDLVT   0.075  0.058  0.160  0.106}
+		{DELED1BWP300H8P64PDULVT  0.091  0.061  0.168  0.104}
+		{DELED1BWP300H8P64PDLVT   0.105  0.070  0.223  0.131}
+		{DELFD1BWP300H8P64PDULVT  0.099  0.077  0.185  0.130}
+		{DELFD1BWP300H8P64PDLVT   0.121  0.089  0.255  0.165}
+		{DELGD1BWP300H8P64PDULVT  0.124  0.094  0.226  0.156}
+		{DELGD1BWP300H8P64PDLVT   0.138  0.102  0.296  0.191}
+	    }
+	}
+	if {$conservative_delay_cell_addition == "3"} {
+	    unset del_info
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFSKPD1BWP300H8P64PDLVT   0.017  0.010  0.035  0.018}
+		{DELAD1BWP300H8P64PDLVT   0.018  0.012  0.034  0.022}
+		{DELAD1BWP300H8P64PDULVT  0.024  0.013  0.043  0.021}
+		{DELBD1BWP300H8P64PDULVT  0.030  0.020  0.056  0.031}
+		{DELBD1BWP300H8P64PDLVT   0.036  0.022  0.075  0.040}
+		{DELCD1BWP300H8P64PDULVT  0.056  0.028  0.104  0.050}
+		{DELCD1BWP300H8P64PDLVT   0.051  0.035  0.107  0.063}
+	    }
+	}
+
+	if {$conservative_delay_cell_addition == "4"} {
+	    unset del_info
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFSKPD1BWP300H8P64PDLVT   0.017  0.010  0.035  0.018}
+	    }
+	}
+
+
+	if {$conservative_delay_cell_addition == "5"} {
+	    unset del_info
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDLVT   0.017  0.010  0.035  0.018}
+	    }
+	}
+
+	if {$conservative_delay_cell_addition == "6"} {
+	    unset del_info
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFD1BWP300H8P64PDULVT  0.019    0.012  0.036  0.02}
+		{DELAD1BWP300H8P64PDULVT  0.024  0.013  0.043  0.021}
+	    }
+	}
+	if {$conservative_delay_cell_addition == "7"} {
+	    unset del_info
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT  0.012  0.007  0.019  0.011}
+		{BUFFD1BWP300H8P64PDULVT  0.019    0.012  0.036  0.02}
+	    }
+	}
+
+    }
+
+
+
+    if {$cmplx == "mem_f10"} {
+	set del_info {
+	    {BUFFSKPD1BWP300H8P64PDULVT    0.02 0.017 0.025 0.019}
+	}
+
+	if {$conservative_delay_cell_addition == "0"} {
+	    unset del_info
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT    0.02 0.017 0.025 0.019}
+		{BUFFSKPD1BWP300H8P64PDLVT     0.020 0.015 0.029 0.017}
+		{BUFFSKND1BWP300H8P64PDULVT    0.031 0.018 0.040 0.019}
+		{BUFFSKND1BWP300H8P64PDLVT     0.026 0.019 0.037 0.020}
+		{DELAD1BWP300H8P64PDULVT       0.026 0.021 0.035 0.024}
+		{BUFFD1BWP300H8P64PDULVT       0.034 0.024 0.042 0.026}
+		{BUFFD1BWP300H8P64PDLVT        0.035 0.026 0.051 0.030}
+		{DELAD1BWP300H8P64PDLVT        0.032 0.026 0.046 0.030}
+		{DELBD1BWP300H8P64PDULVT       0.058 0.040 0.071 0.042}
+		{DELBD1BWP300H8P64PDLVT        0.068 0.053 0.095 0.058}
+		{DELCD1BWP300H8P64PDULVT       0.080 0.062 0.101 0.067}
+		{DELCD1BWP300H8P64PDLVT        0.102 0.084 0.142 0.091}
+		{DELDD1BWP300H8P64PDULVT       0.115 0.099 0.144 0.105}
+		{DELED1BWP300H8P64PDULVT       0.140 0.123 0.174 0.132}
+		{DELDD1BWP300H8P64PDLVT        0.145 0.130 0.203 0.144}
+		{DELFD1BWP300H8P64PDULVT       0.173 0.157 0.218 0.167}
+		{DELED1BWP300H8P64PDLVT        0.180 0.162 0.250 0.183}
+		{DELGD1BWP300H8P64PDULVT       0.218 0.181 0.273 0.192}
+		{DELFD1BWP300H8P64PDLVT        0.224 0.203 0.318 0.225}
+		{DELGD1BWP300H8P64PDLVT        0.280 0.236 0.391 0.260}
+	    }
+	}
+
+	if {$conservative_delay_cell_addition == "1"} {
+	    unset del_info
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT    0.02 0.017 0.025 0.019}
+		{BUFFSKND1BWP300H8P64PDLVT     0.026 0.019 0.037 0.020}
+		{DELAD1BWP300H8P64PDULVT       0.026 0.021 0.035 0.024}
+		{BUFFD1BWP300H8P64PDULVT       0.034 0.024 0.042 0.026}
+		{BUFFD1BWP300H8P64PDLVT        0.035 0.026 0.051 0.030}
+		{DELAD1BWP300H8P64PDLVT        0.032 0.026 0.046 0.030}
+	    }
+	}
+	if {$conservative_delay_cell_addition == "2" || $conservative_delay_cell_addition == "3" || $conservative_delay_cell_addition == "4"} {
+	    unset del_info
+	    set del_info {
+		{BUFFSKPD1BWP300H8P64PDULVT    0.02 0.017 0.025 0.019}
+		{BUFFD1BWP300H8P64PDULVT       0.034 0.024 0.042 0.026}
+	    }
+	}
+    }
+
+
+
+    set del_cell_list ""
+    foreach elem $del_info {
+	set cell [lindex $elem 0]
+	set del_cell_list "$del_cell_list $cell"
+	set del_slow_max($cell) [lindex $elem 3]
+	set del_slow_min($cell) [lindex $elem 4]
+	set del_fast_max($cell) [lindex $elem 1]
+	set del_fast_min($cell) [lindex $elem 2]
+    }
+
+
+    set cell ""
+    #set vio -0.1
+    #set setup_slack 1
+    #set corner min
+    set n [llength $del_cell_list]
+    #echo "$vio $setup_slack $corner"
+    if {$corner == "min"} {
+	if {$vio < 0 && $setup_slack > 0} {
+	    set vio [expr $vio * -1]
+	    #if {$vio > 0.136} {echo "# $vio ::"}
+	    for {set i 0} {$i < $n} {incr i} {
+		set cell [lindex $del_cell_list $i]
+		set min1 [set del_fast_min($cell)]
+
+		#echo $vio $min1 
+		if {$vio <= $min1 } {
+		    break
+		}
+	    }
+	    #echo $cell
+	    for { } {$i >=0} {} {
+		set max1 [set del_slow_max($cell)]
+		#echo $setup_slack $max1 
+		if {$setup_slack >= $max1} {
+		    break
+		} else {
+		    incr i -1
+		    set cell [lindex $del_cell_list $i]
+		}
+	    }
+	    #echo $cell
+	} else {
+
+	    if {$setup_slack > 0.02 && $vio < 0} {
+		#set cell BUFFD1BWP300H8P64PDLVT
+		set cell BUFFSKPD1BWP300H8P64PDULVT
+	    }
+	}
+    } else {
+	if {$vio < 0 && $setup_slack > 0} {
+	    set vio [expr $vio * -1]
+	    for {set i 0} {$i < $n} {incr i} {
+		set cell [lindex $del_cell_list $i]
+		set min1 [set del_slow_min($cell)]
+
+		#echo $vio $min1 
+		if {$vio <= $min1 } {
+		    break
+		}
+	    }
+	    #echo $cell
+	    for { } {$i >=0} {} {
+		set max1 [set del_slow_max($cell)]
+		#echo $setup_slack $max1 
+		if {$setup_slack >= $max1} {
+		    break
+		} else {
+		    incr i -1
+		    set cell [lindex $del_cell_list $i]
+		}
+	    }
+	    #echo $cell
+	} else {
+
+	    if {$setup_slack > 0.02 && $vio < 0} {
+		#set cell BUFFD1BWP300H8P64PDLVT
+		set cell BUFFSKPD1BWP300H8P64PDULVT
+	    }
+	}
+
+    }
+
+
+    return $cell
+}
