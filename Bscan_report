@@ -1,0 +1,151 @@
+set allregs [all_registers -clock BSCANCLK]
+set all_macros [get_cells $allregs -filter "ref_name=~*BWP*"]
+#set all_macros [get_cells $allregs -filter "ref_name!~*BWP*"]
+
+array unset arr_bscan_cp
+array unset arr_bscan_data_in
+array unset arr_bscan_data_out
+
+
+foreach_in_collection inst  $all_macros {
+    set macro_name [get_object_name $inst]
+    set bscan_data_in  ""
+    set bscan_cp ""
+    set bscan_data_out ""
+    foreach_in_collection pin [get_pins -of $inst -filter "direction==in && is_clock==true"] {if {[get_object_name [ga $pin clocks]] == "BSCANCLK"} { set bscan_cp   [get_object_name $pin]}}
+
+    foreach_in_collection pin [get_pins -of $inst -filter "direction==in && is_clock==false"] {
+	set clks [ga $pin arrival_clocks]
+	if {[sizeof_collection $clks]=="1"} {
+	    if {[get_object_name $clks] == "BSCANCLK"} { 
+		set bscan_data_in  "[get_object_name $pin]"
+	    }
+	} else {
+	    #echo [get_object_name $pin] ==> [get_object_name $clks]
+	}
+    }
+
+    foreach_in_collection pin [get_pins -of $inst -filter "direction==out && is_clock==false"] {
+	set clks [ga $pin arrival_clocks]
+	if {[sizeof_collection $clks]=="1"} {
+	    if {[get_object_name $clks] == "BSCANCLK"} { 
+		set bscan_data_out  "[get_object_name $pin]"
+	    }
+	} else {
+	    #echo [get_object_name $pin] ==> [get_object_name $clks]
+	}
+    }
+
+    set arr_bscan_cp($macro_name) $bscan_cp
+    set arr_bscan_data_in($macro_name) $bscan_data_in
+    set arr_bscan_data_out($macro_name) $bscan_data_out
+}
+
+redirect debug.scr { echo ""}
+redirect debug.info { echo ""}
+redirect passing.scr { echo ""}
+redirect passing.info { echo ""}
+redirect  bscan_timing_arcs.csv {echo "LIB_CELL_INFO,,,,,DATA_IN_INFO,,,,,,DATA_OUT_INFO,,,,,"}
+redirect -append bscan_timing_arcs.csv {echo "LIB_CELL,MacroInstName,CP-PIN,DATA-IN,DATA-OUT,,IN_LIB_ARC_TYPE,IN_LIB_ARC_MODE,IN_LIB_ARC_DISABLED,IN_TIMING_SLACK,IN_TIMING_PATH_DISABLED,,OUT_LIB_ARC,OUT_LIB_ARC_MODE,OUT_LIB_ARC_DISABLED,OUT_TIMING_SLACK,OUT_TIMING_PATH_DISABLED"}
+#set macro_name pdSocNCmplx/pdusb/gusb_Usb3ComplexI_Usb3SliceI0_Usb3PhyI_phy0_pma
+foreach macro_name [array names arr_bscan_cp] {
+    set cp_pin $arr_bscan_cp($macro_name)
+    set in_pin $arr_bscan_data_in($macro_name)
+    set out_pin $arr_bscan_data_out($macro_name)
+
+    set out_arc_type NA
+    set out_arc_mode NA
+    set out_arc_disabled NA
+
+    set in_arc_type NA
+    set in_arc_mode NA
+    set in_arc_disabled NA
+    
+    if {$cp_pin != "" && $in_pin !="" && $out_pin != ""} {
+	set lib_cell [ga [get_cell $macro_name] ref_name]
+	set cp_pin1 [file tail $cp_pin]
+	set in_pin1 [file tail $in_pin]
+	set out_pin1 [file tail $out_pin]
+
+	set out_arc_type [lsort -u [ga [get_lib_arcs -to [get_lib_pins $lib_cell/$out_pin1] -from [get_lib_pins $lib_cell/$cp_pin1]] timing_type]]
+	set out_arc_mode [lsort -u [ga [get_lib_arcs -to [get_lib_pins $lib_cell/$out_pin1] -from [get_lib_pins $lib_cell/$cp_pin1]] mode]]
+	set out_arc_disabled [lsort -u [ga [get_lib_arcs -to [get_lib_pins $lib_cell/$out_pin1] -from [get_lib_pins $lib_cell/$cp_pin1]] is_disabled]]    
+
+	set in_arc_type [lsort -u [ga [get_lib_arcs -to [get_lib_pins $lib_cell/$in_pin1] -from [get_lib_pins $lib_cell/$cp_pin1]] timing_type]]
+	set in_arc_mode [lsort -u [ga [get_lib_arcs -to [get_lib_pins $lib_cell/$in_pin1] -from [get_lib_pins $lib_cell/$cp_pin1]] mode]]
+	set in_arc_disabled [lsort -u [ga [get_lib_arcs -to [get_lib_pins $lib_cell/$in_pin1] -from [get_lib_pins $lib_cell/$cp_pin1]] is_disabled]]
+	
+	catch {set to_timing_path [index_collection [get_timing_path -early -to $in_pin ] 0]}
+	if {[sizeof_collection $to_timing_path] == "0"} {
+	    catch {set to_timing_path [index_collection [get_timing_path -early -to $in_pin -uncon] 0]}
+	}
+	set to_slack [get_slack $to_timing_path]
+	if {$to_slack == "INFINITY"} {
+	    set in_path_disabled true
+	    redirect -append debug.scr {echo "report_timing -early -to $in_pin -uncon -debug unconstrained"}
+	} else {
+	    set in_path_disabled false
+	    redirect -append passing.scr {echo "report_timing -early -to $in_pin -max_paths 1 -nworst 1"}
+	}
+	catch {set from_timing_path [index_collection [get_timing_path -early -from $cp_pin -through $out_pin] 0]}
+	if {[sizeof_collection $from_timing_path] == "0"} {
+	    catch {set from_timing_path [index_collection [get_timing_path -early -from $cp_pin -through $out_pin -uncon] 0]}
+	}
+	set from_slack [get_slack $from_timing_path]
+	if {$from_slack == "INFINITY"} {
+	    set from_path_disabled true
+	    redirect -append debug.scr {echo "report_timing -early -through $out_pin -from $cp_pin -uncon -debug unconstrained"}
+	} else {
+	    set from_path_disabled false
+	    redirect -append passing.scr {echo "report_timing -early -through $out_pin -from $cp_pin -max_paths 1 -nworst 1"}
+	}
+	#redirect -append bscan_timing_arcs.csv {echo "$lib_cell,$macro_name,$cp_pin1,$in_pin1,$out_pin1,,$in_arc_type,$in_arc_mode,$in_arc_disabled,$to_slack,$in_path_disabled,,$out_arc_type,$out_arc_mode,$out_arc_disabled,$from_slack,$from_path_disabled"}
+    } else {
+	set lib_cell [ga [get_cell $macro_name] ref_name]
+	set cp_pin1 [file tail $cp_pin]
+	set in_pin1 [file tail $in_pin]
+	set out_pin1 [file tail $out_pin]
+	
+	set in_arc_type NA
+	set in_arc_disable NA
+	set in_arc_disabled NA
+	set to_slack INFINITY
+	set in_path_disabled true
+
+	set out_arc_type NA
+	set out_arc_disabled NA
+	set from_slack INFINITY
+	set from_path_disabled true
+	
+	if {$cp_pin1 != "" && $out_pin1 != ""} {
+	    redirect -append debug.scr {echo "report_timing -early -through $out_pin -from $cp_pin -uncon -debug unconstrained"}
+	}
+
+	if {$cp_pin1 != "" && $in_pin1 != ""} {
+	    redirect -append debug.scr {echo "report_timing -early -to $in_pin -uncon -debug unconstrained"}
+	}
+
+	if {$cp_pin1 == ""} {set cp_pin1 NA_BSCAN}
+	if {$in_pin1 == ""} {set in_pin1 NA_BSCAN}
+	if {$out_pin1 == ""} {set out_pin1 NA_BSCAN}
+	redirect -append debug.info {echo "\n******* \n INFO :: Macro With no CLock & Data Details $macro_name \n*******\n"}
+    }
+    redirect -append bscan_timing_arcs.csv {echo "$lib_cell,$macro_name,$cp_pin1,$in_pin1,$out_pin1,,$in_arc_type,$in_arc_mode,$in_arc_disabled,$to_slack,$in_path_disabled,,$out_arc_type,$out_arc_mode,$out_arc_disabled,$from_slack,$from_path_disabled"}
+}
+redirect -append debug.info {source debug.scr}
+redirect -append passing.info {source passing.scr}
+
+
+if {0 } {
+#exec ls *.csv | xargs -i ooffice --invisible --convert-to xlsx {}
+set allregs [all_registers -clock BSCANCLK]
+set all_datas [all_registers -data_pins -clock BSCANCLK]
+set all_outputs  [all_registers -output_pins -clock BSCANCLK]
+set all_cps [all_registers -clock_pins -clock BSCANCLK]
+set all_macros [get_cells $allregs -filter "ref_name!~*BWP*"]
+
+redirect bscan_macro.list {sp -ref_name get_cells $allregs -filter "ref_name!~*BWP*"}
+set macro_data_in [remove_from_collection -intersect  [get_pins -of $all_macros] $all_datas]
+set macro_data_out [remove_from_collection -intersect  [get_pins -of $all_macros] $all_outputs]
+set macro_all_cps [remove_from_collection -intersect  [get_pins -of $all_macros] $all_cps]
+}
