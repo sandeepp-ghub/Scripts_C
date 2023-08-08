@@ -1,0 +1,27 @@
+set pdcells [get_cells -quiet  pd*]
+set pddesign [remove_from_collection [get_designs pd*] [current_design]]
+#echo "Design : [get_object_name [current_design]]\n"
+set tot 0
+set ALL [dbget top.insts -e]
+
+echo "Complex,NumInst,EachInstCount,TotalInst,SVTCount,LVTCount,ULVTCount,SeqCount,NonSTDCellCount"
+foreach module [get_object_name $pddesign] {
+    set insts [get_cells -quiet   pd* -filter "ref_name==$module && is_hierarchical==true"]
+    set c [sizeof $insts]
+    if {$c > 0} {
+	set inst [lindex [get_object_name $insts] 0]
+	set allinst	[dbget $ALL.name ${inst}* -e -p]
+	set allsvt [expr $c * [llength [dbget $allinst.cell.name *DSVT -e]]]
+	set alllvt [expr $c * [llength [dbget $allinst.cell.name *DLVT -e]]]
+	set allulvt [expr $c * [llength [dbget $allinst.cell.name *DULVT -e]]]
+	set allmacros [expr $c * [llength [dbget $allinst.cell.baseclass core -v -e]]]
+	set allflops [sizeof_collection [get_cells -quiet  [dbget $allinst.name] -filter "is_sequential==true"]]
+	set c1 [llength $allinst]
+	set c2 [expr $c * $c1]
+	set tot [expr $tot + $c2]
+	#echo "$module ==> $c * $c1  == $c2" 
+	echo "$module,$c,$c1,$c2,$allsvt,$alllvt,$allulvt,$allflops,$allmacros"
+    }
+}
+#echo "Total : $tot"
+#echo "Registers : [sizeof_collection [all_registers]]"
