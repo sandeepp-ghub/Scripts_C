@@ -1,0 +1,5 @@
+set_global timing_report_unconstrained_paths true
+set_global timing_report_group_based_mode true
+set_global timing_report_enable_skew_in_reports true
+set_global timing_report_clock_pin_as_begin_point true
+set_global timing_report_enable_cppr_point true
