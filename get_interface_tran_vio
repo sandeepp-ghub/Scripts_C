@@ -1,0 +1,196 @@
+#================================================================================
+# Report Interface TranViolations 
+# Author : Pavan K (kpavan@marvell.com)
+# usage : reportInterfaceTranVio
+# usage : reportInterfaceTranVio ReportDirectoryName
+#================================================================================
+#================================================================================
+proc reportInterfaceTranVio {{outdir .}} {
+    set _st [clock seconds]
+    suppress_message TCLCMD 927 513 917 746
+
+    if {1} {
+	#================================================================================
+	array set blockpin_info {}
+	set block_list  [get_object_name [get_cells -quiet pd* -filter "is_hierarchical==true"]]
+
+	foreach block $block_list {
+	    #echo $block
+	    foreach_in_collection pin [get_pins -quiet  ${block}/* -filter "is_hierarchical==true"] {
+		set pin1 [get_object_name $pin]
+		#echo $pin1
+		foreach_in_collection pin2  [get_pins -quiet -leaf -of [get_nets -quiet -of  $pin] ] {
+		    set pin3 [get_object_name $pin2]
+		    set flag [regexp $block $pin3]
+		    if {$flag} {
+			set blockpin_info($pin3) $pin1 
+		    }
+		}
+	    }
+	}
+	#================================================================================
+    }
+    #================================================================================
+    set top [get_object_name [current_design]]
+    set i 1
+    foreach block [lsort -u [get_attribute [get_cells $block_list -filter "is_hierarchical==true"] ref_name]] {
+
+	
+
+	#set block pdusb
+	echo "Processing $block ...."
+	set pdblock_inst [get_object_name [get_cells -hier  * -filter "ref_name==${block}"]]
+
+	foreach pdblock $pdblock_inst {
+
+	    set long_in_net 0
+	    set tot_in_vio_count 0
+	    set tot_out_vio_count 0
+	    set poor_out_driver 0
+	    set tot_vio_count 0
+
+	    if [file exists $outdir] {} else {mkdir $outdir}
+	    set fp [open ${outdir}/${top}_${block}_interface_tran_${i}.vio w+]
+	    incr i
+
+	    set block_in_pins [get_pins ${pdblock}/* -filter "direction==in"]
+	    set block_out_pins [get_pins ${pdblock}/* -filter "direction==out"]
+
+	    puts $fp  "[string repeat - 175]"
+	    puts $fp  "[format "%-80s %-80s %-30s %10s %10s %10s %15s" "InputPorts-of-${block}" "DriverPinOfAnotherBlock" "Driver" "TranLimit" "TranValue" "Violation" "Netlength"] "
+	    puts $fp  "[string repeat - 175]"
+
+	    foreach_in_collection pin $block_in_pins {
+		set pin_name [get_object_name $pin]
+		#echo $pin_name
+		#set pin_name [lindex [split $pin_name ${pdblock}/] end]
+		set pin_name [lindex [split $pin_name /] end]
+
+		set driver [get_pins -quiet -leaf -of [get_nets -quiet -of $pin] -filter "direction==out"]
+		if {[sizeof_collection $driver] > 0} {
+		    set maxTranLimit [get_attribute $driver max_transition]
+		    set TranValue [get_attribute $driver slew_max]
+		    if {$TranValue > $maxTranLimit} {
+			set driver_cell [get_attribute [get_cells -of $driver] ref_name ]
+			regexp {\s*D(\d+)BWP\s*} $driver_cell _p dstrength
+			#pavan : 07/23 - Check later
+			if {![info exists dstrength]} {set dstrength -1}
+			if {"[get_object_name $pin]" == "$blockpin_info([get_object_name $driver])"} {
+			} else {
+			    incr tot_vio_count
+			    incr tot_in_vio_count
+			    set distance -1
+			    foreach_in_collection load [get_pins -quiet -leaf -of [get_nets -of [get_pins -quiet $pin]] -filter "direction==in"] {
+				set distance1 [get_m_distance $driver $load]
+				if {$distance1 == "NA"} {
+				    #set distance -1
+				} else {
+				    if {$distance1 > $distance} {set distance $distance1}
+				}
+			    }
+			    if {$distance < 0} {set distance NA}
+			    if {$distance == "NA"} {
+				puts $fp  "[format "%-80s %-80s %-30s %7.3f %7.3f %7.3f %15s" [get_object_name $pin] $blockpin_info([get_object_name $driver]) $driver_cell $maxTranLimit $TranValue [expr $maxTranLimit - $TranValue] $distance ]"
+			    } else {
+				puts $fp  "[format "%-80s %-80s %-30s %7.3f %7.3f %7.3f %12.3f" [get_object_name $pin] $blockpin_info([get_object_name $driver]) $driver_cell $maxTranLimit $TranValue [expr $maxTranLimit - $TranValue] $distance ]"
+			    }
+			    if {$dstrength > 4} {incr long_in_net}
+			}
+		    }
+		}
+	    }
+
+	    puts $fp  "[string repeat - 175]"
+	    puts $fp  "[format "%-80s %-80s %-30s %10s %10s %10s %15s" "OutputPorts-of-${block}" "LoadPinOfAnotherBlock" "Driver" "TranLimit" "TranValue" "Violation" "Netlength"] "
+	    puts $fp  "[string repeat - 175]"
+
+	    foreach_in_collection pin $block_out_pins {
+		set pin_name [get_object_name $pin]
+		#echo $pin_name
+		#set pin_name [lindex [split $pin_name ${pdblock}/] end]
+		set pin_name [lindex [split $pin_name /] end]
+		
+		set driver [get_pins -quiet -leaf -of [get_nets -quiet -of $pin] -filter "direction==out"]
+		if {[sizeof_collection $driver] > 0} {
+		    set loads [get_pins -quiet -leaf -of [get_nets -quiet -of $pin] -filter "direction==in"]
+		    foreach_in_collection load $loads {
+			set maxTranLimit [get_attribute $load max_transition]
+			set TranValue [get_attribute $load slew_max]
+			if {$TranValue > $maxTranLimit} {
+
+			    set driver_cell [get_attribute [get_cells -of $driver] ref_name ]
+			    regexp {\s*D(\d+)BWP\s*} $driver_cell _p dstrength
+			    #pavan : 07/23 - Check later
+			    if {![info exists dstrength]} {set dstrength 1000000}
+
+			    if {"[get_object_name $pin]" == "$blockpin_info([get_object_name $load])"} {
+			    } else {
+				incr tot_vio_count
+				incr tot_out_vio_count
+
+				set distance [get_m_distance $driver $load]
+				#echo $distance
+				if {$distance == ""} {set distance NA}
+				if {$distance == "NA"} {
+				    puts $fp  "[format "%-80s %-80s %-30s %7.3f %7.3f %7.3f %15s" [get_object_name $pin] $blockpin_info([get_object_name $load]) $driver_cell $maxTranLimit $TranValue [expr $maxTranLimit - $TranValue] $distance]"
+				} else {
+				    puts $fp  "[format "%-80s %-80s %-30s %7.3f %7.3f %7.3f %12.3f" [get_object_name $pin] $blockpin_info([get_object_name $load]) $driver_cell $maxTranLimit $TranValue [expr $maxTranLimit - $TranValue] $distance]"
+				}
+				if {$dstrength < 5} {incr poor_out_driver }
+			    }
+			}
+		    }
+		}
+	    }
+
+	    puts $fp  "[string repeat - 175]"
+	    puts $fp  [join "SUMMARY ::: ${top} -> ${pdblock}\($block\) HasTotalOf ${tot_vio_count} InterFaceTranViolations :::  ${tot_in_vio_count} AreOnInputs \(${long_in_net} AreDueToLongInputNets\) ::: ${tot_out_vio_count} AreOnOutputs \(${poor_out_driver} AreDueToWeakOutputDrivers\)" \t]
+	    puts $fp  "[string repeat - 175]"
+	    #redirect -var _p {whichrestore}	
+	    #puts $fp $_p
+	    puts $fp  "[string repeat - 175]"
+	    close $fp
+
+	}
+    }
+    array set blockpin_info {}
+    #================================================================================
+    unsuppress_message TCLCMD 927 513 917 746
+    #================================================================================
+    redirect ${outdir}/${top}_interface_tran.vio.summary { eval cat  ${outdir}/*interface_tran*.vio* | grep SUMMARY | column -t}
+    echo "\n Done: Reports are generated under ==> ${outdir} directory \n"
+    #eval cat  ${outdir}/*interface_tran*.vio* | grep SUMMARY | column -t
+
+    set _en [clock seconds]
+    puts "RunTIme :: [expr $_en - $_st] seconds"
+
+}
+#================================================================================
+# Get Manhattan Distance
+#================================================================================
+proc get_m_distance {driver load {debug 0}} {
+    set distance 0
+    set driver_y [get_attribute $driver y_coordinate]
+    set driver_x [get_attribute $driver x_coordinate]
+    set load_y [get_attribute $load y_coordinate]
+    set load_x [get_attribute $load x_coordinate]
+
+    if {$driver_y == "NA"} {
+	set distance -1 
+	if $debug {echo "INFO NO LOCACTION FOR ::[get_object_name $driver] "}
+    }
+    if {$driver_x == "NA"} {set distance -1 }
+    if {$load_y == "NA"} {
+	set distance -1 
+	if $debug {echo "INFO NO LOCACTION FOR ::[get_object_name $load] "}
+    }
+    if {$load_x == "NA"} {set distance -1 }
+
+    if {$distance < 0} {
+	#echo "[get_object_name $driver] [get_object_name $load]"
+	return "NA"
+    } else {
+	return [expr [expr abs([expr $driver_x - $load_x])] +  [expr abs([expr $driver_y - $load_y])]]
+    }
+}
+#================================================================================
