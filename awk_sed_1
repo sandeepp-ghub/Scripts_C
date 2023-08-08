@@ -1,0 +1,50 @@
+## l /t11k/pnrwork4/TIMING/A0/pdt11kI/latest/sta_funct/reports/f*_f*_f*.hold.latest/timing.min.f*_f*_f*.hold*summary.EPcompressed
+## cat  /t11k/pnrwork4/TIMING/A0/pdt11kI/latest/sta_funct/reports/f*_f*_f*.hold.latest/timing.min.f*_f*_f*.hold*summary.EPcompressed | gawk  '{ if ($7 ~ /pdsbufast/) {print $0}}' > _p
+## cat _p  | gawk  '{print $1,$7}' | sort -k1 -n > _p1
+## cat _p1 | gawk '{print $2}' | perl -p -i -e 's/(\w+)\/(\w+)\/(\S+)/$3/g' | sort -u | perl -p -i -e 's/\[/\\\[/' | perl -p -i -e 's/\]/\\\]/' | gawk '{print "\""$0"\""}'> _q
+## cat _q  | xargs -i grep -m1 {} _p1 > sbufasts.unique
+
+## All func hold
+l /t11k/pnrwork4/TIMING/A0/pdt11kI/latest/sta_funct/reports/f*_f*_f*.hold.latest/timing.min.f*_f*_f*.hold*summary.EPcompressed
+## all func setup
+l /t11k/pnrwork4/TIMING/A0/pdt11kI/latest/sta_funct/reports/f*_f*_f*.latest/timing.max.f*_f*_f*summary.EPcompressed
+
+##############
+#####
+mkdir MEM_VIO_SECONDARY
+cd MEM_VIO_SECONDARY
+
+ls /t11k/pnrwork4/TIMING/A0/pdt11kI/latest/sta_funct/reports/f*_f*_f*.hold.latest/timing.min.f*_f*_f*.hold*summary.EPcompressed  | grep -v f25_f24_f24 | xargs -i cat {} | grep pdMem | sort -k1 -n > all_secondary_hold.vio
+/t11k/pnrwork3/users/kpavan/WORK/FC_dec05_waive1ps/scripts/uniquify.sh all_secondary_hold.vio
+sort -k7,7 all_secondary_hold.vio -u | sort -k1 -n > all_secondary_hold.vio.unique
+
+grep , all_secondary_hold.vio.unique | gawk '{if ($1 < -0.002) {print $0}}' > interface.vio
+grep -v , all_secondary_hold.vio.unique | gawk '{if ($1 < -0.002) {print $0}}' > internal.vio
+
+cat all_secondary_hold.vio.unique | gawk '{print $7}' | gawk -F/ '{print $1"/"$2}' | sort -u > ep_block
+
+cat all_secondary_hold.vio.unique | gawk '{print $7}' | gawk -F/ '{print $1"/"$2}' | sort -u | perl -p -i -e 's/\*/\\\*/g' | gawk '{print "\""$0"\""}' > _search
+cat all_secondary_hold.vio.unique | gawk '{print $7}' | gawk -F/ '{print $1"/"$2}' | sort -u | perl -p -i -e 's/\*/_/g' | perl -p -i -e 's/\//_/g'  > _rptf
+paste _search _rptf | gawk '{print "grep "$1" interface.vio > "$2"_interface.rpt"}' > _intf.sh
+paste _search _rptf | gawk '{print "grep "$1" internal.vio > "$2"_internal.rpt"}' > _internal.sh
+
+wc -l *_internal.rpt | grep -v total > _wc_int
+wc -l *_interface.rpt | grep -v total > _wc_inter
+
+foreach blk (`cat all_secondary_hold.vio.unique | gawk '{print $7}' | gawk -F/ '{print $1"/"$2}' | sort -u`)
+ echo $blk
+set  search_str = 'perl -p -i -e 's/\*/\\\*/g' $blk | gawk '{print "\""$0"\""}''
+echo $search_str
+set fname `perl -p -i -e 's/\*/_/g' $blk | perl -p -i -e 's/\//_/g' | gawk '{print $0".rpt"}'`
+echo $fname
+end
+
+##############
+mkdir -p REPORTS_DIR
+cd REPORTS_DIR
+foreach dd (`ls -1d  /t11k/pnrwork4/TIMING/A0/pdt11kI/latest/sta_funct/reports/f*_f*_f*.hold.latest `)
+#ls ${dd}/* | xargs -i ln -fs {}
+ln -fs $dd
+end
+cd ..
+###############
