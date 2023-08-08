@@ -1,0 +1,286 @@
+package require math
+package require math::statistics
+
+#set del_refs [lsort -u -dict [dbget top.insts.cell.name  *DEL*]]
+#set buff_refs  [lsort -u -dict [dbget top.insts.cell.name BUF*D1BWP*VT]]
+
+set del_refs [lsort -u -dict [get_db insts .base_cell.name  DEL*]]
+set buff_refs [lsort -u -dict [get_db insts .base_cell.name  BUF*D1BWP*VT]]
+set buffd2_refs [lsort -u -dict [get_db insts .base_cell.name  BUF*D2BWP*VT]]
+#set buff_refs  [lsort -u -dict [dbget top.insts.cell.name BUF*D1BWP*VT]]
+
+
+array set del_inst_count {}
+array set del_min_delay {}
+array set del_max_delay {}
+
+array set min_del_values {}
+array set max_del_values {}
+
+foreach cell [concat $buff_refs $del_refs $buffd2_refs] {
+    set min_del_values($cell) ""
+    set max_del_values($cell) ""
+
+}
+set remove_cell_list ""
+foreach cell [concat $buff_refs $del_refs $buffd2_refs] {
+    #set inst_list [dbget [dbget top.insts.cell.name $cell -e -p2].name]
+    set inst_list [get_db [get_db insts -if {.base_cell.name==$cell}] .name]
+    set inst_list [get_object_name [get_cells -quiet -of [get_pins -quiet -of [get_cells -quiet $inst_list]]]]
+    if {[llength $inst_list] > 0} {
+	set del_inst_count($cell) [llength $inst_list] 
+	set del_min_delay($cell) 0
+	set del_max_delay($cell) 0
+
+	foreach inst $inst_list {
+	    set minf [list [lindex [ga [get_pins -quiet ${inst}/* -filter "direction==in"] arrival_mean_min_fall] 0] [lindex [ga [get_pins -quiet ${inst}/* -filter "direction==out"] arrival_mean_min_fall] 0]]
+	    set minr [list [lindex [ga [get_pins -quiet ${inst}/* -filter "direction==in"] arrival_mean_min_rise] 0] [lindex [ga [get_pins -quiet ${inst}/* -filter "direction==out"] arrival_mean_min_rise] 0]]
+	    set maxf [list [lindex [ga [get_pins -quiet ${inst}/* -filter "direction==in"] arrival_mean_max_fall] 0] [lindex [ga [get_pins -quiet ${inst}/* -filter "direction==out"] arrival_mean_max_fall] 0]]
+	    set maxr [list [lindex [ga [get_pins -quiet ${inst}/* -filter "direction==in"] arrival_mean_max_rise] 0] [lindex [ga [get_pins -quiet ${inst}/* -filter "direction==out"] arrival_mean_max_rise] 0]]
+	    
+	    #	if {[lindex $minf 1] != "NA" && [lindex $minf 0] != "NA" && [lindex $maxf 1] != "NA" && [lindex $maxf 0] != "NA"}
+	    if {([lindex $minf 1] != "NA") && ([lindex $minf 0] != "NA") && ([lindex $maxf 1] != "NA") && ([lindex $maxf 0] != "NA")} {
+		set minf1 [expr [lindex $minf 1] - [lindex $minf 0]]
+		set minr1 [expr [lindex $minr 1] - [lindex $minr 0]]
+		set maxf1 [expr [lindex $maxf 1] - [lindex $maxf 0]]
+		set maxr1 [expr [lindex $maxr 1] - [lindex $maxr 0]]
+
+		if {$minr1 > $minf1} {set minD $minf1} else {set minD $minr1}
+		if {$maxr1 < $maxf1} {set maxD $maxf1} else {set maxD $maxr1}
+		
+		set del_min_delay($cell) [expr $del_min_delay($cell) + $minD]
+		set del_max_delay($cell) [expr $del_max_delay($cell) + $maxD]
+		
+		set min_del_values($cell) "$min_del_values($cell) $minD"
+		set max_del_values($cell) "$max_del_values($cell) $maxD"
+	    }
+	}
+
+	set del_min_delay($cell) [format %0.3f [expr $del_min_delay($cell) / $del_inst_count($cell)]]
+	set del_max_delay($cell) [format %0.3f [expr $del_max_delay($cell) / $del_inst_count($cell)]]
+    } else {
+	lappend remove_cell_list $cell
+    }
+}
+
+foreach cell [array names del_inst_count] {
+    #puts "$cell \t\t $del_max_delay($cell) \t\t $del_min_delay($cell)"
+    if {($del_max_delay($cell) == "0") || ($del_min_delay($cell) == "0")  } {lappend  remove_cell_list $cell}
+    if {[llength $max_del_values($cell)] < 2} {lappend  remove_cell_list $cell}
+}
+
+
+foreach cell [listAminusB [lsort -dict [array names max_del_values]] [lsort -u $remove_cell_list]] {
+    set SD_MAX [format %0.3f [::math::statistics::stdev $max_del_values($cell)]]
+    set AVG_MAX [format %0.3f [::math::statistics::mean $max_del_values($cell)]]
+
+    set SD_MIN [format %0.3f [::math::statistics::stdev $min_del_values($cell)]]
+    set AVG_MIN [format %0.3f [::math::statistics::mean $min_del_values($cell)]]
+
+    echo "$cell \t $AVG_MIN \t $SD_MIN \t $AVG_MAX \t $SD_MAX"
+
+}
+
+
+set mult 0.5
+foreach cell [listAminusB [lsort -dict [array names max_del_values]] [lsort -u $remove_cell_list]] {
+    set SD_MAX [format %0.3f [::math::statistics::stdev $max_del_values($cell)]]
+    set AVG_MAX [format %0.3f [::math::statistics::mean $max_del_values($cell)]]
+
+    set SD_MIN [format %0.3f [::math::statistics::stdev $min_del_values($cell)]]
+    set AVG_MIN [format %0.3f [::math::statistics::mean $min_del_values($cell)]]
+    
+    if {[regexp DELB $cell]} {set mult 1}
+    if {[regexp DELC $cell]} {set mult 1.5}
+    if {[regexp DELD $cell]} {set mult 1.5}
+    if {[regexp DELE $cell]} {set mult 2}
+    if {[regexp DELF $cell]} {set mult 2.5}
+    if {[regexp DELG $cell]} {set mult 3}
+    
+    set min_delay [format %0.3f [expr $AVG_MIN - [expr $mult * $SD_MIN]]]
+    set max_delay [format %0.3f [expr $AVG_MAX + [expr $mult * $SD_MAX]]]
+    echo "$cell \t\t $min_delay \t $max_delay"
+
+}
+
+
+if {0} {
+    ## Fast Corner:: DELAYCELL   maxDel  MinDel
+
+    DELAD1BWP300H8P64PDLVT   0.015  0.013
+    DELAD1BWP300H8P64PDSVT   0.020  0.017
+    DELAD1BWP300H8P64PDULVT  0.021  0.017
+
+    DELBD1BWP300H8P64PDLVT   0.032  0.027
+    DELBD1BWP300H8P64PDSVT   0.034  0.029
+    DELBD1BWP300H8P64PDULVT  0.027  0.023
+
+    DELCD1BWP300H8P64PDLVT   0.046  0.040
+    DELCD1BWP300H8P64PDSVT   0.053  0.045
+    DELCD1BWP300H8P64PDULVT  0.044  0.039
+
+    DELDD1BWP300H8P64PDLVT   0.069  0.062
+    DELDD1BWP300H8P64PDSVT   0.086  0.075
+    DELDD1BWP300H8P64PDULVT  0.059  0.053
+
+    DELED1BWP300H8P64PDLVT   0.092  0.082
+    DELED1BWP300H8P64PDSVT   0.104  0.091
+    DELED1BWP300H8P64PDULVT  0.075  0.068
+
+    DELFD1BWP300H8P64PDLVT   0.108  0.098
+    DELFD1BWP300H8P64PDSVT   0.131  0.115
+    DELFD1BWP300H8P64PDULVT  0.090  0.083
+
+    DELGD1BWP300H8P64PDLVT   0.126  0.113
+    DELGD1BWP300H8P64PDSVT   0.155  0.136
+    DELGD1BWP300H8P64PDULVT  0.106  0.097
+
+    ## slow Corner:: DELAYCELL   maxDel  MinDel
+
+    DELAD1BWP300H8P64PDLVT   0.031  0.023
+    DELAD1BWP300H8P64PDSVT   0.048  0.032
+    DELAD1BWP300H8P64PDULVT  0.037  0.027
+
+    DELBD1BWP300H8P64PDLVT   0.067  0.049
+    DELBD1BWP300H8P64PDSVT   0.088  0.058
+    DELBD1BWP300H8P64PDULVT  0.049  0.038
+
+    DELCD1BWP300H8P64PDLVT   0.098  0.074
+    DELCD1BWP300H8P64PDSVT   0.139  0.094
+    DELCD1BWP300H8P64PDULVT  0.083  0.065
+
+    DELDD1BWP300H8P64PDLVT   0.149  0.116
+    DELDD1BWP300H8P64PDSVT   0.223  0.155
+    DELDD1BWP300H8P64PDULVT  0.110  0.090
+
+    DELED1BWP300H8P64PDLVT   0.197  0.152
+    DELED1BWP300H8P64PDSVT   0.271  0.188
+    DELED1BWP300H8P64PDULVT  0.140  0.114
+
+    DELFD1BWP300H8P64PDLVT   0.230  0.182
+    DELFD1BWP300H8P64PDSVT   0.340  0.239
+    DELFD1BWP300H8P64PDULVT  0.169  0.139
+
+    DELGD1BWP300H8P64PDLVT   0.269  0.212
+    DELGD1BWP300H8P64PDSVT   0.405  0.282
+    DELGD1BWP300H8P64PDULVT  0.202  0.167
+
+
+    #############
+
+    ### fast Del
+    # cell minDel SD maxDel SD
+    BUFFD1BWP300H8P64PDLVT      0.024  0.009  0.034  0.013
+    BUFFD1BWP300H8P64PDSVT      0.019  0.008  0.028  0.013
+    BUFFD1BWP300H8P64PDULVT     0.024  0.008  0.031  0.010
+    BUFFSKND1BWP300H8P64PDLVT   0.024  0.007  0.035  0.012
+    BUFFSKND1BWP300H8P64PDSVT   0.026  0.012  0.041  0.022
+    BUFFSKND1BWP300H8P64PDULVT  0.015  0.006  0.021  0.010
+    BUFFSKPD1BWP300H8P64PDLVT   0.021  0.007  0.030  0.011
+    BUFFSKPD1BWP300H8P64PDSVT   0.020  0.005  0.030  0.009
+    BUFFSKPD1BWP300H8P64PDULVT  0.014  0.005  0.019  0.008
+    DELAD1BWP300H8P64PDLVT      0.024  0.003  0.031  0.005
+    DELAD1BWP300H8P64PDSVT      0.033  0.006  0.049  0.010
+    DELAD1BWP300H8P64PDULVT     0.026  0.009  0.036  0.015
+    DELBD1BWP300H8P64PDLVT      0.048  0.008  0.065  0.010
+    DELBD1BWP300H8P64PDSVT      0.060  0.006  0.090  0.008
+    DELBD1BWP300H8P64PDULVT     0.037  0.006  0.048  0.008
+    DELCD1BWP300H8P64PDLVT      0.072  0.006  0.095  0.008
+    DELCD1BWP300H8P64PDSVT      0.095  0.006  0.141  0.009
+    DELCD1BWP300H8P64PDULVT     0.065  0.010  0.083  0.014
+    DELDD1BWP300H8P64PDLVT      0.115  0.006  0.148  0.008
+    DELDD1BWP300H8P64PDSVT      0.155  0.010  0.224  0.013
+    DELDD1BWP300H8P64PDULVT     0.089  0.005  0.110  0.007
+    DELED1BWP300H8P64PDLVT      0.151  0.010  0.195  0.014
+    DELED1BWP300H8P64PDSVT      0.190  0.007  0.275  0.010
+    DELED1BWP300H8P64PDULVT     0.120  0.008  0.148  0.010
+    DELFD1BWP300H8P64PDLVT      0.183  0.007  0.232  0.009
+    DELFD1BWP300H8P64PDSVT      0.246  0.008  0.350  0.013
+    DELFD1BWP300H8P64PDULVT     0.140  0.004  0.170  0.006
+    DELGD1BWP300H8P64PDLVT      0.212  0.007  0.269  0.009
+    DELGD1BWP300H8P64PDSVT      0.284  0.007  0.408  0.010
+    DELGD1BWP300H8P64PDULVT     0.171  0.005  0.208  0.006
+
+    ## slow Del
+    # cell minDel SD maxDel SD
+    BUFFD1BWP300H8P64PDLVT      0.024  0.009  0.034  0.013
+    BUFFD1BWP300H8P64PDSVT      0.019  0.008  0.028  0.013
+    BUFFD1BWP300H8P64PDULVT     0.024  0.008  0.031  0.010
+    BUFFSKND1BWP300H8P64PDLVT   0.024  0.007  0.035  0.012
+    BUFFSKND1BWP300H8P64PDSVT   0.026  0.012  0.041  0.022
+    BUFFSKND1BWP300H8P64PDULVT  0.015  0.006  0.021  0.010
+    BUFFSKPD1BWP300H8P64PDLVT   0.021  0.007  0.030  0.011
+    BUFFSKPD1BWP300H8P64PDSVT   0.020  0.005  0.030  0.009
+    BUFFSKPD1BWP300H8P64PDULVT  0.014  0.005  0.019  0.008
+    DELAD1BWP300H8P64PDLVT      0.024  0.003  0.031  0.005
+    DELAD1BWP300H8P64PDSVT      0.033  0.006  0.049  0.010
+    DELAD1BWP300H8P64PDULVT     0.026  0.009  0.036  0.015
+    DELBD1BWP300H8P64PDLVT      0.048  0.008  0.065  0.010
+    DELBD1BWP300H8P64PDSVT      0.060  0.006  0.090  0.008
+    DELBD1BWP300H8P64PDULVT     0.037  0.006  0.048  0.008
+    DELCD1BWP300H8P64PDLVT      0.072  0.006  0.095  0.008
+    DELCD1BWP300H8P64PDSVT      0.095  0.006  0.141  0.009
+    DELCD1BWP300H8P64PDULVT     0.065  0.010  0.083  0.014
+    DELDD1BWP300H8P64PDLVT      0.115  0.006  0.148  0.008
+    DELDD1BWP300H8P64PDSVT      0.155  0.010  0.224  0.013
+    DELDD1BWP300H8P64PDULVT     0.089  0.005  0.110  0.007
+    DELED1BWP300H8P64PDLVT      0.151  0.010  0.195  0.014
+    DELED1BWP300H8P64PDSVT      0.190  0.007  0.275  0.010
+    DELED1BWP300H8P64PDULVT     0.120  0.008  0.148  0.010
+    DELFD1BWP300H8P64PDLVT      0.183  0.007  0.232  0.009
+    DELFD1BWP300H8P64PDSVT      0.246  0.008  0.350  0.013
+    DELFD1BWP300H8P64PDULVT     0.140  0.004  0.170  0.006
+    DELGD1BWP300H8P64PDLVT      0.212  0.007  0.269  0.009
+    DELGD1BWP300H8P64PDSVT      0.284  0.007  0.408  0.010
+    DELGD1BWP300H8P64PDULVT     0.171  0.005  0.208  0.006
+
+    ###### Full info
+    ##cell  Fast-Min Fast-Max Slow-Min Sloa-Max
+
+    BUFFSKND1BWP300H8P64PDULVT  0.007  0.015  0.012  0.026
+    BUFFSKPD1BWP300H8P64PDULVT  0.007  0.012  0.011  0.023
+    BUFFD1BWP300H8P64PDSVT      0.008  0.014  0.015  0.035
+    BUFFSKND1BWP300H8P64PDSVT   0.009  0.020  0.020  0.052
+    BUFFSKPD1BWP300H8P64PDSVT   0.009  0.013  0.018  0.034
+    BUFFSKPD1BWP300H8P64PDLVT   0.010  0.017  0.018  0.035
+    BUFFSKND1BWP300H8P64PDLVT   0.011  0.019  0.021  0.041
+    BUFFD1BWP300H8P64PDLVT      0.012  0.018  0.019  0.041
+    BUFFD1BWP300H8P64PDULVT     0.012  0.019  0.020  0.036
+    DELAD1BWP300H8P64PDLVT      0.012  0.018  0.022  0.034
+    DELAD1BWP300H8P64PDULVT     0.013  0.024  0.021  0.043
+    DELAD1BWP300H8P64PDSVT      0.016  0.023  0.030  0.054
+    DELBD1BWP300H8P64PDULVT     0.020  0.030  0.031  0.056
+    DELBD1BWP300H8P64PDLVT      0.022  0.036  0.040  0.075
+    DELBD1BWP300H8P64PDSVT      0.026  0.038  0.054  0.098
+    DELCD1BWP300H8P64PDULVT     0.028  0.056  0.050  0.104
+    DELCD1BWP300H8P64PDLVT      0.035  0.051  0.063  0.107
+    DELCD1BWP300H8P64PDSVT      0.042  0.058  0.086  0.154
+    DELDD1BWP300H8P64PDULVT     0.049  0.065  0.081  0.120
+    DELDD1BWP300H8P64PDLVT      0.058  0.075  0.106  0.160
+    DELED1BWP300H8P64PDULVT     0.061  0.091  0.104  0.168
+    DELDD1BWP300H8P64PDSVT      0.068  0.093  0.140  0.243
+    DELED1BWP300H8P64PDLVT      0.070  0.105  0.131  0.223
+    DELFD1BWP300H8P64PDULVT     0.077  0.099  0.130  0.185
+    DELED1BWP300H8P64PDSVT      0.086  0.113  0.176  0.295
+    DELFD1BWP300H8P64PDLVT      0.089  0.121  0.165  0.255
+    DELGD1BWP300H8P64PDULVT     0.094  0.124  0.156  0.226
+    DELGD1BWP300H8P64PDLVT      0.102  0.138  0.191  0.296
+    DELFD1BWP300H8P64PDSVT      0.108  0.148  0.226  0.382
+    DELGD1BWP300H8P64PDSVT      0.128  0.168  0.263  0.438
+
+}
+
+if {0} {
+    foreach {vio elem} $vio_list {
+	if {$vio >= -0.03} {set cell DELAD1BWP300H8P64PDLVT}
+	if {$vio < -0.03 && $vio >= -0.07} {set cell DELBD1BWP300H8P64PDLVT}
+	if {$vio < -0.07 && $vio >= -0.100} {set cell DELCD1BWP300H8P64PDLVT}
+	if {$vio < -0.1 && $vio >= -0.150} {set cell DELDD1BWP300H8P64PDLVT}
+	if {$vio < -0.15 && $vio >= -0.200} {set cell DELED1BWP300H8P64PDLVT}
+	if {$vio < -0.200 && $vio >= -0.235} {set cell DELFD1BWP300H8P64PDLVT}
+	if {$vio < -0.235 && $vio >= -0.270} {set cell DELGD1BWP300H8P64PDLVT}
+	if {$vio < -0.270 && $vio >= -0.340} {set cell DELFD1BWP300H8P64PDSVT}
+	if {$vio < -0.340 && $vio >= -0.400} {set cell DELGD1BWP300H8P64PDSVT}
+    }
+    add_repeater -term $elem -cell $cell -relativeDistToSink 0.1 -name u_holdfix_botintf_0917_${i} -new_net_name n_holdfix_botintf_0917_${i}
+}
