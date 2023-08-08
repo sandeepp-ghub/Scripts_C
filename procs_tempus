@@ -1,0 +1,1481 @@
+# vim: syntax=tcl :
+#
+#   central ts_aliases file
+#
+#   These procs were originally under /user/psebata/ts_aliases
+#   Now moved to   /proj/txfour00/timing/REV_1.0/procedures/ts_aliases
+#   Only procs within ::txfour are listed here.  
+#   Shortcut aliases should be defined under /user/$USER/ts_aliases.$USER to avoid conflicts with real commands
+#
+#   05/05/20 psebata
+#
+
+namespace eval ::paul {
+
+# this might be needed here
+alias gp       get_property
+
+#### Just a wrapper around sourcing the Rapid timing restore commandfile 
+#### If you forget which database you have, just type "whichrestore" to print out $restore_info
+proc source_timing_restore \
+            {file_name} \
+            {
+             global env
+
+             set ::restore_info "\nRestored database:\n[exec ls -l $file_name ]\nRestore initiated on: [exec date]\n" 
+             puts "-I- Will restore this file:"
+             puts "    $file_name\n"
+             sleep 3
+             source $file_name
+             append ::restore_info "Restore completed on: [exec date]\n\n" 
+             puts "-I- Type 'whichrestore' anytime to display sourcefile name and your session restore timestamp\n"
+            }
+define_proc_arguments source_timing_restore -info "Source a standard Rapid save_session command file, and save some file/date info" 
+
+####
+####
+proc fc_restore_tmp \
+            {args} \
+            {
+            parse_proc_arguments -args $args results
+            puts "     $results(-d) $results(-s)"
+            puts "-E- this proc no working, not finished"
+            if {[info exists $results(-d)]} {set dir $results(-d)}
+            set dir $results(-d)
+            if {[info exists $results(-s)]} {set sce $results(-s)}
+            set sce $results(-s)
+            set save_session_dirs {/projects/cps_sta4_scratch/vulcan/FC_STA/ }
+            for {set i 0} {$i< [llength $save_session_dirs]} {incr i} { 
+               if {[file exists [lindex $save_session_dirs $i]/${dir}/vulcangold.vulcan_*.pdVulcanI.${sce}.*]} {
+                  puts "Found save-session: [lindex $save_session_dirs $i]/${dir}/vulcangold.vulcan_blah${sce} "
+               }
+            }
+            
+
+            }            
+define_proc_arguments fc_restore_tmp -info "Look for a FC STA session and restore it" \
+          -define_args  {
+             {-d        "root directory of FC rollup, e.g. 05_11_2015.test" rootdir string required}
+             {-s        "scenario_name [required]" scenario_name string required}
+          }
+
+
+#### get_arrival_window:  Fairly brain-dead formatted printout of arrival window, given a cell pin name.
+####                      Changed to include a get_pins on the argument, so that wildcards now work.
+####                      Also print out the pin name.  Also print out "{}" if no arrival window.
+####                      Added convoluted code to check whether argument is ports, or pins. (Only one or the other.)
+proc get_arrival_window \
+           {pin_arg} \
+           {
+            set portcount [sizeof_collection [get_ports $pin_arg -quiet]]
+            set pincount  [sizeof_collection [get_pins  $pin_arg -quiet]]
+            if {$portcount > 0} {set portorpin port; set col [get_ports $pin_arg]}  \
+                           else {set portorpin pin;  set col [get_pins  $pin_arg]}
+            foreach_in_collection pin [sort_collection $col full_name] {
+              #set list [lsort [lindex [get_property $pin arrival_window] 0] ]
+              set list [get_property $pin arrival_window]
+              echo "Pin_name:" [get_property $pin full_name]
+              for {set x 0} {$x< [llength $list]} {incr x 2} {
+               echo "    " [lindex $list $x] " " [list [lindex $list $x+1]]
+              }
+              if {$x == 0} { echo "    {}" }
+            }
+           }
+
+# given a cell name, print all the associated timing arcs
+# Pretty much copied from the PT manpage for "get_timing_arcs"
+# args can be "-of_objects <cellname>" or "-from <pinname>" or "-to <pinname>" , by default we print out full_name of pins of arc
+# Default changed to "-full", added optional "-pin_only" to print out only the template pin name to reduce clutter in output.
+proc show_arcs \
+             {args}  \
+             {
+              parse_proc_arguments -args $args results
+              #set full [info exists results(-full)]  #default, not needed anymore
+              set pin_only [expr [info exists results(-pin_only)] || [info exists results(-pin)] ]
+              # next, strip out the arguments which we don't want to send directly to the get_timing_arcs PT command...
+              set args [string map {-full ""  -pin_only "" -pin "" -min ""} $args]
+              set arg2 [lindex $args 1]
+              if {[string match "*-of_ob*" $args] } {
+                set ref_name [get_property -quiet [get_cell $arg2] ref_name] 
+                set args [lreplace $args 1 1 [get_cells $arg2]]
+              } elseif {[string match "*-from *" $args] || [string match "*-to *" $args]} {
+                set ref_name [get_property -quiet [get_cell -of_objects $arg2] ref_name] 
+              }
+              echo "# argument:  " $args
+              if {[info exists results(-min)]} {
+                echo [format "%-20s %9s %9s %9s %9s  %-22s  %10s --> %-10s   %-20s" "# ref_cell" "max_rise" "max_fall" "min_rise" "min_fall" "sense" "from_pin" "to_pin" "when"]
+              } else {
+                echo [format "%-20s %9s %9s  %-22s  %10s --> %-10s   %-20s" "# ref_cell" "max_rise" "max_fall" "sense" "from_pin" "to_pin" "when"]
+              }
+              echo "#---------------------------------------------------------------------------------------------------------------------"
+              #set arcs [eval [concat get_timing_arcs $args]]
+              set arcs [eval [concat get_arcs $args]]
+              foreach_in_collection arc $arcs {
+                set is_cellarc    [get_property -quiet $arc  is_cellarc]
+                set sense         [get_property -quiet $arc  sense]
+                set when          [get_property -quiet $arc  when]
+                set rise          [get_property -quiet $arc  delay_max_rise]
+                set minrise       [get_property -quiet $arc  delay_min_rise]
+                set fall          [get_property -quiet $arc  delay_max_fall]
+                set minfall       [get_property -quiet $arc  delay_min_fall]
+                set fpin          [get_property -quiet $arc  from_pin]
+                set tpin          [get_property -quiet $arc  to_pin]
+                set from_lib_pin  [get_property -quiet $fpin lib_pin_name]
+                set to_lib_pin    [get_property -quiet $tpin lib_pin_name]
+                set from_pin_name [get_property -quiet $fpin full_name]
+                set to_pin_name   [get_property -quiet $tpin full_name]
+                if {$pin_only} {
+                  set from_pin_name $from_lib_pin
+                  set to_pin_name $to_lib_pin
+                }
+                #echo [format "%-20s %9s %9s %9s %9s %-22s  %10s --> %-10s  %-20s" $ref_name $rise $fall $minrise $minfall $sense $from_lib_pin $to_lib_pin $when ]
+                if {[info exists results(-min)]} {
+                  echo [format "%-20s %9s %9s %9s %9s  %-22s  %10s --> %-10s  %-20s" $ref_name $rise $fall $minrise $minfall $sense $from_pin_name $to_pin_name $when]
+                } else {
+                  echo [format "%-20s %9s %9s  %-22s  %10s --> %-10s  %-20s" $ref_name $rise $fall $sense $from_pin_name $to_pin_name $when]
+                }
+              }
+             }
+define_proc_arguments show_arcs -info "Print timing arcs of an object, or to/from a specfic pin"  \
+          -define_args  {
+             {-to       "Specify full_name of pin to show arcs _to_" pin_name string optional}
+             {-from     "Specify full_name of pin to show arcs _from_" pin_name string optional}
+             {-of_objects "Specify full_name of object to show arcs of"  cell_name string optional}
+             {-full     "Prints the full_name of the pin - default" "" boolean optional}
+             {-min      "Prints both max and min arc delays" "" boolean optional}
+             {-pin_only "Prints only the template pin name (easier on the eyes, but less info) - optional" "" boolean optional}
+             {-pin      "Prints only the template pin name (easier on the eyes, but less info) - optional" "" boolean optional}
+          }
+
+
+
+#{{{1 sortprint: Another silly alias.  Just prints out full_name of a collection, sorted and one line at a time.
+####            Updated functionality: Optionally specify attribute names to be printed along with the full_name
+####                                   You can specify any number of attributes, each preceded with a "-"
+####                                   Special options -slacks, -minslacks, -slopes expand to rise&fall attributes
+####            Example: sortprint all_fanout -from blah/o -flat
+####            Example: sortprint -direction -max_rise_slack all_fanout -from blah/o -flat
+####
+proc sortprint \
+           {args} \
+           {
+            set dasharglist {}
+            set nosort 0
+            set maxlen 0
+            set ofile stdout
+            while {[string match -* [lindex $args 0]]} {
+              if       { [string equal [lindex $args 0] -help]} {
+                 echo "Usage:\n sortprint           # Sort and print object full_names in a collection. Optionally specify additional attributes."
+                 echo "                     # Don't put \[...\] around the tempus command, eg  sortprint get_pins mux/\*"
+                 echo "   \[-(any_attribute)] print whatever attribute you specify (appropriate to the object_class in your collection)"
+                 echo "   \[-slopes]          a shortcut to print max rise and fall slopes (for pins/ports only)"
+                 echo "   \[-slacks]          a shortcut to print max rise and fall slacks (for pins/ports only)"
+                 echo "   \[-clocks]          a shortcut to print the collection of clocks on the pin (for pins/ports only)"
+                 echo "   \[-minslopes]       a shortcut to print min rise and fall slopes (for pins/ports only)"
+                 echo "   \[-minslacks]       a shortcut to print min rise and fall slacks (for pins/ports only)"
+                 echo "   \[-allslacks]       a shortcut to print max/min rise/fall slacks (for pins/ports only)"
+                 echo "   \[-coll.<blahblah>] if attribute is a collection, use this to display \[get_object_name <blahblah>\]"
+                 echo "   \[-net.<blahblah>]  try to find an arbitrary <blahblah> property on the net of a given pin (e.g. -net.capacitance_max) \[get_nets -of_obj\]"
+                 echo "   \[-cell.<blahblah>] try to find an arbitrary <blahblah> property on the cell of a given pin (e.g. -cell.ref_name) \[get_cells -of_obj\]"
+                 echo "   \[-pins.<blahblah>] try to find an arbitrary <blahblah> property on the pins of a given cell/net (e.g. -pins.full_name) \[get_pins -of_obj\]"
+                 echo "   \[-leafpins.<blahblah>] try to find an arbitrary <blahblah> property on the leaf pins of a given cell/net (e.g. -leafpins.full_name) \[get_pins -leaf -of_obj\]"
+                 echo "   \[-drv.<blahblah>]  try to find an arbitrary <blahblah> property on the driving cell pin (e.g. -drv.constant_value) "
+                 echo "   \[-opin.<blahblah>] try to find an arbitrary <blahblah> property on the output pin (e.g. -opin.constant_value) \[get_pins -filter {direction == out} -of_obj\]"
+                 echo "   \[-drv.paw]         try to find the arrival_window of the driving cell pin (for hier pins only)  \[all_connected \[get_nets -of_obj \[get_pins]]]"
+                 echo "   \[-drv.clocks]      try to find any clock-attribute of the driving cell pin (for hier pins only)  \[all_connected \[get_nets -of_obj \[get_pins]]]"
+                 echo "   \[-nosort]          don't sort the collection before printing it out"
+                 echo "   command            the original PT command that creates a collection (don't surround with sq brackets)"
+                 return
+              } elseif { [string match -slacks [lindex $args 0]    ]} { lappend dasharglist max_rise_slack max_fall_slack
+              } elseif { [string match -minslacks [lindex $args 0] ]} { lappend dasharglist min_rise_slack min_fall_slack
+              } elseif { [string match -allslacks [lindex $args 0] ]} { lappend dasharglist max_rise_slack max_fall_slack min_rise_slack min_fall_slack
+              } elseif { [string match -slopes [lindex $args 0]    ]} { lappend dasharglist actual_rise_transition_max actual_fall_transition_max
+              } elseif { [string match -minslopes [lindex $args 0] ]} { lappend dasharglist actual_rise_transition_min actual_fall_transition_min
+              } elseif { [string match -nosort [lindex $args 0]    ]} { set nosort 1
+              } else   { lappend dasharglist [string trimleft [lindex $args 0] - ] }
+              set args [lrange $args 1 end]
+            }
+
+            if {$nosort == 1} {set items [eval $args]} else {set items [sort_collection [eval $args] full_name] }
+
+            foreach_in_collection item $items {
+              set len [string length [get_property $item full_name]]
+              if { $len > $maxlen } { set maxlen $len }
+            }
+
+            if {[llength $dasharglist]} {
+                                         puts "#----------[string repeat "-" $maxlen][string repeat "-" [string length $dasharglist]]";
+                                         puts "# full_name[string repeat " " $maxlen]$dasharglist" ;
+                                         puts "#----------[string repeat "-" $maxlen][string repeat "-" [string length $dasharglist]]";
+                                        }
+            foreach_in_collection item $items {
+              set data ""
+              for {set x 0} {$x< [llength $dasharglist]} {incr x} {
+                if {[lindex $dasharglist $x] == "clocks"} {
+                  # special handling for "clocks" option: list collection of clocks
+                  set coll [get_property -quiet $item [lindex $dasharglist $x]]
+                  append data "  {"
+                  foreach_in_collection y $coll {
+                    append data " " [get_property $y full_name]
+                  }
+                  append data " }"
+                } elseif {[lindex $dasharglist $x] == "drv.clocks" } {
+                  # special handling for "driver pin clocks" option: since hier pins don't have clock attribute available
+                  set net [get_nets -quiet -of_objects [get_pins $item]]
+                  if {[sizeof_collection $net] > 0} {
+                    set drvpin [filter_collection [all_connected -leaf $net] "(object_class == pin && direction == out) || (object_class == port && direction == in)"]
+                  } else {
+                    set drvpin ""
+                  }
+                  if { [sizeof_collection $drvpin] == 0 } {
+                    append data "   no_driving_cell_pin_found"
+                  } else {
+                    set coll [get_property -quiet $drvpin clocks]
+                    append data "  {"
+                    foreach_in_collection y $coll {
+                      append data " " [get_property $y full_name]
+                    }
+                    append data " }"
+                  }
+                } elseif {[string match drv.* [lindex $dasharglist $x] ]} {
+                  set net [get_nets -quiet -of_objects [get_pins $item]]
+                  if {[sizeof_collection $net] > 0} {
+                    set drvpin [filter_collection [all_connected -leaf $net] "(object_class == pin && direction == out) || (object_class == port && direction == in)"]
+                  } else {
+                    set drvpin ""
+                  }
+                  set propertyname [string range [lindex $dasharglist $x] 4 end]
+                  if { $propertyname == "paw" } { set propertyname "arrival_window" }
+                  if { [sizeof_collection $drvpin] == 0 } {
+                    append data "   no_driving_cell_pin_found"
+                  } else {
+                    append data "  " [get_property $drvpin $propertyname]
+                  }
+                } elseif {[string match net.* [lindex $dasharglist $x] ]} {
+                  set net [get_nets -quiet -of_objects $item]
+                  set propertyname [string range [lindex $dasharglist $x] 4 end]
+                  if { [sizeof_collection $net] == 0 } {
+                    append data "   no_associated_net_found"
+                  } else {
+                    append data "  " [get_property $net $propertyname]
+                  }
+                } elseif {[string match cell.* [lindex $dasharglist $x] ]} {
+                  set cell [get_cells -quiet -of_objects $item]
+                  set propertyname [string range [lindex $dasharglist $x] 5 end]
+                  if { [sizeof_collection $cell] == 0 } {
+                    append data "   no_get_cell_of_object_found"
+                  } else {
+                    append data "  " [get_property $cell $propertyname]
+                  }
+                } elseif {[string match pins.* [lindex $dasharglist $x] ]} {
+                  set pincoll [get_pins -quiet -of_objects $item]
+                  set propertyname [string range [lindex $dasharglist $x] 5 end]
+                  if { [sizeof_collection $pincoll] == 0 } {
+                    append data "   no_get_pins_of_object_found"
+                  } elseif { [sizeof_collection $pincoll] > 1 } {
+                    append data "  {" [get_property $pincoll $propertyname] "}"
+                  } else {
+                    append data "  " [get_property $pincoll $propertyname]
+                  }
+                } elseif {[string match leafpins.* [lindex $dasharglist $x] ]} {
+                  set pincoll [get_pins -leaf -quiet -of_objects $item]
+                  set propertyname [string range [lindex $dasharglist $x] 9 end]
+                  if { [sizeof_collection $pincoll] == 0 } {
+                    append data "   no_get_pins_of_object_found"
+                  } elseif { [sizeof_collection $pincoll] > 1 } {
+                    append data "  {" [get_property $pincoll $propertyname] "}"
+                  } else {
+                    append data "  " [get_property $pincoll $propertyname]
+                  }
+                } elseif {[string match coll.* [lindex $dasharglist $x] ]} {
+                  set propertyname [string range [lindex $dasharglist $x] 5 end]
+                  set collection [get_property $item $propertyname]
+                  if { [sizeof_collection $collection] == 0 } {
+                    append data "   null_collection_found"
+                  } else {
+                    append data "  " [get_object_name [get_property $item $propertyname]]
+                  }
+                } elseif {[string match opin.* [lindex $dasharglist $x] ]} {
+                  if {[get_property $item object_class] == "cell"} {
+                    set pins [get_pins -quiet -of_objects [get_cells -quiet             $item] -filter "direction == out"]
+                  } else {
+                    set pins [get_pins -quiet -of_objects [get_cells -quiet -of_objects $item] -filter "direction == out"]
+                  }
+                  set propertyname [string range [lindex $dasharglist $x] 5 end]
+                  if { [sizeof_collection $pins] == 0 } {
+                    append data "   null_collection_found"
+                  } else {
+                    append data "  " [get_property $pins $propertyname]
+                  }
+                } else {
+                  append data "  " [format "%-3s" [get_property $item [lindex $dasharglist $x]]]
+                }
+              }
+              #echo [format "%-50s   %s" [get_property $item full_name]  $data]
+              if {[llength $dasharglist]} {
+                puts [format "%-${maxlen}s         %s" [get_property $item full_name]  $data]
+              } else {
+                puts [get_property $item full_name]
+              }
+            }
+           }
+#}}}1
+
+
+
+#### Do a report_timing summary of paths that go through $pin_name from each start_point that fans into $pin_name
+proc startpaths \
+            {args} \
+            {parse_proc_arguments -args $args results
+             if { [info exists results(-exclude)] == 0 } {set exclstr {} } else {set exclstr [concat "-exclude" $results(-exclude)] }
+             if { [info exists results(-through)] == 0 } {set thrustr {} } else {set thrustr [concat "-through" $results(-through)] }
+             if { [info exists results(-min)] == 1 } {set maxormin "min"} else {set maxormin "max"}
+             set edge ""
+             if { [info exists results(-rise)] == 1 } {set edge "rise_"}
+             if { [info exists results(-fall)] == 1 } {set edge "fall_"}
+             set args [string map {-min "" -rise "" -fall ""} $args]
+             set pin_name $results(-to)
+
+             set limit 100
+             set startpinlist [all_fanin -flat -startpoints_only -to [get_pins $pin_name]]
+             if {[sizeof_collection $startpinlist] > $limit} { 
+               puts "#  -I- Note: [sizeof_collection $startpinlist] possible startpoints found by 'all_fanin -startpoints_only -to <pin>'. Do nothing unless using '-all' option to force output."
+               if { [info exists results(-all)] == 0 } {return}
+             }
+
+             foreach_in_collection startpin $startpinlist {
+               #append_to_collection pathlist [get_timing_paths -delay_type $maxormin -nworst 1 -max_paths 1 -from $startpin -through $pin_name]
+               append_to_collection pathlist [eval get_timing_paths -delay_type $maxormin -nworst 1 -max_paths 1 -from $startpin $thrustr -${edge}through {$pin_name} $exclstr]
+             }
+             echo "# startcell    path_${maxormin}_margin   startpoint_pin_name   (path-specific clock is in parenthesis)"
+             echo "#-----------------------------------------------------------------------------------------------------------"
+             set sortedpathlist [sort_collection $pathlist slack]
+             foreach_in_collection path $sortedpathlist {
+               set slack [get_property $path slack]
+               set startpoint [get_property $path startpoint]
+               set startclockname [get_property [get_property $path startpoint_clock] full_name]
+               if {[get_property $startpoint object_class] == "port"} {
+                 set startobj port; set startpointcell "top-level-port"
+                } else {
+                 set startobj pin;  set startpointcell [get_property [get_cells -of_object $startpoint] ref_name]
+                }
+               set endpoint [get_property $path endpoint]
+               # get clock references of startpoints
+               set clocklist {}
+               foreach_in_collection clk [get_property -quiet $startpoint clocks] { lappend clocklist [get_property $clk full_name] }
+               if {[llength $clocklist] == 0} {
+                  set clocklist "(none)"
+               } else {
+                  set clocklist [lsort -unique $clocklist]
+                  set clocklist [lreplace $clocklist [lsearch $clocklist $startclockname] [lsearch $clocklist $startclockname] ($startclockname) ]
+               }
+
+               echo [format "%-18s %8s  %-20s     clocklist=  %-20s" $startpointcell $slack [get_property $startpoint full_name] $clocklist]
+             }
+
+            }
+define_proc_arguments startpaths -info "Find startpoints using 'all_fanin -startpoints_only -flat', then do a report_timing on each." \
+          -define_args  {
+             {-to      "pin_name [required]" pin_name string required}
+             {-min     "print min margin instead of max margin [optional]" "" boolean optional}
+             {-clocks  "also print clock domain of startpoint [default][optional]" "" boolean optional}
+             {-through "Use additional -through [optional]" "pin" string optional}
+             {-exclude "Exclude pins [optional]" "pin" string optional}
+             {-rise    "report only data_rise margins [optional]" "" boolean optional}
+             {-fall    "report only data_fall margins [optional]" "" boolean optional}
+             {-all     "print all paths (may be long runtime if lots of startpoints [optional]" "" boolean optional}
+          }
+
+
+#### Do a report_timing summary of paths that go through $pin_name from each start_point that fans into $pin_name
+#### Updated 12/09 so that the clocklist is the arrival_window clock of the pin specifically referencing (setup/hold) the data endpoint pin.
+####
+proc endpaths \
+            {args} \
+            {parse_proc_arguments -args $args results
+             if { [info exists results(-exclude)] == 0 } {set exclstr {} } else {set exclstr [concat "-exclude" $results(-exclude)] }
+             if { [info exists results(-through)] == 0 } {set thrustr {} } else {set thrustr [concat "-through" $results(-through)] }
+             if { [info exists results(-min)] == 1 } {set maxormin "min"} else {set maxormin "max"}
+             set edge ""
+             if { [info exists results(-rise)] == 1 } {set edge "rise_"}
+             if { [info exists results(-fall)] == 1 } {set edge "fall_"}
+             set args [string map {-min "" -rise "" -fall ""} $args]
+             set pin_name $results(-from)
+             if { [get_property [get_pins $pin_name] is_clock_pin] == true } { set is_clock_pin 1 } else { set is_clock_pin 0 }
+
+             set limit 100
+             set endpinlist [all_fanout -flat -endpoints_only -from $pin_name]
+             if {[sizeof_collection $endpinlist] > $limit} { 
+               puts "#  -I- Note: [sizeof_collection $endpinlist] possible endpoints found by 'all_fanout -endpoints_only -from <pin>'. Do nothing unless using '-all' option to force output."
+               if { [info exists results(-all)] == 0 } {return}
+             }
+
+             foreach_in_collection endpin $endpinlist {
+               if { $is_clock_pin == 1 } {
+                 append_to_collection pathlist [eval get_timing_paths -delay_type $maxormin -nworst 1 -max_paths 1 -from    {$pin_name} $thrustr -to $endpin $exclstr]
+               } else {
+                 append_to_collection pathlist [eval get_timing_paths -delay_type $maxormin -nworst 1 -max_paths 1 -${edge}through {$pin_name} $thrustr -to $endpin $exclstr]
+               }
+             }
+             echo "# endcell     path_${maxormin}_margin   endpoint_pin_name"
+             echo "#--------------------------------------------------------------------------------------------"
+             set sortedpathlist [sort_collection $pathlist slack]
+             foreach_in_collection path $sortedpathlist {
+               set slack [get_property $path slack]
+               set startpoint [get_property $path startpoint]
+               set endpoint [get_property $path endpoint]
+               set endclockname [get_property [get_property $path endpoint_clock] full_name]
+               if {[get_property $endpoint object_class] == "port"} {
+                 set endobj port
+                 set endpointcell "top-level-port"
+                 set clocklist "(port)"
+               } else {
+                 set endobj pin
+                 set endpointcell [get_property [get_cells -of_object $endpoint] ref_name]
+                 # get arrival_window clock references of endpoints
+                 #set arcs [get_timing_arcs -to $endpoint]
+                 #set clkpinlist {}
+                 #foreach_in_collection arc $arcs {
+                 #  set sense [get_property -quiet $arc sense]
+                 #  if {[regexp "(setup|hold|recovery|removal)_.*" $sense]} {
+                 #    append_to_collection clkpinlist [get_property -quiet $arc from_pin] -unique
+                 #  }
+                 #}
+                 set clocklist {}
+                 foreach_in_collection arc [get_timing_arcs -to $endpoint -filter "is_cellarc == true"] {
+                    foreach_in_collection clk [get_property -quiet [get_pins -quiet [get_property $arc from_pin] -filter "is_clock_pin == true"] clocks] {
+                       lappend clocklist [get_property $clk full_name]
+                    }
+                 }
+               }
+               if {[llength $clocklist] == 0} {
+                  set clocklist "(none)"
+               } else {
+                  set clocklist [lsort -unique $clocklist]
+                  set clocklist [lreplace $clocklist [lsearch $clocklist $endclockname] [lsearch $clocklist $endclockname] ($endclockname) ]
+               }
+
+               echo [format "%-18s %8s  %-20s   clocklist= %-20s" $endpointcell $slack [get_property $endpoint full_name] $clocklist]
+             }
+
+            }
+define_proc_arguments endpaths -info "Find endpoints using 'all_fanout -endpoints_only -flat', then do a report_timing on each." \
+          -define_args  {
+             {-from    "pin_name [required]" pin_name string required}
+             {-min     "print min margin instead of max margin [optional]" "" boolean optional}
+             {-clocks  "also print clock domain of endpoint [default][optional]" "" boolean optional}
+             {-through "Use additional -through [optional]" "pin" string optional}
+             {-exclude "Exclude pins [optional]" "pin" string optional}
+             {-rise    "report only data_rise margins [optional]" "" boolean optional}
+             {-fall    "report only data_fall margins [optional]" "" boolean optional}
+             {-all     "print all paths (may be long runtime if lots of endpoints [optional]" "" boolean optional}
+          }
+
+
+
+
+#### Just a fancy all_fanin
+proc starts \
+            {args} \
+            {parse_proc_arguments -args $args results
+             if { [info exists results(-min)] == 1 } {set maxormin "min"} else {set maxormin "max"}
+             if { [info exists results(-all)] == 1 } {set printall 1} else {set printall 0}
+             set limit 100
+             set args [string map {-to "" -min "" -all ""} $args]
+             set pin_name $args
+             set startpinlist [all_fanin -flat -startpoints_only -to [get_pins $pin_name]]
+             if {[sizeof_collection $startpinlist] > $limit} { 
+               puts "#  -I- Note: [sizeof_collection $startpinlist] startpoints found by 'all_fanin -startpoints_only -to <pin>'. Only printing $limit unless using '-all' option."
+             }
+             set count 1
+             echo "# startcell   pin_${maxormin}_margin   all_fanin_pin_name   clocks_found_on_pin"
+             echo "#-----------------------------------------------------------------------------------------------------------"
+             set pinonly [remove_from_collection $startpinlist [filter_collection $startpinlist {object_class == port}]]
+             if {[sizeof_collection $pinonly] > 0} {
+               set sortedstartpinlist [sort_collection $pinonly full_name ]
+             } else {
+               set sortedstartpinlist {}
+             }
+             append_to_collection sortedstartpinlist [filter_collection $startpinlist {object_class == port}]
+             foreach_in_collection startpin $sortedstartpinlist {
+               set startclocks [get_property $startpin clocks]
+               if {[get_property $startpin object_class] == "port"} {
+                 set startobj port; set startpointcell "top-level-port"
+                } else {
+                 set startobj pin;  set startpointcell [get_property [get_cells -quiet -of_object $startpin] ref_name]
+                }
+               set clocklist [get_property -quiet $startpin clocks] 
+               if {[sizeof_collection $clocklist] == 0} {
+                  set clocklist "(none)"
+               } else {
+                  set clocklist [get_object_name $clocklist]
+               }
+               echo [format "%-18s %8s  %-20s     clocklist=  %-20s" $startpointcell "N/A"  [get_property $startpin full_name] $clocklist]
+               incr count
+               if { $count > $limit && ! $printall } { break }
+             }
+             if {[sizeof_collection $startpinlist] > $limit && ! $printall} { 
+               puts "#  -I- Note: [sizeof_collection $startpinlist] startpoints found by 'all_fanin -startpoints_only -to <pin>'. Only printing $limit unless using '-all' option."
+             }
+
+            }
+define_proc_arguments starts -info "Find startpoints using 'all_fanin -startpoints_only -flat', no timing is reported" \
+          -define_args  {
+             {-to      "pin_name [required]" pin_name string required}
+             {-min     "print min margin instead of max margin [optional]" "" boolean optional}
+             {-clocks  "also print clock domain of startpoint [default][optional]" "" boolean optional}
+             {-all     "print all startpoints, don't stop at 500 [optional]" "" boolean optional}
+          }
+
+#### Just a fancy all_fanout
+proc ends \
+            {args} \
+            {parse_proc_arguments -args $args results
+             if { [info exists results(-min)] == 1 } {set maxormin "min"} else {set maxormin "max"}
+             if { [info exists results(-all)] == 1 } {set printall 1} else {set printall 0}
+             set limit 100
+             set args [string map {-from "" -min "" -all ""} $args]
+             set pin_name $args
+             set endpinlist [all_fanout -flat -endpoints_only -from [get_pins $pin_name]]
+             if {[sizeof_collection $endpinlist] > $limit} { 
+               puts "#  -I- Note: [sizeof_collection $endpinlist] endpoints found by 'all_fanout -endpoints_only -to <pin>'. Only printing $limit unless using '-all' option."
+             }
+             set count 1
+             echo "# endcell     pin_${maxormin}_margin   all_fanout_pin_name   clocks_found_on_pin"
+             echo "#-----------------------------------------------------------------------------------------------------------"
+             set pinonly [remove_from_collection $endpinlist [filter_collection $endpinlist {object_class == port}]]
+             if {[sizeof_collection $pinonly] > 0} {
+               set sortedendpinlist [sort_collection $pinonly full_name ]
+             } else {
+               set sortedendpinlist {}
+             }
+             append_to_collection sortedendpinlist [filter_collection $endpinlist {object_class == port}]
+             foreach_in_collection endpin $sortedendpinlist {
+               if {[get_property $endpin object_class] == "port"} {
+                 set endobj port; set endpointcell "top-level-port"
+                 set clockpin ""
+                 set clocklist [get_property -quiet $endpin clocks] 
+               } else {
+                 set endobj pin;  set endpointcell [get_property [get_cells -quiet -of_object $endpin] ref_name]
+                 set clockpin [get_pins -quiet -of_objects [get_cells -quiet -of_objects $endpin] -filter "is_clock_pin == true"]
+                 set clocklist [get_property -quiet $clockpin clocks] 
+               }
+               if {[sizeof_collection $clocklist] == 0} {
+                  set clocklist "(none)"
+               } else {
+                  set clocklist [get_object_name $clocklist]
+               }
+               echo [format "%-18s %8s  %-20s     clocklist=  %-20s" $endpointcell "N/A"  [get_property $endpin full_name] $clocklist]
+               incr count
+               if { $count > $limit && ! $printall } { break }
+             }
+             if {[sizeof_collection $endpinlist] > $limit && ! $printall} { 
+               puts "#  -I- Note: [sizeof_collection $endpinlist] endpoints found by 'all_fanout -endpoints_only -to <pin>'. Only printing $limit unless using '-all' option."
+             }
+
+            }
+define_proc_arguments ends -info "Find endpoints using 'all_fanout -endpoints_only -flat', no timing is reported" \
+          -define_args  {
+             {-from    "pin_name [required]" pin_name string required}
+             {-min     "print min margin instead of max margin [optional]" "" boolean optional}
+             {-clocks  "also print clock domain of endpoint [default][optional]" "" boolean optional}
+             {-all     "print all endpoints, don't stop at \$limit [optional]" "" boolean optional}
+          }
+
+proc rt_rc_info {args} {
+   #  This procedure takes "report_timing/get_timing_path" arguments.
+   #  The output is in "report_timing -type summary" format, with the addition of SumRCdelay, SumCELLdelay, and RC/CELLdelay ratio
+   #  Note that clock delay and endpoint setup/skew values are not included in the calculations
+
+   echo "#  Arguments:  " $args
+   echo "#  Note that Cell Delay and Total Delay do not include the path setup time or skew charge."
+   echo "#"
+   echo "# Slack  Startpoint              Endpoint              Sum_of_RC  Sum_of_Cell_excl_setup  Sum_Total    PercentRC"
+   echo "#----------------------------------------------------------------------------------------------------------------------"
+
+   set pathcol [sort_collection [eval report_timing -collection $args] slack ]
+   set frompin ""
+
+   foreach_in_collection path $pathcol {
+     set frompin ""
+     set sumrc 0
+     set sumcell 0
+     set sumtotal 0
+   
+     set startpoint [get_property $path startpoint]
+     set endpoint [get_property $path endpoint]
+     set slack [get_property $path slack]
+     set points [get_property $path points]
+     foreach_in_collection pt $points {
+       set ptobj  [get_property $pt object]
+       set ptarr  [get_property $pt arrival]
+       set ptname [get_property $ptobj full_name]
+       #  echo "   debug: Full name of point is:   " $ptname
+       if { $frompin != "" }  {
+         if {[get_property $ptobj direction] == "in"} {
+           set rcdelay [expr $ptarr - $frompinarr]
+           #  echo "     RC delay is $rcdelay"
+           set sumrc [expr $sumrc + $rcdelay]
+           set sumtotal [expr $sumtotal + $rcdelay]
+         } else {
+           set celldelay [expr $ptarr - $frompinarr]
+           #  echo "     Cell delay is $celldelay"
+           set sumcell [expr $sumcell + $celldelay]
+           set sumtotal [expr $sumtotal + $celldelay]
+         }
+       }
+       set frompin $ptobj
+       set frompinarr $ptarr
+     }
+     echo "[get_property $path slack]  [get_property $startpoint full_name]  [get_property $endpoint full_name]   $sumrc $sumcell $sumtotal  PercentRC: [format "%.2f" [expr $sumrc/$sumtotal*100]] "
+   }
+   unset frompin
+}
+
+#puts "defining procname:  rtb <report_timing options>"
+proc rtb {args} {
+   global FullChip
+   global DesignName
+   #  report_timing with block summary
+   #  This procedure takes "report_timing/get_timing_path" arguments.
+   #  Attempt to summarize a path trace from startpoint to endpoint, printing just the blocks that it passes through.
+   #  Report for each block RC/cell/totaldelay, # of stages.  Also top-level netname between blocks, with RC noted.
+   #  Inter-block RC is lumped to the receiving block.
+   #  Proc does not currently handle DMC or CPU blocks (top-level hierarchy only)
+   #  PS 09/04/15
+   #  PS 07/19/16  Fixed double-counting bug in blockdelay & stagecount, if path trace included hierarchical pin
+   #  PS 02/09/18  Add --ref option to include cell ref_name, helpful for within-block-level timing reports
+
+   if {$args == "" || $args == "-help"} {
+      puts "-I- procedure: rtb (report_timing with per-block delay summary style)"
+      puts "-I-                {-from/-through/-to the usual report_timing arguments are accepted}"
+      puts "-I- Also accepts --leaf (to force it to print each leaf cell ref & instance name)"
+      puts "-I-          and --top (to print only the single worst path)"
+      puts "-I-          and --ref (to force it to print cell ref names)"
+      puts "-I-          and --fc (to force assuming blocks are 2nd-level / grandchild hierarchy)"
+      return
+   }
+   set pba ""
+   set comment ""
+   set header4cellref ""
+   set ofmtcellref "%0s"
+   set ofmtblkref "%-20s"
+   set leaf 0 
+   set toponly 0
+   # need to set this "1" only when we are running on a pdt11k-like fc hierarchy with fc-complex-block 
+   if {[info exists FullChip] && $FullChip == 1 && [info exists DesignName] && $DesignName == "pdt11kI"} {set fc 1;set ofmtblkref "%-32s"} else {set fc 0}
+   if {[string match {*--pba*} $args] == 1} {
+     set pba "-retime_mode exhaustive -retime path_slew_propagation -max_slack 10"
+     set comment "\n#   Found \"--pba\" option, using \"-retime_mode exhaustive -retime path_slew_propagation -max_slack 10\""
+     set args [string map {--pba ""} $args]
+   } 
+   if {[string match {*--ref*} $args] == 1} {
+     set args [string map {--ref ""} $args]
+     set header4cellref [format "%-30s " cell_ref_name]
+     set ofmtcellref "%-30s "
+   } 
+   if {[string match {*--leaf*} $args] == 1} {
+     set args [string map {--leaf ""} $args]
+     set header4cellref [format "%-30s " cell_ref_name]
+     set ofmtcellref "%-30s "
+     set leaf 1
+   } 
+   if {[string match {*--top*} $args] == 1} {
+     set args [string map {--top ""} $args]
+     set toponly 1
+   }
+   if {[string match {*--fc*} $args] == 1} {
+     set args [string map {--fc ""} $args]
+     set fc 1
+     set ofmtblkref "%-32s "
+   }
+
+   echo "#  Arguments:  " $args $comment
+   echo "#  Note that Cell Delay and Total Delay do not include the path setup time or skew charge."
+   echo "#"
+
+   set pathcol [eval report_timing -collection -path_type full_clock $pba $args]
+   if {[sizeof_collection $pathcol] == 0 } { puts "-W- No paths found in collection. Exiting..." ; return }
+   if {$toponly == 0} {
+     set pathcol [sort_collection $pathcol slack ]
+   } else {  
+     set pathcol [index_collection [sort_collection $pathcol slack ] 0]   ;# select only the single worst path
+   }
+   set frompin ""
+   set pathnum 0
+
+   foreach_in_collection path $pathcol {
+     set frompin ""
+     set sumrc 0
+     set sumcell 0
+     set sumtotal 0
+     set sumstage 1
+     set blkrc 0
+     set blkcell 0
+     set blktotal 0
+     set blkstage 1
+     set capclk_sumrc 0
+     set capclk_sumcell 0
+     set capclk_sumtotal 0
+     set lauclk_sumrc 0
+     set lauclk_sumcell 0
+     set lauclk_sumtotal 0
+     set maxcellreflen 30
+     #
+   
+     set startpoint [gp $path startpoint]
+     set endpoint [gp $path endpoint]
+     set slack [gp $path slack]
+     set pathper [gp $path period]
+     set points [gp $path points]
+     set lauclktime [gp $path launching_clock_open_edge_time]
+     set capclktime [gp $path capturing_clock_close_edge_time]
+     set lauclklat [gp $path launching_clock_latency]
+     set capclklat [gp $path capturing_clock_latency]
+     set lauclkper [gp [gp $path launching_clock] period]
+     set capclkper [gp [gp $path capturing_clock] period]
+     set locallauclkedge [gp $path launching_clock_open_edge_type]   ;# rise or fall
+     set localcapclkedge [gp $path capturing_clock_close_edge_type]
+     set uncert [gp $path clock_uncertainty]
+     set cppr [gp $path cppr_adjustment]
+     set commonpt [gp $path cppr_branch_point]
+     if {[gp $path path_type] == "max"} { 
+       set type "Setup"
+       set setupholdval [gp $path setup]
+     } else {
+       set type "Hold"
+       set setupholdval [gp $path hold]
+     }
+     # root clock rise/fall edge might be opposite of local clock edge, if "capturing/launching_clock_is_inverted" is true
+     if {$locallauclkedge == "rise" && [gp $path launching_clock_is_inverted] == false || $locallauclkedge == "fall" && [gp $path launching_clock_is_inverted] == true} {
+       set lauclkedge ^ 
+     } else {
+       set lauclkedge v 
+     }
+     if {$localcapclkedge == "rise" && [gp $path capturing_clock_is_inverted] == false || $localcapclkedge == "fall" && [gp $path capturing_clock_is_inverted] == true} {
+       set capclkedge ^ 
+     } else {
+       set capclkedge v 
+     }
+
+     # try to get longest cell ref_name in the path for output formatting
+     foreach_in_collection pt $points {
+       set refname [get_property [get_cells -of_obj [get_property $pt object]] ref_name ]
+       set maxcellreflen [expr [string length $refname] > $maxcellreflen ? [string length $refname] : $maxcellreflen ]
+     }
+     if {$ofmtcellref != "%0s"} {
+       set ofmtcellref "%-${maxcellreflen}s "
+       set header4cellref [format "%-${maxcellreflen}s " cell_ref_name]
+     }
+
+     # grab RC&cell delays of capture and launch clock paths, starting after the common_point
+     foreach clock_path {capture_clock_path launch_clock_path} {
+       if {$clock_path == "capture_clock_path"} { set clkper $capclkper } else { set clkper $lauclkper }
+       set frompin ""
+       set clk_sumrc 0
+       set clk_sumcell 0
+       set clk_sumtotal 0
+       set clk_comment {}
+       set clkpath [gp $path $clock_path] 
+       foreach_in_collection pt [gp $clkpath timing_points] {
+         set ptobj  [gp $pt object]
+         set ptarr  [gp $pt arrival]
+         set ptname [gp $ptobj full_name]
+         set net [gp [get_nets -quiet -of_object $ptobj] full_name]
+         if { $frompin != "" }  {
+           if {[gp $ptobj direction] == "in" && [gp $ptobj object_class] == "pin"} {
+             set rcdelay [expr $ptarr - $frompinarr]
+             #echo "     Clk RC delay is $rcdelay, trigger is [expr 0.5 * $clkper]"
+             if {$rcdelay >= [expr 0.5 * $clkper]} {set clk_comment "*may need to adj for gen clk"}
+             set clk_sumrc [expr $clk_sumrc + $rcdelay]
+             set clk_sumtotal [expr $clk_sumtotal + $rcdelay]
+           } else {
+             set celldelay [expr $ptarr - $frompinarr]
+             if {$celldelay >= [expr 0.5 * $clkper]} {set clk_comment "*may need to adj for gen clk"}
+             #echo "     Clk Cell delay is $celldelay, trigger is [expr 0.5 * $clkper]"
+             set clk_sumcell [expr $clk_sumcell + $celldelay]
+             set clk_sumtotal [expr $clk_sumtotal + $celldelay]
+           }
+         }
+         set frompin $ptobj
+         set frompinarr $ptarr
+         if {[string match [gp $commonpt full_name] $ptname]} {
+           # if common_point is found, then reset the clock count (else we've been counting since the beginning of clock path)
+           set clk_sumrc 0
+           set clk_sumcell 0
+           set clk_sumtotal 0
+         }
+       }
+       if {$clock_path == "capture_clock_path"} {
+         set capclk_sumrc    $clk_sumrc
+         set capclk_sumcell  $clk_sumcell
+         set capclk_sumtotal $clk_sumtotal
+         set capclk_comment  $clk_comment
+       } elseif {$clock_path == "launch_clock_path"} {
+         set lauclk_sumrc    $clk_sumrc
+         set lauclk_sumcell  $clk_sumcell
+         set lauclk_sumtotal $clk_sumtotal
+         set lauclk_comment  $clk_comment
+       }
+     }
+
+     incr pathnum
+     puts "Path: $pathnum     Slack: $slack      Pathgroup: {[gp $path path_group_name]}"
+     puts "#     LaunchClkArr: $lauclktime     CaptureClkArr: $capclktime      Path_period: $pathper      $type: $setupholdval     Uncertainty: $uncert"
+     puts [format "#     LaunchClk(Latency):  %-40s    PostCmnPt(RC/cell/total): ( %s / %s / %s ) %s" "[gp [gp $path launching_clock] full_name] ($lauclklat) $lauclkedge" $lauclk_sumrc $lauclk_sumcell $lauclk_sumtotal $lauclk_comment]
+     puts [format "#     CaptureClk(Latency): %-40s    PostCmnPt(RC/cell/total): ( %s / %s / %s ) %s" "[gp [gp $path capturing_clock] full_name] ($capclklat) $capclkedge" $capclk_sumrc $capclk_sumcell $capclk_sumtotal $capclk_comment]
+     if {$cppr == "NA"} {
+       set CPPRAdjLatencyDiff  0
+     } else {
+       set CPPRAdjLatencyDiff  [expr {$capclklat > $lauclklat ? [expr $capclklat - $lauclklat - $cppr] : [expr $capclklat - $lauclklat + $cppr]}]
+     }
+     puts "#     RawLatencyDiff: [expr $capclklat - $lauclklat]   CPPR: $cppr    CPPRAdjLatDiff: $CPPRAdjLatencyDiff   Common_point: [gp $commonpt full_name]"
+     #puts "#     RawLatencyDiff: [expr $capclklat - $lauclklat]   CPPR: $cppr    CPPRAdjLatencyDiff: [expr {$capclklat > $lauclklat ? [expr $capclklat - $lauclklat - $cppr] : [expr $capclklat - $lauclklat + $cppr]}]   Common_point: [gp $commonpt full_name]"
+
+     set ofmt "% 5.3f / %5.3f / %5.3f %3s    ${ofmtcellref}${ofmtblkref}   %-2s"
+
+     if {$leaf == 1} {set stgstr "#FO "} else {set stgstr "#stg"} ;# header is stagecount or fanout 
+     if {$leaf == 1} {set opstr "cell_input_pin (or top-level-net) "} else {set opstr "block_instance          output_net"} ;# header is block output netname, or leaf-cell input pin name
+     if {$leaf == 1} {set laststr "(& input pin slew)"} else {set laststr "(& netRC, assigned to receiver block)"}  
+     puts "#"
+     puts "#  RC / cell / total   ${stgstr}   ${header4cellref}${opstr} ${laststr}"
+     puts "#----------------------------------------------------------------------------------------------------------------------------"
+     set blk [lindex [split [gp $startpoint full_name] {/}] 0]
+     puts "Startpoint:   [format "$ofmtcellref" ""]                [gp $startpoint full_name]  "
+     if {$leaf == 1} {set blk [gp [gp $path startpoint] full_name]}
+     #debug   puts "new blk is: $blk"
+     unset frompin
+     set rcdelay 0  ;# otherwise, we are counting the last rcdelay to the launch clk pin
+     set inpin ""
+     set printsolonet ""
+     set inptslew 0
+     set prev_inptslew ""
+     foreach_in_collection pt $points {
+       set ptobj  [gp $pt object]
+       set ptarr  [gp $pt arrival]
+       set ptname [gp $ptobj full_name]
+       set net [gp [get_nets -of_object $ptobj] full_name]
+       #echo ""
+       #echo "   debug: Net name is:  $net"
+       #echo "   debug: Full name of point is:   $ptname"
+       #echo "   debug: point arrival is: $ptarr"
+       # if path startpoint is an input port, then don't count it as a stage
+       if {[gp $ptobj direction] == "in" && [gp $ptobj object_class] == "port"} {incr sumstage -1}
+       if {[gp $ptobj direction] == "in"} {set prev_inptslew $inptslew; set inptslew [gp $pt slew]}
+       if { [gp $ptobj is_hierarchical] == "true" } {continue}
+       if { [info exists frompin] == 1 }  {
+         if {[gp $ptobj direction] == "in" && [gp $ptobj object_class] == "pin"} {
+           set rcdelay [expr $ptarr - $frompinarr]
+           set sumrc [expr $sumrc + $rcdelay]
+           set sumtotal [expr $sumtotal + $rcdelay]
+           incr sumstage
+           if {$leaf == 0 || ($leaf == 1 && $printsolonet == "")} {   ;#skip if leaf==1 and this is a top-level net
+             set blkrc [expr $blkrc + $rcdelay]
+             set blktotal [expr $blktotal + $rcdelay]
+           }
+           incr blkstage
+           set inpin $ptobj
+         } elseif {[gp $ptobj direction] == "out" && [gp $ptobj object_class] == "port"} {
+           # we hit an output port of the design, add RC to totals but don't incr stagecounts
+           set rcdelay [expr $ptarr - $frompinarr]
+           set sumrc [expr $sumrc + $rcdelay]
+           set sumtotal [expr $sumtotal + $rcdelay]
+           set blkrc [expr $blkrc + $rcdelay]
+           set blktotal [expr $blktotal + $rcdelay]
+         } else {
+           set celldelay [expr $ptarr - $frompinarr]
+           set sumcell [expr $sumcell + $celldelay]
+           set sumtotal [expr $sumtotal + $celldelay]
+           set blkcell [expr $blkcell + $celldelay]
+           set blktotal [expr $blktotal + $celldelay]
+         }
+       } else {
+         # frompin=={}, so this must be first point of path; set cellref
+         set cellref [gp [get_cells -of $ptobj] ref_name]
+         #debug puts "-D- frompin is blank, cellref: $cellref"
+         set inpin $ptobj
+       }
+       #echo "   debug: ptname: $ptname   net: $net"  ; #debug 
+       # if --leaf option is set, then treat every net as a istopnet and print "cell/inputpin" instead of cell
+       set istopnet [expr ![string match {*/*} $net] || $leaf]
+       set isfctopnet [expr [string match {pd*/*} $ptname] && [regexp -all {/} $net] == 1 && $fc == 1  ]
+       set iscputopnet [expr [string match {pdCPUCMPLX*/*} $ptname] && [regexp -all {/} $net] == 1 ]
+       set isdmctopnet [expr [string match {pdDMCCMPLX_????/*} $ptname] && [regexp -all {/} $net] == 1 ]
+       #echo "   debug: istopnet: $istopnet   isfctopnet: $isfctopnet   iscputopnet: $iscputopnet   isdmctopnet: $isdmctopnet"  ; #debug
+       set frompin $ptobj
+       set frompinarr $ptarr
+       if {[gp $ptobj object_class] == "port" && [gp $ptobj direction] == "in" ||\
+           [gp $ptobj object_class] == "pin" && [gp $ptobj direction] == "out" && ($istopnet || $isfctopnet || $iscputopnet || $isdmctopnet)} {
+         if {$iscputopnet || ($istopnet && [string match {pdCPUCMPLX*/*} $ptname])} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+         } elseif {$isdmctopnet || ($istopnet && [string match {pdDMCCMPLX_????/*} $ptname])} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+         } elseif {$isfctopnet || ($fc && $istopnet && [string match {pd*/*} $ptname])} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+         } elseif {$istopnet && $leaf == 0} {
+           set blk [lindex [split $ptname {/}] 0]
+         } elseif {$istopnet && $leaf == 1} {
+           #set blk [gp [get_cells -of [gp $pt pin]] full_name]  ;# leaf cell is the second-to-last field in full pin name 
+           #set blk [gp [gp $pt pin] full_name]  ;# now blk == pin name because of --leaf
+           set blk [gp $inpin full_name]  ;# now blk == leaf input pin name because of --leaf
+           if {! [string match {*/*} $net]} {set printsolonet $net}
+         }
+         #debug  puts " -D-    blk: $blk"
+         #if {$header4cellref != "" && [sizeof_collection [get_cells -quiet $blk]] > 0 && $leaf == 1} { }
+         if {$header4cellref != "" && [sizeof_collection [get_pins -quiet $blk]] > 0 && $leaf == 1} {
+           set cellref [gp [get_cells -of $ptobj] ref_name] 
+           #debug puts "    blk: $blk     ptobj: [get_object_name $ptobj]     ptname: $ptname"
+         } elseif {$header4cellref != "" && [sizeof_collection [get_cells -quiet $blk]] > 0 } {
+           set cellref [gp [get_cells $blk] ref_name] 
+         } else {
+           set cellref {}
+         }
+         if {$leaf == 0} {
+           set str [format $ofmt $blkrc $blkcell $blktotal $blkstage $cellref $blk $net] 
+           set blkrc 0
+           set blkcell 0
+           set blktotal 0
+           set blkstage 0
+         } else {   ;# leaf == 1
+           set net {}
+           set fanout [format "%3s" [get_property $ptobj fanout]]
+           set str [format $ofmt $rcdelay $celldelay [expr $rcdelay+$celldelay] $fanout $cellref $blk $net] 
+         }
+       } elseif {[gp $ptobj object_class] == "port" && [gp $ptobj direction] == "out" ||\
+                 ($istopnet || $iscputopnet || $isdmctopnet || $isfctopnet) \
+                     && [gp $ptobj object_class] == "pin" && [gp $ptobj direction] == "in" && [gp $ptobj full_name] != [gp $startpoint full_name]} { 
+         #set blk [lindex [split $ptname {/}] 0]
+         if {$leaf == 0} {
+           puts "$str ($rcdelay)"
+         } else {   ;# leaf == 1
+           puts "$str ($prev_inptslew)"
+         }
+         if {$printsolonet != ""} {
+           #puts "                                                              $printsolonet"   ; # this should only be during --leaf and net is top-level net
+           puts "                              ( $blkrc / $blkcell / $blktotal )         $printsolonet"   ; # this should only be during --leaf and net is top-level net
+           set printsolonet ""
+           set blkrc $rcdelay
+           set blkcell 0
+           set blktotal $rcdelay
+           set blkstage 0
+         }
+       } elseif { $iscputopnet && [gp $ptobj direction] == "in"} {
+         set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+         puts "$str ($rcdelay)"
+         if {$printsolonet != ""} {
+           #puts "                                                              $printsolonet"   ; # this should only be during --leaf and net is top-level net
+           puts "                              ( $blkrc / $blkcell / $blktotal )         $printsolonet"   ; # this should only be during --leaf and net is top-level net
+           set printsolonet ""
+           set blkrc $rcdelay
+           set blkcell 0
+           set blktotal $rcdelay
+           set blkstage 0
+         }
+       }
+     }
+     # now process endpoint   
+     unset frompin
+     set net "(endpoint)"
+     if {$leaf == 1} {
+            set blk [gp [get_cells -of $ptobj] full_name]
+            set prev_inptslew $inptslew
+            set net "($prev_inptslew  endpoint)"
+     } elseif {[string match {pdCPUCMPLX*/*} $ptname]} {
+            set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+     } elseif {[string match {pdDMCCMPLX_????/*} $ptname]} {
+            set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+     } elseif {$fc == 1 && [string match {pd*/*} $ptname]} {
+            set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+     } else {
+            set blk [lindex [split $ptname {/}] 0]
+     }
+     if {$header4cellref != "" && [sizeof_collection [get_cells -quiet $blk]] > 0} {set cellref [gp [get_cells $blk] ref_name] } else {set cellref {}}
+     if {$leaf == 1} {
+       puts [format $ofmt $rcdelay    0     $rcdelay    ""      $cellref $blk $net] 
+     } else {
+       puts [format $ofmt $blkrc   $blkcell $blktotal $blkstage $cellref $blk $net] 
+     }
+     if {$leaf == 1} {
+       puts "                              ( $blkrc / $blkcell / $blktotal )         $printsolonet"   ; # this should only be during --leaf and net is top-level net
+     }
+     puts "Endpoint:                    [format "$ofmtcellref" ""] [gp $endpoint full_name]"
+     puts [format $ofmt $sumrc $sumcell $sumtotal $sumstage "<--Total_path_delay (RC/cell/total)" {} {} ]
+     puts ""
+   }
+
+}
+define_proc_arguments rtb -info "report_timing with block path summary information" 
+
+#echo "defining procname:  rtbkio <report_timing options>"
+#PS STALE!
+proc rtbkio {args} {
+   #  report_timing with block summary
+   #  This procedure takes "report_timing/get_timing_path" arguments.
+   #  Attempt to summarize a path trace from startpoint to endpoint, printing just the blocks that it passes through.
+   #  Report for each block RC/cell/totaldelay, # of stages.  Also top-level netname between blocks, with RC noted.
+   #  Inter-block RC is lumped to the receiving block.
+   #  Proc does not currently handle DMC or CPU blocks (top-level hierarchy only)
+   #  PS 09/04/15
+
+   if {$args == "" || $args == "-help"} {
+      puts "-I- procedure: rtb (report_timing with block delay summary style)"
+      puts "-I-                {-from/-through/-to the usual report_timing arguments are accepted}"
+      return
+   }
+
+   echo "#  Arguments:  " $args
+   echo "#  Note that Cell Delay and Total Delay do not include the path setup time or skew charge."
+   echo "#"
+
+   set pathcol [eval report_timing -collection $args]
+   if {[sizeof_collection $pathcol] == 0 } { puts "-W- No paths found in collection. Exiting..." ; return }
+   set pathcol [sort_collection $pathcol slack ]
+
+   set frompin ""
+   set pathnum 0
+
+   set frompin ""
+   set prevspec 0
+   set bkioarr 0
+   set pathnum 0
+
+   foreach_in_collection path $pathcol {
+     set frompin ""
+     set sumrc 0
+     set sumcell 0
+     set sumtotal 0
+     set sumstage 1
+     set blkrc 0
+     set blkcell 0
+     set blktotal 0
+     set blkstage 1
+   
+     set startpoint [gp $path startpoint]
+     set endpoint [gp $path endpoint]
+     set slack [gp $path slack]
+     set pathper [gp $path period]  ;# experiment... is this the path allowed length?
+     set points [gp $path points]
+     set lauclk [gp $path launching_clock]
+     set lauclktime [gp $path launching_clock_open_edge_time]
+     set capclktime [gp $path capturing_clock_close_edge_time]
+     set lauclklat [gp $path launching_clock_latency]
+     set capclklat [gp $path capturing_clock_latency]
+     set prevspec $lauclktime
+     set uncert [gp $path clock_uncertainty]
+     if {[gp $path path_type] == "max"} { 
+       set type "Setup"
+       set setupholdval [gp $path setup]
+     } else {
+       set type "Hold"
+       set setupholdval [gp $path hold]
+     }
+
+     incr pathnum
+     puts "Path: $pathnum     Slack: $slack      Pathgroup: {[gp $path path_group_name]}"
+     puts "#     LaunchClkArr: $lauclktime     CaptureClkArr: $capclktime      Path_period: $pathper      $type: $setupholdval     Uncertainty: $uncert"
+     puts "#     LaunchClk/Latency: [gp [gp $path launching_clock] full_name] ($lauclklat)    CaptureClk/Latency: [gp [gp $path capturing_clock] full_name] ($capclklat)"
+
+     set ofmt "%5.3f / %5.3f / %5.3f %3s     %6s %6s %6s   {$ofmtcellref}%-20s   %-20s"
+
+     puts "#   RC/cell/total     #stg   accum spec_arr spec_delta  block_instance         output_net (netRC, assigned to receiver block)"
+     puts "#-------------------------------------------------------------------------------------------------------------------------"
+     set blk [lindex [split [gp $startpoint full_name] {/}] 0]
+     puts "Startpoint:                   [gp $startpoint full_name]  "
+     foreach_in_collection pt $points {
+       set ptobj  [gp $pt object]
+       set ptarr  [gp $pt arrival]
+       set ptname [gp $ptobj full_name]
+       set net [gp [get_nets -of_object $ptobj] full_name]
+       set bkioarr {}
+       #echo "   debug: Net name is:  $net"
+       #echo "   debug: Full name of point is:   $ptname"
+       #echo "   debug: point arrival is: $ptarr"
+       if { $frompin != "" }  {
+         if {[gp $ptobj direction] == "in" && [gp $ptobj object_class] == "pin"} {
+           set rcdelay [expr $ptarr - $frompinarr]
+           #echo "     RC delay is $rcdelay"
+           set sumrc [expr $sumrc + $rcdelay]
+           set sumtotal [expr $sumtotal + $rcdelay]
+           incr sumstage
+           set blkrc [expr $blkrc + $rcdelay]
+           set blktotal [expr $blktotal + $rcdelay]
+           incr blkstage
+         } else {
+           set celldelay [expr $ptarr - $frompinarr]
+           #echo "     Cell delay is $celldelay"
+           set sumcell [expr $sumcell + $celldelay]
+           set sumtotal [expr $sumtotal + $celldelay]
+           set blkcell [expr $blkcell + $celldelay]
+           set blktotal [expr $blktotal + $celldelay]
+         }
+       }
+       set frompin $ptobj
+       set frompinarr $ptarr
+       set istopnet [expr ![string match {*/*} $net]]
+       set iscputopnet [expr [string match {pdCPUCMPLX*/*} $ptname] && [regexp -all {/} $net] == 1 ]
+       set isdmctopnet [expr [string match {pdDMCCMPLX_????/*} $ptname] && [regexp -all {/} $net] == 1 ]
+       set ptarr [gp $pt arrival]
+       if {[gp $ptobj is_hierarchical] == "false"} {
+         if {[gp $ptobj object_class] == "port" && [gp $ptobj direction] == "in" ||\
+             [gp $ptobj object_class] == "pin"  && [gp $ptobj direction] == "out" && ($istopnet || $iscputopnet || $isdmctopnet)} {
+           if {$istopnet} {
+             set blk [lindex [split $ptname {/}] 0]
+           } elseif {$iscputopnet} {
+             set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+           } elseif {$isdmctopnet} {
+             set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+           }
+           set bkio [gp -quiet [filter_collection [all_connected $net] "direction == out"] bkio]
+           #puts "  --bkio:  $bkio"
+           foreach {clk arr} [split [string trim $bkio]] {
+              if {[string match $clk [gp $lauclk full_name]]} {
+                 #puts "     clk matches path: $clk"
+                 set bkioarr $arr
+              }
+               #puts "     clk is: $clk    arr is: $arr"
+           }
+           #puts "debug delta calc bkioarr: $bkioarr    prevspec: $prevspec"
+           if {$bkioarr != "" && $prevspec != "" && $bkioarr ne {NA}} {
+             set delta [expr $bkioarr - $prevspec]
+           } else {
+             set delta NA
+           }
+           set str [format $ofmt $blkrc $blkcell $blktotal $blkstage $ptarr [expr $bkioarr + 0] $delta $blk $net] 
+           set blkrc 0
+           set blkcell 0
+           set blktotal 0
+           set blkstage 0
+           set prevspec $bkioarr
+         } elseif { $istopnet && [gp $ptobj object_class] == "pin"  && [gp $ptobj direction] == "in" && [gp $ptobj full_name] != [gp $startpoint full_name] || \
+                                 [gp $ptobj object_class] == "port" && [gp $ptobj direction] == "out" } {
+           set blk [lindex [split $ptname {/}] 0]
+           puts "$str ($rcdelay)"
+         } elseif { ($iscputopnet || $isdmctopnet) && [gp $ptobj direction] == "in"} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+           puts "$str ($rcdelay)"
+         }
+       }
+     }
+    # now process endpoint   
+    unset frompin
+    if {[string match {pdCPUCMPLX*/*} $ptname]} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+    } elseif {[string match {pdDMCCMPLX_????/*} $ptname]} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+    } else {
+           set blk [lindex [split $ptname {/}] 0]
+    }
+    set net "(endpoint)"
+           if {$pathper != "" && $prevspec != "" && $pathper ne {NA}} {
+             set delta [expr $lauclktime + $pathper - $prevspec]
+           } else {
+             set delta NA
+           }
+    puts [format $ofmt $blkrc $blkcell $blktotal $blkstage $ptarr [expr $lauclktime + $pathper] $delta $blk $net] 
+    puts "Endpoint:                     [gp $endpoint full_name]"
+    puts [format $ofmt $sumrc $sumcell $sumtotal $sumstage $ptarr "<--Total_path_delay (RC/cell/total)"  "" "" "" ]
+    puts ""
+  }
+
+}
+define_proc_arguments rtbkio -info "report_timing with block path summary information" 
+
+
+proc f2l {args} {
+   if {$args == "" || $args == "-help"} {
+      puts "-I- procedure: f2l (Read contents of a file and return as a list)"
+      puts "-I-                (Lines which start with # or contain only spaces, will be ignored)"
+      return
+   }
+   set file [glob -nocomplain $args]
+   if {[file exists $file]} {
+     set list {}
+     set fh [open $file]
+     while {[gets $fh line] >= 0} {
+       if {[regexp {^#} $line]} {continue}
+       if {[regexp {^ *$} $line]} {continue}
+       lappend list $line
+     }
+     return $list
+   }
+}
+
+#echo "defining procname:  rt1 <report_timing options>"
+proc rt1 {args} {
+   #  report_timing 1line output w/RC
+   #  
+   if {[string match {* --pba*} $args] == 1} {
+     set pba "-retime_mode exhaustive -retime path_slew_propagation -max_slack 10"
+     set comment "\n#   Found \"--pba\" option, using \"-retime_mode exhaustive -retime path_slew_propagation -max_slack 10\""
+   } else {
+     set pba ""
+     set comment ""
+   }
+   set args [string map {--pba ""} $args]
+
+   if {$args == "" || $args == "-help"} {
+      puts "-I- procedure: rt1 (report_timing in 1-per-line format with RC% info)"
+      puts "-I-                {-from/-through/-to the usual report_timing arguments are accepted}"
+      puts "-I-                {Use special --pba option shorthand for \"-retime_mode exhaustive -retime path_slew_propagation -max_slack 10\"}"
+      return
+   }
+
+   echo "#  Arguments:  " $args $comment
+   echo "#  Note that Cell Delay and Total Delay do not include the path setup time or skew charge."
+   echo "#"
+
+   set pathcol [eval report_timing -collection -path_type full_clock $pba $args]
+   if {[sizeof_collection $pathcol] == 0 } { puts "-W- No paths found in collection. Exiting..." ; return }
+   set pathcol [sort_collection $pathcol slack ]
+   set frompin ""
+   set pathnum 0
+
+   set ofmt "% 5.3f / %5.3f / %5.3f %3s     %-20s   %-20s"
+
+   puts "# slack pathlen  laulevsen caplevsen istransp  %RC  pathRC pathCell pathTotal   Stg    Endpoint       EndClock    Startpoint   StartClock       path_group"
+   puts "#----------------------------------------------------------------------------------------------------------------------------------------------------------"
+   foreach_in_collection path $pathcol {
+     set frompin ""
+     set sumrc 0
+     set sumcell 0
+     set sumtotal 0
+     set sumstage 1
+     set blkrc 0
+     set blkcell 0
+     set blktotal 0
+     set blkstage 1
+     set capclk_sumrc 0
+     set capclk_sumcell 0
+     set capclk_sumtotal 0
+     set lauclk_sumrc 0
+     set lauclk_sumcell 0
+     set lauclk_sumtotal 0
+   
+     set startpoint [gp $path startpoint]
+     set endpoint [gp $path endpoint]
+     set slack [gp $path slack]
+     set pathper [gp $path period]
+     set points [gp $path points]
+     set lauclktime [gp $path launching_clock_open_edge_time]
+     set capclktime [gp $path capturing_clock_close_edge_time]
+     set lauclklat [gp $path launching_clock_latency]
+     set capclklat [gp $path capturing_clock_latency]
+     set lauclkper [gp [gp $path launching_clock] period]
+     set capclkper [gp [gp $path capturing_clock] period]
+     set uncert [gp $path clock_uncertainty]
+     set cppr [gp $path cppr_adjustment]
+     set commonpt [gp $path cppr_branch_point]
+
+     set caplevsen [gp $path capturing_point_is_level_sensitive]
+     set laulevsen [gp $path launching_point_is_level_sensitive]
+     set istransp  [gp $path is_transparent_latch]
+
+     if {[gp $path path_type] == "max"} { 
+       set type "Setup"
+       set setupholdval [gp $path setup]
+     } else {
+       set type "Hold"
+       set setupholdval [gp $path hold]
+     }
+     ###puts "$slack     [gp $endpoint full_name]   [gp $path path_group_name]  [gp $startpoint full_name]"; #debug
+
+     # before processing path, go through points to find longest ref_name string
+     
+     
+
+     # grab RC&cell delays of capture and launch clock paths, starting after the common_point
+     foreach clock_path {capture_clock_path launch_clock_path} {
+       if {$clock_path == "capture_clock_path"} { set clkper $capclkper } else { set clkper $lauclkper }
+       set frompin ""
+       set clk_sumrc 0
+       set clk_sumcell 0
+       set clk_sumtotal 0
+       set clk_comment {}
+       set clkpath [gp $path $clock_path] 
+       foreach_in_collection pt [gp $clkpath timing_points] {
+         set ptobj  [gp $pt object]
+         set ptarr  [gp $pt arrival]
+         set ptname [gp $ptobj full_name]
+         set net [gp [get_nets -quiet -of_object $ptobj] full_name]
+         if { $frompin != "" }  {
+           if {[gp $ptobj direction] == "in" && [gp $ptobj object_class] == "pin"} {
+             set rcdelay [expr $ptarr - $frompinarr]
+             #echo "     Clk RC delay is $rcdelay, trigger is [expr 0.5 * $clkper]"
+             if {$rcdelay >= [expr 0.5 * $clkper]} {set clk_comment "*may need to adj for gen clk"}
+             set clk_sumrc [expr $clk_sumrc + $rcdelay]
+             set clk_sumtotal [expr $clk_sumtotal + $rcdelay]
+           } else {
+             set celldelay [expr $ptarr - $frompinarr]
+             if {$celldelay >= [expr 0.5 * $clkper]} {set clk_comment "*may need to adj for gen clk"}
+             #echo "     Clk Cell delay is $celldelay, trigger is [expr 0.5 * $clkper]"
+             set clk_sumcell [expr $clk_sumcell + $celldelay]
+             set clk_sumtotal [expr $clk_sumtotal + $celldelay]
+           }
+         }
+         if {$frompin != "" || [string match [gp $commonpt full_name] $ptname]} {
+           set frompin $ptobj
+           set frompinarr $ptarr
+         }
+       }
+       if {$clock_path == "capture_clock_path"} {
+         set capclk_sumrc    $clk_sumrc
+         set capclk_sumcell  $clk_sumcell
+         set capclk_sumtotal $clk_sumtotal
+         set capclk_comment  $clk_comment
+       } elseif {$clock_path == "launch_clock_path"} {
+         set lauclk_sumrc    $clk_sumrc
+         set lauclk_sumcell  $clk_sumcell
+         set lauclk_sumtotal $clk_sumtotal
+         set lauclk_comment  $clk_comment
+       }
+     }
+
+     incr pathnum
+     ###puts "Path: $pathnum     Slack: $slack      Pathgroup: {[gp $path path_group_name]}"
+     ###puts "#     LaunchClkArr: $lauclktime     CaptureClkArr: $capclktime      Path_period: $pathper      $type: $setupholdval     Uncertainty: $uncert"
+     ###puts [format "#     LaunchClk(Latency):  %-30s    PostCmnPt(RC/cell/total): ( %s / %s / %s ) %s" "[gp [gp $path launching_clock] full_name] ($lauclklat)" $lauclk_sumrc $lauclk_sumcell $lauclk_sumtotal $lauclk_comment]
+     ###puts [format "#     CaptureClk(Latency): %-30s    PostCmnPt(RC/cell/total): ( %s / %s / %s ) %s" "[gp [gp $path capturing_clock] full_name] ($capclklat)" $capclk_sumrc $capclk_sumcell $capclk_sumtotal $capclk_comment]
+     ###puts "#     RawLatencyDiff: [expr $capclklat - $lauclklat]   CPPR: $cppr    CPPRAdjLatencyDiff: [expr {$capclklat > $lauclklat ? [expr $capclklat - $lauclklat - $cppr] : [expr $capclklat - $lauclklat + $cppr]}]   Common_point: [gp $commonpt full_name]"
+
+     ###puts "#"
+     ###puts "#  RC / cell / total   #stg   block_instance         output_net (& netRC, assigned to receiver block)"
+     ###puts "#----------------------------------------------------------------------------------------------------"
+     set blk [lindex [split [gp $startpoint full_name] {/}] 0]
+     ###puts "Startpoint:                    [gp $startpoint full_name]  "
+     unset frompin
+     foreach_in_collection pt $points {
+       set ptobj  [gp $pt object]
+       set ptarr  [gp $pt arrival]
+       set ptname [gp $ptobj full_name]
+       set net [gp [get_nets -of_object $ptobj] full_name]
+       #echo ""
+       #echo "   debug: Net name is:  $net"
+       #echo "   debug: Full name of point is:   $ptname"
+       #echo "   debug: point arrival is: $ptarr"
+       if { [gp $ptobj is_hierarchical] == "true" } {continue}
+       if { [info exists frompin] == 1 }  {
+         if {[gp $ptobj direction] == "in" && [gp $ptobj object_class] == "pin"} {
+           set rcdelay [expr $ptarr - $frompinarr]
+           #echo "     RC delay is $rcdelay"
+           set sumrc [expr $sumrc + $rcdelay]
+           set sumtotal [expr $sumtotal + $rcdelay]
+           incr sumstage
+           set blkrc [expr $blkrc + $rcdelay]
+           set blktotal [expr $blktotal + $rcdelay]
+           incr blkstage
+         } else {
+           set celldelay [expr $ptarr - $frompinarr]
+           #echo "     Cell delay is $celldelay"
+           set sumcell [expr $sumcell + $celldelay]
+           set sumtotal [expr $sumtotal + $celldelay]
+           set blkcell [expr $blkcell + $celldelay]
+           set blktotal [expr $blktotal + $celldelay]
+         }
+       }
+       ###echo "   debug: ptname: $ptname   net: $net"  ; #debug
+       set istopnet [expr ![string match {*/*} $net]]
+       set iscputopnet [expr [string match {pdCPUCMPLX*/*} $ptname] && [regexp -all {/} $net] == 1 ]
+       set isdmctopnet [expr [string match {pdDMCCMPLX_????/*} $ptname] && [regexp -all {/} $net] == 1 ]
+       ###echo "   debug: istopnet: $istopnet   iscputopnet: $iscputopnet   isdmctopnet: $isdmctopnet"  ; #debug
+       set frompin $ptobj
+       set frompinarr $ptarr
+       if {[gp $ptobj object_class] == "port" && [gp $ptobj direction] == "in" ||\
+           [gp $ptobj object_class] == "pin" && [gp $ptobj direction] == "out" && ($istopnet || $iscputopnet || $isdmctopnet)} {
+         if {$iscputopnet || ($istopnet && [string match {pdCPUCMPLX*/*} $ptname])} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+         } elseif {$isdmctopnet || ($istopnet && [string match {pdDMCCMPLX_????/*} $ptname])} {
+           set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+         } elseif {$istopnet} {
+           set blk [lindex [split $ptname {/}] 0]
+         }
+         #set str [format $ofmt $blkrc $blkcell $blktotal $blkstage $blk $net] 
+         set blkrc 0
+         set blkcell 0
+         set blktotal 0
+         set blkstage 0
+       } elseif {[gp $ptobj object_class] == "port" && [gp $ptobj direction] == "out" ||\
+                 ($istopnet || $iscputopnet || $isdmctopnet) \
+                     && [gp $ptobj object_class] == "pin" && [gp $ptobj direction] == "in" && [gp $ptobj full_name] != [gp $startpoint full_name]} { 
+         #set blk [lindex [split $ptname {/}] 0]
+         ###puts "$str ($rcdelay)"
+       } elseif { $iscputopnet && [gp $ptobj direction] == "in"} {
+         set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+         ###puts "$str ($rcdelay)"
+       }
+     }
+     # now process endpoint   
+     unset frompin
+     if {[string match {pdCPUCMPLX*/*} $ptname]} {
+            set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+     } elseif {[string match {pdDMCCMPLX_????/*} $ptname]} {
+            set blk "[lindex [split $ptname {/}] 0]/[lindex [split $ptname {/}] 1]"
+     } else {
+            set blk [lindex [split $ptname {/}] 0]
+     }
+     set net "(endpoint)"
+     ###puts [format $ofmt $blkrc $blkcell $blktotal $blkstage $blk $net] 
+     ###puts "Endpoint:                      [gp $endpoint full_name]"
+     ###puts [format $ofmt $sumrc $sumcell $sumtotal $sumstage "<--Total_path_delay (RC/cell/total)" "" ]
+     ###puts ""
+     set ofmt2 "%5.3f  %8s   %5s %5s %5s   %5.3f   % 5.3f / %5.3f / %5.3f %3s     %-20s   %-20s   %-20s   %-20s    {%s}"
+     if {$sumtotal > 0} {set percentrc [expr $sumrc / $sumtotal]} else {set percentrc 999}
+     puts [format $ofmt2  $slack [gp $path period]  \
+          $laulevsen $caplevsen $istransp \
+          $percentrc  \
+          $sumrc $sumcell $sumtotal $sumstage [gp $endpoint full_name]   \
+          [gp [gp $path capturing_clock] full_name]  [gp $startpoint full_name]  [gp [gp $path launching_clock] full_name]  [gp $path path_group_name] ]
+   }
+
+}
+
+#
+# Convert block-level xy coordinates to top-level/FC context
+# Usage: convert_xy <block_instance>  <list_of_block_level_coordinates{x y}>
+# Assumes:  array blockxy is defined with placement coordinates & orientation of child block instances
+#
+proc convert_xy {block {listxy {0 0}}} {
+
+  global blockxy
+
+  if {[sizeof_collection [get_cells -quiet $block]] == 0} {
+    puts "-E- Block instance not found: $block"
+    return 
+  } elseif { ! [array exists blockxy]} {
+    puts "-E- Array blockxy does not exist. Cannot determine block positions at top-level."
+    return 
+  } elseif { ! [info exists blockxy($block)]} {
+    puts "-E- Block instance $block does not exist in array blockxy. Cannot determine block position."
+    return 
+  }
+
+  set x_port [lindex $listxy 0]      ; # x coord of port within the block
+  set y_port [lindex $listxy 1]      ; # y coord of port within the block
+  set x [lindex $blockxy($block) 0]  ; # x coord of block within FC
+  set y [lindex $blockxy($block) 1]  ; # y coord of block within FC
+  set orient [lindex $blockxy($block) 2]
+ 
+  switch $orient {
+     N  { set x_new [expr $x + $x_port] ;  set y_new [expr $y + $y_port] }  
+     S  { set x_new [expr $x - $x_port] ;  set y_new [expr $y - $y_port] }  
+     W  { set x_new [expr $x - $y_port] ;  set y_new [expr $y + $x_port] }  
+     E  { set x_new [expr $x + $y_port] ;  set y_new [expr $y - $x_port] }  
+     FN { set x_new [expr $x - $x_port] ;  set y_new [expr $y + $y_port] }  
+     FS { set x_new [expr $x + $x_port] ;  set y_new [expr $y - $y_port] }  
+     FW { set x_new [expr $x + $y_port] ;  set y_new [expr $y + $x_port] }  
+     FE { set x_new [expr $x - $y_port] ;  set y_new [expr $y - $x_port] }  
+     default {
+          puts "-E- Block orientation $orient must be one of N, S, W, E, FN, FS, FW, FE"
+          return
+     }
+  }
+  #puts "$block   $blockxy($block)"
+  return [list $x_new $y_new]
+}
+
+} ;# end namespace paul
+
+
+namespace eval cory {
+
+    # Cory doens't have any code
+} 
