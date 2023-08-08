@@ -1,0 +1,44 @@
+# Move root gate close to clk port
+# set clk_port coreclk;
+# set clkX [get_db [get_ports $clk_port] .location.x];
+# set clkY [get_db [get_ports $clk_port] .location.y];
+# set root_gate [mortar::get_pin_gate -pin_name [mortar::get_net_pins -net_name [get_db [get_port $clk_port] .net.name] -sink]];
+# mortar::move_gate -name $root_gate -snap -status_fixed -x_coord $clkX -y_coord $clkY;
+
+puts "Ruchira running bufferRams script to add a buffer next to memory CLK pins"
+set macros [get_db [get_db insts -if {.base_cell.base_class == block}] .name]
+set pins ""
+foreach m $macros {
+  set a [get_db [get_db insts $m] .pins.name *CLK*]
+  foreach p $a {lappend pins $p}
+}
+
+foreach p $pins {
+  set m [get_db [get_db pins $p] .inst.name]
+  set driver_net [get_db [get_db pins $p] .net.name]
+  set pin [get_db [get_db pins $p] .base_pin.base_name]
+  # echo "Driver Net for $m is $driver_net"
+  mortar::disconnect_pin -pin_name $p
+  set X [get_db [get_db pins $p] .location.x]
+  set Y [get_db [get_db pins $p] .location.y]
+  # echo "Coordiantes of CLK pin for $m are $X $Y"
+  set new_net ${m}_${pin}_buf_net
+  set new_inst ${m}_${pin}_buf
+  create_net -name $new_net
+  create_inst -base_cell BUFFD8BWP210H6P51CNODULVT -name $new_inst
+  # echo "Created new gate ${m}_clk_buf"
+  set orient [get_db [get_db insts $m] .orient]
+  if {($orient == "my") || ($orient == "r180")} {
+    mortar::move_gate -name $new_inst -snap -status_fixed -x_coord [expr $X - 2] -y_coord $Y;
+  } else {
+    mortar::move_gate -name $new_inst -snap -status_fixed -x_coord [expr $X + 3] -y_coord $Y;
+  }
+  # echo "Placed ${m}_clk_buf"
+  mortar::connect_pin -pin_name ${new_inst}/I -net_name $driver_net
+  # echo "Connected pin ${m}_clk_buf/I to net $driver_net"
+  mortar::connect_pin -pin_name ${new_inst}/Z -net_name $new_net
+  # echo "Connected pin ${m}_clk_buf/Z to net ${m}_clk_buf_net"
+  mortar::connect_pin -pin_name $p -net_name $new_net
+  # echo "Connected pin $m/CLK to net ${m}_clk_buf_net"
+  echo "Done $m"
+}
