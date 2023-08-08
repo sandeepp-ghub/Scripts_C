@@ -1,0 +1,34 @@
+set allcp [all_registers -clock_pins]
+set alldat [all_registers -data_pins]
+
+set inst "pdsbuslows1"
+set block [file tail $inst]
+
+
+set fromcp [get_pins $allcp -filter "full_name=~${inst}*"]
+set todat [get_pins $alldat -filter "full_name=~${inst}*"]
+
+set paths [get_timing_path -from $fromcp -to $todat -max_slack 0 -nworst 10 -max_paths 100000000 -unique_pins]
+
+
+set path_cell [lsort -u [get_object_name [get_cells -of [get_pins [ga [ga $paths timing_points] object] -filter "direction==out"]]]]
+set xtalk_nets [get_nets -of [get_pins -of [get_cells $path_cell] -filter "direction==out"] -filter "delta_delay_max >= 0.005"]
+set path_cell1  [lsort -u [get_object_name [get_cells -of [get_pins -of $xtalk_nets -filter "direction==out"] -filter "is_hierarchical==false && ref_name=~*BWP*"]]]
+set path_cell2  [get_object_name  [get_cells [remove_from_collection [get_cells $path_cell]  [get_cells $path_cell1]] -filter "is_hierarchical==false && ref_name=~*BWP*"]]
+redirect ${block}_setup_xtalk.tcl {get_my_upsize_cell $path_cell1 4 2}
+redirect ${block}_setup_swap.tcl {get_my_upsize_cell $path_cell2 2 2}
+
+##############
+set nets ""
+foreach net [get_object_name $xtalk_nets] {
+    set nets "$nets [uniquify_pin $net]"
+}
+echo "Delta DrivingCellMaster VictimNet DriverInstancePin" > ${block}_xtalk.nets
+redirect -append ${block}_xtalk.nets {
+foreach net [lsort -u $nets] {
+    echo "[lindex [lsort -real -decreasing [ga [get_nets $net] delta_delay_max]] 0] [lsort -u [ga [get_cells -of [ga [get_nets $net] driver_pins]] ref_name]] $net [uniquify_pin [get_object_name [index_collection [ga [get_nets $net] driver_pins] 0]]]"
+}
+}
+###############
+
+
