@@ -1,0 +1,73 @@
+#source /t11k/pnrwork35/users/kpavan/WORK/nov_04_B_socs/scripts/my_procs.tcl
+echo [exec date]
+############################
+foreach clk [get_object_name [get_clocks *]] {
+    #set clk JTAGCK_SBUSCLK_
+    echo "Processing... $clk ............"
+    set count 0
+    set num  [sizeof_collection [all_registers -clock $clk]]
+    if {  $num > 0} {
+	set paths [add_to_collection  [add_to_collection [report_timing -hpin -collection -path_group $clk -path_type full_clock -nworst 1 -max_paths [expr 2 * $num] -unique_pins] [report_timing -hpin -collection -path_group clock_gating_default -clock_to $clk -path_type full_clock -nworst 1 -max_paths [expr 2 * $num] -unique_pins] ] [report_timing -hpin -collection -path_group async_default -clock_to $clk -path_type full_clock -nworst 1 -max_paths [expr 2 * $num] -unique_pins]]
+	if { [sizeof_collection $paths] > 0} {
+	    set launch  [get_cells -quiet -of [get_pins -quiet  [get_attribute  [get_attribute   [get_attribute $paths  launch_clock_path] timing_points] object]] -filter "(is_hierarchical==false && is_sequential==false) && (ref_name=~*DLVT || ref_name=~*DSVT)  "]
+	    set launch_h   [get_pins -quiet  [get_attribute  [get_attribute   [get_attribute $paths  launch_clock_path] timing_points] object] -filter "is_hierarchical==true"]
+	    set capture  [get_cells -quiet -of [get_pins -quiet [get_attribute  [get_attribute   [get_attribute $paths  capture_clock_path] timing_points] object]] -filter "(is_hierarchical==false && is_sequential==false) && (ref_name=~*DLVT || ref_name=~*DSVT)  "]
+	    set capture_h   [get_pins -quiet  [get_attribute  [get_attribute   [get_attribute $paths  capture_clock_path] timing_points] object] -filter "is_hierarchical==true"]
+	    set ckpath_cells [add_to_collection -unique $launch $capture]
+	    #set hpins [lsort -u [get_object_name [get_pins -quiet [get_hpin_net [lsort -u [get_object_name [get_nets -of [get_pins -quiet -of $ckpath_cells -filter "direction==in"]]]]] -filter "direction==in"]]]
+	    set hpins [lsort -u [get_object_name [add_to_collection -unique $launch_h $capture_h]]]
+	    if {[sizeof_collection $ckpath_cells] > 0} {
+		echo "Clock: $clk  Period : [get_period $clk]" > ${clk}_nonck.cells
+		echo "==================\n" >> ${clk}_nonck.cells
+		echo "HIER - PINS :: \n" >> ${clk}_nonck.cells
+		echo "==================\n" >> ${clk}_nonck.cells
+		foreach hpin $hpins {
+		    echo $hpin >> ${clk}_nonck.cells
+		}
+		echo "==================\n" >> ${clk}_nonck.cells
+
+		foreach_in_collection inst [sort_collection $ckpath_cells full_name] {
+		    set inst1 [get_object_name $inst]
+		    set flag 1
+# if [regexp ^pdPCIEPHY_1/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEPHY_2/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEPHY_3/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX16_3/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX4_01/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX4_10/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX4_11/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX4_20/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX4_21/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX4_30/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX4_31/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX8_10/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX8_20/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX8_30/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX16_10/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX16_20/ $inst1] {set flag 0}
+# if [regexp ^pdPCIEX16_30/ $inst1] {set flag 0}
+
+		    if {$flag} {
+			incr count
+			echo " $inst1 \t\t [get_attribute $inst ref_name]" >> ${clk}_nonck.cells
+		    }
+		}
+
+		echo "==================\n" >> ${clk}_nonck.cells
+		echo "Total-Count :: $count" >> ${clk}_nonck.cells
+		echo "==================\n" >> ${clk}_nonck.cells
+	    }
+
+	}
+    }
+    set aa  [get_cells -quiet [all_registers -clock $clk] -filter "is_integrated_clock_gating_cell == true && (ref_name=~*DLVT || ref_name=~*DSVT)  "]
+    if { [sizeof_collection $aa] > 0} {
+	foreach_in_collection a $aa {
+	    echo "[get_object_name $a] \t\t [ga $a ref_name]" >> ${clk}_nonck.cells
+	}
+    }
+    
+}
+############################
+echo [exec date]
+
