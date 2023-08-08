@@ -1,0 +1,111 @@
+
+suppress_message TCLCMD 746 998 999 513
+foreach_in_collection clk [get_clocks *] {
+    set ckports [get_ports -quiet [get_attribute $clk sources]]
+    if { [sizeof_collection $ckports] > 0} {
+	echo "===================================================================="
+	echo "CLK:: [get_object_name $clk]\t PERIOD:: [get_attribute $clk period]"
+	echo "===================================================================="
+	foreach_in_collection port1 $ckports {
+	    echo "\t [get_object_name $port1 ]"
+	    foreach port2 [get_hpin_port [get_object_name $port1]] {
+		#echo "\t\t $port2 "
+		set lateinfo ""
+		#set lateinfo [report_clock_timing -type latency -from $port2 -clock [get_object_name $clk] -tcl_list]
+		set latency NA
+		set latency_min NA
+		set latency_max NA
+		set latency_avg 0
+
+		set falllatency NA
+		set falllatency_min NA
+		set falllatency_max NA
+		set falllatency_avg 0
+
+
+		set ii 0
+		#if { [llength [split $lateinfo]] > 26} {
+		#   set latency  [lindex [lindex  [split $lateinfo] 26] 0]
+		#}
+		set coll [all_fanout -flat -from $port2 -endpoints_only ]
+		if {[sizeof_collection $coll] > 0} {
+		    set a "" ; foreach _a [get_object_name [get_cells -quiet -of [all_fanout -flat -from ${port2} -endpoints_only ]]]  {lappend a [lindex [split  $_a /] 0]} ; set a [lsort -u $a]
+		    set _a ""
+		    foreach port3 $a { 
+			set coll1 [filter_collection $coll @full_name=~${port3}/*]
+			set latency NA
+			set latency_min NA
+			set latency_max NA
+			set latency_avg 0
+			
+			set falllatency NA
+			set falllatency_min NA
+			set falllatency_max NA
+			set falllatency_avg 0
+
+
+			set ii 0
+			set _HNETS ""
+
+			if {[sizeof_collection $coll1] > 0} {
+			    deselectAll
+			    selectNet [get_object_name [get_nets -of [get_pins [remove_from_collection -intersect [all_fanin -flat -to $coll1  ] [all_fanout -flat -from $port2  ]] -filter "direction==in && full_name=~${port3}/*"]]] 
+			    set _HNETS [dbget selected.hnets.hinstterms.name ${port3}/* -u -e]
+			    deselectAll
+			    if {[llength $_HNETS] > 0} {set _pp [get_pins -quiet $_HNETS -filter "direction==in"] ; if { [sizeof_collection $_pp] > 0} {set _HNETS [get_object_name $_pp]}}
+			    
+			    ##set _a [lsort -u [get_attribute $coll1 arrival_max]]
+			    #set _a [lsort -u [get_attribute $coll1 arrival_mean_max_rise]]
+			    #set _b [lsort -u [get_attribute $coll1 arrival_mean_max_fall]]
+
+			    set _a [lsort -u [get_attribute $coll1 actual_latency_late_rise_max]]
+			    set _b [lsort -u [get_attribute $coll1 actual_latency_early_fall_min]]
+
+			    
+			    foreach _pp $_a {
+				if {$_pp == "NA"} {
+				} else {
+				    incr ii
+				    set latency_avg [expr $latency_avg + $_pp]
+				}
+			    }
+			    if {$ii > 0} {set latency_avg [format %0.3f [expr $latency_avg/$ii]]} else {set latency_avg NA}
+			    if { [lindex $_a end] == "NA"} {set _a [lrange $_a 0 end-1]}
+			    if {[llength $_a] > 0} {
+				set late_list [lsort -real -decreasing $_a]
+				set latency_min [lindex $late_list end]
+				set latency_max [lindex $late_list 0]
+			    }
+			    ################
+			    set ii 0
+			    foreach _pp $_b {
+				if {$_pp == "NA"} {
+				} else {
+				    incr ii
+				    set falllatency_avg [expr $falllatency_avg + $_pp]
+				}
+			    }
+			    if {$ii > 0} {set falllatency_avg [format %0.3f [expr $falllatency_avg/$ii]]} else {set falllatency_avg NA}
+			    if { [lindex $_b end] == "NA"} {set _b [lrange $_b 0 end-1]}
+			    if {[llength $_b] > 0} {
+				set falllate_list [lsort -real -decreasing $_b]
+				set falllatency_min [lindex $falllate_list end]
+				set falllatency_max [lindex $falllate_list 0]
+			    }
+
+			    #############
+
+			}
+			
+			#echo "\t\t $port2 \t ($latency)"
+			#echo "\t\t $port2 \t $latency_max $latency_min"
+			#echo "\t\t $port3 \{ $_HNETS \} \t\t $latency_avg \t\t\t $falllatency_avg"
+			echo "\t\t $port3 \{ $_HNETS \} \t\t $latency_avg "
+		    }
+		}
+		
+	    }
+	}
+    }
+}
+unsuppress_message TCLCMD 746 998 999 513
