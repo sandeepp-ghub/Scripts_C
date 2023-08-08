@@ -1,0 +1,372 @@
+suppress_message TCLCMD-1469
+echo [exec date]
+#foreach type {max min} 
+#    foreach  clk {SOCSCLK PCIPCSCLK JTAGCK} 
+#proc get_intf_vio_paths  {{clk SOCSCLK} {type max} {tslack 0.0}} {
+
+set clk SOCSCLK
+set  type max
+set  tslack 0.0
+
+set vio_eps ""
+
+set allckpins [all_registers -clock_pins -clock $clk]
+set alldatpins [all_registers -data_pins -clock $clk]
+
+if {$clk == "SOCSCLK"} {
+    set blockpairs {
+	pdsbuslows0 pdsbuslows0
+
+	pdsbuslows0 pdPCIEX16_00
+	pdsbuslows0 pdPCIEX8_00
+	pdsbuslows0 pdPCIEX4_00
+	pdsbuslows0 pdPCIEX4_01
+	
+	pdsbuslows1 pdsbuslows1
+	pdsbuslows1 pdPCIEX16_10
+	pdsbuslows1 pdPCIEX8_10
+	pdsbuslows1 pdPCIEX4_10
+	pdsbuslows1 pdPCIEX4_11
+	
+	pdsbuslows2 pdsbuslows2
+	pdsbuslows2 pdPCIEX16_20
+	pdsbuslows2 pdPCIEX8_20
+	pdsbuslows2 pdPCIEX4_20
+	pdsbuslows2 pdPCIEX4_21
+	
+	pdsbuslows3 pdsbuslows3
+	pdsbuslows3 pdPCIEX16_30
+	pdsbuslows3 pdPCIEX8_30
+	pdsbuslows3 pdPCIEX4_30
+	pdsbuslows3 pdPCIEX4_31
+	
+	pdPCIEX16_00 pdsbuslows0
+	pdPCIEX8_00 pdsbuslows0
+	pdPCIEX4_00 pdsbuslows0
+	pdPCIEX4_01 pdsbuslows0
+	
+	pdPCIEX16_10 pdsbuslows1
+	pdPCIEX8_10 pdsbuslows1
+	pdPCIEX4_10 pdsbuslows1
+	pdPCIEX4_11 pdsbuslows1
+	
+	pdPCIEX16_20 pdsbuslows2
+	pdPCIEX8_20 pdsbuslows2
+	pdPCIEX4_20 pdsbuslows2
+	pdPCIEX4_21 pdsbuslows2
+	
+	pdPCIEX16_30 pdsbuslows3
+	pdPCIEX8_30 pdsbuslows3
+	pdPCIEX4_30 pdsbuslows3
+	pdPCIEX4_31 pdsbuslows3
+    }
+
+
+}
+
+if {$clk == "PCIPCSCLK"} {
+    set blockpairs {
+	pdPCIEPHY_0 pdPCIEX16_00
+	pdPCIEPHY_0 pdPCIEX8_00
+	pdPCIEPHY_0 pdPCIEX4_00
+	pdPCIEPHY_0 pdPCIEX4_01
+	pdPCIEPHY_0 pdPCIEPHYBOT_0
+
+
+	pdPCIEPHY_1 pdPCIEX16_10
+	pdPCIEPHY_1 pdPCIEX8_10
+	pdPCIEPHY_1 pdPCIEX4_10
+	pdPCIEPHY_1 pdPCIEX4_11
+	pdPCIEPHY_1 pdPCIEPHYBOT_1
+	
+	pdPCIEPHY_2 pdPCIEX16_20
+	pdPCIEPHY_2 pdPCIEX8_20
+	pdPCIEPHY_2 pdPCIEX4_20
+	pdPCIEPHY_2 pdPCIEX4_21
+	pdPCIEPHY_2 pdPCIEPHYBOT_2
+
+	pdPCIEPHY_3 pdPCIEX16_30
+	pdPCIEPHY_3 pdPCIEX8_30
+	pdPCIEPHY_3 pdPCIEX4_30
+	pdPCIEPHY_3 pdPCIEX4_31
+	pdPCIEPHY_3 pdPCIEPHYBOT_3
+
+	pdPCIEX16_00 pdPCIEPHY_0
+	pdPCIEX8_00 pdPCIEPHY_0
+	pdPCIEX4_00 pdPCIEPHY_0
+	pdPCIEX4_01 pdPCIEPHY_0
+	pdPCIEPHYBOT_0 pdPCIEPHY_0
+	
+	pdPCIEX16_10 pdPCIEPHY_1
+	pdPCIEX8_10 pdPCIEPHY_1
+	pdPCIEX4_10 pdPCIEPHY_1
+	pdPCIEX4_11 pdPCIEPHY_1
+	pdPCIEPHYBOT_1 pdPCIEPHY_1
+	
+	pdPCIEX16_20 pdPCIEPHY_2
+	pdPCIEX8_20 pdPCIEPHY_2
+	pdPCIEX4_20 pdPCIEPHY_2
+	pdPCIEX4_21 pdPCIEPHY_2
+	pdPCIEPHYBOT_2 pdPCIEPHY_2
+	
+	pdPCIEX16_30 pdPCIEPHY_3
+	pdPCIEX8_30 pdPCIEPHY_3
+	pdPCIEX4_30 pdPCIEPHY_3
+	pdPCIEX4_31 pdPCIEPHY_3
+	pdPCIEPHYBOT_3 pdPCIEPHY_3
+    }
+}
+
+if {$clk == "JTAGCK"} {
+    set blockpairs {		
+	pdsbuslows0 pdPCIEPHY_0
+	pdsbuslows0 pdPCIEX16_00
+	pdsbuslows0 pdPCIEX8_00
+	pdsbuslows0 pdPCIEX4_00
+	pdsbuslows0 pdPCIEX4_01
+
+	pdsbuslows1 pdPCIEPHY_1
+	pdsbuslows1 pdPCIEX16_10
+	pdsbuslows1 pdPCIEX8_10
+	pdsbuslows1 pdPCIEX4_10
+	pdsbuslows1 pdPCIEX4_11
+
+	pdsbuslows2 pdPCIEPHY_2
+	pdsbuslows2 pdPCIEX16_20
+	pdsbuslows2 pdPCIEX8_20
+	pdsbuslows2 pdPCIEX4_20
+	pdsbuslows2 pdPCIEX4_21
+
+	pdsbuslows3 pdPCIEPHY_3
+	pdsbuslows3 pdPCIEX16_30
+	pdsbuslows3 pdPCIEX8_30
+	pdsbuslows3 pdPCIEX4_30
+	pdsbuslows3 pdPCIEX4_31
+
+    }
+}
+
+
+#set from_block pdPCIEX16_00
+#set to_block pdsbuslows0
+
+foreach {from_block to_block} $blockpairs {
+    set from_ck_pin [filter_collection $allckpins @full_name=~${from_block}*]
+    set to_dat_pins [filter_collection $alldatpins @full_name=~${to_block}*]
+    if {$type == "max"} {
+	if {$from_block == $to_block} {
+	    set paths [report_timing -hpin -unique_pins  -collection -from $from_ck_pin -to $to_dat_pins -through [get_pins ${from_block}/*] -path_group $clk -max_slack $tslack -nworst 1 -max_paths [sizeof_collection $to_dat_pins] -path_type full_clock]
+	} else {
+	    set paths [report_timing -hpin -unique_pins  -collection -from $from_ck_pin -to $to_dat_pins -path_group $clk -max_slack $tslack -nworst 1 -max_paths [sizeof_collection $to_dat_pins] -path_type full_clock]
+	}
+    } else {
+	if {$from_block == $to_block} {
+	    set paths [report_timing -early -hpin -unique_pins  -collection -from $from_ck_pin -to $to_dat_pins -through [get_pins ${from_block}/*] -path_group $clk -max_slack $tslack -nworst 1 -max_paths [sizeof_collection $to_dat_pins] -path_type full_clock]
+	} else {
+	    set paths [report_timing -early -hpin -unique_pins  -collection -from $from_ck_pin -to $to_dat_pins -path_group $clk -max_slack $tslack -nworst 1 -max_paths [sizeof_collection $to_dat_pins] -path_type full_clock]
+	}
+    }
+    set numpaths [sizeof_collection $paths]
+    set launch_lat 0
+    set capture_lat 0
+    set slack NA
+    set nvp 0
+    append_to_collection vio_eps [ga $paths endpoint] -unique
+}
+
+
+#}
+
+echo [exec date]
+
+#/nfs/causers2/psebata/work/SOCS/report_SOCS_paths.BiuRing.tcl%/nfs/causers2/psebata/work/SOCS/report_SOCS_paths.Phy.tcl%/t11k/pnrwork35/users/kpavan/WORK/sept05_A_socs/scripts/user_reports.tcl    
+proc get_capture_clock_latency {paths} {
+    set _delays [ga [ga [index_collection [ga $paths capture_clock_path] 0] timing_points] delay]
+    set _derates [ga [ga [index_collection [ga $paths capture_clock_path] 0] timing_points] total_derate]
+    set n [llength $_delays]
+    set tot_delay 0
+    for {set i 0} {$i < $n} {incr i} {
+	set _derate [lindex $_derates $i]
+	if {$_derate == "NA"} {set _derate 1}
+	#set _derate 1
+	set _delay [lindex $_delays $i]
+	set stage_delay [expr $_delay / $_derate]
+	set tot_delay [expr $tot_delay + $stage_delay]
+    }
+    set capture_latency [format %0.3f $tot_delay]
+    return $capture_latency
+}
+proc get_launch_clock_latency {paths} {
+    set _delays [ga [ga [index_collection [ga $paths launch_clock_path] 0] timing_points] delay]
+    set _derates [ga [ga [index_collection [ga $paths launch_clock_path] 0] timing_points] total_derate]
+    set n [llength $_delays]
+    set tot_delay 0
+    for {set i 0} {$i < $n} {incr i} {
+	set _derate [lindex $_derates $i]
+	if {$_derate == "NA"} {set _derate 1}
+	#set _derate 1
+	set _delay [lindex $_delays $i]
+	set stage_delay [expr $_delay / $_derate]
+	set tot_delay [expr $tot_delay + $stage_delay]
+    }
+    set launch_latency [format %0.3f $tot_delay]
+    return $launch_latency
+}
+
+
+redirect skew.rpt {
+    foreach vio [get_object_name $vio_eps] {
+	set path [get_timing -to $vio]
+	set to_slack [get_slack $path]
+	set from_slack [get_slack [report_timing -collection -from [ga $path  endpoint_clock_pin] -max_paths 1]]
+	echo "$to_slack \t $from_slack \t $vio"
+    }
+}
+
+
+#pdsbuslows0/gsbuslows0_SbuSbbWcu0_SbuSlowSouth_BiuFlopStationSouthI_FS_Sbu_Pcie2_Sta_1_DFF_q_reg_1_/CP
+
+redirect status.rpt {
+    foreach S {0 1 2 3} {
+	echo "=================================="
+	echo "SBUS-SLOW-${S}"
+	echo "=================================="
+	foreach pin1 [get_object_name [get_pins pdsbuslows${S}/gsbuslows${S}_SbuSbbWcu${S}_SbuSlowSouth_BiuFlopStationSouthI_FS_Sbu_Pcie*_Sta_1_DFF_q_reg_*_/CP]] {
+	    set slack [get_slack [get_timing -from  $pin1 -max_paths 1]]
+	    if {$slack < 0} {
+		set pin1_d [get_object_name [get_pins  -of [get_cells -of [get_pins $pin1]] -filter "direction==in && name!~*CP* && name!=SE && name !~*SI*"]]
+		set path1 [get_timing -to $pin1_d]
+		set slack1  [get_slack $path1]
+		set pin2 [lsort -u [get_object_name [ga $path1 launching_point]]]
+		set pin2_d [get_object_name [get_pins  -of [get_cells -of [get_pins $pin2]] -filter "direction==in && name!~*CP* && name!=SE && name !~*SI*"]]
+		set path2 [get_timing -to $pin2_d]
+		set slack2  [get_slack $path2]
+		set pin3 [lsort -u [get_object_name [ga $path2 launching_point]]]
+		echo ""
+		echo "Stage0 : $pin1 [get_slack [get_timing -from $pin1]]"
+		echo "Stage1 : $pin2 [get_slack [get_timing -from $pin2]]"
+		echo "Stage2 : $pin3 [get_slack [get_timing -from $pin3]]"
+		echo ""
+	    }
+	}
+    }
+}
+
+foreach  S { 0 1 2 3 } {
+    redirect sbus_${S}_detailed.rpt {
+	set cmd "rt -unique_pins -max_paths 1 -nworst 1"
+	echo "==============="  
+	echo "SBUS${S} -RING SETUP"
+	echo "==============="
+	echo "---------------------------------------------------------------------------------------------------------"
+	echo "Slack Status Skew (LID - CID)  StartPoint                                EndPoint                     Clock     Hpins"
+	echo "---------------------------------------------------------------------------------------------------------"
+
+	echo ""
+	eval ${cmd} -to [get_pcie_datpins -sbus $S -pcie 0 -stage 0] -path_group SOCSCLK
+	echo ""
+	get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX16_${S}0/*
+	get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdPCIEX16_${S}0 -path_group SOCSCLK
+	get_intf_timing -cmd $cmd -from pdPCIEX16_${S}0 -to pdsbuslows${S}  -path_group SOCSCLK
+	echo ""
+	get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX4_${S}0/*
+	get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdPCIEX4_${S}0  -path_group SOCSCLK
+	get_intf_timing -cmd $cmd -from pdPCIEX4_${S}0  -to pdsbuslows${S}  -path_group SOCSCLK
+	echo ""
+	get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX8_${S}0/*
+	get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdPCIEX8_${S}0  -path_group SOCSCLK
+	get_intf_timing -cmd $cmd -from pdPCIEX8_${S}0  -to pdsbuslows${S}  -path_group SOCSCLK
+	echo ""
+	get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdsbuslows${S}  -path_group SOCSCLK -through pdPCIEX4_${S}1/*
+	get_intf_timing -cmd $cmd -from pdsbuslows${S}  -to pdPCIEX4_${S}1  -path_group SOCSCLK
+	get_intf_timing -cmd $cmd -from pdPCIEX4_${S}1  -to pdsbuslows${S}  -path_group SOCSCLK
+	echo ""
+	eval ${cmd} -from [get_pcie_ckpins -sbus ${S} -pcie 4 -stage 0] -path_group SOCSCLK
+    }
+}
+
+
+redirect skew_early.rpt {
+    foreach  S { 0 1 2 3 } {
+	foreach_in_collection cp [get_pins pdsbuslows${S}/gsbuslows${S}_SbuSbbWcu${S}_SbuSlowSouth_BiuFlopStationSouthI_FS_Sbu_Pcie*_Sta_1_DFF_q_reg_*_/CP] {
+	    set dp [get_pins -of [get_cells -of $cp] -filter "direction==in && name!~*CP* && name!~*SE* && name!~*SI*"]
+	    set slack_from [get_slack [get_timing -from $cp]]
+	    set to_slack [get_slack [get_timing -to $dp]]
+	    if {$slack_from < 0 } {
+		echo "${slack_from} \t ${to_slack} \t [get_object_name $cp]"
+	    }
+	}
+    }
+}
+
+if {0} {
+#To-Slack \t From-Slack \t   Endpoint
+echo "To-Slack \t From-Slack \t   Endpoint\n" > slow0_late_skew.rpt
+echo "To-Slack \t From-Slack \t   Endpoint\n" > slow1_late_skew.rpt
+echo "To-Slack \t From-Slack \t   Endpoint\n" > slow2_late_skew.rpt
+echo "To-Slack \t From-Slack \t   Endpoint\n" > slow3_late_skew.rpt
+
+grep pdsbuslows0 skew.rpt | perl -p -i -e 's/pdsbuslows0\///g' >> slow0_late_skew.rpt
+grep pdsbuslows1 skew.rpt | perl -p -i -e 's/pdsbuslows1\///g' >> slow1_late_skew.rpt
+grep pdsbuslows2 skew.rpt | perl -p -i -e 's/pdsbuslows2\///g' >> slow2_late_skew.rpt
+grep pdsbuslows3 skew.rpt | perl -p -i -e 's/pdsbuslows3\///g' >> slow3_late_skew.rpt
+
+#FromSlack \t  ToSlack \t  StartPOint
+echo "FromSlack \t  ToSlack \t  StartPOint\n" > slow0_early_skew.rpt
+echo "FromSlack \t  ToSlack \t  StartPOint\n" > slow1_early_skew.rpt
+echo "FromSlack \t  ToSlack \t  StartPOint\n" > slow2_early_skew.rpt
+echo "FromSlack \t  ToSlack \t  StartPOint\n" > slow3_early_skew.rpt
+
+grep pdsbuslows0 skew_early.rpt | perl -p -i -e 's/pdsbuslows0\///g' >> slow0_early_skew.rpt
+grep pdsbuslows1 skew_early.rpt | perl -p -i -e 's/pdsbuslows1\///g' >> slow1_early_skew.rpt
+grep pdsbuslows2 skew_early.rpt | perl -p -i -e 's/pdsbuslows2\///g' >> slow2_early_skew.rpt
+grep pdsbuslows3 skew_early.rpt | perl -p -i -e 's/pdsbuslows3\///g' >> slow3_early_skew.rpt
+
+}
+
+
+
+if {1} {
+
+foreach block {pdPCIEX16_00 pdPCIEX16_10 pdPCIEX16_20 pdPCIEX16_30 pdPCIEX8_00 pdPCIEX8_10 pdPCIEX8_20 pdPCIEX8_30 pdPCIEX4_00 pdPCIEX4_01 pdPCIEX4_10 pdPCIEX4_11 pdPCIEX4_20 pdPCIEX4_21 pdPCIEX4_30 pdPCIEX4_31} {
+    echo "Slack StartPoint Endpoint" > ${block}_vio.rpt
+    set slack 0
+    set cp_pins [get_pins [all_registers -clock_pins -clock SOCSCLK] -filter "full_name=~${block}*"]
+    set all_vio_from [get_timing -from $cp_pins -nworst 1 -max_paths 1000000000 -max_slack $slack -through [get_pins ${block}*/* -filter "direction==out"] ]
+    set eps [get_pins  [lsort -u [get_object_name [get_attribute $all_vio_from endpoint]]]]
+
+
+    set path_coll ""
+
+    set sps [get_pins [all_fanin -flat -to $eps -startpoints_only] -filter "full_name=~${block}*"]
+    foreach_in_collection sp $sps {
+	set path [get_timing -from $sp -to $eps -max_paths 1 -max_slack $slack]
+	if {[sizeof_collection $path] > 0} {append_to_collection path_coll $path -unique}
+    }
+
+
+
+    set path_coll [sort_collection $path_coll slack]
+
+    if { [sizeof_collection $path_coll] > 0} {
+	
+	foreach_in_collection path $path_coll {
+	    echo [get_slack $path] [get_object_name [ga $path startpoint]] [get_object_name [ga $path endpoint]] >> ${block}_vio.rpt
+	}
+    }
+}
+
+set vio_list {
+}
+echo "FromSlack ToSlack StartPoint"
+foreach vio $vio_list {
+    set path [get_timing -from [get_pins $vio] -max_paths 1]
+    set from_slack [get_slack $path]
+    set dpins [get_pins -of [get_cells -of [get_pins $vio]] -filter "direction==in && name!~CP* && name!~SE* && name!~SI* && name!~CLK*"]
+    set to_path [get_timing -to $dpins -max_paths 1]
+    set to_slack [get_slack $to_path]
+    echo "$from_slack \t $to_slack \t [join  [lrange [split $vio /] 1 end] /]"
+}
+
+## cat pdPCIEX16_* | grep -v Slack | gawk '{print $2}' | sort -u | perl -p -i -e 's/pdPCIEX16_\d+/pdPCIEX16_*/g' | sort -u   > all.sp
+}
