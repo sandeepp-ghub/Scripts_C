@@ -1,0 +1,49 @@
+set clk PCIPCSCLK
+set block pdpciephy
+set max_delay -0.25
+
+set min_delay [format %0.3f  [expr  [expr $max_delay / 1.0825] * 0.915]]
+
+set cksources [get_object_name [get_ports -quiet [get_attribute [get_clocks $clk] sources]]]
+foreach port $cksources {
+    foreach hpin [get_hpin_net $port] {
+	set t [get_cells -quiet  -of [get_pins $hpin] -filter "ref_name==${block}"]
+	if { [sizeof_collection $t] > 0} {
+	    set inst_name [file dirname $hpin]
+	    set load_pins [get_pins -quiet -leaf -of [get_nets -quiet -of [get_pins $hpin]] -filter "direction==in && full_name=~${inst_name}/*"]
+	    foreach_in_collection lp $load_pins {
+		echo "set_annotated_delay $max_delay -from $port -to [get_object_name $lp] -max -net "
+		echo "set_annotated_delay $min_delay -from $port -to [get_object_name $lp] -min -net "
+	    }
+	}
+    }
+}
+
+
+##########
+
+set clk SOCSCLK
+foreach block {pdpciex16 pdpciex4 pdpciex8} {
+#set block pdpciephy
+    if {$block == "pdpciex16"} {set max_delay -0.450}
+    if {$block == "pdpciex8"} {set max_delay -0.425}
+    if {$block == "pdpciex4"} {set max_delay -0.400}
+
+
+set min_delay [format %0.3f  [expr  [expr $max_delay / 1.0825] * 0.915]]
+
+set cksources [get_object_name [get_ports -quiet [get_attribute [get_clocks $clk] sources]]]
+foreach port $cksources {
+    foreach hpin [get_hpin_net $port] {
+	set t [get_cells -quiet  -of [get_pins $hpin] -filter "ref_name==${block}"]
+	if { [sizeof_collection $t] > 0} {
+	    set inst_name [file dirname $hpin]
+	    set load_pins [get_pins -quiet -leaf -of [get_nets -quiet -of [get_pins $hpin]] -filter "direction==in && full_name=~${inst_name}/*"]
+	    foreach_in_collection lp $load_pins {
+		echo "set_annotated_delay $max_delay -from $port -to [get_object_name $lp] -max -net " >> ${block}_clkmod.sdc
+		echo "set_annotated_delay $min_delay -from $port -to [get_object_name $lp] -min -net " >> ${block}_clkmod.sdc
+	    }
+	}
+    }
+}
+}
