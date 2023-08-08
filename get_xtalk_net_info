@@ -1,0 +1,57 @@
+
+
+proc get_window_net  {net {type rise}} {
+    set driv_rise_min 100000
+    set driv_rise_max 0
+    set driv_fall_min 100000
+    set driv_fall_max 0
+
+    set load_rise_min 1000000
+    set load_rise_max 0
+    set load_fall_min 10000000
+    set load_fall_max 0
+    
+
+    foreach_in_collection pin  [get_pins -leaf -of  [get_nets $net] -filter "direction==out"] {
+	set t [ga $pin arrival_min_rise] ; if  {$t < $driv_rise_min } {set driv_rise_min $t}
+	set t [ga $pin arrival_min_fall] ; if  {$t < $driv_fall_min } {set driv_fall_min $t}
+	set t [ga $pin arrival_max_rise] ; if  {$t > $driv_rise_max } {set driv_rise_max $t}
+	set t [ga $pin arrival_max_fall] ; if  {$t > $driv_fall_max } {set driv_fall_max $t}
+    }
+
+    foreach_in_collection pin  [get_pins -leaf -of  [get_nets $net] -filter "direction==in"] {
+	set t [ga $pin arrival_min_rise] ; if  {$t < $load_rise_min } {set load_rise_min $t}
+	set t [ga $pin arrival_min_fall] ; if  {$t < $load_fall_min } {set load_fall_min $t}
+	set t [ga $pin arrival_max_rise] ; if  {$t > $load_rise_max } {set load_rise_max $t}
+	set t [ga $pin arrival_max_fall] ; if  {$t > $load_fall_max } {set load_fall_max $t}
+    }
+
+    if {$type == "rise"} {
+	return "$driv_rise_min $load_rise_max"
+    }
+    if {$type == "fall"} {
+	return "$driv_fall_min $load_fall_max"
+    }
+    if {$type == "both"} {
+	if {$driv_rise_min < $driv_fall_min} {set min $driv_rise_min} else {set min $driv_fall_min}
+	if {$load_rise_max > $load_fall_max} {set max $load_rise_max} else {set max $load_fall_max}
+	return "$min $max"
+	
+    }
+}
+
+proc get_xtalk_net_info {net {type rise}} {
+set win0 [get_window_net $net $type]
+echo "Victim : $net ($type) :: $win0 - width [expr [lindex $win0 1] - [lindex $win0 0]]"
+echo ""
+foreach _net [get_object_name [ga [get_nets $net] attackers]] {
+    set win1 [get_window_net $_net both]
+    if {[lindex $win0 0] >  [lindex $win1 0]} {set minov [lindex $win0 0]} else {set minov [lindex $win1 0]}
+    if {[lindex $win0 1] <  [lindex $win1 1]} {set maxov [lindex $win0 1]} else {set maxov [lindex $win1 1]}
+    echo "Aggressor: $_net :: $win1 - overlapWidth [expr $maxov - $minov]"
+}
+echo ""
+}
+
+#set net "${H}pdsbuslows2/FE_OFN35337_gsbuslows2_SbuSbbWcu2_SbuSlowSouth_BiuFlopStationSouthI_FS_Sbu_Pcie1_BiuDatRingInNnnW_0_209"
+#get_xtalk_net_info $net both
