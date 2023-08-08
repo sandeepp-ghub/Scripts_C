@@ -1,0 +1,9 @@
+cell                       f6-setup      f7-setup   f10-hold    f9-hold setup-min max       hold-min max
+DELCD1BWP300H8P64PDLVT       140          70            75         77      63 107                 35   51
+DELAD1BWP300H8P64PDLVT       45           23            22         22      22  34                 12 18
+CKBD1BWP300H8P64PDLVT         53          23            22         22        
+
+
+
+setup margin : 0.7 * setup_margin_f6
+hold  vio :  hold_vio * 1.1 holdvio_f9_f10
