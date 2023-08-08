@@ -1,0 +1,538 @@
+
+## Source list code from Tom.
+source /proj/cayman/wa/tarneberg/code/tcl/general/misc.tcl
+
+# create a generic proc
+proc get_list_of_io_for_clk { clock } {
+   set inputs [list]
+   set outputs [list]
+   set ftin [list]
+   set ftout [list]
+   set src [get_object_name [get_property [get_clocks $clock] sources]]
+   set skip_patt_ports [list "scrbr_._reg_if"]
+   foreach_in_collection p [get_ports *] {
+      if { [get_property $p is_clock_root] } { continue; }
+      set pname [get_object_name $p]
+      if { $pname eq $src } {continue;}  ;# skip clock sources.
+      set skip 0
+      foreach patt $skip_patt_ports {if { [regexp $patt $pname] } {set skip 1; continue;};}
+      if { $skip } {continue;}  ;# found a port pattern we want to skip...
+      set DEBUG 0
+      ##if { [regexp "hbm_sbr_0_int_trigger.0." $pname] } {set DEBUG 1;} else {set DEBUG 0;}
+      if { [get_property $p direction] == "in" } {
+         set internals [all_fanout -endpoints_only -from $p]
+         set inflag 1
+      } else {
+         set internals [all_fanin -startpoints_only -to $p]
+         set inflag 0
+      }
+      set skip_patt_pins [list "u_phy.*_scan.*clk" "jtag_clk_scan_mux.dout" "SYNC.*RB" "SYNC.*CD" "SYNC.*SDN"]
+      set pins [get_pins -quiet $internals]
+      if { $pins != "" } {
+         if {$DEBUG} {puts " DEBUG: pins [sizeof_collection $pins]";}
+         foreach_in_collection dp $pins {
+            set skip 0
+            set dpname [get_object_name $dp]
+            foreach patt $skip_patt_pins {if { [regexp $patt $dpname] } {set skip 1; continue;};}
+            if { $skip } {continue;}  ;# found a pin pattern we want to skip... e.g. phy scan clock inputs.
+            regsub {/[A-Za-z0-9\[\]_]+$} $dpname {/} pin_path
+            set lib_cp [list]
+            set cp_list [list]
+            if { $inflag } {
+               if { [get_lib_pin -quiet -of $dp] == "" } {puts " WARNING: no lib pin for $dpname"; continue;}
+               # if this is an ip or etm with mutliple clocks, get the one specific to this input pin.
+               set lib_cp [get_object_name [get_property [get_lib_arcs -to [get_lib_pin -of $dp]] from_lib_pin]]
+               foreach lc $lib_cp {
+                  regsub {.*/} $lc {} lib_cpname
+                  set np "${pin_path}${lib_cpname}"
+                  set cp [get_object_name [get_pins $np -filter "direction==in&&is_clock"]]
+                  if { $cp != "" } { lappend cp_list $cp; }
+               }
+            } else {
+               # for outputs, the start point "should" be a sequential clock input pin.
+               # AND for mutliple clocks on an IP, if there are supporting arcs related to this input pin, they will be in the $pins collection.
+               set cp_list [list $dpname]
+            }
+            set cp_list [lsort -unique $cp_list]
+            if {$DEBUG} {puts " DEBUG: cp_list [llength $cp_list]";}
+            foreach cp $cp_list {
+               set clkname [get_object_name [get_property [get_pins $cp] clocks]]
+               if { $clkname ne "" && $clock eq $clkname } {
+                  if {$DEBUG} {puts " #### DEBUG ports: in:$inflag clock:$clkname port_name:$pname flop_pin:$cp";}
+                  if { $inflag } {
+                     lappend inputs $pname
+                  } else {
+                     lappend outputs $pname
+                  }
+               }
+            }
+         }
+      }
+      set ports [get_ports -quiet $internals]
+      if { $ports != "" } {
+        if {$DEBUG} {puts " DEBUG: ports [sizeof_collection $ports]";}
+        foreach_in_collection ft $ports {
+           set ftpname [get_object_name $ft]
+           # will always get the source port from all_fanin/out in the list. skip it.
+           if { $pname eq $ftpname } {continue;}
+           # get the virtual clocks, strip off the virtual, if at least one is $clock, run with it.
+           set pclk_list [get_vclk_for_port $pname]
+           set pclk ""
+           foreach p $pclk_list {
+              if { [regexp "$clock" $p] } {set pclk $p;}
+           }
+           regsub {_virt} $pclk {} pclk
+           regsub {_V} $pclk {} pclk
+           regsub {V_} $pclk {} pclk
+           set ftclk_list [get_vclk_for_port $ftpname]
+           set ftclk ""
+           foreach ftc $ftclk_list {
+              if { [regexp "$clock" $ftc] } {set ftclk $ftc;}
+           }
+           regsub {_virt} $ftclk {} ftclk
+           regsub {_V} $ftclk {} ftclk
+           regsub {V_} $ftclk {} ftclk
+           if { $pclk eq "" && $ftclk ne "" } {set pclk $ftclk;}
+           if { $pclk ne "" && $ftclk eq "" } {set ftclk $pclk;}
+           if { $pclk eq $ftclk && $clock eq $pclk } {
+              if {$DEBUG} {puts " #### DEBUG FTs: in:$inflag clock:$clock vclk:$ftclk port_name: $pname ft: $ftpname dir: [get_property $ft direction]";}
+              if { (($inflag == 1) && ([get_property $ft direction] == "out")) } {
+                 lappend ftin $pname
+                 lappend ftout $ftpname
+              } elseif { (($inflag == 0) && ([get_property $ft direction] == "in")) } {
+                 lappend ftout $pname
+                 lappend ftin $ftpname
+                 if {$DEBUG} {puts "       #### DEBUG FTs: HERE!  $ftout";}
+              }
+           }
+           if { $pclk ne $ftclk } { puts " WARNING: $pname feed-through to $ftpname clocks are different: $pclk | $ftclk";}
+        }
+      }
+   }
+   set io_for_clk_in  [lsort -unique $inputs]
+   set io_for_clk_out [lsort -unique $outputs]
+   set ft_for_clk_in  [lsort -unique $ftin]
+   set ft_for_clk_out [lsort -unique $ftout]
+
+   puts " $clock inputs:"
+   #foreach ip $io_for_clk_in {puts "    $ip";}
+   puts "[llength $io_for_clk_in]"
+   puts " $clock outputs:"
+   #foreach op $io_for_clk_out {puts "    $op";}
+   puts "[llength $io_for_clk_out]"
+   puts " $clock ft inputs:"
+   puts "[llength $ft_for_clk_in]"
+   puts " $clock ft outputs:"
+   puts "[llength $ft_for_clk_out]"
+   
+   return [list $io_for_clk_in $io_for_clk_out $ft_for_clk_in $ft_for_clk_out]
+}
+
+proc get_vclk_for_port { port } {
+  # Tempus can produce a report in tcl_list format... so data can be pulled out that way IF no attribute exists...
+  set rpt_list [report_ports -pins $port -tcl_list]
+  # This is the index into the column header for the 4th column: lindex [lindex [lindex [lindex [lindex $rpt_list 1] 1] 0] 1] 3 == "clock"
+  # This is the index into the first row, column 4:              lindex [lindex [lindex [lindex [lindex $rpt_list 1] 1] 1] 1] 3 == "hbm_clk_virt(C)(P)(func_setup_ssgnp0p675v0c_cworstCCwT0c)"
+  set clk_list [list]
+  # get the number of rows in the report
+  set rows [llength [lindex [lindex $rpt_list 1] 1]]
+  if { $rows < 2 } {
+     ### it seems that many IO ft's on hbm_ctrl "scrbr_<n>_reg_if*" and ctrl_rst_n have no IO constraints. Large number of IO so this debug/error overwhelms the log.
+     ##puts " ERROR: No IO constraint and virtual clock on this port: $port"
+  } else {
+     for {set r 1} {$r < $rows} {incr r} {
+        set assertion [lindex [lindex [lindex [lindex [lindex $rpt_list 1] 1] $r] 1] 2]
+        if { [regexp "input"  $assertion] || [regexp "external" $assertion] } {
+           set clkstr [lindex [lindex [lindex [lindex [lindex $rpt_list 1] 1] $r] 1] 3]
+           # Use a regexp to get the clockname 
+           regsub {\(.*$} $clkstr {} clk
+           set clk [string trim $clk]
+           lappend clk_list $clk
+        }
+     }
+  }
+  # fyi, if there are more than one constraint with the same clk, it's usually a falling-edge clock constraint "<clk>(D)(N)" ...vs. (D)(P).
+  set clk_list  [lsort -unique $clk_list]
+  return $clk_list
+}
+
+proc get_delay_for_port { port } {
+  # Tempus can produce a report in tcl_list format... so data can be pulled out that way IF no attribute exists...
+  set rpt_list [report_ports -pins $port -tcl_list]
+  # This is the index into the column header for the 4th column: lindex [lindex [lindex [lindex [lindex $rpt_list 1] 1] 0] 1] 3 == "clock"
+  # This is the index into the first row, column 4:              lindex [lindex [lindex [lindex [lindex $rpt_list 1] 1] 1] 1] 3 == "hbm_clk_virt(C)(P)(func_setup_ssgnp0p675v0c_cworstCCwT0c)"
+  # get the number of rows in the report
+  set rows [llength [lindex [lindex $rpt_list 1] 1]]
+  set io_delay_exists true
+  if { $rows < 2 } {
+     ### it seems that many IO ft's on hbm_ctrl "scrbr_<n>_reg_if*" and ctrl_rst_n have no IO constraints. Large number of IO so this debug/error overwhelms the log.
+     ##puts " ERROR: No IO constraint and virtual clock on this port: $port"
+     set io_delay_exists false
+  }
+  return $io_delay_exists
+}
+proc flatten { str } {
+    while 1 {
+        set new [join $str]
+        if {$str eq $new} {regsub -all { [ ]*} $str { } str; return $str}
+        set str $new
+    }
+}
+proc check_for_io_delays { file_of_pins } {
+   set DEBUG 0
+   set inf [open $file_of_pins r]
+   set data [read $inf]
+   close $inf
+   set ::io_pins [dict create]
+   foreach line [split $data "\n"] {
+      if { [regexp {^[ ]*#} $line] || $line eq "" } {continue;}
+      set line [string trim $line]
+      regsub {/[A-Za-z0-9\[\]_]+$} $line {/} pin_path
+      set lib_cp [list]
+      set cp_list [list]
+      if { [get_lib_pin -quiet -of [get_pins -quiet $line]] == "" } {puts " WARNING: no lib pin for $line"; continue;}
+      # if this is an ip or etm with mutliple clocks, get the one specific to this input pin.
+      set lib_cp [get_object_name [get_property [get_lib_arcs -to [get_lib_pin -of [get_pins -quiet $line]]] from_lib_pin]]
+      foreach lc $lib_cp {
+         regsub {.*/} $lc {} lib_cpname
+         set np "${pin_path}${lib_cpname}"
+         set cp [get_object_name [get_pins $np -filter "direction==in&&is_clock"]]
+         if { $cp != "" } { lappend cp_list $cp; }
+      }
+      set cp_list [lsort -unique -dictionary $cp_list]
+      if {$DEBUG} {puts " DEBUG: cp_list [llength $cp_list]";}
+      set reg_clk_list [list]
+      foreach cp $cp_list {
+         set clkname [get_object_name [get_property [get_pins $cp] clocks]]
+         lappend reg_clk_list $clkname
+      }
+      set reg_clk_list [lsort -unique -dictionary [flatten $reg_clk_list]]
+      if {$DEBUG} {puts " DEBUG: reg_clk_list $reg_clk_list";}
+      set port [get_ports -quiet [all_fanin -trace all -startpoints_only -to $line]]
+      if { [sizeof_collection $port] > 1 } {
+        set port [remove_from_collection $port [get_ports -quiet {*rst* *RST* *reset*}]]
+      }
+      if { $port != "" } {
+         foreach_in_collection p $port {
+            set port_vclks [get_vclk_for_port $p]
+            set pname [get_object_name $p]
+            set matching_clk_list [list]
+            set io_covered FALSE
+            if { $port_vclks != "" } {
+               set port_vclk_list [list]
+               foreach pclk $port_vclks {
+                  regsub {_virt} $pclk {} pclk
+                  regsub {_V} $pclk {} pclk
+                  regsub {V_} $pclk {} pclk
+                  lappend port_vclk_list $pclk
+               }
+               set port_vclk_list [lsort -unique -dictionary [flatten $port_vclk_list]]
+               if {$DEBUG} {puts " DEBUG: port_vclk_list $port_vclk_list";}
+               set matching_clk_list [lsort -unique -dictionary [flatten [ ::ta::lists_intersection $port_vclk_list $reg_clk_list ]]]
+               if {$DEBUG} {puts " DEBUG: matching virtual clocks matching_clk_list $matching_clk_list for port: $pname";}
+               if { $matching_clk_list eq "" } {
+                 set io_covered FALSE
+               } else {
+                 set io_covered [ ::ta::unsorted_lists_are_equal $matching_clk_list $reg_clk_list ]
+               }
+            }
+            set missed_clk_list [list]
+            if { !$io_covered } {
+               set missed_clk_list [lsort -unique -dictionary [flatten [ ::ta::lists_xor $matching_clk_list $reg_clk_list ]]]
+               #if { [regexp {TEST} $pname] || [llength $missed_clk_list] > 1 } {
+               #  set list_inside [lindex $missed_clk_list 0]
+               #  if {$DEBUG} {puts " 1 DEBUG: missed_clk_list $missed_clk_list list_inside: $list_inside";}
+               #  set missed_clk_list $list_inside
+               #  set list_inside [lindex $missed_clk_list 0]
+               #  if {$DEBUG} {puts " 2 DEBUG: missed_clk_list $missed_clk_list list_inside: $list_inside";}
+               #  set missed_clk_list $list_inside
+               #}
+               foreach clk $missed_clk_list {
+                  if { $clk != "" } {
+                     #if { [llength [split $clk]] > 1 } {
+                     #   # deeper list
+                     #   set clocks [lsort -unique -dictionary [split $clk]]
+                     #} else {
+                     #   set clocks $clk
+                     #}
+                     foreach c $clk {
+                       if { [dict exists $::io_pins $pname] } {
+                          dict lappend ::io_pins $pname $c
+                       } else {
+                          dict set ::io_pins $pname [list $c]
+                       }
+                     }
+                  }
+                  if {$DEBUG} {puts " #### DEBUG ports: missed register_clock:$clk port_name:$pname";}
+                  # 
+               }
+            }
+         }
+      }
+
+   }
+   set outf [open "${file_of_pins}.missing_io_delay" w]
+   foreach pin_name [dict keys $::io_pins]  {
+      set clk_list [dict get $::io_pins $pin_name]
+      set clk_list [lsort -unique -dictionary $clk_list]
+      dict set ::io_pins $pin_name $clk_list
+      foreach clk $clk_list {
+         set max 0.0
+         set p [lsort -unique -dictionary [flatten [get_property [get_clocks $clk] period]]]
+         if { [llength $p] > 1 } {
+           if {$DEBUG} {puts " #### DEBUG : register_clock:$clk multiple periods:$p";}
+           foreach n $p {
+             # if there are multiple periods (error?), select the largest to produce the worst/most difficult input delay.
+             if { $n != "NA" && $n != "" && $n > $max } {
+               set max $n
+             }
+           }
+         } else {
+           set max [lindex $p 0]
+           if {$max == "NA" || $max == ""} {
+             # if a period is missing, default to 1.0 == 400ps of delay.
+             set max 1.0
+           }
+         }
+         if {$DEBUG} {puts " #### DEBUG ports: register_clock:$clk period:$max port_name:$pin_name";}
+         set v [expr 0.400 * $max]
+         if { ![check_clocks_on_pin $clk $pin_name $outf] && ![check_const_on_pin $pin_name $outf] } {
+           puts $outf "set_input_delay $v -add -clock $clk $pin_name"
+         }
+      }
+   }
+   close $outf
+}
+
+
+proc check_clocks_on_pin { reg_clk pin_name outf } {
+  set ip [get_ports $pin_name]
+  if { [get_property $ip is_clock] && [get_property $ip is_constrained] && [get_property $ip clocks] != "" } {
+    set clkname [lsort -unique -dictionary [get_object_name [get_clocks [get_property $ip clocks]]]]
+    set found 0
+    foreach c $clkname {
+      if { $c eq $reg_clk || [regexp $c $reg_clk] } {
+        puts $outf " ## Clock(s) $clkname created on port: |$pin_name|  $clkname == $reg_clk ?"
+        set found 1
+      }
+    }
+    if { $found } {return 1;} else { puts $outf " ## Clock(s) found on port |$pin_name| but dont match $reg_clk"; return 0;}
+  } else {
+    return 0
+  }
+}
+
+proc check_const_on_pin { pin_name outf } {
+  set ip [get_ports $pin_name]
+  set cv [get_property $ip constant_value]
+  set ucv [get_property $ip user_constant_value]
+  if { $cv != "NA" || $ucv != "NA" } {
+    if { $cv == "NA" } {
+      puts $outf " ## Constant $ucv set on port: $pin_name"
+    } else {
+      puts $outf " ## Constant $cv set on port: $pin_name"
+    }
+    return 1
+  } else {
+    return 0
+  }
+}
+
+### improve/fix:  remove gz from output filename; 
+
+
+
+
+proc change_io_delay { port_list dir clk value ft {pre_vclk 0} {vpatt "_virt"} } {
+  if { $port_list == [list] } { return; }
+  if { [dict exists $::io_pins $clk] } {set d 1;} else {set d 0;}
+  if { $dir == "in" }                {set num 0;} else {set num 1;}
+  set dict_map "${d}${num}${ft}"
+  switch $dict_map {
+     "100" {
+              # exists, in, no-ft
+              set thislist0  [lindex [dict get $::io_pins $clk] 0]
+              if { [llength $thislist0] } {set thislist0 [lsort -unique "$thislist0 $port_list"];} else {set thislist0 $port_list;}
+              set otherlist1 [lindex [dict get $::io_pins $clk] 1]
+              set otherlist2 [lindex [dict get $::io_pins $clk] 2]
+              set otherlist3 [lindex [dict get $::io_pins $clk] 3]
+              dict set ::io_pins $clk [list $thislist0 $otherlist1 $otherlist2 $otherlist3]
+           } 
+     "110" {
+              # exists, out, no-ft
+              set otherlist0 [lindex [dict get $::io_pins $clk] 0]
+              set thislist1  [lindex [dict get $::io_pins $clk] 1]
+              if { [llength $thislist1] } {set thislist1  [lsort -unique "$thislist1 $port_list"];} else {set thislist1 $port_list;}
+              set otherlist2 [lindex [dict get $::io_pins $clk] 2]
+              set otherlist3 [lindex [dict get $::io_pins $clk] 3]
+              dict set ::io_pins $clk [list $otherlist0 $thislist1 $otherlist2 $otherlist3]
+           }
+     "101" {
+              # exists, in, ft
+              set otherlist0 [lindex [dict get $::io_pins $clk] 0]
+              set otherlist1 [lindex [dict get $::io_pins $clk] 1]
+              set thislist2  [lindex [dict get $::io_pins $clk] 2]
+              if { [llength $thislist2] } {set thislist2  [lsort -unique "$thislist2 $port_list"];} else {set thislist2 $port_list;}
+              set otherlist3 [lindex [dict get $::io_pins $clk] 3]
+              dict set ::io_pins $clk [list $otherlist0 $otherlist1 $thislist2 $otherlist3]
+           } 
+     "111" {
+              # exists, out, ft
+              set otherlist0 [lindex [dict get $::io_pins $clk] 0]
+              set otherlist1 [lindex [dict get $::io_pins $clk] 1]
+              set otherlist2 [lindex [dict get $::io_pins $clk] 2]
+              set thislist3  [lindex [dict get $::io_pins $clk] 3]
+              if { [llength $thislist3] } {set thislist3  [lsort -unique "$thislist3 $port_list"];} else {set thislist3 $port_list;}
+              dict set ::io_pins $clk [list $otherlist0 $otherlist1 $otherlist2 $thislist3]
+           }
+     "000" {
+              # doesn't exist, in, no-ft; Populate new table
+              dict set ::io_pins $clk [list $port_list [list] [list] [list]]
+              #puts "DEBUG start: list0 $port_list"
+           }
+     "010" {
+              # doesn't exist, out, no-ft; Populate new table
+              dict set ::io_pins $clk [list [list] $port_list [list] [list]]
+              #puts "DEBUG start: list1 $port_list"
+           }
+     "001" {
+              # doesn't exist, in, ft; Populate new table
+              dict set ::io_pins $clk [list [list] [list] $port_list [list]]
+              #puts "DEBUG start: list2 $port_list"
+           }
+     "011" {
+              # doesn't exist, out, ft; Populate new table
+              dict set ::io_pins $clk [list [list] [list] [list] $port_list]
+              #puts "DEBUG start: list3 $port_list"
+           }
+  }
+  foreach other_clk [dict keys $::io_pins] {
+     set clk_pin_lists [dict get $::io_pins $other_clk]
+     set index [expr $num + [expr 2*$ft]]
+     set clk_pin_list [lindex $clk_pin_lists $index]
+     foreach p $port_list {
+        if { $p == "" } {continue;}
+        # deal with the non-standard naming of virtual clocks on this project.
+        set vclk_list [get_vclk_for_port $p]
+        set vclk ""
+        foreach v $vclk_list {
+           if { [regexp "$clk" $v] } {set vclk $v;}
+        }
+        if { $vclk == "" } {
+           foreach v $vclk_list {
+              if { [regexp "$other_clk" $v] } {set vclk $v;}
+           }
+        }
+        if { $vclk == "" && $pre_vclk } {set vclk "${vpatt}${clk}";} 
+        if { $vclk == "" && !$pre_vclk } {set vclk "${clk}${vpatt}";} 
+        if { $other_clk ne $clk } {
+           if { [lsearch -exact $clk_pin_list $p] == -1 } {
+              if { $pre_vclk } {set new_vclk "${vpatt}${other_clk}";} else {set new_vclk "${other_clk}${vpatt}";}
+              ## puts " #### DEBUG input not in other's list: in:$p clock:$clk other_clock:$other_clk";
+              # make sure virtual clock exists.
+              if { [lsearch $::virtual_clocks $new_vclk] != -1 } {
+                 set constraint "reset_${dir}put_delay $p -clock $new_vclk"
+                 eval $constraint
+                 if { [regexp "WRCK" $new_vclk] } {
+                    set constraint "reset_${dir}put_delay $p -clock_fall -clock $new_vclk"
+                    eval $constraint
+                 }
+              }
+           }
+        }
+        if { [lsearch $::virtual_clocks $vclk] != -1 } {
+           set constraint "reset_${dir}put_delay $p -clock $vclk"
+           eval $constraint
+           if { [regexp "WRCK" $vclk] } {
+              set constraint "reset_${dir}put_delay $p -clock_fall -clock $vclk"
+              eval $constraint
+           }
+        }
+        if { $pre_vclk } {set new_vclk "${vpatt}${clk}";} else {set new_vclk "${clk}${vpatt}";}
+        if { [lsearch $::virtual_clocks $new_vclk] != -1 } {
+           set constraint "set_${dir}put_delay -add_delay $value -clock $new_vclk $p"
+           ##puts " NEW: $constraint"
+           eval $constraint
+           if { [regexp "WRCK" $new_vclk] } {
+              set constraint "set_${dir}put_delay -add_delay $value -clock_fall -clock $new_vclk $p"
+              eval $constraint
+           }
+        }
+     }
+  }
+  return;
+}
+#                             V_WRCK   -                                                        func_setup_ssgnp0p675v0c_cworstCCwT0c   20000.000   0.000   10000.000       n           n        
+#                           V_jtag_clk -                                                        func_setup_ssgnp0p675v0c_cworstCCwT0c    8000.000   0.000    4000.000       n           n        
+#                            V_sb_clk  -                                                        func_setup_ssgnp0p675v0c_cworstCCwT0c    1111.000   0.000     555.500       n           n        
+#                           V_scan_clk -                                                        func_setup_ssgnp0p675v0c_cworstCCwT0c   13333.000   0.000    6666.500       n           n        
+#
+
+### BUGS:
+#     code produces 1 set of IO constraints for first clock, dfi_clk then
+#     produces 2 input and 4 output sets for 2nd clock, hbm_clk... BUT async/fp saves our butts b/c ALL IO seem to be clocked by all clocks. <<< does not make sense.
+#
+# Examples:
+#thornquist(cayman)@aw5lp-etx-026.marvell.annapurna.aws.a2z.com[228]> grep NEW ./logfiles/*.logv | awk '{print $5 " " $6 " " $7 " " $8 " " $9 " " $10}' > t.3
+#thornquist(cayman)@aw5lp-etx-026.marvell.annapurna.aws.a2z.com[229]> gvim t.3
+#thornquist(cayman)@aw5lp-etx-026.marvell.annapurna.aws.a2z.com[230]> grep NEW ./logfiles/*.logv | egrep 'dfi_bridge_if_ctldfi_par_lat.0.'
+#[02/23 15:02:46    635s]  NEW: set_input_delay -add_delay 376.0 -clock dfi_clk_virt dfi_bridge_if_ctldfi_par_lat[0]
+#[02/23 15:03:04    653s]  NEW: set_input_delay -add_delay 167.0 -clock hbm_clk_virt dfi_bridge_if_ctldfi_par_lat[0]
+#[02/23 15:03:06    655s]  NEW: set_input_delay -add_delay 167.0 -clock hbm_clk_virt dfi_bridge_if_ctldfi_par_lat[0]
+#thornquist(cayman)@aw5lp-etx-026.marvell.annapurna.aws.a2z.com[231]> grep NEW ./logfiles/*.logv | egrep 'dfi_phy_if_dfi_dram_clk_disable.0.'
+#[02/23 15:02:51    639s]  NEW: set_output_delay -add_delay 376.0 -clock dfi_clk_virt dfi_phy_if_dfi_dram_clk_disable[0]
+#[02/23 15:03:07    657s]  NEW: set_output_delay -add_delay 167.0 -clock hbm_clk_virt dfi_phy_if_dfi_dram_clk_disable[0]
+#[02/23 15:03:10    660s]  NEW: set_output_delay -add_delay 167.0 -clock hbm_clk_virt dfi_phy_if_dfi_dram_clk_disable[0]
+#[02/23 15:03:18    669s]  NEW: set_output_delay -add_delay 167.0 -clock hbm_clk_virt dfi_phy_if_dfi_dram_clk_disable[0]
+#[02/23 15:03:20    671s]  NEW: set_output_delay -add_delay 167.0 -clock hbm_clk_virt dfi_phy_if_dfi_dram_clk_disable[0]
+#thornquist(cayman)@aw5lp-etx-026.marvell.annapurna.aws.a2z.com[232]> pwd
+#/proj/cayman/extvols/wa_001/thornquist/impl/hbm_dfi_bridge_wrapper.1.0A/track.0223_predft_prects_DE2/tempuscui.syn.sta
+#
+proc fix_io_delays { } { 
+  set cl [lsort -unique [get_object_name [get_clocks *]]]
+  set ::io_pins [dict create]
+  set_interactive_constraint_modes [list func]
+  # assume the virtual clocks are at least consistent per block and grab the virtual tag
+  set ::virtual_clocks [list]
+  foreach c $cl {
+      if { [get_property [get_clocks $c] is_virtual] } {
+         if { [regexp {_virt} $c] } {set pre_vclk 0; set vpatt "_virt";}
+         if { [regexp {_V} $c] } {set pre_vclk 0; set vpatt "_V";}
+         if { [regexp {V_} $c] } {set pre_vclk 1; set vpatt "V_";}
+         lappend ::virtual_clocks $c
+      }
+  }
+  foreach c $cl {
+      set master ""
+      set div_by 0.0
+      # skip virtual clocks to find the real IO clocks
+      if { [get_property [get_clocks $c] is_virtual] } { continue; }
+      if { [get_property [get_clocks $c] is_generated] } {
+         set master [get_object_name [get_property [get_clock $c] master_clock]]
+         set div_by [get_property [get_clock $c] divide_by]
+      }
+      set period [get_property [get_clock $c] period]
+      set freq [expr [expr 1.0 / [expr $period * 0.000000000001]] / 1000000.0]
+      if { $div_by == 0.0 } {
+         puts " CLOCK: $c  freq: $freq Mhz"
+      } else {
+         puts " CLOCK: $c  freq: $freq Mhz  master clock: $master divide_by: $div_by"
+      }
+      set io_list [get_list_of_io_for_clk $c]
+      set port_list [lindex $io_list 0]
+      # Use 2/3 of the cycle for both IO delays.
+      set v [expr 0.400 * $period]
+      change_io_delay $port_list "in" $c $v 0 $pre_vclk $vpatt
+      set port_list [lindex $io_list 1]
+      change_io_delay $port_list "out" $c $v 0 $pre_vclk $vpatt
+      # for the feed-throughs
+      # Use 1/4 of the cycle for both IO delays.
+      set v [expr 0.250 * $period]
+      set port_list [lindex $io_list 2]
+      change_io_delay $port_list "in" $c $v 1 $pre_vclk $vpatt
+      set port_list [lindex $io_list 3]
+      change_io_delay $port_list "out" $c $v 1 $pre_vclk $vpatt
+  }
+}
+
+
