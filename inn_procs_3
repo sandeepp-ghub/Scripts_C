@@ -1,0 +1,100 @@
+proc get_module_length {mod} {
+	   set mod_name [get_db module:$mod .name]
+	   set mod_length [get_db module:$mod .hinsts.boundary.bbox.length]
+	   return $mod_length
+}
+
+proc get_module_width {mod} {
+	   set mod_name [get_db module:$mod .name]
+	   set mod_width [get_db module:$mod .hinsts.boundary.bbox.width]
+	   return $mod_width
+}
+
+proc get_module_bbox {mod} {
+	   set mod_name [get_db module:$mod .name]
+	   set mod_bbox [get_db module:$mod .hinsts.boundary.bbox]
+	   return $mod_bbox
+}
+
+
+proc get_module_sizes {} {
+	set blocks [mortar::hierinfo -children] 
+	foreach child $blocks {
+		set len [get_db module:$child .hinsts.boundary.bbox.length]
+		set wid [get_db module:$child .hinsts.boundary.bbox.width]
+		return "$len $wid"
+	}
+}
+
+proc get_module_boxes {} {
+	set blocks [mortar::hierinfo -children] 
+	foreach child $blocks {
+		set boxes [get_db module:$child .hinsts.boundary.rects]]
+		puts "$child $boxes"
+	}
+}
+
+proc update_tpb_sizes {} {
+   set tpb_offsetx 8209.368
+   set tpb_offsety 19057.92
+   set cayman_top {
+   "tpb_aseq_aengine_wrapper 1186.056 2150.4 3790.677 3064.32"
+   "tpb_sb_wrapper 23.256 3628.8 3162.765 8440.32"
+   "tpb_pb_wrapper 4093.056 537.6 6279.069 3628.8"
+   "tpb_array_sequencer 3162.816 5671.68 3558.117 8440.32"
+   "tpb_array_wrapper 3558.168 3628.8 6279.069 8440.32"
+   "tpb_interconnect 23.256 2311.68 325.533 3628.8"
+   "Xm_sunda_NX_TIEXtsubsystem 2604.672 3144.96 2999.973 3548.16"
+   "tpb_dve_wrapper 23.256 26.88 1023.213 2311.68"
+   "tpb_pseq_pengine_wrapper 1023.213 510.72 4069.8 1989.12 1023.213 26.88 6302.376 510.72"
+   };
+	foreach inst $cayman_top {
+		set mod_name [lindex $inst 0] 
+		set hinsts  [get_db module:$mod_name .hinsts -if {[regexp {^sengine_0.*TPB_1} .name]}]
+			puts "hinst $hinsts"
+			if [regexp .*tpb_pseq_pengine_wrapper $hinsts ] {
+				set x1 [expr { [lindex $inst 1] + $tpb_offsetx}]
+				set y1 [expr { [lindex $inst 2] + $tpb_offsety}]
+				set x2 [expr { [lindex $inst 3] + $tpb_offsetx}]
+				set y2 [expr { [lindex $inst 4] + $tpb_offsety}]
+				set x3 [expr { [lindex $inst 5] + $tpb_offsetx}]
+				set y3 [expr { [lindex $inst 6] + $tpb_offsety}]
+				set x4 [expr { [lindex $inst 7] + $tpb_offsetx}]
+				set y4 [expr { [lindex $inst 8] + $tpb_offsety}]
+				set cmd1 "create_boundary_constraint -hinst $hinsts -type region -rects {$x1 $y1 $x2 $y2}"
+				set cmd2 "update_floorplan_obj -obj $hinsts -rects {{$x1 $y1 $x2 $y2} {$x3 $y3 $x4 $y4}}"
+				puts "$cmd1"
+				#eval $cmd1
+				eval $cmd2
+				} else {
+				set x1 [expr { [lindex $inst 1] + $tpb_offsetx}]
+				set y1 [expr { [lindex $inst 2] + $tpb_offsety}]
+				set x2 [expr { [lindex $inst 3] + $tpb_offsetx}]
+				set y2 [expr { [lindex $inst 4] + $tpb_offsety}]
+				set cmd "create_boundary_constraint -hinst $hinsts -type region -rects {$x1 $y1 $x2 $y2}"
+				puts "$cmd"
+				eval $cmd
+			}
+ 		
+		
+	     }
+ }
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
