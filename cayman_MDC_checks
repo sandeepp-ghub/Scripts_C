@@ -1,0 +1,354 @@
+# sourced by the project config as part of mSessionStartHook_project
+
+# /proj/mkit/pkgs/minfra/mUtil/hotfix/2022.02/hotfix_18867/hotfix.tcl
+
+# read_db /mrvl2g/cayman_extvol06/cayman/cayman/wa_006/kyelugam/impl/Xm_CAYMAN_NX_TIEXtsubsystem_aseq.1.0A/track.DE2p1_predft_fp_300x800_May16/invcui.signoff.pgvprep/dataout/Xm_CAYMAN_NX_TIEXtsubsystem_aseq
+
+# FIXME: ESD and DFM checks
+
+# FIXME: sensor routing contracts
+
+# FIXME:
+proc cayman::mdc_check_ssn_placement { args } {
+  mortar::parse_args $args {
+  } {
+    variable ns_info
+  }
+}
+
+# FIXME: ESD, DTCD, etc, etc
+proc cayman::mdc_check_dfm_and_sensor_cells { args } {
+  mortar::parse_args $args {
+  } {
+    variable ns_info
+  }
+}
+
+# FIXME: make sure no shapes exist above the ceiling, this could indicate pgcover was loaded when it should not have been
+proc cayman::mdc_check_above_ceiling { args } {
+  mortar::parse_args $args {
+  } {
+    variable ns_info
+  }
+}
+
+# FIXME: Mike please review
+proc cayman::mdc_check_DBLK.H210P51.S.1.1 { args } {
+  if { ![::mdc::__init] } { return 0 }
+
+  set output_directory ""
+  set design_state [::mdc::__current_design_state]
+
+  ::mortar::parse_args $args {
+    {"output_directory"   output_directory    string    0}
+    {"design_state"       design_state        string    0}
+  } {
+    set check_name  "cayman_check_DBLK.H210P51.S.1.1"
+    set check_title "check narrow/short adjacent circuit row areas"
+
+    ::mdc::__flow_misc_start
+
+    set design    [mortar::current_design]
+    set viol_rect [::mdc::__generic_viol_rect]
+
+    variable ns_info
+    if { ![info exists ns_info(called,mdc_$check_name)] } {
+      set ns_info(called,mdc_$check_name) 1
+      ::mdc::create_violation -type $check_name -subtype "tcic" -name "ufc_rule" -msgid "mdc_floorplan_tcic_ufc_rule"                            -severity "error"
+      ::mdc::create_violation -type $check_name -subtype "tcic" -name "file_missing" -msgid "mdc_floorplan_tcic_file_missing"                            -severity "error"
+      ::mdc::create_violation -type $check_name -subtype "tcic" -name "ufc_gen_fail" -msgid "mdc_floorplan_tcic_ufc_gen_fail"                            -severity "error"
+      ::mdc::create_violation -type $check_name -subtype "tcic" -name "file_not_loaded" -msgid "mdc_floorplan_tcic_file_not_loaded"                            -severity "error"
+      ::mdc::create_violation -type $check_name -subtype "tcic" -name "cell_usage_missing" -msgid "mdc_floorplan_tcic_cell_usage_missing"                            -severity "error"
+    }
+
+    source /proj/mkit/pkgs/mflow/invcui/2021.10.000/proc/mdc_check_ufc.tcl
+    mVar MKIT_MFIND_SOURCE(n5_tCIC_v1d1_0_1a.tcl) /proj/mkit/pkgs/mflow/invcui/2021.10.000/script/n5_tCIC_v1d1_0_1a.tcl
+    mVar MKIT_MFIND_SOURCE(n5_tCIC_macro_usage_manager.tcl) /proj/mkit/pkgs/mflow/invcui/2021.10.000/script/n5_tCIC_macro_usage_manager.tcl
+    mVar MKIT_MFIND_SOURCE(n5_tCIC_set_cip_variables.tcl) /proj/mkit/pkgs/mflow/invcui/2021.10.000/script/n5_tCIC_set_cip_variables.tcl
+    mVar MKIT_MFIND_SOURCE(n5_tCIC_v1d1_0_1a_description.tcl) /proj/mkit/pkgs/mflow/invcui/2021.10.000/script/n5_tCIC_v1d1_0_1a_description.tcl
+    lassign [::mdc_check_ufc] ufc_file violations
+
+    foreach viol $violations {
+      lassign $viol subtype name msg_items
+      mortar::echo "(debug) $viol"
+      ::mdc::add_violation -type $check_name -subtype $subtype -name $name -msg_items $msg_items
+    }
+
+
+    ::mdc::__flow_misc_finish
+  } {
+  }
+}
+
+# FIXME: Gary to fill in
+proc cayman::mdc_check_clock_ports { args } {
+  if { ![::mdc::__init] } { return 0 }
+
+  set output_directory ""
+  set design_state [::mdc::__current_design_state]
+
+  ::mortar::parse_args $args {
+    {"output_directory"   output_directory    string    0}
+    {"design_state"       design_state        string    0}
+  } {
+    set check_name  "cayman_check_clock_ports"
+    set check_title "Clock Port Placement"
+
+    ::mdc::__flow_misc_start
+
+    set design    [mortar::current_design]
+    set viol_rect [::mdc::__generic_viol_rect]
+
+    variable ns_info
+    if { ![info exists ns_info(called,mdc_$check_name)] } {
+      set ns_info(called,mdc_$check_name) 1
+      mortar::msgid -define -id "cayman_mdc-clock_ports-01" -alias [set m "${check_name}_ok"] -severity "info" -format "Did not find any inconsistencies in the clock port placement"
+      mdc::create_violation -type $check_name -name "ok" -msgid $m -severity "info"
+      mortar::msgid -define -id "cayman_mdc-clock_ports-02" -alias [set m "${check_name}_viol"] -severity "error" -format "Found clock port placement issues%s"
+      mdc::create_violation -type $check_name -name "viol" -msgid $m -severity "critical"
+    }
+
+    #mdc::add_violation -type $check_name -name "ok"   -rect $viol_rect -msg_items [list ]
+    #mdc::add_violation -type $check_name -name "viol" -rect $viol_rect -msg_items [list $str]
+
+    ::mdc::__flow_misc_finish
+  } {
+    Confirm the clock port placement
+  }
+}
+
+proc cayman::mdc_check_reset_extender_placement { args } {
+  if { ![::mdc::__init] } { return 0 }
+
+  set output_directory ""
+  set design_state [::mdc::__current_design_state]
+
+  ::mortar::parse_args $args {
+    {"output_directory"   output_directory    string    0}
+    {"design_state"       design_state        string    0}
+  } {
+    set check_name  "cayman_check_reset_extender_placement"
+    set check_title "Check Reset Extender Placement"
+
+    ::mdc::__flow_misc_start
+
+    variable ns_info
+    if { ![info exists ns_info(called,mdc_$check_name)] } {
+      set ns_info(called,mdc_$check_name) 1
+      mortar::msgid -define -id "cayman_mdc-rstxtnd-place-00" -alias [set m "${check_name}_ok_nothing"] -severity "info" -format "No reset extender clones, nothing to check"
+      mdc::create_violation -type $check_name -name "ok_nothing" -msgid $m -severity "info"
+      mortar::msgid -define -id "cayman_mdc-rstxtnd-place-01" -alias [set m "${check_name}_no_hinst"] -severity "error" -format "Cannot find %s reset extender %s"
+      mdc::create_violation -type $check_name -name "no_hinst" -msgid $m -severity "error"
+      mortar::msgid -define -id "cayman_mdc-rstxtnd-place-02" -alias [set m "${check_name}_ok_good"] -severity "info" -format "Reset extender %s has source inst %s in region %s"
+      mdc::create_violation -type $check_name -name "ok_good" -msgid $m -severity "info"
+      mortar::msgid -define -id "cayman_mdc-rstxtnd-place-03" -alias [set m "${check_name}_viol"] -severity "error" -format "Reset extender %s has source inst %s (%s)%s"
+      mdc::create_violation -type $check_name -name "viol" -msgid $m -severity "error"
+    }
+
+    set viol_rect [::mdc::__generic_viol_rect]
+
+    # core check
+    lassign [cayman::get_reset_extenders -cloning] hinsts hinsts_notfound
+
+    if { $hinsts eq "" && $hinsts_notfound eq "" } {
+      mdc::add_violation -type $check_name -name "ok_nothing" -rect $viol_rect -msg_items [list ]
+    } else {
+      foreach name $hinsts_notfound {
+        if { [regexp {_clone} $name] } { set type "clone" } else { set type "primary" }
+        mdc::add_violation -type $check_name -name "no_hinst" -rect $viol_rect -msg_items [list $type $name]
+      }
+
+      # confirm the driving inst is part of a region
+      foreach grp $hinsts {
+        foreach hinst $grp {
+          set hinst_name [get_db $hinst .name]
+
+          set src_net [get_db [get_db $hinst .hports -if {.base_name == reset_n_out}] .hnet.net]
+          if { $src_net eq "" } {
+            mortar::echo -error -text "Cannot find source net from $name/reset_n_out, something is not correct and no cloning can occur!!"
+            continue
+          }
+
+          set src_inst [get_db $src_net .drivers.inst] ; # the AO that drives the reset
+          if { $src_inst eq "" } {
+            mdc::add_violation -type $check_name -name "viol" -rect $viol_rect -msg_items [list $hinst_name "(none)" "unknown" ""]
+            continue
+          }
+
+          set src_inst_name [get_db $src_inst .name]
+          set src_inst_cell [get_db $src_inst .base_cell.name]
+
+          if { [set group [get_db $src_inst .group]] eq "" } {
+            mdc::add_violation -type $check_name -name "viol" -rect $viol_rect -msg_items [list $hinst_name $src_inst_name $src_inst_cell " but is not in a group"]
+            continue
+          }
+
+          set group_name [get_db $group .name]
+
+          if { [get_db $group .rects] eq "" } {
+            mdc::add_violation -type $check_name -name "viol" -rect $viol_rect -msg_items [list $hinst_name $src_inst_name $src_inst_cell " is in group $group_name, but no rects defined"]
+            continue
+          }
+
+          if { [set type [get_db $group .constraint_type]] ne "region" } {
+            mdc::add_violation -type $check_name -name "viol" -rect $viol_rect -msg_items [list $hinst_name $src_inst_name $src_inst_cell " is in group $group_name, but it is a $type and not a region"]
+            continue
+          }
+
+          mdc::add_violation -type $check_name -name "ok_good" -rect $viol_rect -msg_items [list $hinst_name $src_inst_name $group_name]
+        }
+      }
+    }
+
+
+    ::mdc::__flow_misc_finish
+  } {
+    Confirm each cloned reset extender is in a placement region, as well as its clones
+    This should only be run during floorplan and prects since the regions are no longer relevant after prects
+  }
+}
+
+proc cayman::mdc_check_pgcover_files { args } {
+  if { ![::mdc::__init] } { return 0 }
+
+  set output_directory ""
+  set design_state [::mdc::__current_design_state]
+
+  ::mortar::parse_args $args {
+    {"output_directory"   output_directory    string    0}
+    {"design_state"       design_state        string    0}
+  } {
+    set check_name  "cayman_check_pgcover_files"
+    set check_title "Missing PG Cover Files"
+
+    ::mdc::__flow_misc_start
+
+    variable ns_info
+    if { ![info exists ns_info(called,mdc_$check_name)] } {
+      set ns_info(called,mdc_$check_name) 1
+      mortar::msgid -define -id "cayman_mdc-pgc-01" -alias [set m "${check_name}_viol_missing"] -severity "error" -format "Did not find a PG Cover for %s (tried %s)"
+      mdc::create_violation -type $check_name -name "viol_missing" -msgid $m -severity "critical"
+      mortar::msgid -define -id "cayman_mdc-pgc-02" -alias [set m "${check_name}_ok_found"] -severity "info" -format "Found PG Cover for %s as expected, this is good (%s)"
+      mdc::create_violation -type $check_name -name "ok_found" -msgid $m -severity "info"
+
+      mortar::msgid -define -id "cayman_mdc-pgc-03" -alias [set m "${check_name}_viol_found"] -severity "error" -format "Found PG Cover for %s, this is unexpected (%s)"
+      mdc::create_violation -type $check_name -name "viol_found_pgcover" -msgid $m -severity "critical"
+      mortar::msgid -define -id "cayman_mdc-pgc-04" -alias [set m "${check_name}_ok_missing"] -severity "info" -format "Did not find a PG Cover for %s as expected, this is good"
+      mdc::create_violation -type $check_name -name "ok_no_pgcover" -msgid $m -severity "info"
+    }
+
+    set require_pgcover [cayman::is_pgcover_required]
+
+    # FIXME: project config only sets these during floorplan and pgv, but probably could always set them
+    #        therefore look for it by path for now while I think about removing the if-condition
+    #mVar TCL($mfw_design,pgcover)   "$::PROJ_ROOT_DEx/pd/pgv/$mfw_design/$mfw_design.pgcover.tcl" ; # includes MIMCAP overlay
+
+    set design [mortar::current_design]
+
+    set viol_rect [::mdc::__generic_viol_rect]
+
+    set f [file join $::env(PROJ_ROOT) $::env(PROJ_PHASE) pd pgv $design $design.pgcover.tcl]
+    if { $require_pgcover } {
+      # make sure the file exists
+      if { [file exists $f] } {
+        mdc::add_violation -type $check_name -name "ok_found"     -rect $viol_rect -msg_items [list $design $f]
+      } else {
+        mdc::add_violation -type $check_name -name "viol_missing" -rect $viol_rect -msg_items [list $design $f]
+      }
+    } else {
+      # make sure the file does not exist
+      if { [file exists $f] } {
+        mdc::add_violation -type $check_name -name "viol_found"    -rect $viol_rect -msg_items [list $design $f]
+      } else {
+        mdc::add_violation -type $check_name -name "ok_no_pgcover" -rect $viol_rect -msg_items [list $design $f]
+      }
+    }
+
+    ::mdc::__flow_misc_finish
+  }
+}
+
+proc cayman::mdc_check_m4_pg_stripes { args } {
+  if { ![::mdc::__init] } { return 0 }
+
+  set output_directory ""
+  set design_state [::mdc::__current_design_state]
+
+  ::mortar::parse_args $args {
+    {"output_directory"   output_directory    string    0}
+    {"design_state"       design_state        string    0}
+  } {
+    set check_name  "cayman_check_m4_pg_stripes"
+    set check_title "Missing M4 PG Stripes"
+
+    ::mdc::__flow_misc_start
+
+    variable ns_info
+    if { ![info exists ns_info(called,mdc_$check_name)] } {
+      set ns_info(called,mdc_$check_name) 1
+      mortar::msgid -define -id "cayman_mdc-m4pg-01" -alias [set m "${check_name}_crit"] -severity "error" -format "Found truncated %s stripe over %s along %f %f %f %f"
+      mdc::create_violation -type "$check_name" -name "truncated_stripe" -msgid $m -severity "critical"
+      mortar::msgid -define -id "cayman_mdc-m4pg-02" -alias [set m "${check_name}_warn"] -severity "warning" -format "Found extended %s stripe over %s along %f %f %f %f but still covers the IP"
+      mdc::create_violation -type "$check_name" -name "extended_stripe" -msgid $m -severity "warning"
+    }
+
+    # (from Mike Rohn) -> /proj/*06/RTX/wa/mrohn/scripts/tcl/find_sram_m4_issues.tcl
+
+# FIXME: get all non-hierarchy IPs (block)?
+    set insts [get_db insts -if {.base_cell.base_name eq sa*}]
+
+    if { $insts eq "" } {
+      mortar::echo "No instances need to be checked"
+    }
+
+    ### find M4 stripes , 0.060 width , over srams, need to touch prboundary on both sides
+    foreach inst $insts {
+      set inst_name [get_db $inst .name]
+
+      ### found bbox x and y
+      set llx [get_db $inst .bbox.ll.x]
+      set lly [get_db $inst .bbox.ll.y]
+      set urx [get_db $inst .bbox.ur.x]
+      set ury [get_db $inst .bbox.ur.y]
+
+      set my_m4_straps [get_obj_in_area -obj_type special_wire -areas "$llx $lly $urx $ury" -layer "M4"]
+
+      foreach my_m4_strap $my_m4_straps {
+        set rect [lindex [get_db $my_m4_strap .rect] 0]
+        lassign $rect pg_llx pg_lly pg_urx pg_ury
+
+        if { [get_db $my_m4_strap .shape] eq "drcfill" } {
+          #mortar::echo "Skipping drcfill shape"
+          continue
+        }
+
+        # previous checked != but some overhang patch wires are ok, therefore just care that we cover the full width of the IP
+        # if "do not cover the full width of the IP"
+        if { $pg_llx != $llx || $pg_urx != $urx } {
+          set net_name [get_db $my_m4_strap .net.name]
+          if { $pg_llx > $llx || $pg_urx < $urx } {
+            # does not cover the IP
+            mdc::add_violation -type $check_name -name "truncated_stripe" -rect $rect -msg_items [list [get_db $my_m4_strap .net.name] $inst_name {*}$rect]
+          } else {
+            # covers the IP and extends beyond, unexpected but may be ok?
+            mdc::add_violation -type $check_name -name "extended_stripe" -rect $rect -msg_items [list [get_db $my_m4_strap .net.name] $inst_name {*}$rect]
+          }
+        }
+      }
+    }
+
+    ::mdc::__flow_misc_finish
+  }
+}
+
+# valid states: floorplan prects cts postcts route postroute   (and "all")
+set user_mdc_checks [list \
+                         [list cayman_check_m4_pg_stripes cayman::mdc_check_m4_pg_stripes all] \
+                         [list cayman_check_pgcover_files cayman::mdc_check_pgcover_files all] \
+                        ]
+#lappend user_mdc_checks [list cayman_check_clock_ports              cayman::mdc_check_clock_ports              all]
+if { $::env(PROJ_PHASE) eq "DE3" } {
+  lappend user_mdc_checks [list cayman_check_reset_extender_placement cayman::mdc_check_reset_extender_placement {floorplan prects postroute}]
+  lappend user_mdc_checks [list cayman_check_DBLK.H210P51.S.1.1       cayman::mdc_check_DBLK.H210P51.S.1.1       all]
+}
+mdc::setting -name user_defined_checks -value $user_mdc_checks
