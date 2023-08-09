@@ -1,0 +1,199 @@
+# -*-Tcl-*-
+#
+# Settings to drive Innovus on a per-stage and per-block basis
+#
+
+# ----------------------------------------------------------------------------------------------------
+puts "Additional configure for Innovus ([info script])"
+
+set mfw_track   [mVar SESSION(track)]
+set mfw_session [mVar SESSION(name)]
+set mfw_design  [mVar DESIGN]
+
+set ::PROJ_ROOT_DEx [file join $::env(PROJ_ROOT) $::env(PROJ_PHASE)]
+# ----------------------------------------------------------------------------------------------------
+
+
+# Note: block-specific mVar settings should **NOT** be done here, but in the $PROJ_ROOT/projflow/project/$PROJ_FLOW_VERSION/CONFIG/track_config.project.tcl (See "block-specific stuff" section of that file)
+
+
+# General stuff here  !! Remember that most settings are baked into the DB after invcui.floorplan !!
+set_db opt_leakage_to_dynamic_ratio 0.9 ; # improved MBFF merging with some focus on dynamic
+
+# FIXME: to address DRC violations from https://essjira.marvell.com/browse/ASICCAYMAN-48
+puts "Applying set_edge_spacing workaround for ASICCAYMAN-48"
+set_cell_edge_spacing tie_edge tie_edge -spacing 0.210
+foreach cell [get_db base_cells "*nd_dtie*"] {
+  set_cell_edge_type -cell [get_db $cell .name] -bottom tie_edge
+  set_cell_edge_type -cell [get_db $cell .name] -top    tie_edge
+}
+
+
+# Flow-specific stuff here
+switch $mfw_session {
+  invcui.prects {
+  }
+  default {
+  }
+}
+
+# Block-specific stuff here
+switch $mfw_design {
+  dfx_top {
+    # experiments
+  }
+  simple_core -
+  simple_mac -
+  simple_mac_2048 {
+    set_db place_global_uniform_density true ; # spread out since we might vary the floorplan size in experimentation
+    set_db opt_area_recovery false ; # faster runtime
+  }
+  tpb_array_tile {
+    # Mark stuff here
+    set SESSION(invcui.floorplan,conf.tcl) {
+      mConfigStep buffer_perimeter -post { source /proj/cayman/wa/maubel/scripts/place_clk.tcl }
+    }
+    set SESSION(invcui.prects,conf.tcl) {
+#      mConfigStep prects_placeopt_setup -post { source /proj/cayman/wa/maubel/configs/cust_mbff_setup.tcl }
+      mConfigStep mpcts_add_taps        -post { source /proj/cayman/wa/maubel/configs/disable_uskew.tcl }
+#      mConfigStep prects_placeopt       -post { source /proj/cayman/wa/maubel/configs/cust_mbff_flow.tcl }
+    }
+    set SESSION(invcui.cts,conf.tcl) {
+      mConfigStep mpcts_add_taps   -post { source /proj/cayman/wa/maubel/configs/disable_uskew.tcl }
+    }
+    set SESSION(invcui.postcts,conf.tcl) {
+      mConfigStep time_design_hold  -post { source /proj/cayman/wa/maubel/configs/disable_uskew.tcl }
+    }
+    set SESSION(invcui.route,conf.tcl) {
+      mConfigStep route_settings   -post { source /proj/cayman/wa/maubel/configs/disable_uskew.tcl }
+    }
+    set SESSION(invcui.postroute,conf.tcl) {
+      mConfigStep time_design_hold -post {source /proj/cayman/wa/maubel/configs/extreme.tcl; source /proj/cayman/wa/maubel/scripts/dont_touch_port_bufs.tcl }
+    }
+  }
+  tpb_psum_combine_tile {
+    set SESSION(invcui.prects,conf.tcl) {
+      mConfigStep prects_placeopt       -pre {source /proj/cayman/wa/maubel/scripts/dont_touch_port_bufs.tcl }
+    }
+  }
+  tpb_array_xbus_pre_tile {
+    set SESSION(invcui.prects,conf.tcl) {
+      mConfigStep prects_placeopt       -pre {source /proj/cayman/wa/maubel/scripts/dont_touch_port_bufs.tcl }
+    }
+  }
+  d2d_subsys_wrapper {
+    if { [mVar SESSION(name)] eq "invcui.floorplan" } {
+      mConfigStep floorplan_create_pg -pre {
+        #source $::PROJ_ROOT_DEx/pd/snapshot/d2d_subsys_wrapper/d2d_subsys_wrapper.refclk_eco.tcl
+        #source $::PROJ_ROOT_DEx/pd/snapshot/d2d_subsys_wrapper/d2d_subsys_wrapper.custom_routes.tcl
+      }
+    }
+  }
+  d2d_subsys_wrapper_flip {
+    if { [mVar SESSION(name)] eq "invcui.floorplan" } {
+      mConfigStep floorplan_create_pg -pre {
+        #source $::PROJ_ROOT_DEx/pd/snapshot/d2d_subsys_wrapper_flip/d2d_subsys_wrapper_flip.refclk_eco.tcl
+        #source $::PROJ_ROOT_DEx/pd/snapshot/d2d_subsys_wrapper_flip/d2d_subsys_wrapper_flip.custom_routes.tcl
+      }
+    }
+  }
+  pcie_x8_wrapper {
+    if { [mVar SESSION(name)] eq "invcui.floorplan" } {
+    mConfigStep floorplan_create_pg -pre {
+        source /proj/cayman/wa/wskipwith/tcl/pcie_x8_wrapper_regions.tcl;
+        source /mrvl2g/aw5_xtl_cayman/cayman/cayman/wa/avarshney/tcl/connect_CORESD_pins.tcl;
+        connect_CORESD_pins
+      }
+      mConfigStep floorplan_create_pg -post {
+        source /proj/cayman/wa/sjones1/tcl/pcie_refclk_v2.tcl;
+        source /proj/cayman/wa/wskipwith/tcl/dont_touch_and_skip_refclk.tcl;
+        source /proj/cayman/wa/wskipwith/tcl/cleanup_pwrroute_connections.tcl;
+      }
+    }
+  }
+  ring_io_top {
+   if { [mVar SESSION(name)] eq "invcui.import" } {
+     mConfigStep setup_views -pre {
+       source /proj/cayman/wa/rchatty/scripts/DE2_import_cleanup_ring_io_top.tcl
+       delete_unused_gap_cell
+       remove_repower_vddo_vsso
+     }
+   }
+   if { [mVar SESSION(name)] eq "invcui.floorplan" } {
+   mConfigStep floorplan_create_pg -pre {
+       source /mrvl2g/aw5_xtl_cayman/cayman/cayman/wa/avarshney/tcl/connect_CORESD_pins.tcl;
+       connect_CORESD_pins
+     }
+     mConfigStep floorplan_import_ports -post {
+        source /proj/cayman/wa/aparntiwari/scripts/DE2.0/ring_io_top/pop_ports.tcl
+        source /proj/cayman/wa/aparntiwari/scripts/DE2.0/ring_io_top/pop_ports_vddo_vsso.tcl
+     }
+     mConfigStep floorplan_pop_ports -skip 1
+     mConfigStep buffer_perimeter -pre {
+     source /proj/cayman/wa/aparntiwari/scripts/DE2.0/ring_io_top/exclude_buffering.tcl
+      }
+    }
+  }
+  ring_io_bot {
+   if { [mVar SESSION(name)] eq "invcui.import" } {
+     mConfigStep setup_views -pre {
+       source /proj/cayman/wa/rchatty/scripts/DE2_import_cleanup_ring_io_bot.tcl
+       remove_repower_vddo_vsso
+       create_connect_VQPS_noesd
+      }
+   }
+   if { [mVar SESSION(name)] eq "invcui.floorplan" } {
+   mConfigStep floorplan_create_pg -pre {
+       source /mrvl2g/aw5_xtl_cayman/cayman/cayman/wa/avarshney/tcl/connect_CORESD_pins.tcl;
+       connect_CORESD_pins
+     }
+     mConfigStep floorplan_import_ports -post {
+        source /proj/cayman/wa/aparntiwari/scripts/DE2.0/ring_io_bot/pop_ports.tcl
+	source /proj/cayman/wa/aparntiwari/scripts/DE2.0/ring_io_bot/pop_ports_vddo_vsso.tcl
+	source /proj/cayman/wa/aparntiwari/scripts/DE2.0/ring_io_bot/fuse_pins.tcl
+     }
+     mConfigStep floorplan_pop_ports -skip 1
+     mConfigStep buffer_perimeter -pre {
+     source /proj/cayman/wa/aparntiwari/scripts/DE2.0/ring_io_bot/exclude_buffering.tcl
+      }
+    }
+  }
+  ring_pll {
+   if { [mVar SESSION(name)] eq "invcui.import" } {
+     mConfigStep setup_views -pre {
+       source /proj/cayman/wa/rchatty/scripts/DE2_import_cleanup_ring_pll.tcl
+       add_dcap_reg_cell
+       create_connect_ilvds_pg
+    }
+   }
+   if { [mVar SESSION(name)] eq "invcui.floorplan" } {
+     mConfigStep floorplan_create_pg -pre {
+       mortar::source /proj/asictools/m1dpe/sandbox/n5/flow/tcl/df_n5_power_grid.tclz;
+     }
+     mConfigStep floorplan_import_ports -post {
+        source /proj/cayman/wa/aparntiwari/scripts/DE2.0/ring_pll/pop_ports.tcl
+     }
+     mConfigStep floorplan_pop_ports -skip 1
+     mConfigStep buffer_perimeter -pre {
+     source /proj/cayman/wa/aparntiwari/scripts/DE2.0/ring_pll/exclude_buffering.tcl
+      }
+    }
+  }
+  default {
+  }
+}
+
+# Track-specific stuff (experiments) based on regexp track name
+switch -regexp $mfw_track {
+  mbff_honor_sdc {
+    puts "Disable opt_multi_bit_flop_ignore_sdc"
+    set_db opt_multi_bit_flop_ignore_sdc false ; # honor the SDC when making MBFF decisions
+  }
+  cts_maxfo64 {
+    puts "Update cts_max_fanout to 64"
+    mVar FLOW(pnr_clk_max_fanouts) 64
+    set_db cts_max_fanout 64
+  }
+  default {
+  }
+}
