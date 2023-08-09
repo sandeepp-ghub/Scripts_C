@@ -1,0 +1,62 @@
+################################        Needs work   ####################### fixme
+################################        BYPASS connection   ####################### fixme
+####### connect cc_top_wrapper bypass to hbm_xbar_wrapper_0 ########################
+proc bypass1 {} {
+  set block1  [get_db insts *cc_top_wrapper]
+  set block2  [get_db insts *hbm_xbar_wrapper_0]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock out
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_1_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_1_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  #clock in
+  set b2_ssn_bus_clock_out_pin [get_db $block2 .pins *ssn_1_bus_clock_out]
+  set b2_ssn_bus_clock_out_net [get_db $b2_ssn_bus_clock_out_pin .net.name]
+  set b1_ssn_bus_clock_in_pin  [get_db [get_db $block1 .pins *ssn_1_bus_clock_in] .base_name]
+  connect_pin  -net $b2_ssn_bus_clock_out_net  -inst   [get_db $block1 .name]  -pin  $b1_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_1_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_1_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b1_ssn_return_bus_in_pin  [get_db $block1 .pins *ssn_1_return_bus_in[$i]]
+     set b1_ssn_return_bus_in_net  [get_db $b1_ssn_return_bus_in_pin .net.name]
+     set b2_ssn_return_bus_out_pin [get_db [get_db $block2 .pins *ssn_1_return_bus_out[$i]] .base_name]
+     connect_pin  -net $b1_ssn_return_bus_in_net    -inst  [get_db $block2 .name]  -pin  $b2_ssn_return_bus_out_pin
+  }
+}
+###############################################################################
+################################        BYPASS connection   ####################### fixme
+####### connect peb bypass to hbm_xbar_wrapper_1 ########################
+proc bypass2 {} {
+  set block1  [get_db insts *peb_top]
+  set block2  [get_db insts *hbm_xbar_wrapper_1]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock out
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_1_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_1_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  #clock in
+  set b2_ssn_bus_clock_out_pin [get_db $block2 .pins *ssn_1_bus_clock_out]
+  set b2_ssn_bus_clock_out_net [get_db $b2_ssn_bus_clock_out_pin .net.name]
+  set b1_ssn_bus_clock_in_pin  [get_db [get_db $block1 .pins *ssn_1_bus_clock_in] .base_name]
+  connect_pin  -net $b2_ssn_bus_clock_out_net  -inst   [get_db $block1 .name]  -pin  $b1_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_1_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_1_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b1_ssn_return_bus_in_pin  [get_db $block1 .pins *ssn_1_return_bus_in[$i]]
+     set b1_ssn_return_bus_in_net  [get_db $b1_ssn_return_bus_in_pin .net.name]
+     set b2_ssn_return_bus_out_pin [get_db [get_db $block2 .pins *ssn_1_return_bus_out[$i]] .base_name]
+     connect_pin  -net $b1_ssn_return_bus_in_net    -inst  [get_db $block2 .name]  -pin  $b2_ssn_return_bus_out_pin
+  }
+}
+###############################################################################
+
