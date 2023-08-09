@@ -1,0 +1,141 @@
+proc highlight_modules_cayman {} {
+  set cayman_top {
+  {pcie_* darkgreen solid}
+  {pcie_*a0m0* teal solid}
+  {hbm_top purple solid}
+  {hbm_xbar_wrapper magenta solid}
+  {io_fabric teal solid}
+  {peb_top lime solid}
+  {sengine olive solid}
+  {cc_top wheat solid}
+  {d2d_subsys_* darkred solid}
+  {ring_pll* red solid}
+  {dts_hub* red solid}
+  {vm_* red solid}
+  {dfx_top white solid}
+  {sdma_d2h yellow dot4}
+  {sdma_h2d yellow dot4}
+  {channel_* orchid solid}
+ }
+
+foreach hl $cayman_top {
+  lassign $hl cell color pattern
+  puts "$cell $color $pattern"
+  foreach block [::get_db insts *${cell}* -if {.base_cell.base_class==block}] {
+    ::gui_highlight $block -color $color -pattern $pattern
+  }
+}}
+
+proc highlight_modules_sengine_flat {} {
+  set sengine_flat {
+  {pcie_* darkgreen solid}
+  {pcie_*a0m0* lightgreen solid}
+  {hbm_top purple solid}
+  {hbm_xbar_wrapper magenta solid}
+  {io_fabric teal solid}
+  {peb_top lime solid}
+  {sengine olive solid}
+  {cc_top wheat solid}
+  {d2d_subsys_* darkred solid}
+  {ring_pll* red solid}
+  {dts_hub* red solid}
+  {vm_* red solid}
+  {dfx_top white solid}
+  {sdma_d2h yellow dot4}
+  {sdma_h2d yellow dot4}
+  {tpb_top slateblue solid}
+  {channel_* orchid solid}
+  {sengine_*/TPB_*_u_tpb_top* deepskyblue solid}
+  {sengine_*/sengine_fabric_top* orange solid}
+  {sengine_*/SDMA_*__SEL_sdma pink dot4}
+  {sengine_*/SDMA_WRAP_*__sdma_wrap olive dot4}
+  {sengine_*/channel_vmid orchid solid}
+ }
+
+foreach hl $sengine_flat {
+  lassign $hl cell color pattern
+  foreach block [::get_db insts *${cell}* -if {.base_cell.base_class==block}] {
+    ::gui_highlight $block -color $color -pattern $pattern
+  }
+}}
+
+proc highlight_modules_sengine {} {
+  set sengine {
+  {TPB_*_u_tpb_top* deepskyblue solid}
+  {sengine_fabric_top* orange solid}
+  {SDMA_*__SEL_sdma pink dot4}
+  {SDMA_WRAP_*__sdma_wrap yellow dot4}
+  {SDMA_30__SEL_sdma blue dot4}
+  {SDMA_29__SEL_sdma blue dot4}
+  {SDMA_28__SEL_sdma blue dot4}
+  {channel_vmid orchid solid}
+ }
+
+foreach hl $sengine {
+  lassign $hl cell color pattern
+  foreach block [::get_db insts *${cell}* -if {.base_cell.base_class==block}] {
+    ::gui_highlight $block -color $color -pattern $pattern
+  }
+}}
+
+proc highlight_modules_tpb {} {
+
+  set tpb_top {
+    {tpb_array_sequencer lightgreen  solid}
+    {tpb_array_wrapper olive solid}
+    {tpb_aseq_aengine_wrapper royalblue solid}
+    {tpb_dve_wrapper lightblue solid}
+    {tpb_interconnect yellow solid}
+    {tpb_pb_wrapper aqua solid}
+    {tpb_pseq_pengine_wrapper darkviolet solid}
+    {tpb_sb_wrapper deepskyblue solid}
+    {pe_seq darkgoldenrod solid}
+    {sp_seq slateblue solid}
+  }
+
+  foreach hl $tpb_top {
+    lassign $hl cell color pattern
+    if {[regexp [mVar SESSION(name)] invcui.import.dplan]} {
+      foreach block [get_db hinsts *${cell}* -if {.parent.name==tpb_top}] {
+        gui_highlight $block -color $color -pattern $pattern
+      }
+    } else {
+      foreach block [::get_db insts *${cell}* -if {.base_cell.base_class==block}] {
+        gui_highlight $block -color $color -pattern $pattern
+      }
+    }
+  }
+}
+
+proc highlight_modules_sengine_fabric {} {
+
+  set sengine_fabric_top {
+    {rts_pd_wrap                         white solid}
+    {sfabric_central_d2d_side_macro      lightgreen  solid}
+    {sfabric_central_glue_matrix_macro   olive solid}
+    {sfabric_central_hbm_side_macro      royalblue solid}
+    {sfabric_d2d_channel_macro           deepskyblue solid}
+    {sfabric_d2d_macro                   darkviolet solid}
+    {sfabric_hbm_channel_macro           lightblue solid}
+    {sfabric_preprocess_macro            aqua solid}
+    {sfabric_remote_vert_macro           slateblue solid}
+    {sfabric_sdma_grp0_macro             yellow pattern1}
+    {sfabric_sdma_grp1_macro             yellow pattern2}
+    {sfabric_sdma_grp2_macro             yellow pattern3}
+    {sfabric_tpb0_macro                  darkgoldenrod pattern1}
+    {sfabric_tpb1_macro                  darkgoldenrod pattern2}
+  }
+
+  foreach hl $sengine_fabric_top {
+    lassign $hl cell color pattern
+    if {[regexp [mVar SESSION(name)] invcui.import.dplan]} {
+      foreach block [get_db hinsts *${cell}* -if {.parent.name==sengine_fabric_top}] {
+        gui_highlight $block -color $color -pattern $pattern
+      }
+    } else {
+      foreach block [::get_db insts *${cell}* -if {.base_cell.base_class==block}] {
+        gui_highlight $block -color $color -pattern $pattern
+      }
+    }
+  }
+}
