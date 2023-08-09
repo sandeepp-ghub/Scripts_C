@@ -1,0 +1,29 @@
+set_annotated_delay 70 -cell  -from DFT_CE0_TCLK/I -to DFT_CE0_TCLK/Z
+
+## these are in the middle
+set_annotated_transition 26.7103 tessent_persistent_cell_shift_capture_clock/CP
+set_annotated_delay 70 -net  -from DFT_CE0_TCLK -to tessent_persistent_cell_shift_capture_clock/CP
+set_annotated_transition 26.7103 tessent_persistent_cell_edt_clock/CP
+set_annotated_delay 70 -net  -from DFT_CE0_TCLK -to tessent_persistent_cell_edt_clock/CP
+set_annotated_transition 26.7103 axi_top/fab_group_3/DFT_CE0_TCLK
+
+
+## these are 3 scbs away
+set_annotated_delay 210 -net  -from DFT_CE0_TCLK -to axi_top/fab_group_3/DFT_CE0_TCLK
+set_annotated_transition 26.7103 axi_top/hbm_group_3/DFT_CE0_TCLK
+set_annotated_delay 210 -net  -from DFT_CE0_TCLK -to axi_top/hbm_group_3/DFT_CE0_TCLK
+set_annotated_transition 26.7103 axi_top/fab_group_2/DFT_CE0_TCLK
+set_annotated_transition 26.7103 axi_top/fab_group_0/DFT_CE0_TCLK
+set_annotated_delay 210 -net  -from DFT_CE0_TCLK -to axi_top/fab_group_0/DFT_CE0_TCLK
+set_annotated_transition 26.7103 axi_top/hbm_group_0/DFT_CE0_TCLK
+set_annotated_delay 210 -net  -from DFT_CE0_TCLK -to axi_top/hbm_group_0/DFT_CE0_TCL
+
+
+## these are 2 SCBs away
+set_annotated_delay 140 -net  -from DFT_CE0_TCLK -to axi_top/fab_group_2/DFT_CE0_TCLK
+set_annotated_transition 26.7103 axi_top/hbm_group_2/DFT_CE0_TCLK
+set_annotated_delay 140 -net  -from DFT_CE0_TCLK -to axi_top/hbm_group_2/DFT_CE0_TCLK
+set_annotated_transition 26.7103 axi_top/fab_group_1/DFT_CE0_TCLK
+set_annotated_delay 140 -net  -from DFT_CE0_TCLK -to axi_top/fab_group_1/DFT_CE0_TCLK
+set_annotated_transition 26.7103 axi_top/hbm_group_1/DFT_CE0_TCLK
+set_annotated_delay 140 -net  -from DFT_CE0_TCLK -to axi_top/hbm_group_1/DFT_CE0_TCLK
