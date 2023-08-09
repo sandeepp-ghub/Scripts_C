@@ -1,0 +1,330 @@
+    gui_delete_objs -all
+    #add_gui_shape -layer my_layer_1 -rect {514 504 525 513}
+ proc pll_vddvi {} {
+   ##ring_pll
+   set local_rect_list_pll { \
+   "135.252 73.584 159.273 178.528" \
+   "90.474 73.584 114.495 178.528"  \
+   }
+
+    foreach loc_rect $local_rect_list_pll {
+         set rect [get_transform_shapes -inst ring_pll_tp0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M1 -rect $rect ;
+         set rect [get_transform_shapes -inst ring_pll_tc0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M1 -rect $rect ;
+         set rect [get_transform_shapes -inst ring_pll_hb0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M1 -rect $rect ;
+         set rect [get_transform_shapes -inst ring_pll_hb1 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M1 -rect $rect ;
+         set rect [get_transform_shapes -inst ring_pll_soc -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M1 -rect $rect ;
+    }
+
+ }
+
+ proc pll_vddhv {} {
+   ##ring_pll
+   set local_rect_list_pll { \
+   "356.286 8.848 376.227 129.808" \
+   }
+
+    foreach loc_rect $local_rect_list_pll {
+         set rect [get_transform_shapes -inst ring_pll_tp0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M2 -rect $rect ;
+         set rect [get_transform_shapes -inst ring_pll_tc0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M2 -rect $rect ;
+         set rect [get_transform_shapes -inst ring_pll_hb0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M2 -rect $rect ;
+         set rect [get_transform_shapes -inst ring_pll_hb1 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M2 -rect $rect ;
+         set rect [get_transform_shapes -inst ring_pll_soc -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M2 -rect $rect ;
+    }
+
+ }
+
+proc pcie_vdd {} {
+   set local_rect_list_pcie { \
+   "468.486 497.056 492.507 602.0" \
+   }
+
+    foreach loc_rect $local_rect_list_pcie {
+         set rect [get_transform_shapes -inst pcie_a0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_se0_b0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_se0_b1 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_se0_b2 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_se0_b3 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_se0_b4 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_m0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_se1_b0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_se1_b1 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_se1_b2 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_se1_b3 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst pcie_se1_b4 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+ }
+
+proc xbar1_vdd {} {
+   set local_rect_list_xbar1 { \
+   "2.244 2944.368 26.265 3049.312" \
+   "2.244 5691.504 26.265 5796.448" \
+   }
+
+    foreach loc_rect $local_rect_list_xbar1 {
+         set rect [get_transform_shapes -inst hbm_xbar_wrapper_1 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+
+}
+
+proc xbar0_vdd {} {
+   set local_rect_list_xbar0 { \
+   "4.284 2944.368 28.305 3049.312" \
+   "4.284 5718.384 28.305 5823.328" \
+   }
+
+    foreach loc_rect $local_rect_list_xbar0 {
+         set rect [get_transform_shapes -inst hbm_xbar_wrapper_0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+
+}
+
+proc hbm0_vdd {} {
+   set local_rect_list_hbm0 { \
+   "1470.126 5414.752 1494.147 5519.696" \
+   "1470.126 2701.776 1494.147 2806.72" \
+   }
+
+    foreach loc_rect $local_rect_list_hbm0 {
+         set rect [get_transform_shapes -inst hbm_top_0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+}
+
+proc hbm1_vdd {} {
+   set local_rect_list_hbm1 { \
+   "1470.126 5414.752 1494.147 5519.696" \
+   "1470.126 2701.776 1494.147 2806.72" \
+   }
+
+    foreach loc_rect $local_rect_list_hbm1 {
+         set rect [get_transform_shapes -inst hbm_top_1 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+}
+
+proc d2d_vdd {} {
+   set local_rect_list_d2d { \
+   "1104.456 820.176 1209.465 844.144" \
+   }
+
+    foreach loc_rect $local_rect_list_d2d {
+         set rect [get_transform_shapes -inst d2d_subsys_0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst d2d_subsys_2 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst d2d_subsys_4 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst d2d_subsys_6 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+}
+
+proc d2d_flip_vdd {} {
+   set local_rect_list_d2d_flip { \
+   "1181.568 820.176 1286.577 844.144" \
+   }
+
+    foreach loc_rect $local_rect_list_d2d_flip {
+         set rect [get_transform_shapes -inst d2d_subsys_1 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst d2d_subsys_3 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst d2d_subsys_5 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst d2d_subsys_7 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+}
+
+proc peb {} {
+   set local_rect_list_peb { \
+   "958.494 2304.624 982.515 2409.568"
+   }
+
+    foreach loc_rect $local_rect_list_peb {
+         set rect [get_transform_shapes -inst peb_top -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+}
+
+proc cc_top_vdd {} {
+   set local_rect_list_cc_top { \
+   "1028.262 2439.024 1052.283 2543.968" \
+   }
+
+    foreach loc_rect $local_rect_list_cc_top {
+         set rect [get_transform_shapes -inst cc_top_wrapper -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+}
+
+proc mid_vdd {} {
+   set local_rect_list_mid { \
+    "2720.544 364.336 2825.553 388.304" \
+    "5482.5 364.336 5587.509 388.304" \
+    "8244.558 364.336 8349.567 388.304" \
+    "11076.282 364.336 11181.291 388.304" \
+    "13652.292 364.336 13757.301 388.304" \
+    "16530.528 364.336 16635.537 388.304"
+   }
+
+    foreach loc_rect $local_rect_list_mid {
+         set rect [get_transform_shapes -inst channel_mid -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+}
+
+proc ring_top_vdd {} {
+   set local_rect_list_ring_top { \
+    "295.8 6628.944 319.821 6733.888" \
+    "295.8 5896.688 319.821 6001.632" \
+    "295.8 5123.664 319.821 5228.608" \
+    "295.8 4401.264 319.821 4506.208" \
+    "295.8 3648.624 319.821 3753.568" \
+    "295.8 2913.008 319.821 3017.952" \
+    "295.8 2170.224 319.821 2275.168" \
+    "295.8 1363.824 319.821 1468.768" \
+    "295.8 655.088 319.821 760.032  "
+   }
+
+    foreach loc_rect $local_rect_list_ring_top {
+         set rect [get_transform_shapes -inst ring_io_top -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+}
+
+proc ring_bot_vdd {} {
+   set local_rect_list_ring_bot { \
+    "291.924 655.088 315.945 760.032  " \
+    "291.924 1363.824 315.945 1468.768" \
+    "291.924 2143.344 315.945 2248.288" \
+    "291.924 2913.008 315.945 3017.952" \
+    "291.924 3648.624 315.945 3753.568"
+   }
+
+    foreach loc_rect $local_rect_list_ring_bot {
+         set rect [get_transform_shapes -inst ring_io_bot -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+}
+
+
+proc sengine_vdd {} {
+   set local_rect_list_sengine { \
+   "5771.16 14421.344 5876.169 14445.312 " \
+   "6608.376 14421.344 6713.385 14445.312 " \
+   "7445.592 14421.344 7550.601 14445.312 " \
+   "8282.808 14421.344 8387.817 14445.312 " \
+   "700.128 11412.016 805.137 11435.984 " \
+   "3183.114 11412.016 3288.123 11435.984 " \
+   "5046.042 11165.168 5070.063 11270.112 " \
+   "7891.638 11277.616 7996.647 11301.584 " \
+   "13481.136 11412.016 13586.145 11435.984 " \
+   "16107.126 11412.016 16212.135 11435.984 " \
+   "10882.176 11112.864 10906.197 11217.808 " \
+   "17421.09 11600.176 17526.099 11624.144 " \
+   "9130.02 12836.32 9235.029 12860.288 " \
+   "11782.02 12704.384 11887.029 12728.352 " \
+   "14644.14 12704.384 14749.149 12728.352 " \
+   "17709.138 12704.384 17814.147 12728.352 " \
+   "3562.044 12648.496 3667.053 12672.464 " \
+   "700.128 12648.496 805.137 12672.464 " \
+   "6698.952 13217.904 6722.973 13322.848 " \
+   "12181.962 3563.056 12286.971 3587.024 " \
+   "8749.458 9068.528 8773.479 9173.472 " \
+   "8745.378 6524.784 8769.399 6629.728 " \
+   "10693.374 6514.928 10717.395 6619.872 " \
+   "10686.54 8883.168 10710.561 8988.112 " \
+   "12308.034 5230.512 12413.043 5254.48 " \
+   "12308.034 9369.136 12413.043 9393.104 " \
+   "12308.034 6761.776 12413.043 6785.744 " \
+   "13167.588 5803.616 13207.521 5831.616 " \
+   "13167.588 5884.592 13207.521 5912.592 " \
+   "14813.256 7052.528 14837.277 7157.472 " \
+   "14813.256 9265.536 14837.277 9370.48 " \
+   "13031.418 1978.48 13136.427 2002.448 " \
+   "10903.8 1518.72 11008.809 1542.688 " \
+   "8739.87 2595.376 8844.879 2619.344 " \
+   "15957.492 1175.664 15981.513 1280.608 " \
+   "9534.552 4315.696 9639.561 4339.664 " \
+   "4038.69 3563.056 4143.699 3587.024 " \
+   "7552.182 9068.528 7576.203 9173.472 " \
+   "7556.262 6524.784 7580.283 6629.728 " \
+   "5608.266 6514.928 5632.287 6619.872 " \
+   "5615.1 8883.168 5639.121 8988.112 " \
+   "3912.618 5230.512 4017.627 5254.48 " \
+   "3912.618 9369.136 4017.627 9393.104 " \
+   "3912.618 6761.776 4017.627 6785.744 " \
+   "3118.14 5803.616 3158.073 5831.616 " \
+   "3118.14 5884.592 3158.073 5912.592 " \
+   "1488.384 7052.528 1512.405 7157.472 " \
+   "1488.384 9265.536 1512.405 9370.48 " \
+   "3189.234 1978.48 3294.243 2002.448 " \
+   "5316.852 1518.72 5421.861 1542.688 " \
+   "7480.782 2595.376 7585.791 2619.344 " \
+   "344.148 1175.664 368.169 1280.608 " \
+   "6686.1 4315.696 6791.109 4339.664 " \
+   }
+
+    foreach loc_rect $local_rect_list_sengine {
+         set rect [get_transform_shapes -inst sengine_0 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+         set rect [get_transform_shapes -inst sengine_1 -local_pt $loc_rect ]  ;
+         create_gui_shape -layer M9 -rect $rect ;
+    }
+
+}
+
+ pll_vddvi
+ pll_vddhv
+ pcie_vdd
+ xbar1_vdd
+ xbar0_vdd
+ hbm0_vdd
+ hbm1_vdd
+ d2d_vdd
+ d2d_flip_vdd
+ peb
+ cc_top_vdd
+ mid_vdd
+ ring_top_vdd
+ ring_bot_vdd
+ sengine_vd
+
+select_obj [get_db insts -if {.base_cell == *CORESD_1P5V_M15V_H120W20*}]
+::gui_highlight [get_db selected] -color orange -pattern solid
+gui_deselect -all
+
+select_obj [get_db insts -if {.base_cell == *CORESD_0P75V_M15V_H100W20*}]
+::gui_highlight [get_db selected] -color red -pattern solid
+gui_deselect -all
+
+select_obj [get_db insts -if {.base_cell == *CORESD_0P75V_M15V_H20W100*}]
+::gui_highlight [get_db selected] -color red -pattern solid
+gui_deselect -all
+
+
