@@ -1,0 +1,118 @@
+proc ::df::__mimcap_mpb_options_local {args} {
+  set valid_powers [list "VDD" "VCS"]
+  set valid_packages [list "2D" "2.5D"]
+  set valid_types [list "full" "left" "right" "top" "bottom"]
+
+  ::mortar::parse_args $args {
+    {"power"      power     string    1}
+    {"package"    package   string    1}
+    {"type"       type      string    1}
+  } {
+    if {![info exists ::df::__mimcap_mpb_options_local_boxes($power|$package|$type)] && [lsearch -exact $valid_powers $power] > -1 && [lsearch -exact $valid_packages $package] > -1 && [lsearch -exact $valid_types $type] > -1} {
+      #First request; calculate box options
+      array unset ::df::__mimcap_mpb_options_local_boxes
+      array set ::df::__mimcap_mpb_options_local_boxes {}
+
+      array unset place_locs
+      array set place_locs {}
+      array unset place_options
+      array set place_options {}
+
+      if {[::mVar PROJECT(image_pwrtype)] eq "hipwr"} {
+        set place_locs(A) [list 0 0]
+        set place_locs(B) [list 112.682 0]
+        set place_locs(C) [list 0 70.805]
+
+        set place_options(VDD|2.5D|full)    [list [list [list A DECAP_MIM_VDD_36_25D_HP r0]] \
+                                                  [list [list B DECAP_MIM_VDD_36_25D_HP my]] \
+                                                  [list [list A DECAP_MIM_VDD_63_25D_HP r0]] \
+                                                  [list [list C DECAP_MIM_VDD_63_25D_HP mx]] \
+                                            ]
+        set place_options(VDD|2.5D|left)    [list [list [list A DECAP_MIM_VDD_36_25D_HP r0]] \
+                                            ]
+        set place_options(VDD|2.5D|right)   [list [list [list A DECAP_MIM_VDD_36_25D_HP my]] \
+                                            ]
+        set place_options(VDD|2.5D|top)     [list [list [list A DECAP_MIM_VDD_63_25D_HP mx]] \
+                                            ]
+        set place_options(VDD|2.5D|bottom)  [list [list [list A DECAP_MIM_VDD_63_25D_HP r0]] \
+                                            ]
+      } else {
+        set place_locs(A) [list 0 13.44]
+        set place_locs(B) [list 0 40.32]
+        set place_locs(C) [list 0 67.20]
+        set place_locs(D) [list 0 94.08]
+
+        set place_options(VDD|2D|full)      [list [list [list A DECAP_MIM_VDD_5X_2D r0]] \
+                                                  [list [list B DECAP_MIM_VDD_3X r0]] \
+                                                  [list [list B DECAP_MIM_VDD_2X r0]] \
+                                                  [list [list C DECAP_MIM_VDD_2X r0]] \
+                                                  [list [list B DECAP_MIM_VDD_1X r0] \
+                                                        [list D DECAP_MIM_VDD_1X r0]] \
+                                                  [list [list B DECAP_MIM_VDD_1X r0]] \
+                                                  [list [list C DECAP_MIM_VDD_1X r0]] \
+                                                  [list [list D DECAP_MIM_VDD_1X r0]] \
+                                            ]
+        set place_options(VDD|2.5D|full)    [list [list [list B DECAP_MIM_VDD_3X r0]] \
+                                                  [list [list B DECAP_MIM_VDD_2X r0]] \
+                                                  [list [list C DECAP_MIM_VDD_2X r0]] \
+                                                  [list [list B DECAP_MIM_VDD_1X r0] \
+                                                        [list D DECAP_MIM_VDD_1X r0]] \
+                                                  [list [list B DECAP_MIM_VDD_1X r0]] \
+                                                  [list [list C DECAP_MIM_VDD_1X r0]] \
+                                                  [list [list D DECAP_MIM_VDD_1X r0]] \
+                                            ]
+        set place_options(VCS|2D|full)      [list [list [list A DECAP_MIM_VCS_5X_2D r0]] \
+                                                  [list [list B DECAP_MIM_VCS_3X r0]] \
+                                                  [list [list B DECAP_MIM_VCS_2X r0]] \
+                                                  [list [list C DECAP_MIM_VCS_2X r0]] \
+                                                  [list [list B DECAP_MIM_VCS_1X r0] \
+                                                        [list D DECAP_MIM_VCS_1X r0]] \
+                                                  [list [list B DECAP_MIM_VCS_1X r0]] \
+                                                  [list [list C DECAP_MIM_VCS_1X r0]] \
+                                                  [list [list D DECAP_MIM_VCS_1X r0]] \
+                                            ]
+        set place_options(VCS|2.5D|full)    [list [list [list B DECAP_MIM_VCS_3X r0]] \
+                                                  [list [list B DECAP_MIM_VCS_2X r0]] \
+                                                  [list [list C DECAP_MIM_VCS_2X r0]] \
+                                                  [list [list B DECAP_MIM_VCS_1X r0] \
+                                                        [list D DECAP_MIM_VCS_1X r0]] \
+                                                  [list [list B DECAP_MIM_VCS_1X r0]] \
+                                                  [list [list C DECAP_MIM_VCS_1X r0]] \
+                                                  [list [list D DECAP_MIM_VCS_1X r0]] \
+                                            ]
+      }
+
+      #Compute the boxes
+      if {[::mortar::tool -name -is {Innovus}]} {
+        foreach mtype [array names place_options] {
+          set ::df::__mimcap_mpb_options_local_boxes($mtype) [list]
+          foreach option $place_options($mtype) {
+            set opt_entry [list]
+            foreach spec $option {
+              lassign $spec loc cell orient
+              set pcell [::get_db base_cells $cell]
+              if {$pcell ne ""} {
+                lassign [lindex [::get_db $pcell .bbox] 0] llx lly urx ury
+                lassign $place_locs($loc) ox oy
+                set llx [expr {$llx + $ox}]
+                set lly [expr {$lly + $oy}]
+                set urx [expr {$urx + $ox}]
+                set ury [expr {$ury + $oy}]
+                lappend opt_entry [list [list $llx $lly $urx $ury] $cell $orient]
+              }
+            }
+            lappend ::df::__mimcap_mpb_options_local_boxes($mtype) $opt_entry
+          }
+        }
+      }
+    }
+
+    #Returned cached local box options
+    set ret [list]
+    if {[info exists ::df::__mimcap_mpb_options_local_boxes($power|$package|$type)]} {
+      set ret $::df::__mimcap_mpb_options_local_boxes($power|$package|$type)
+    }
+    return $ret
+  }
+}
+
