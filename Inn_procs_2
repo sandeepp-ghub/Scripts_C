@@ -1,0 +1,176 @@
+# To find and delete nets with no fanout (Dangling Nets)
+proc dangling_nets {} {
+set fp [open dangling_nets.rpt "w"]
+set dangling_nets [get_db [get_db hnets -if {.num_loads  == 0}] .name]
+puts "Dangling Nets being deleted will be reported in dangling_nets.rpt¿?\n"
+puts $fp "###################################################################"
+puts $fp "Number of Dangling Nets : [llength $dangling_nets]"
+puts $fp "###################################################################\n"
+      foreach net $dangling_nets {
+            puts $fp "Dangling Net getting deleted  :\t$net"
+            #delete_nets $net
+      }
+close $fp
+}
+ 
+# To find floating input pins in a design
+proc dangling_input_pins {} {
+## To find the input pins which are not connected to any net and are DANGLING ##
+set fp [open dangling_input_pins.rpt "w"]
+set dangling_input_pins [get_db [get_db pins -if {.net.name == "" && .direction == in}] .name]
+puts $fp "###################################################################"
+puts $fp "Number of Dangling Input Pins : [llength $dangling_input_pins]"
+puts $fp "###################################################################\n"
+foreach pin $dangling_input_pins {
+      puts $fp $pin
+}
+close $fp
+ 
+# To find the input pins that are connected to nets but those nets have no drivers 
+set fp [open dangling_input_pins.rpt "a"]
+set noDriver_input_pins [get_db [get_db pins -if {.net.num_drivers==0 && .direction == in && !.net.is_power && !.net.is_ground}] .name]
+puts $fp "\n###################################################################"
+puts $fp "Number of No Driver Input Pins : [llength $noDriver_input_pins]"
+puts $fp "###################################################################\n"
+foreach pin $noDriver_input_pins {
+      puts $fp $pin
+}
+puts "Check the file dangling_input_pins.rpt"
+close $fp
+}
+ 
+# To find floating output pins in a design
+proc dangling_out_pins {} {
+## To find the output pins which are not connected to any net and are DANGLING ##
+set fp [open dangling_out_pins.rpt "w"]
+set dangling_out_pins [get_db [get_db pins -if {.net.name == "" && .direction == out}] .name]
+puts $fp "###################################################################"
+puts $fp "Number of Dangling Output Pins : [llength $dangling_out_pins]"
+puts $fp "###################################################################\n"
+foreach pin $dangling_out_pins {
+      puts $fp $pin
+}
+close $fp
+ 
+# To find the output pins that are connected to nets but those nets have no load
+set fp [open dangling_out_pins.rpt "a"]
+set noLoad_out_pins [get_db [get_db pins -if {.net.num_loads==0 && .direction == out && !.net.is_power && !.net.is_ground}] .name]
+puts $fp "\n###################################################################"
+puts $fp "Number of No Load Output Pins : [llength $noLoad_out_pins]"
+puts $fp "###################################################################\n"
+foreach pin $noLoad_out_pins {
+      puts $fp $pin
+}
+puts "Check the file dangling_out_pins.rpt"
+close $fp
+}
+ 
+# To report floating Instances in a design
+proc floating_instances {} {
+    set fp [open floating_instances.rpt "w"]
+    foreach inst [get_db insts .name] {  
+      foreach pin [get_db inst:$inst .pins.name] { 
+            if {[get_db pin:$pin -if {.direction=="in" && .net.name != "" && .net.num_drivers==0 && !.net.is_power && !.net.is_ground}] != ""} {
+            puts $fp "Instance $inst : $pin is floating"}             
+              if {[get_db pin:$pin -if {.direction=="out" && .net.name != "" && .net.num_loads==0 && !.net.is_power && !.net.is_ground}] != ""} {
+            puts  $fp "Instance $inst : $pin is floating"}
+                }
+         }
+close $fp
+puts "Please check floating_instances.rpt"
+}
+ 
+# To find floating IO ports in the design 
+proc floating_io_ports {} {
+set fp [open floating_io_ports.rpt "w"] 
+set in [get_db [get_db ports -if {.direction == in && .net.num_loads == 0}] .name]
+set out [get_db [get_db ports -if {.direction == out && .net.num_drivers == 0}] .name]     
+      puts $fp "## TOTAL FLOATING IO PORTS : [expr [llength $in] + [llength $out]] \n"
+      puts $fp "## FLOATING INPUT PORTS : [llength $in] ##\n"
+      puts $fp $in
+      puts $fp "\n## FLOATING OUTPUT PORTS : [llength $out] ##\n"
+      puts $fp $out 
+close $fp 
+puts "Please check floating_io_ports.rpt\n"
+}
+
+
+# --------------------------------------
+# trace back to find Non DLY/BUF/INV Cells
+# --------------------------------------
+
+proc traceBack {  args  } {
+
+    parse_proc $args { -levels 100 -startPin "" -matchInst "" -retInstInPath "" -retNetsInPath "" }
+    set startPin $(-startPin) ; set levels $(-levels) ; set matchInst $(-matchInst) ; set retNetsInPath $(-retNetsInPath)
+    set retInstInPath $(-retInstInPath)
+    if { ((![existPin  $startPin]) && (![existPort $startPin]) )} {  error "[puts_c r " $startPin  does not exist "]" }
+  #  if { (![existInst $matchInst ] )} {  error "[puts_c r " $matchInst does not exist "]" }
+    set instsInPath [ list ]
+    set netsInPath  [ list ]
+    set count 0
+    set found 0
+    set invCount 0
+    set pin  $startPin
+    set invChain 0
+    set lastInv ""
+
+    #set soPin   [ netSource      [termNet $pin ] -ignore_err 1 ]
+    # if { ![existPin $soPin ] } { puts "\[traceBack \] :ERROR 1 not able to trace $startPin " ; set found 1  ; return JUNK  }
+    #set soInst  [ netSourceInst  [termNet $pin ] -ignore_err 1 ]
+    #if { ![existInst $soInst ] } { puts "\[traceBack \] :ERROR 2 not able to trace $startPin " ; set found 1 ; return JUNK }
+    #set soCell  [ getCell $soInst ]
+
+    while { ( $count < $levels ) &&  ( $found == 0 ) } {
+        #puts "6 -- $count ---    $pin "
+       set soPin   [ netSource      [termNet $pin ] -ignore_err 1 ]
+       if { ![isPort $soPin ] } {
+        if { ![existPin $soPin ] } { puts "\[traceBack \] :ERROR 3 not able to trace $startPin " ;  return JUNK  }
+        set soInst  [ netSourceInst  [termNet $pin ] -ignore_err 1 ]
+        if { ![existInst $soInst ] } { puts "\[traceBack \] :ERROR 4 not able to trace $startPin " ; return JUNK }
+        set soCell  [ getCell $soInst ]
+
+        if { [regexp {^CNOD.*_.*[BUF|DEL]} $soCell ] } {
+
+            set inpin  [ get_db [  get_db base_pins -if { .direction == in } $soCell/* ] .base_name]
+            if { [llength $inpin ] ==  1 } {
+                set pin ${soInst}/$inpin
+                lappend instsInPath $soInst
+                lappend netsInPath  [termNet $soPin  ]
+
+            } else { set found 1 ; lappend netsInPath  [termNet $soPin  ] ;  }
+        }
+        if { [regexp {^HD.*_.*IND} $soCell ] } {
+           set inpin   [ get_db [  get_db base_pins -if { .direction == in } $soCell/* ] .base_name]
+            if { [llength $inpin ] ==  1 } {
+                     set pin ${soInst}/$inpin
+                     incr invCount
+                     incr invChain
+                     set  lastInv  $soPin
+                     lappend instsInPath $soInst
+                     lappend netsInPath  [ termNet $soPin ]
+            } else { set found 1 ; lappend netsInPath  [termNet $soPin  ] }
+        }
+        #puts $pin
+        if { (! [regexp {^HD.*_.*[BUF|DLY|LVLU]} $soCell ]) } {  set found 1 ; lappend netsInPath  [termNet $soPin  ] }
+
+      }
+      incr count
+
+    }
+
+  if { $retInstInPath == 1 } { return $instsInPath   }
+  if { $retNetsInPath == 1 } { return $netsInPath }
+  if { ( $invChain > 0 )  } {
+       if { ( [expr $invCount %2 ] == 0 ) } {
+           return "$soPin"
+       } else { return "$lastInv" }
+   } else {
+
+      return "$soPin"
+   }
+
+
+}
+
+#########################################################################################################################
