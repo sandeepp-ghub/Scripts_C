@@ -1,0 +1,1198 @@
+### Creating groups for read data
+set name hbm2fab__rdata001
+delete_obj [get_db groups $name ]
+set region_area "750 3287 1077 4713"
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db insts axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_0__0__1* ]
+set c2 [ get_db insts axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_1__0__1* ]
+set c3 [ get_db insts axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_1__1__1* ]
+## Write data flop
+set c4 [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_3__column_0__last_row_mux/genblk3_ff_stage_1/dn_data_reg* ]
+set c [ concat $c1 $c2 $c3 $c4 ]
+update_group -name $name -add -obj [get_db $c ]
+
+set name fab2hbm__rdata001
+delete_obj [get_db groups $name ]
+set region_area "0 3287 310 4713"
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db insts axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_0__0__1* ]
+set c2 [ get_db insts axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_1__0__1* ]
+set c3 [ get_db insts axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_1__1__1* ]
+## Write data flop
+set c4 [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_3__column_0__last_row_mux/genblk3_ff_stage_1/dn_data_reg* ]
+set c [ concat $c1 $c2 $c3 $c4 ]
+update_group -name $name -add -obj [get_db $c ]
+
+##############################################################################################
+##############################################################################################
+##############################################################################################
+
+### Going towards fab0 and fab1
+set name rdata_fab0fab1_stage1
+delete_obj [get_db groups $name ]
+foreach { fab1_llx fab1_lly fab1_urx fab1_ury } [ join [ get_db [ get_db insts axi_top/fab_group_1 ] .bbox ] ] {}
+set midY [ expr (($fab1_ury - $fab1_lly)/2) + $fab1_lly ]
+set region_area [ list [expr $fab1_llx - 150 ] [expr $midY - 250 ] [expr $fab1_llx - 50 ] [expr $midY + 250 ]]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db insts  axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_2__1__1_* ]
+set c2 [ get_db insts  axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_2__0__1_* ]
+set c [ concat $c1 $c2]
+update_group -name $name -add -obj [get_db $c ]
+
+set name rdata_fab0fab1_stage3
+delete_obj [get_db groups $name ]
+foreach { fab0_llx fab0_lly fab0_urx fab0_ury } [ join [ get_db [ get_db insts axi_top/fab_group_0 ] .bbox ] ] {}
+set midY [ expr (($fab0_ury - $fab0_lly)/2) + $fab0_lly ]
+set region_area [ list [expr $fab0_llx - 150 ] [expr $fab0_ury - 250 ] [expr $fab0_llx - 50 ] $fab0_ury ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_3__0__1*]
+
+### Going towards fab2 and fab3
+set name rdata_fab2fab3_stage1
+delete_obj [get_db groups $name ]
+foreach { fab2_llx fab2_lly fab2_urx fab2_ury } [ join [ get_db [ get_db insts axi_top/fab_group_2 ] .bbox ] ] {}
+set midY [ expr (($fab2_ury - $fab2_lly)/2) + $fab2_lly ]
+set region_area [ list [expr $fab2_llx - 150 ] [expr $midY - 250 ] [expr $fab2_llx - 50 ] [expr $midY + 250 ]]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db insts  axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_2__3__1* ]
+set c2 [ get_db insts  axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_2__2__1* ]
+set c [ concat $c1 $c2]
+update_group -name $name -add -obj [get_db $c ]
+
+set name rdata_fab2fab3_stage3
+delete_obj [get_db groups $name ]
+foreach { fab3_llx fab3_lly fab3_urx fab3_ury } [ join [ get_db [ get_db insts axi_top/fab_group_3 ] .bbox ] ] {}
+set midY [ expr (($fab3_ury - $fab3_lly)/2) + $fab3_lly ]
+set region_area [ list [expr $fab3_llx - 150 ] [expr $fab3_ury - 250 ] [expr $fab3_llx - 50 ] $fab3_ury ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_3__6__1*]
+
+### Read data for fab0
+set name rdata_fab0
+delete_obj [get_db groups $name ]
+foreach { fab0_llx fab0_lly fab0_urx fab0_ury } [ join [ get_db [ get_db insts axi_top/fab_group_0 ] .bbox ] ] {}
+set region_area [ list $fab0_llx $fab0_lly [expr $fab0_llx - 75 ] $fab0_ury ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_5__0__1*]
+
+### Read data for fab1
+set name rdata_fab1
+delete_obj [get_db groups $name ]
+foreach { fab1_llx fab1_lly fab1_urx fab1_ury } [ join [ get_db [ get_db insts axi_top/fab_group_1 ] .bbox ] ] {}
+set region_area [ list $fab1_llx $fab1_lly [expr $fab1_llx - 75 ] $fab1_ury ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_5__8__1*]
+
+### Read data for fab2
+set name rdata_fab2
+delete_obj [get_db groups $name ]
+foreach { fab2_llx fab2_lly fab2_urx fab2_ury } [ join [ get_db [ get_db insts axi_top/fab_group_2 ] .bbox ] ] {}
+set region_area [ list $fab2_llx $fab2_lly [expr $fab2_llx - 75 ] $fab2_ury ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_5__16__1* ]
+
+### Read data for fab3
+set name rdata_fab3
+delete_obj [get_db groups $name ]
+foreach { fab3_llx fab3_lly fab3_urx fab3_ury } [ join [ get_db [ get_db insts axi_top/fab_group_3 ] .bbox ] ] {}
+set region_area [ list $fab3_llx $fab3_lly [expr $fab3_llx - 75 ] $fab3_ury ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_hbm2fab/mem_rdata_pipe_reg_5__24__1* ]
+
+##############################################################################################
+##############################################################################################
+##############################################################################################
+
+
+##############################################################################################
+##############################################################################################
+##############################################################################################
+
+### Going towards hbm0 and hbm1(North)
+set name rdata_hbm0hbm1_stage1
+delete_obj [get_db groups $name ]
+foreach { hbm1_llx hbm1_lly hbm1_urx hbm1_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_1 ] .bbox ] ] {}
+set midY [ expr (($hbm1_ury - $hbm1_lly)/2) + $hbm1_lly ]
+set region_area [ list [expr $hbm1_urx + 50 ] [expr $midY - 250 ] [expr $hbm1_urx + 150 ] [expr $midY + 250 ]]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db insts  axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_2__1__1_* ]
+set c2 [ get_db insts  axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_2__0__1_* ]
+set c [ concat $c1 $c2]
+update_group -name $name -add -obj [get_db $c ]
+
+set name rdata_hbm0hbm1_stage3
+delete_obj [get_db groups $name ]
+foreach { hbm0_llx hbm0_lly hbm0_urx hbm0_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_0 ] .bbox ] ] {}
+set midY [ expr (($hbm0_ury - $hbm0_lly)/2) + $hbm0_lly ]
+set region_area [ list [expr $hbm0_urx + 50 ] [expr $hbm0_lly + 0 ] [expr $hbm0_urx + 150 ] [ expr $hbm0_lly + 250]  ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_3__0__1*]
+
+### Going towards hbm2 and hbm3(south)
+set name rdata_hbm2hbm3_stage1
+delete_obj [get_db groups $name ]
+foreach { hbm2_llx hbm2_lly hbm2_urx hbm2_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_2 ] .bbox ] ] {}
+set midY [ expr (($hbm2_ury - $hbm2_lly)/2) + $hbm2_lly ]
+set region_area [ list [expr $hbm2_urx + 50 ] [expr $midY - 250 ] [expr $hbm2_urx + 150 ] [expr $midY + 250 ]]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db insts  axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_2__3__1* ]
+set c2 [ get_db insts  axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_2__2__1* ]
+set c [ concat $c1 $c2]
+update_group -name $name -add -obj [get_db $c ]
+
+set name rdata_hbm2hbm3_stage3
+delete_obj [get_db groups $name ]
+foreach { hbm3_llx hbm3_lly hbm3_urx hbm3_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_3 ] .bbox ] ] {}
+set midY [ expr (($hbm3_ury - $hbm3_lly)/2) + $hbm3_lly ]
+set region_area [ list [expr $hbm3_urx + 50 ] [expr $hbm3_ury + 0 ] [expr $hbm3_urx + 150 ] [expr $hbm3_ury - 250 ]]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_3__6__1*]
+
+
+### Read data for hbm0
+set name rdata_hbm0
+delete_obj [get_db groups $name ]
+foreach { hbm0_llx hbm0_lly hbm0_urx hbm0_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_0 ] .bbox ] ] {}
+set region_area [ list $hbm0_urx $hbm0_lly [expr $hbm0_urx + 75 ] $hbm0_ury ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_5__0__1*]
+
+### Read data for hbm1
+set name rdata_hbm1
+delete_obj [get_db groups $name ]
+foreach { hbm1_llx hbm1_lly hbm1_urx hbm1_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_1 ] .bbox ] ] {}
+set region_area [ list $hbm1_urx $hbm1_lly [expr $hbm1_urx + 75 ] $hbm1_ury ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_5__8__1*]
+
+### Read data for hbm2
+set name rdata_hbm2
+delete_obj [get_db groups $name ]
+foreach { hbm2_llx hbm2_lly hbm2_urx hbm2_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_2 ] .bbox ] ] {}
+set region_area [ list $hbm2_urx $hbm2_lly [expr $hbm2_urx + 75 ] $hbm2_ury ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_5__16__1*]
+
+### Read data for hbm3
+set name rdata_hbm3
+delete_obj [get_db groups $name ]
+foreach { hbm3_llx hbm3_lly hbm3_urx hbm3_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_3 ] .bbox ] ] {}
+set region_area [ list $hbm3_urx $hbm3_lly [expr $hbm3_urx + 75 ] $hbm3_ury ]
+create_group -type guide -rects $region_area -name $name
+update_group -name $name -add -obj [get_db insts axi_top/xbar_fab2hbm/mem_rdata_pipe_reg_5__24__1*]
+
+
+
+
+##############################################################################################
+##############################################################################################
+##############################################################################################
+
+
+##############################################################################################
+##############################################################################################
+##############################################################################################
+
+
+##############################################################################################
+##############################################################################################
+##############################################################################################
+
+### creating groups for write data
+############## HBM #################
+############## HBM #################
+############## HBM #################
+## First flop+mux
+#axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_27__g_slice_6__skid_fifo_data_0/dn_data_reg_56_
+#axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_27__g_slice_6__skid_fifo_data_0/sk_data_reg_56_
+
+#### 1st two flops for wdata data for hbm0
+set name wdata_hbm0
+delete_obj [get_db groups $name ]
+foreach { hbm0_llx hbm0_lly hbm0_urx hbm0_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_0 ] .bbox ] ] {}
+set region_area [ list $hbm0_urx $hbm0_lly [expr $hbm0_urx + 120 ] $hbm0_ury ]
+create_group -type guide -rects $region_area -name $name
+#set dnc0 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_0__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc1 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_1__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc2 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_2__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc3 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_3__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc4 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_4__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc5 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_5__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc6 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_6__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc7 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_7__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#
+#set skc0 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_0__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc1 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_1__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc2 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_2__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc3 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_3__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc4 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_4__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc5 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_5__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc6 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_6__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc7 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_7__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+
+#set c [ concat $dnc0 $dnc1 $dnc2 $dnc3 $dnc4 $dnc5 $dnc6 $dnc7 $skc0 $skc1 $skc2 $skc3 $skc4 $skc5 $skc6 $skc7 ]
+
+set c00 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_0__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c01 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_1__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c02 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_2__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c03 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_3__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c04 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_4__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c05 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_5__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c06 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_6__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c07 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_7__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set c10 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_0__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c11 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_1__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c12 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_2__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c13 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_3__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c14 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_4__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c15 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_5__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c16 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_6__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c17 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_7__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set sb00 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_0__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb01 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_1__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb02 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_2__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb03 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_3__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb04 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_4__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb05 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_5__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb06 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_6__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb07 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_7__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set sb20 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_0__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb21 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_1__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb22 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_2__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb23 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_3__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb24 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_4__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb25 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_5__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb26 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_6__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb27 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_7__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set c [ concat $c00 $c01 $c02 $c03 $c04 $c05 $c06 $c07 $c10 $c11 $c12 $c13 $c14 $c15 $c16 $c17 $sb00 $sb01 $sb02 $sb03 $sb04 $sb05 $sb06 $sb07 $sb20 $sb21 $sb22 $sb23 $sb24 $sb25 $sb26 $sb27 ]
+update_group -name $name -add -obj [get_db $c]
+
+### hbm1
+set name wdata_hbm1
+delete_obj [get_db groups $name ]
+foreach { hbm1_llx hbm1_lly hbm1_urx hbm1_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_1 ] .bbox ] ] {}
+set region_area [ list $hbm1_urx $hbm1_lly [expr $hbm1_urx + 120 ] $hbm1_ury ]
+create_group -type guide -rects $region_area -name $name
+#set dnc0 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_8__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc1 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_9__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc2 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_10__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc3 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_11__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc4 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_12__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc5 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_13__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc6 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_14__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc7 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_15__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#
+#set skc0 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_8__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc1 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_9__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc2 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_10__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc3 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_11__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc4 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_12__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc5 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_13__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc6 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_14__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc7 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_15__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#
+#set c [ concat $dnc0 $dnc1 $dnc2 $dnc3 $dnc4 $dnc5 $dnc6 $dnc7 $skc0 $skc1 $skc2 $skc3 $skc4 $skc5 $skc6 $skc7 ]
+
+set c00 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_8__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c01 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_9__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c02 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_10__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c03 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_11__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c04 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_12__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c05 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_13__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c06 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_14__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c07 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_15__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set c10 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_8__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c11 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_9__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c12 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_10__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c13 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_11__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c14 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_12__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c15 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_13__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c16 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_14__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c17 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_15__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set sb00 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_8__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb01 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_9__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb02 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_10__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb03 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_11__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb04 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_12__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb05 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_13__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb06 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_14__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb07 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_15__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set sb20 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_8__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb21 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_9__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb22 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_10__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb23 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_11__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb24 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_12__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb25 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_13__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb26 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_14__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb27 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_15__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set c [ concat $c00 $c01 $c02 $c03 $c04 $c05 $c06 $c07 $c10 $c11 $c12 $c13 $c14 $c15 $c16 $c17 $sb00 $sb01 $sb02 $sb03 $sb04 $sb05 $sb06 $sb07 $sb20 $sb21 $sb22 $sb23 $sb24 $sb25 $sb26 $sb27 ]
+update_group -name $name -add -obj [get_db $c]
+
+### hbm2
+set name wdata_hbm2
+delete_obj [get_db groups $name ]
+foreach { hbm2_llx hbm2_lly hbm2_urx hbm2_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_2 ] .bbox ] ] {}
+set region_area [ list $hbm2_urx $hbm2_lly [expr $hbm2_urx + 120 ] $hbm2_ury ]
+create_group -type guide -rects $region_area -name $name
+#set dnc0 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_16__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc1 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_17__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc2 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_18__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc3 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_19__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc4 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_20__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc5 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_21__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc6 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_22__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc7 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_23__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#
+#set skc0 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_16__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc1 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_17__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc2 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_18__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc3 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_19__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc4 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_20__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc5 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_21__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc6 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_22__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc7 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_23__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#
+#set c [ concat $dnc0 $dnc1 $dnc2 $dnc3 $dnc4 $dnc5 $dnc6 $dnc7 $skc0 $skc1 $skc2 $skc3 $skc4 $skc5 $skc6 $skc7 ]
+set c00 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_16__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c01 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_17__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c02 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_18__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c03 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_19__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c04 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_20__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c05 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_21__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c06 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_22__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c07 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_23__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set c10 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_16__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c11 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_17__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c12 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_18__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c13 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_19__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c14 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_20__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c15 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_21__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c16 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_22__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c17 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_23__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set sb00 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_16__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb01 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_17__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb02 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_18__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb03 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_19__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb04 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_20__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb05 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_21__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb06 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_22__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb07 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_23__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set sb20 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_16__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb21 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_17__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb22 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_18__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb23 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_19__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb24 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_20__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb25 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_21__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb26 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_22__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb27 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_23__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set c [ concat $c00 $c01 $c02 $c03 $c04 $c05 $c06 $c07 $c10 $c11 $c12 $c13 $c14 $c15 $c16 $c17 $sb00 $sb01 $sb02 $sb03 $sb04 $sb05 $sb06 $sb07 $sb20 $sb21 $sb22 $sb23 $sb24 $sb25 $sb26 $sb27 ]
+update_group -name $name -add -obj [get_db $c]
+
+### hbm3
+set name wdata_hbm3
+delete_obj [get_db groups $name ]
+foreach { hbm3_llx hbm3_lly hbm3_urx hbm3_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_3 ] .bbox ] ] {}
+set region_area [ list $hbm3_urx $hbm3_lly [expr $hbm3_urx + 120 ] $hbm3_ury ]
+create_group -type guide -rects $region_area -name $name
+#set dnc0 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_24__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc1 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_25__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc2 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_26__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc3 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_27__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc4 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_28__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc5 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_29__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc6 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_30__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc7 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_31__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#
+#set skc0 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_24__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc1 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_25__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc2 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_26__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc3 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_27__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc4 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_28__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc5 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_29__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc6 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_30__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc7 [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_31__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+
+set c00 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_24__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c01 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_25__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c02 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_26__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c03 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_27__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c04 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_28__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c05 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_29__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c06 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_30__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c07 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_31__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set c10 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_24__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c11 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_25__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c12 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_26__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c13 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_27__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c14 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_28__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c15 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_29__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c16 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_30__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c17 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_31__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set sb00 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_24__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb01 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_25__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb02 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_26__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb03 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_27__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb04 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_28__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb05 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_29__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb06 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_30__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb07 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_31__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set sb20 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_24__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb21 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_25__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb22 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_26__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb23 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_27__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb24 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_28__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb25 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_29__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb26 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_30__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb27 [  get_db [ get_db insts axi_top/xbar_hbm2fab/g_input_dc_g_decoupler_31__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set c [ concat $c00 $c01 $c02 $c03 $c04 $c05 $c06 $c07 $c10 $c11 $c12 $c13 $c14 $c15 $c16 $c17 $sb00 $sb01 $sb02 $sb03 $sb04 $sb05 $sb06 $sb07 $sb20 $sb21 $sb22 $sb23 $sb24 $sb25 $sb26 $sb27 ]
+update_group -name $name -add -obj [get_db $c]
+
+###############
+# Stage L0C7 MUX - Capture both even and odd
+set name wdata_hbm_l0c7_mux
+delete_obj [get_db groups $name ]
+foreach { hbm3_llx hbm3_lly hbm3_urx hbm3_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_3 ] .bbox ] ] {}
+set midY [ expr (($hbm3_ury - $hbm3_lly)/2) + $hbm3_lly ]
+set region_area [ list [ expr $hbm3_urx + 120 ] $hbm3_lly [expr $hbm3_urx + 200 ] [expr $hbm3_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_7__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+# Stage L0C7 genblk3_ff_stage_0 - Capture both even and odd
+set name wdata_hbm_l0c7_genblk3_ff_stage_0_mux
+delete_obj [get_db groups $name ]
+foreach { hbm3_llx hbm3_lly hbm3_urx hbm3_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_3 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm3_urx + 600 ] $hbm3_lly [expr $hbm3_urx + 700 ] [expr $hbm3_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_7__first_row_g_more_than_2_ports_mux/genblk3_ff_stage_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+# Stage L0C6 MUX - Capture both even and odd
+set name wdata_hbm_l0c6_mux
+delete_obj [get_db groups $name ]
+foreach { hbm3_llx hbm3_lly hbm3_urx hbm3_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_3 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm3_urx + 120 ] [expr $hbm3_lly + $midY ] [expr $hbm3_urx + 200 ] [expr $hbm3_ury + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_6__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+# Stage L0C6 genblk3_ff_stage_0 - Capture both even and odd
+set name wdata_hbm_l0c6_genblk3_ff_stage_0_mux
+delete_obj [get_db groups $name ]
+foreach { hbm3_llx hbm3_lly hbm3_urx hbm3_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_3 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm3_urx + 500 ] [expr $hbm3_lly + $midY ] [expr $hbm3_urx + 600 ] [expr $hbm3_ury + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_6__first_row_g_more_than_2_ports_mux/genblk3_ff_stage_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+
+# Stage L0C5 MUX - Capture both even and odd
+set name wdata_hbm_l0c5_mux
+delete_obj [get_db groups $name ]
+foreach { hbm2_llx hbm2_lly hbm2_urx hbm2_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_2 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm2_urx + 120 ] $hbm2_lly [expr $hbm2_urx + 200 ] [expr $hbm2_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_5__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+# Stage L0C4 MUX - Capture both even and odd
+set name wdata_hbm_l0c4_mux
+delete_obj [get_db groups $name ]
+foreach { hbm2_llx hbm2_lly hbm2_urx hbm2_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_2 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm2_urx + 120 ] [expr $hbm2_lly + $midY ] [expr $hbm2_urx + 200 ] [expr $hbm2_ury + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_4__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+#set name wdata_hbm_l0c5_l0c4_mux
+#delete_obj [get_db groups $name ]
+#foreach { hbm2_llx hbm2_lly hbm2_urx hbm2_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_2 ] .bbox ] ] {}
+#set region_area [ list [ expr $hbm2_urx + 120 ] [expr $hbm2_lly + ($midY / 2)] [expr $hbm2_urx + 200 ] [expr $hbm2_ury + 0 ]]
+#create_group -type guide -rects $region_area -name $name
+#set c1 [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_5__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+#set c2 [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_4__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+#set c [ concat $c1 $c2 ]
+#update_group -name $name -add -obj [get_db $c]
+
+
+# Stage L0C3 MUX - Capture both even and odd
+set name wdata_hbm_l0c3_mux
+delete_obj [get_db groups $name ]
+foreach { hbm1_llx hbm1_lly hbm1_urx hbm1_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_1 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm1_urx + 120 ] $hbm1_lly [expr $hbm1_urx + 200 ] [expr $hbm1_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_3__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+# Stage L0C2 MUX - Capture both even and odd
+set name wdata_hbm_l0c2_mux
+delete_obj [get_db groups $name ]
+foreach { hbm1_llx hbm1_lly hbm1_urx hbm1_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_1 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm1_urx + 120 ] [expr $hbm1_lly + $midY ] [expr $hbm1_urx + 200 ] [expr $hbm1_ury + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_2__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+#set name wdata_hbm_l0c3_l0c2_mux
+#delete_obj [get_db groups $name ]
+#foreach { hbm1_llx hbm1_lly hbm1_urx hbm1_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_1 ] .bbox ] ] {}
+#set region_area [ list [ expr $hbm1_urx + 120 ] $hbm1_lly [expr $hbm1_urx + 200 ] [expr $hbm1_lly + $midY*3/2 ]]
+#create_group -type guide -rects $region_area -name $name
+#set c1 [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_3__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+#set c2 [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_2__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+#set c [ concat $c1 $c2 ]
+#update_group -name $name -add -obj [get_db $c]
+
+
+
+
+# Stage L0C1 MUX - Capture both even and odd
+set name wdata_hbm_l0c1_mux
+delete_obj [get_db groups $name ]
+foreach { hbm0_llx hbm0_lly hbm0_urx hbm0_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_0 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm0_urx + 120 ] $hbm0_lly [expr $hbm0_urx + 200 ] [expr $hbm0_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_1__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+# Stage L0C1 genblk3_ff_stage_0 - Capture both even and odd
+set name wdata_hbm_l0c1_genblk3_ff_stage_0_mux
+delete_obj [get_db groups $name ]
+foreach { hbm0_llx hbm0_lly hbm0_urx hbm0_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_0 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm0_urx + 500 ] [ expr $hbm0_lly + 0 ] [expr $hbm0_urx + 600 ] [expr $hbm0_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_1__first_row_g_more_than_2_ports_mux/genblk3_ff_stage_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+# Stage L0C0 MUX - Capture both even and odd
+set name wdata_hbm_l0c0_mux
+delete_obj [get_db groups $name ]
+foreach { hbm0_llx hbm0_lly hbm0_urx hbm0_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_0 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm0_urx + 120 ] [expr $hbm0_lly + $midY ] [expr $hbm0_urx + 200 ] [expr $hbm0_ury + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_0__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+# Stage L0C0 genblk3_ff_stage_0 - Capture both even and odd
+set name wdata_hbm_l0c0_genblk3_ff_stage_0_mux
+delete_obj [get_db groups $name ]
+foreach { hbm0_llx hbm0_lly hbm0_urx hbm0_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_0 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm0_urx + 600 ] [ expr $hbm0_lly + $midY ] [expr $hbm0_urx + 700 ] [expr $hbm0_ury + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_0__first_row_g_more_than_2_ports_mux/genblk3_ff_stage_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+
+##### Stage L1C3 - Capture both even and odd - Make it land next below L2C1 - This is limit veritcal wires to 2048 X 2
+set name wdata_hbm_l1c3_mux
+delete_obj [get_db groups $name ]
+foreach { hbm2_llx hbm2_lly hbm2_urx hbm2_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_2 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm2_urx + 600 ] [expr $hbm2_lly - $midY/2 ] [expr $hbm2_urx + 700 ] [expr $hbm2_lly + $midY/2 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_1__column_3__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L1C2 - Capture both even and odd - Make it land next to L0C4 - Wires will travell horizontally
+set name wdata_hbm_l1c2_mux
+delete_obj [get_db groups $name ]
+foreach { hbm2_llx hbm2_lly hbm2_urx hbm2_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_2 ] .bbox ] ] {}
+#set region_area [ list [ expr $hbm2_urx + 200 ] [expr $hbm2_lly + $midY ] [expr $hbm2_urx + 300 ] [expr $hbm2_ury + 0 ]]
+set region_area [ list [ expr $hbm2_urx + 200 ] [expr $hbm2_lly + 0 ] [expr $hbm2_urx + 250 ] [expr $hbm2_ury + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_1__column_2__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L1C1 - Capture both even and odd - Make it land next to L0C3 - Wires will travell horizontally
+set name wdata_hbm_l1c1_mux
+delete_obj [get_db groups $name ]
+foreach { hbm1_llx hbm1_lly hbm1_urx hbm1_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_1 ] .bbox ] ] {}
+#set region_area [ list [ expr $hbm1_urx + 200 ] [expr $hbm1_lly + 0 ] [expr $hbm1_urx + 250 ] [expr $hbm1_lly + $midY ]]
+set region_area [ list [ expr $hbm1_urx + 200 ] [expr $hbm1_lly + 0 ] [expr $hbm1_urx + 250 ] [expr $hbm1_ury + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_1__column_1__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L1C0 - Capture both even and odd - Make it land next below L2C0 - This is limit veritcal wires to 2048 X 2
+set name wdata_hbm_l1c0_mux
+delete_obj [get_db groups $name ]
+foreach { hbm1_llx hbm1_lly hbm1_urx hbm1_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_1 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm1_urx + 600 ] [expr $hbm1_ury - $midY/2 ] [expr $hbm1_urx + 700 ] [expr $hbm1_ury + $midY/2 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_1__column_0__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+##### Stage L2C0 - Capture both even and odd - Make it land above to L3C0 - Wires will travell verticaly
+set name wdata_hbm_l2c0_mux
+delete_obj [get_db groups $name ]
+foreach { hbm1_llx hbm1_lly hbm1_urx hbm1_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_1 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm1_urx + 600 ] [expr $hbm1_ury - $midY ] [expr $hbm1_urx + 700 ] [expr $hbm1_lly + 0 ]]
+#set region_area "316 3587 535 4413"
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_2__column_0__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L2C1 - Capture both even and odd - Make it land below to L3C0 - Wires will travell vertically
+set name wdata_hbm_l2c1_mux
+delete_obj [get_db groups $name ]
+foreach { hbm2_llx hbm2_lly hbm2_urx hbm2_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_2 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm2_urx + 600 ] [expr $hbm2_lly + $midY ] [expr $hbm2_urx + 700 ] [expr $hbm2_ury + 0 ]]
+#set region_area "316 3587 535 4413"
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_2__column_1__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L3C0 - Capture both even and odd
+set name wdata_hbm_l3c0_mux
+delete_obj [get_db groups $name ]
+set region_area "650 3587 750 4413"
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_hbm2fab/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_3__column_0__last_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+
+############### FAB #################
+############### FAB #################
+############### FAB #################
+
+### fab0
+set name wdata_fab0
+delete_obj [get_db groups $name ]
+foreach { fab0_llx fab0_lly fab0_urx fab0_ury } [ join [ get_db [ get_db insts axi_top/fab_group_0 ] .bbox ] ] {}
+set region_area [ list $fab0_llx $fab0_lly [expr $fab0_llx - 120 ] $fab0_ury ]
+create_group -type guide -rects $region_area -name $name
+#set dnc0 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_0__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc1 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_1__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc2 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_2__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc3 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_3__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc4 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_4__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc5 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_5__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc6 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_6__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc7 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_7__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#
+#set skc0 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_0__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc1 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_1__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc2 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_2__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc3 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_3__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc4 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_4__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc5 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_5__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc6 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_6__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc7 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_7__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+
+#set c [ concat $dnc0 $dnc1 $dnc2 $dnc3 $dnc4 $dnc5 $dnc6 $dnc7 $skc0 $skc1 $skc2 $skc3 $skc4 $skc5 $skc6 $skc7 ]
+
+set c00 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_0__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c01 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_1__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c02 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_2__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c03 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_3__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c04 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_4__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c05 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_5__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c06 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_6__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c07 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_7__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set c10 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_0__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c11 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_1__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c12 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_2__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c13 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_3__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c14 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_4__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c15 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_5__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c16 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_6__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c17 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_7__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set sb00 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_0__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb01 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_1__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb02 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_2__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb03 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_3__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb04 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_4__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb05 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_5__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb06 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_6__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb07 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_7__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set sb20 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_0__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb21 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_1__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb22 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_2__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb23 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_3__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb24 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_4__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb25 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_5__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb26 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_6__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb27 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_7__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set c [ concat $c00 $c01 $c02 $c03 $c04 $c05 $c06 $c07 $c10 $c11 $c12 $c13 $c14 $c15 $c16 $c17 $sb00 $sb01 $sb02 $sb03 $sb04 $sb05 $sb06 $sb07 $sb20 $sb21 $sb22 $sb23 $sb24 $sb25 $sb26 $sb27 ]
+update_group -name $name -add -obj [get_db $c]
+
+
+### fab1
+set name wdata_fab1
+delete_obj [get_db groups $name ]
+foreach { fab1_llx fab1_lly fab1_urx fab1_ury } [ join [ get_db [ get_db insts axi_top/fab_group_1 ] .bbox ] ] {}
+set region_area [ list $fab1_llx $fab1_lly [expr $fab1_llx - 120 ] $fab1_ury ]
+create_group -type guide -rects $region_area -name $name
+#set dnc0 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_8__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc1 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_9__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc2 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_10__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc3 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_11__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc4 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_12__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc5 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_13__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc6 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_14__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc7 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_15__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#
+#set skc0 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_8__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc1 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_9__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc2 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_10__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc3 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_11__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc4 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_12__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc5 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_13__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc6 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_14__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc7 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_15__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#
+#set c [ concat $dnc0 $dnc1 $dnc2 $dnc3 $dnc4 $dnc5 $dnc6 $dnc7 $skc0 $skc1 $skc2 $skc3 $skc4 $skc5 $skc6 $skc7 ]
+
+set c00 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_8__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c01 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_9__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c02 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_10__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c03 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_11__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c04 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_12__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c05 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_13__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c06 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_14__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c07 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_15__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set c10 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_8__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c11 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_9__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c12 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_10__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c13 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_11__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c14 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_12__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c15 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_13__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c16 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_14__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c17 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_15__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set sb00 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_8__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb01 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_9__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb02 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_10__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb03 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_11__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb04 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_12__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb05 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_13__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb06 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_14__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb07 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_15__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set sb20 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_8__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb21 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_9__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb22 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_10__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb23 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_11__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb24 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_12__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb25 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_13__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb26 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_14__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb27 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_15__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set c [ concat $c00 $c01 $c02 $c03 $c04 $c05 $c06 $c07 $c10 $c11 $c12 $c13 $c14 $c15 $c16 $c17 $sb00 $sb01 $sb02 $sb03 $sb04 $sb05 $sb06 $sb07 $sb20 $sb21 $sb22 $sb23 $sb24 $sb25 $sb26 $sb27 ]
+update_group -name $name -add -obj [get_db $c]
+
+
+### fab2
+set name wdata_fab2
+delete_obj [get_db groups $name ]
+foreach { fab2_llx fab2_lly fab2_urx fab2_ury } [ join [ get_db [ get_db insts axi_top/fab_group_2 ] .bbox ] ] {}
+set region_area [ list $fab2_llx $fab2_lly [expr $fab2_llx - 120 ] $fab2_ury ]
+create_group -type guide -rects $region_area -name $name
+#set dnc0 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_16__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc1 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_17__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc2 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_18__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc3 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_19__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc4 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_20__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc5 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_21__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc6 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_22__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc7 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_23__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#
+#set skc0 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_16__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc1 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_17__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc2 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_18__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc3 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_19__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc4 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_20__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc5 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_21__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc6 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_22__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc7 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_23__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#
+#set c [ concat $dnc0 $dnc1 $dnc2 $dnc3 $dnc4 $dnc5 $dnc6 $dnc7 $skc0 $skc1 $skc2 $skc3 $skc4 $skc5 $skc6 $skc7 ]
+set c00 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_16__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c01 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_17__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c02 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_18__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c03 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_19__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c04 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_20__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c05 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_21__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c06 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_22__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c07 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_23__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set c10 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_16__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c11 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_17__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c12 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_18__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c13 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_19__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c14 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_20__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c15 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_21__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c16 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_22__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c17 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_23__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set sb00 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_16__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb01 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_17__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb02 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_18__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb03 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_19__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb04 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_20__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb05 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_21__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb06 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_22__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb07 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_23__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set sb20 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_16__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb21 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_17__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb22 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_18__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb23 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_19__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb24 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_20__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb25 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_21__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb26 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_22__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb27 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_23__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set c [ concat $c00 $c01 $c02 $c03 $c04 $c05 $c06 $c07 $c10 $c11 $c12 $c13 $c14 $c15 $c16 $c17 $sb00 $sb01 $sb02 $sb03 $sb04 $sb05 $sb06 $sb07 $sb20 $sb21 $sb22 $sb23 $sb24 $sb25 $sb26 $sb27 ]
+update_group -name $name -add -obj [get_db $c]
+
+
+### fab3
+set name wdata_fab3
+delete_obj [get_db groups $name ]
+foreach { fab3_llx fab3_lly fab3_urx fab3_ury } [ join [ get_db [ get_db insts axi_top/fab_group_3 ] .bbox ] ] {}
+set region_area [ list $fab3_llx $fab3_lly [expr $fab3_llx - 120 ] $fab3_ury ]
+create_group -type guide -rects $region_area -name $name
+#set dnc0 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_24__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc1 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_25__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc2 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_26__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc3 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_27__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc4 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_28__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc5 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_29__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc6 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_30__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#set dnc7 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_31__g_slice_*__skid_fifo_data_0/dn_data_reg* ]
+#
+#set skc0 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_24__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc1 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_25__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc2 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_26__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc3 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_27__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc4 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_28__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc5 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_29__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc6 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_30__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+#set skc7 [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_31__g_slice_*__skid_fifo_data_0/sk_data_reg* ]
+
+set c00 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_24__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c01 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_25__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c02 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_26__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c03 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_27__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c04 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_28__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c05 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_29__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c06 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_30__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c07 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_31__g_slice_*__skid_fifo_data_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set c10 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_24__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c11 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_25__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c12 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_26__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c13 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_27__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c14 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_28__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c15 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_29__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c16 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_30__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c17 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_31__g_slice_*__genblk1_skid_fifo_data_1/SYN* ] -if {.base_cell.name == *MUX*} ]
+
+set sb00 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_24__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb01 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_25__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb02 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_26__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb03 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_27__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb04 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_28__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb05 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_29__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb06 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_30__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb07 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_31__skid_fifo_sb_0/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set sb20 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_24__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb21 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_25__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb22 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_26__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb23 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_27__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb24 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_28__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb25 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_29__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb26 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_30__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+set sb27 [  get_db [ get_db insts axi_top/xbar_fab2hbm/g_input_dc_g_decoupler_31__skid_fifo_sb_2/SYN*  ] -if {.base_cell.name == *MUX*} ]
+
+set c [ concat $c00 $c01 $c02 $c03 $c04 $c05 $c06 $c07 $c10 $c11 $c12 $c13 $c14 $c15 $c16 $c17 $sb00 $sb01 $sb02 $sb03 $sb04 $sb05 $sb06 $sb07 $sb20 $sb21 $sb22 $sb23 $sb24 $sb25 $sb26 $sb27 ]
+update_group -name $name -add -obj [get_db $c]
+
+###############
+
+# Stage L0C7 MUX - Capture both even and odd
+set name wdata_fab_l0c7_mux
+delete_obj [get_db groups $name ]
+foreach { fab3_llx fab3_lly fab3_urx fab3_ury } [ join [ get_db [ get_db insts axi_top/fab_group_3 ] .bbox ] ] {}
+set midY [ expr [get_db [ get_db insts axi_top/fab_group_3 ] .bbox.dy ] /2 ]
+set region_area [ list [ expr $fab3_llx - 120 ] [ expr $fab3_lly + $midY ] [expr $fab3_llx - 200 ] [expr $fab3_lly + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_7__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+# Stage L0C7 genblk3_ff_stage_0 - Capture both even and odd
+set name wdata_fab_l0c7_genblk3_ff_stage_0_mux
+delete_obj [get_db groups $name ]
+foreach { fab3_llx fab3_lly fab3_urx fab3_ury } [ join [ get_db [ get_db insts axi_top/fab_group_3 ] .bbox ] ] {}
+set region_area [ list [ expr $fab3_llx - 600 ] [expr $fab3_lly + $midY ] [expr $fab3_llx - 700 ] [expr $fab3_lly + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_7__first_row_g_more_than_2_ports_mux/genblk3_ff_stage_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+# Stage L0C6 MUX - Capture both even and odd
+set name wdata_fab_l0c6_mux
+delete_obj [get_db groups $name ]
+foreach { fab3_llx fab3_lly fab3_urx fab3_ury } [ join [ get_db [ get_db insts axi_top/fab_group_3 ] .bbox ] ] {}
+set region_area [ list [ expr $fab3_llx - 120 ] [expr $fab3_ury - 0 ] [expr $fab3_llx - 200 ] [expr $fab3_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_6__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+# Stage L0C6 genblk3_ff_stage_0 - Capture both even and odd
+set name wdata_fab_l0c6_genblk3_ff_stage_0_mux
+delete_obj [get_db groups $name ]
+foreach { fab3_llx fab3_lly fab3_urx fab3_ury } [ join [ get_db [ get_db insts axi_top/fab_group_3 ] .bbox ] ] {}
+set region_area [ list [ expr $fab3_llx - 500 ] [expr $fab3_ury - 0 ] [expr $fab3_llx - 600 ] [expr $fab3_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_6__first_row_g_more_than_2_ports_mux/genblk3_ff_stage_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+set name wdata_fab_l0c4_l0c5_mux
+delete_obj [get_db groups $name ]
+foreach { fab2_llx fab2_lly fab2_urx fab2_ury } [ join [ get_db [ get_db insts axi_top/fab_group_2 ] .bbox ] ] {}
+set region_area [ list [ expr $fab2_llx - 120 ] [expr $fab2_ury - 0 ] [expr $fab2_llx - 200 ] [expr $fab2_ury - $midY *3/2 ]]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_4__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c2 [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_5__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c [ concat $c1 $c2 ]
+update_group -name $name -add -obj [get_db $c]
+
+set name wdata_fab_l0c3_l0c2_mux
+delete_obj [get_db groups $name ]
+foreach { fab1_llx fab1_lly fab1_urx fab1_ury } [ join [ get_db [ get_db insts axi_top/fab_group_1 ] .bbox ] ] {}
+set region_area [ list [ expr $fab1_llx - 120 ] $fab1_lly [expr $fab1_llx - 200 ] [expr $fab1_lly + $midY + $midY/2 ]]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_3__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c2 [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_2__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+set c [ concat $c1 $c2 ]
+update_group -name $name -add -obj [get_db $c]
+
+
+# Stage L0C1 MUX - Capture both even and odd
+set name wdata_fab_l0c1_mux
+delete_obj [get_db groups $name ]
+foreach { fab0_llx fab0_lly fab0_urx fab0_ury } [ join [ get_db [ get_db insts axi_top/fab_group_0 ] .bbox ] ] {}
+set region_area [ list [ expr $fab0_llx - 120 ] $fab0_lly [expr $fab0_llx - 200 ] [expr $fab0_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_1__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+# Stage L0C1 genblk3_ff_stage_0 - Capture both even and odd
+set name wdata_fab_l0c1_genblk3_ff_stage_0_mux
+delete_obj [get_db groups $name ]
+foreach { fab0_llx fab0_lly fab0_urx fab0_ury } [ join [ get_db [ get_db insts axi_top/fab_group_0 ] .bbox ] ] {}
+set region_area [ list [ expr $fab0_llx - 500 ] [ expr $fab0_lly + 0 ] [expr $fab0_llx - 600 ] [expr $fab0_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_1__first_row_g_more_than_2_ports_mux/genblk3_ff_stage_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+# Stage L0C0 MUX - Capture both even and odd
+set name wdata_fab_l0c0_mux
+delete_obj [get_db groups $name ]
+foreach { fab0_llx fab0_lly fab0_urx fab0_ury } [ join [ get_db [ get_db insts axi_top/fab_group_0 ] .bbox ] ] {}
+set region_area [ list [ expr $fab0_llx - 120 ] [expr $fab0_ury + 0 ] [expr $fab0_llx - 200 ] [expr $fab0_ury - $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_0__first_row_g_more_than_2_ports_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+# Stage L0C0 genblk3_ff_stage_0 - Capture both even and odd
+set name wdata_fab_l0c0_genblk3_ff_stage_0_mux
+delete_obj [get_db groups $name ]
+foreach { fab0_llx fab0_lly fab0_urx fab0_ury } [ join [ get_db [ get_db insts axi_top/fab_group_0 ] .bbox ] ] {}
+set region_area [ list [ expr $fab0_llx - 600 ] [ expr $fab0_ury + 0 ] [expr $fab0_llx - 700 ] [expr $fab0_ury - $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_0__column_0__first_row_g_more_than_2_ports_mux/genblk3_ff_stage_0/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L1C3 - Capture both even and odd - Make it land next above L2C1 - veritcal wires to 2048 X 2
+set name wdata_fab_l1c3_mux
+delete_obj [get_db groups $name ]
+foreach { fab2_llx fab2_lly fab2_urx fab2_ury } [ join [ get_db [ get_db insts axi_top/fab_group_2 ] .bbox ] ] {}
+set region_area [ list [ expr $fab2_llx - 600 ] [expr $fab2_lly + $midY/2 ] [expr $fab2_llx - 700 ] [expr $fab2_lly - $midY/2 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_1__column_3__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L1C2 - Capture both even and odd - Make it land next to L0C4 - Wires will travel horizontally
+set name wdata_fab_l1c2_mux
+delete_obj [get_db groups $name ]
+foreach { fab2_llx fab2_lly fab2_urx fab2_ury } [ join [ get_db [ get_db insts axi_top/fab_group_2 ] .bbox ] ] {}
+set region_area [ list [ expr $fab2_llx - 200 ] [expr $fab2_ury + 0 ] [expr $fab2_llx - 300 ] [expr $fab2_ury - $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_1__column_2__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L1C1 - Capture both even and odd - Make it land next to L0C3 - Wires will travell horizontally
+set name wdata_fab_l1c1_mux
+delete_obj [get_db groups $name ]
+foreach { fab1_llx fab1_lly fab1_urx fab1_ury } [ join [ get_db [ get_db insts axi_top/fab_group_1 ] .bbox ] ] {}
+set region_area [ list [ expr $fab1_llx - 200 ] [expr $fab1_lly + 0 ] [expr $fab1_llx - 300 ] [expr $fab1_lly + $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_1__column_1__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L1C0 - Capture both even and odd - Make it land next below L2C0 - This is limit veritcal wires to 2048 X 2
+set name wdata_fab_l1c0_mux
+delete_obj [get_db groups $name ]
+foreach { fab1_llx fab1_lly fab1_urx fab1_ury } [ join [ get_db [ get_db insts axi_top/fab_group_1 ] .bbox ] ] {}
+set region_area [ list [ expr $fab1_llx - 600 ] [expr $fab1_ury - $midY/2] [expr $fab1_llx - 700 ] [expr $fab1_ury + $midY/2 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_1__column_0__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L2C0 - Capture both even and odd - Make it land above to L3C0 - Wires will travell verticaly
+set name wdata_fab_l2c0_mux
+delete_obj [get_db groups $name ]
+foreach { fab1_llx fab1_lly fab1_urx fab1_ury } [ join [ get_db [ get_db insts axi_top/fab_group_1 ] .bbox ] ] {}
+set region_area [ list [ expr $fab1_llx - 600 ] [expr $fab1_lly + $midY ] [expr $fab1_llx - 700 ] [expr $fab1_lly + 0 ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_2__column_0__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L2C1 - Capture both even and odd - Make it land below to L3C0 - Wires will travell vertically
+set name wdata_fab_l2c1_mux
+delete_obj [get_db groups $name ]
+foreach { fab2_llx fab2_lly fab2_urx fab2_ury } [ join [ get_db [ get_db insts axi_top/fab_group_2 ] .bbox ] ] {}
+set region_area [ list [ expr $fab2_llx - 600 ] [expr $fab2_ury + 0 ] [expr $fab2_llx - 700 ] [expr $fab2_ury - $midY ]]
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_2__column_1__middle_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+##### Stage L3C0 - Capture both even and odd
+set name wdata_fab_l3c0_mux
+delete_obj [get_db groups $name ]
+set region_area "300 3587 400 4413"
+create_group -type guide -rects $region_area -name $name
+set c [ get_db [ get_db insts axi_top/xbar_fab2hbm/g_pipe_mux_dp_*__g_wdata_mux_*__wdata_mux/level_3__column_0__last_row_mux/SYN* ] -if {.base_cell.name == *MUX*} ]
+update_group -name $name -add -obj [get_db $c]
+
+
+
+#####################################################################
+#####################################################################
+#####################################################################
+
+#####################################################################
+#####################################################################
+#####################################################################
+## ARMUX HBM
+set name hbm_armux_hbm_group_0
+delete_obj [get_db groups $name ]
+foreach { hbm0_llx hbm0_lly hbm0_urx hbm0_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_0 ] .bbox ] ] {}
+set region_area [ list $hbm0_urx $hbm0_lly [expr $hbm0_urx + 75 ] $hbm0_ury ]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db [ get_db [get_db pins *hbm_group_0/armux*_*[*]] .net.loads.inst ] -if {.base_name != *hbm_group_0 } ]
+set c2 [ get_db [ get_db [get_db pins *hbm_group_0/armux*_*[*]] .net.drivers.inst ] -if {.base_name != *hbm_group_0 } ]
+set c [ lsort -u [ concat $c1 $c2 ]]
+update_group -name $name -add -obj [get_db $c]
+
+set name hbm_armux_hbm_group_1
+delete_obj [get_db groups $name ]
+foreach { hbm1_llx hbm1_lly hbm1_urx hbm1_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_1 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm1_urx + 0 ] $hbm1_lly [expr $hbm1_urx + 75 ] $hbm1_ury ]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db [ get_db [get_db pins *hbm_group_1/armux*_*[*]] .net.loads.inst ] -if {.base_name != *hbm_group_1 } ]
+set c2 [ get_db [ get_db [get_db pins *hbm_group_1/armux*_*[*]] .net.drivers.inst ] -if {.base_name != *hbm_group_1 } ]
+set c [ lsort -u [ concat $c1 $c2 ]]
+update_group -name $name -add -obj [get_db $c]
+
+set name hbm_armux_hbm_group_2
+delete_obj [get_db groups $name ]
+foreach { hbm2_llx hbm2_lly hbm2_urx hbm2_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_2 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm2_urx + 0 ] $hbm2_lly [ expr $hbm2_urx + 75 ] $hbm2_ury ]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db [ get_db [get_db pins *hbm_group_2/armux*_*[*]] .net.loads.inst ] -if {.base_name != *hbm_group_2 } ]
+set c2 [ get_db [ get_db [get_db pins *hbm_group_2/armux*_*[*]] .net.drivers.inst ] -if {.base_name != *hbm_group_2 } ]
+set c [ lsort -u [ concat $c1 $c2 ]]
+update_group -name $name -add -obj [get_db $c]
+
+set name hbm_armux_hbm_group_3
+delete_obj [get_db groups $name ]
+foreach { hbm3_llx hbm3_lly hbm3_urx hbm3_ury } [ join [ get_db [ get_db insts axi_top/hbm_group_3 ] .bbox ] ] {}
+set region_area [ list [ expr $hbm3_urx + 0 ] $hbm3_lly [ expr $hbm3_urx + 75 ] $hbm3_ury ]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db [ get_db [get_db pins *hbm_group_3/armux*_*[*]] .net.loads.inst ] -if {.base_name != *hbm_group_3 } ]
+set c2 [ get_db [ get_db [get_db pins *hbm_group_3/armux*_*[*]] .net.drivers.inst ] -if {.base_name != *hbm_group_3 } ]
+set c [ lsort -u [ concat $c1 $c2 ]]
+update_group -name $name -add -obj [get_db $c]
+
+################################################################
+################################################################
+################################################################
+
+################################################################
+################################################################
+################################################################
+## FAB FAB_BID
+set name fab_bid_fab_group_0
+delete_obj [get_db groups $name ]
+foreach { fab0_llx fab0_lly fab0_urx fab0_ury } [ join [ get_db [ get_db insts axi_top/fab_group_0 ] .bbox ] ] {}
+set region_area [ list [ expr $fab0_llx - 50 ] $fab0_lly $fab0_llx $fab0_ury ]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db [ get_db [get_db pins *fab_group_0/fab_bid*[*]] .net.loads.inst ] -if {.base_name != *fab_group_0 } ]
+set c2 [ get_db [ get_db [get_db pins *fab_group_0/fab_bid*[*]] .net.drivers.inst ] -if {.base_name != *fab_group_0 } ]
+set c [ lsort -u [ concat $c1 $c2 ]]
+update_group -name $name -add -obj [get_db $c]
+
+set name fab_bid_fab_group_1
+delete_obj [get_db groups $name ]
+foreach { fab1_llx fab1_lly fab1_urx fab1_ury } [ join [ get_db [ get_db insts axi_top/fab_group_1 ] .bbox ] ] {}
+set region_area [ list [ expr $fab1_llx - 50 ] $fab1_lly $fab1_llx $fab1_ury ]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db [ get_db [get_db pins *fab_group_1/fab_bid*[*]] .net.loads.inst ] -if {.base_name != *fab_group_1 } ]
+set c2 [ get_db [ get_db [get_db pins *fab_group_1/fab_bid*[*]] .net.drivers.inst ] -if {.base_name != *fab_group_1 } ]
+set c [ lsort -u [ concat $c1 $c2 ]]
+update_group -name $name -add -obj [get_db $c]
+
+set name fab_bid_fab_group_2
+delete_obj [get_db groups $name ]
+foreach { fab2_llx fab2_lly fab2_urx fab2_ury } [ join [ get_db [ get_db insts axi_top/fab_group_2 ] .bbox ] ] {}
+set region_area [ list [ expr $fab2_llx - 50 ] $fab2_lly $fab2_llx $fab2_ury ]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db [ get_db [get_db pins *fab_group_2/fab_bid*[*]] .net.loads.inst ] -if {.base_name != *fab_group_2 } ]
+set c2 [ get_db [ get_db [get_db pins *fab_group_2/fab_bid*[*]] .net.drivers.inst ] -if {.base_name != *fab_group_2 } ]
+set c [ lsort -u [ concat $c1 $c2 ]]
+update_group -name $name -add -obj [get_db $c]
+
+set name fab_bid_fab_group_3
+delete_obj [get_db groups $name ]
+foreach { fab3_llx fab3_lly fab3_urx fab3_ury } [ join [ get_db [ get_db insts axi_top/fab_group_3 ] .bbox ] ] {}
+set region_area [ list [ expr $fab3_llx - 50 ] $fab3_lly $fab3_llx $fab3_ury ]
+create_group -type guide -rects $region_area -name $name
+set c1 [ get_db [ get_db [get_db pins *fab_group_3/fab_bid*[*]] .net.loads.inst ] -if {.base_name != *fab_group_3 } ]
+set c2 [ get_db [ get_db [get_db pins *fab_group_3/fab_bid*[*]] .net.drivers.inst ] -if {.base_name != *fab_group_3 } ]
+set c [ lsort -u [ concat $c1 $c2 ]]
+update_group -name $name -add -obj [get_db $c]
+
