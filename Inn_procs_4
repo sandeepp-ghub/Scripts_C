@@ -1,0 +1,206 @@
+###General_procs
+
+# -----------------------------------------------------------------------
+# Compares two files and returns 0 (no match), 1 (match)
+#   1. Size should be equal
+#   2. Contents should be equal
+# -----------------------------------------------------------------------
+proc comp_file {file1 file2} {
+    set equal 0
+    if {[file size $file1] == [file size $file2]} {
+        set fp1 [open $file1 r]
+        set fp2 [open $file2 r]
+        set equal [string equal [read $fp1] [read $fp2]]
+        close $fp1
+        close $fp2
+    }
+    if {$equal == 0} {
+        puts "Files not equal"
+    } elseif {$equal ==1} {
+        puts "Files are equal"
+    }
+    return $equal
+}
+
+# -----------------------------------------------------------------------
+# Remove items from list
+#   1. Supports wildcard
+#   2. Removes all matching cases
+# -----------------------------------------------------------------------
+proc remove_from_list {in_list remove_objs} {
+    puts "Number of objs/wildcard to remove : [llength $remove_objs]"
+
+    set out_list $in_list
+    set cnt 0
+    foreach i $remove_objs {
+        set match 1
+        while {$match == 1} {
+            set lid [lsearch $out_list $i]
+            if {$lid == -1} {
+                set match 0
+                puts "No more match"
+                continue
+            }
+            set out_list [lreplace $out_list $lid $lid]
+            puts "\tObt:$cnt .. Found match for $i .. Length of o/p list : [llength $out_list]"
+        }
+        incr cnt
+    }
+
+    set diff [expr [llength $in_list] - [llength $out_list]]
+    if {$diff == 0} {
+        puts "No matching object found in input list"
+    } else {
+	    puts "Length of input list : [llength $in_list]"
+	    puts "Length of output list : [llength $out_list]"
+        puts "Obj removed : $diff"
+    }
+    return $out_list
+}
+
+
+
+# -----------------------------------------------------------------------
+# Cone view for selected object
+# -----------------------------------------------------------------------
+proc cone_view_of_selected {} {
+    set sel_obj [get_db selected .name]
+    set sel_type [get_db selected .obj_type]
+    gui_open_schematic -obj_name $sel_obj -obj_type $sel_type -type cone
+}
+proc module_view_of_selected {} {
+    set sel_obj [get_db selected .name]
+    set sel_type [get_db selected .obj_type]
+    gui_open_schematic -obj_name $sel_obj -obj_type $sel_type -type module
+}
+
+# -----------------------------------------------------------------------
+# Time stamp for files
+# -----------------------------------------------------------------------
+proc timestamp {} {
+    set systemTime [clock seconds]
+    return [clock format $systemTime -format %y%m%d_%H%M]
+}
+    
+# -----------------------------------------------------------------------
+# Time stamp for files
+# -----------------------------------------------------------------------
+proc des {} {
+    puts "RY: Deselecting all from GUI.. "
+    gui_deselect -all
+}
+   
+# -----------------------------------------------------------------------
+# des + select_obj + cone_view
+# -----------------------------------------------------------------------
+proc sel_cone {name} {
+    des
+    select_obj $name
+    cone_view_of_selected
+}
+
+# -----------------------------------------------------------------------
+# Ruler for the RLM shape X and Y from bottom left edge to top right edge..
+# -----------------------------------------------------------------------
+proc rlm_ruler {} {
+    puts "RY: Creating the ruler for RLM size."
+    clear_all_rulers
+    set x [get_db designs .bbox.dx]
+    set y [get_db designs .bbox.dy]
+    redirect tmp_ruler {echo "create_ruler -coords {0 0 0 $y $x $y}"}
+    source tmp_ruler
+    rm tmp_ruler
+
+}
+
+# -----------------------------------------------------------------------
+# Set eco off
+# -----------------------------------------------------------------------
+proc eco_before_settings  {} {
+    puts "RY-ECO------Turning ECO mode off...This is to be run before doing ECO work..."
+    set_db eco_batch_mode true
+    set_db eco_honor_dont_use false
+    set_db eco_honor_dont_touch false
+    set_db eco_refine_place false
+    set_db eco_update_timing false
+    set_db eco_honor_fixed_status false
+}
+   
+proc eco_after_settings {} {
+    puts "RY-ECO------Reverting back eco settings.."
+    set_db eco_batch_mode false 
+    set_db eco_honor_dont_use true
+    set_db eco_honor_dont_touch true
+    set_db eco_refine_place true
+    set_db eco_update_timing true
+    set_db eco_honor_fixed_status true
+}
+
+    
+# -----------------------------------------------------------------------
+# fixed -> placed -> place_detail -selected -> fixed
+# -----------------------------------------------------------------------
+proc pds {} {
+    puts "RY: fore selected insts , fixed -> placed -> place_detail -> fixed..."
+    set max_distance [get_db place_detail_eco_max_distance ]
+    set ps [get_db selected .place_status]
+    set_db place_detail_eco_max_distance 30
+
+    set_db selected .place_status placed
+    place_detail -inst [get_db selected .name]
+    set_db selected .place_status $ps
+    set_db place_detail_eco_max_distance $max_distance
+
+}
+   
+
+# -----------------------------------------------------------------------
+# Wire-length of nets
+# -----------------------------------------------------------------------
+proc wl {net} {
+    #echo "[get_db [get_db nets $net] .wires -foreach {echo "[get_db $object .layer.name] [get_db $object .length]"}]"
+
+    set m1 0
+    set m2 0
+    set m3_9 0
+    set m10_11 0
+    set m12_13 0
+
+    foreach i [get_db [get_db nets $net] .wires] {
+        set layer [get_db $i .layer.name]
+        set len [get_db $i .length]
+
+        if {$layer == "M1"} {
+            set temp [expr $m1 + $len]
+            set m1 $temp
+        } elseif {$layer == "M2"} {
+            set temp [expr $m2 + $len]
+            set m2 $temp
+        } elseif {$layer == "M3" || $layer == "M4" || $layer == "M5" || $layer == "M6" || $layer == "M7" || $layer == "M8" || $layer == "M9" } {
+            set temp [expr $m3_9 + $len]
+            set m3_9 $temp
+        } elseif {$layer == "M10" || $layer == "M11"} {
+            set temp [expr $m10_11 + $len]
+            set m10_11 $temp
+        } elseif {$layer == "M12" || $layer == "M13"} {
+            set temp [expr $m12_13 + $len]
+            set m12_13 $temp
+        } 
+    }
+
+    echo "M1     : $m1"
+    echo "M2     : $m2"
+    echo "M3_9   : $m3_9"
+    echo "M10_11 : $m10_11"
+    echo "M12_13 : $m12_13"
+}
+
+# -----------------------------------------------------------------------
+# Time stamp for files
+# -----------------------------------------------------------------------
+#proc shift_ports {} {
+#    puts "RY: Deselecting all from GUI.. "
+#    gui_deselect -all
+#}
+
+
