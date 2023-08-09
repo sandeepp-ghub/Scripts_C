@@ -1,0 +1,28 @@
+## DE2 import cleanup for ring_io_bot
+
+## removeing repowering on VDDO/VSSO nets
+proc remove_repower_vddo_vsso {} {
+     set VDDOnets [lsort -u [get_db [get_db pins *VDDO] .net.name]]
+     set VSSOnets [lsort -u [get_db [get_db pins *VSSO] .net.name]]
+     foreach net $VDDOnets {
+          mortar::remove_repower -name $net -backtrace
+     }
+     foreach net $VSSOnets {
+          mortar::remove_repower -name $net -backtrace
+     }
+}
+
+proc create_connect_VQPS_noesd {} {
+     #The MAX number of electrical fuse macros for sharing one VQPS Pad/ Bump is 8.
+     #not doing ESD here  efuse_esd3 efuse_esd0 efuse_esd1 efuse_esd2 efuse_esd3
+
+     create_port -name AMSPG_RS45_VQPS -direction inout
+     set net AMSPG_RS45_VQPS
+     set insts "ring_io_bot_core/u_otp_wrap/u_otp_tng/ap_pbs_otpw_4k/FUSE_BOX_0__ap_otp_4k/U_TEF05F128X32HD18_PHRM"
+     foreach i $insts { connect_pin -inst $i  -net $net -pin VQPS }
+
+     create_port -name AMSPG_RS44_VQPS -direction inout
+     set net AMSPG_RS44_VQPS
+     set insts "ring_io_bot_core/u_efuse_sms_top/SMS_OTP_GEN_0__U_TEF05F256X32HD18_PHRM ring_io_bot_core/u_efuse_sms_top/SMS_OTP_GEN_1__U_TEF05F256X32HD18_PHRM ring_io_bot_core/u_efuse_sms_top/SMS_OTP_GEN_2__U_TEF05F256X32HD18_PHRM ring_io_bot_core/u_efuse_sms_top/SMS_OTP_GEN_3__U_TEF05F256X32HD18_PHRM ring_io_bot_core/u_efuse_sms_top/SMS_OTP_GEN_4__U_TEF05F256X32HD18_PHRM"
+     foreach i $insts { connect_pin -inst $i  -net $net -pin VQPS }
+}
