@@ -1,0 +1,156 @@
+# from cadence online
+#How to use get_db to query different violation markers for debugging
+
+proc find_errors {} {
+   #Query all markers from verify_drc/ check_drc
+   #                 get_db current_design .markers -if {.originator ==verify}
+
+   #Query the markers from a third-party tool
+   #        get_db current_design .markers -if {.user_originator ==Calibre}
+
+   #        get_db current_design .markers -if {.user_type == M4.S.16}
+
+   #Query the subtypes of markers
+   #        get_db current_design .markers.subtype -unique
+
+   #Query the marker information of a subType
+   #        get_db current_design .markers -if {.subtype == MinCuts}
+   #        foreach mkr [get_db current_design .markers -if {.subtype == Short}] {
+   #           puts "[get_db $mkr .layer.name]"
+   #           puts "[get_db $mkr .message]"
+   #        }
+}
+
+proc delete_routes_shorts {} {
+#       Query and delete the nets having violations
+        get_db current_design .markers -if {.subtype == Short} -foreach {
+           set box [get_db $object .bbox]
+           select_obj [get_obj_in_area -area $box -obj_type wire]
+           delete_routes -selected
+        }
+}
+
+proc fix_overlap {} {
+#Fixing overlap violations on the instances having "soft_fixed" placement status
+  set overlapList ""
+  foreach i [get_db [get_db designs] .markers -if {.type==place && .subtype==SPOverlapViolation}] {
+        #set m [get_db $i .message]
+        set m [get_db $i .objects  ]
+        set overlapList [concat $overlapList $m]
+       if {[get_db inst:$m .place_status]==soft_fixed} {
+           set_db inst:[lindex $m 1] .place_status placed
+       }
+   }
+   set max_dist 15.0
+   set_db place_detail_eco_max_distance $max_dist
+   place_detail -inst [get_db $overlapList .name]
+   reset_db place_detail_eco_max_distance
+}
+
+proc list_nets_open {} {
+        get_db current_design .markers -if {.subtype == Short} -foreach {
+        set box [get_db $object .bbox]
+        select_obj [get_obj_in_area -area $box -obj_type wire]
+        }
+
+
+}
+
+proc layer_assignment_lists {} {
+   set netsbotM10 [get_db nets -if {.bottom_preferred_layer.name  == M10}]
+   set netsbotM12 [get_db nets -if {.bottom_preferred_layer.name  == M12}]
+   set netsbotM14 [get_db nets -if {.bottom_preferred_layer.name  == M14}]
+   set netsbotM16 [get_db nets -if {.bottom_preferred_layer.name  == M16}]
+   mortar::write_list_to_file -list $netsbotM10 -file netsbotM10
+   mortar::write_list_to_file -list $netsbotM12 -file netsbotM12
+   mortar::write_list_to_file -list $netsbotM14 -file netsbotM14
+   mortar::write_list_to_file -list $netsbotM16 -file netsbotM16
+
+## get_db nets -if {.route_user_bottom_preferred_routing_layer.name  != ""}
+
+
+}
+
+proc find_all_scb {} {
+ set scbNets ""
+ set scbs [get_db [get_db insts -if {.base_cell.name == MRVCKS20BWP210H6P51CNODULVT}] .name]
+ foreach scb $scbs {
+   set net [get_db [get_db pins $scb/Z] .net.name]
+   set scbNets [concat $scbNets $net]
+   set net [get_db [get_db pins $scb/I] .net.name]
+   set scbNets [concat $scbNets $net]
+ }
+}
+
+proc find_cknets {} {
+   set ckans [lsort -dictionary [get_db [get_db insts -if {.base_cell.name == CKAN*}] .name]]
+   set cknetslist "" ;
+   foreach ck $ckans {
+      set cknet  [get_db pin:$ck/Z .net.name] ;
+      set cknetslist [concat $cknetslist $cknet] ;
+   }
+      mortar::write_list_to_file -list $cknetslist -file cknetslist
+
+}
+
+proc timing_triage {} {
+ sizeof_collection [all_registers -clock axi_clk_buf]
+ report_timing -path_type endpoint -max_paths 265000 -to axi_clk_buf -group reg2reg > all_path_axi_buf_setup
+ report_timing -path_type endpoint -max_paths 265000 -to axi_clk_buf -early -group reg2reg > all_path_axi_buf_hold
+ report_timing -to HBM_XBAR_WRAPPER/HBM_ADDR_TRNSL/ADDR_TRNSL_MUX_PER_CH_0__prog_reg_stg/flop_0__u_din_q/CDN_MBIT_dout_reg_242__MB_dout_reg_220__MB_dout_reg_499__MB_dout_reg_67__MB_dout_reg_222__MB_dout_reg_291__MB_dout_reg_63__MB_dout_reg_64_/D4
+ report_timing -to [get_ports -filter "y_coordinate < 10"] -from [get_clocks clk_axi_buf] -path_type full_clock
+}
+
+proc gncCheck {} {
+   set gncCheck [open gncCheck.rpt w]
+   foreach inst [dbGet top.insts] {
+     foreach pgCellTermName [dbGet $inst.pgCellTerms.name] pgTermNetName [dbGet $inst.pgTermNets.name] {
+       if {$pgTermNetName eq 0x0} {
+         puts $gncCheck "[dbGet $inst.name] Term $pgCellTermName does not have p/g connection"
+       }
+     }
+  }
+ close $gncChec
+}
+
+
+proc gncCheckUI {} {
+   set gncCheck [open gncCheck.rpt w]
+   foreach inst [get_db insts *] {
+     foreach pgCellTermName [dbGet $inst.pgCellTerms.name] pgTermNetName [dbGet $inst.pgTermNets.name] {
+       if {$pgTermNetName eq 0x0} {
+         puts $gncCheck "[dbGet $inst.name] Term $pgCellTermName does not have p/g connection"
+       }
+     }
+  }
+ close $gncChec
+}
+
+proc find_lck_en_nets {} {
+   set lockups [lsort -dictionary [get_db [get_db insts -if {.base_cell.name == LNQ*}] .name]]
+   set cknetslist "" ;
+   foreach ck $lockups {
+      set cknet  [get_db pin:$ck/EN .net.name] ;
+      set cknetslist [concat $cknetslist $cknet] ;
+   }
+      mortar::write_list_to_file -list $cknetslist -file cknetslist
+
+}
+
+proc find_tmg_lck_en_nets {} {
+   set lockups [lsort -dictionary [get_db [get_db insts -if {.name == *HoldLatch* && .base_cell.name == LNQ*}] .name]]
+   set cknetslist "" ;
+   foreach ck $lockups {
+      set cknet  [get_db pin:$ck/EN .net.name] ;
+      set cknetslist [concat $cknetslist $cknet] ;
+   }
+      mortar::write_list_to_file -list $cknetslist -file cknetslist
+
+}
+
+proc count_inversions {} {
+  ##https://marvell-corporate.slack.com/archives/C02JCMJS2KH/p1673834828984519?thread_ts=1673833559.755539&cid=C02JCMJS2KH
+  expr {[mortar::trace_repower -name $net -levels_to_source] - [llength [mortar::trace_repower -name $net -equiv_nets_to_source]]}
+
+}
+
