@@ -1,0 +1,48 @@
+proc select_collection { args } {
+
+      foreach_in_collection obj $args {
+           if { [get_property $obj object_type] == "cell" } {
+              select_obj [get_db insts [get_object_name $obj]]
+           }
+           if { [get_property $obj object_type] == "pin" } {
+              select_obj [get_db pins [get_object_name $obj]]
+           }
+      }
+
+proc highlight_mems_connected_to_siu {i} {
+  # change to PMBIST naming scheme, this works with Modus
+  set pmbist_regexp_string       "*siu${i}"
+  set pmbist_regs_regexp_string  "${pmbist_regexp_string}*reg*"
+  # change to 0 to highlight PMBIST logic as well, not just the memories
+  set highlight_only_mems        1
+
+  if {[llength [get_db hinsts $pmbist_regexp_string]] != 0} {
+    set_message -id TCLCMD-746 -suppress
+    deselect_obj -all
+         if {$highlight_only_mems} {
+       catch {set mems [get_db [all_fanout -from [get_pins -hier -filter full_name=~$pmbist_regs_regexp_string ] -only_cells -trace all] -if {.obj_type == inst && .is_memory} ]}
+               set collection [get_cells $mems]
+    } else {
+       catch {append_to_collection collection [all_fanout -from [get_pins -hier -filter full_name=~$pmbist_regs_regexp_string ] -only_cells -trace all] }
+   }
+    select_collection $collection
+    gui_highlight -index [expr $i + 1] [get_db selected]
+    if {[sizeof_collection $collection] == 0} {
+        puts "No memory found for $pmbist_regexp_string"
+    } else {
+        puts "Highlighted [sizeof_collection $collection] for siu$i"
+        foreach_in_collection mem $collection {
+           puts "   [get_object_name $mem]"
+       }
+    }
+    set_message -id TCLCMD-746 -unsuppress
+  }
+  deselect_obj -all
+}
+
+
+gui_clear_highlight -all
+set max_pmbist_index 100
+for {set i 0} {$i <= $max_pmbist_index} {incr i} {
+    highlight_mems_connected_to_siu $i
+}
