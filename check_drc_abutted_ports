@@ -1,0 +1,75 @@
+ set inst1 hbm_xbar_wrapper_0
+ set inst2 hbm_top_0
+
+ set inst1_orig_x [get_db [get_db insts $inst1] .bbox.ll.x]
+ set inst1_orig_y [get_db [get_db insts $inst1] .bbox.ll.y]
+ set inst1_dx [get_db [get_db insts $inst1 ] .bbox.dx]
+ set inst1_dy [get_db [get_db insts $inst1 ] .bbox.dy]
+ set drc_hbms0_ulx [expr $inst1_orig_x + 10]
+ set drc_hbms0_uly [expr $inst1_orig_y + $inst1_dy + 10]
+
+ set inst2_orig_x [get_db [get_db insts $inst2 ] .bbox.ll.x]
+ set inst2_orig_y [get_db [get_db insts $inst2 ] .bbox.ll.y]
+ set inst2_dx [get_db [get_db insts $inst2 ] .bbox.dx]
+ set inst2_dy [get_db [get_db insts $inst2 ] .bbox.dy]
+ set drc_hbms0_llx [expr $inst2_orig_x + $inst2_dx - 10]
+ set drc_hbms0_lly [expr $inst2_orig_y - 10]
+
+ puts "check_drc -area {$drc_hbms0_llx $drc_hbms0_lly $drc_hbms0_ulx $drc_hbms0_uly} -out_file hbm0_drc"
+
+ set inst1 hbm_xbar_wrapper_1
+ set inst2 hbm_top_1
+
+ set inst1_orig_x [get_db [get_db insts $inst1] .bbox.ll.x]
+ set inst1_orig_y [get_db [get_db insts $inst1] .bbox.ll.y]
+ set inst1_dx [get_db [get_db insts $inst1 ] .bbox.dx]
+ set inst1_dy [get_db [get_db insts $inst1 ] .bbox.dy]
+ set drc_hbms0_ulx [expr $inst1_orig_x + 10]
+ set drc_hbms0_uly [expr $inst1_orig_y + $inst1_dy + 10]
+
+ set inst2_orig_x [get_db [get_db insts $inst2 ] .bbox.ll.x]
+ set inst2_orig_y [get_db [get_db insts $inst2 ] .bbox.ll.y]
+ set inst2_dx [get_db [get_db insts $inst2 ] .bbox.dx]
+ set inst2_dy [get_db [get_db insts $inst2 ] .bbox.dy]
+ set drc_hbms0_llx [expr $inst2_orig_x + $inst2_dx - 10]
+ set drc_hbms0_lly [expr $inst2_orig_y - 10]
+
+ puts "check_drc -area {$drc_hbms0_llx $drc_hbms0_lly $drc_hbms0_ulx $drc_hbms0_uly} -out_file hbm1_drc"
+
+ set inst1 sengine_0
+ set inst2 hbm_xbar_wrapper_0
+
+ set inst1_orig_x [get_db [get_db insts $inst1] .bbox.ll.x]
+ set inst1_orig_y [get_db [get_db insts $inst1] .bbox.ll.y]
+ set inst1_dx [get_db [get_db insts $inst1 ] .bbox.dx]
+ set inst1_dy [get_db [get_db insts $inst1 ] .bbox.dy]
+ set drc_hbms0_ulx [expr $inst1_orig_x + 10]
+ set drc_hbms0_uly [expr $inst1_orig_y + $inst1_dy + 10]
+
+ set inst2_orig_x [get_db [get_db insts $inst2 ] .bbox.ll.x]
+ set inst2_orig_y [get_db [get_db insts $inst2 ] .bbox.ll.y]
+ set inst2_dx [get_db [get_db insts $inst2 ] .bbox.dx]
+ set inst2_dy [get_db [get_db insts $inst2 ] .bbox.dy]
+ set drc_hbms0_llx [expr $inst2_orig_x + $inst2_dx - 10]
+ set drc_hbms0_lly [expr $inst2_orig_y - 10]
+ puts "check_drc -area {$drc_hbms0_llx $drc_hbms0_lly $drc_hbms0_ulx $drc_hbms0_uly} -out_file sengine0_hbm_drc"
+
+
+ set inst1 hbm_xbar_wrapper_1
+ set inst2 hbm_xbar_wrapper_1
+
+ set inst1_orig_x [get_db [get_db insts $inst1] .bbox.ll.x]
+ set inst1_orig_y [get_db [get_db insts $inst1] .bbox.ll.y]
+ set inst1_dx [get_db [get_db insts $inst1 ] .bbox.dx]
+ set inst1_dy [get_db [get_db insts $inst1 ] .bbox.dy]
+ set drc_hbms0_ulx [expr $inst1_orig_x + 10]
+ set drc_hbms0_uly [expr $inst1_orig_y + $inst1_dy + 10]
+
+ set inst2_orig_x [get_db [get_db insts $inst2 ] .bbox.ll.x]
+ set inst2_orig_y [get_db [get_db insts $inst2 ] .bbox.ll.y]
+ set inst2_dx [get_db [get_db insts $inst2 ] .bbox.dx]
+ set inst2_dy [get_db [get_db insts $inst2 ] .bbox.dy]
+ set drc_hbms0_llx [expr $inst2_orig_x + $inst2_dx - 10]
+ set drc_hbms0_lly [expr $inst2_orig_y - 10]
+
+ puts "check_drc -area {$drc_hbms0_llx $drc_hbms0_lly $drc_hbms0_ulx $drc_hbms0_uly} -out_file hbm0_drc"
