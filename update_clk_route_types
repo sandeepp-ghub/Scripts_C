@@ -1,0 +1,41 @@
+
+## will update clock route types if we are starting from cts
+if { [::get_db route_types clk_route_type_M13_M14_top_trunk] eq "" } {
+	::create_route_type \
+			-name clk_route_type_M13_M14_top_trunk     \
+			-route_rule double_isolate           \
+			-preferred_routing_layer_effort high \
+			-bottom_preferred_layer M13 \
+			-top_preferred_layer M14 \
+			-shield_net VSS \
+			-shield_side both_side \
+			-prefer_multi_cut_via
+	
+}
+
+if { [::get_db route_types clk_route_type_M6_M7_leaf] eq "" } {
+	::create_route_type \
+			-name clk_route_type_M6_M7_leaf     \
+			-route_rule single_isolate    \
+			-preferred_routing_layer_effort high \
+			-bottom_preferred_layer M6 \
+			-top_preferred_layer M7 \
+			-prefer_multi_cut_via
+	
+}
+
+
+if { ([::get_db route_types clk_route_type_M6_M7_leaf] ne "") && ([::get_db route_types clk_route_type_M13_M14_top_trunk] ne "") } {
+	
+	set_db cts_route_type_leaf  clk_route_type_M6_M7_leaf
+	set_db cts_route_type_trunk clk_route_type_M13_M14_top_trunk
+	set_db cts_route_type_top   clk_route_type_M13_M14_top_trunk
+	
+	foreach clk [::get_db clock_trees] {
+		set_db $clk .cts_route_type_leaf  clk_route_type_M6_M7_leaf
+		set_db $clk .cts_route_type_trunk clk_route_type_M13_M14_top_trunk
+		set_db $clk .cts_route_type_top   clk_route_type_M13_M14_top_trunk
+	}
+} else {
+	puts "Something went wrong!"
+}
