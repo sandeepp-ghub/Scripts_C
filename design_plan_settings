@@ -1,0 +1,11 @@
+set_preference ShowUnplacedInst 1
+set_preference ShowChildPartition 5
+set_preference ShowAllFence 1
+set_preference ShowParentModule 5
+set_preference ShowConnectionWithWidth 1
+set_preference ConnectionColorType 2
+set_preference MinFlightLineWidth 10
+set_preference ShowBothInputConnection 1
+set_preference MaxFlightLineNetTerms 50
+set_preference DrawFlightlineLast 1
+set_preference ShowFlightLineThruPtnPin 1
