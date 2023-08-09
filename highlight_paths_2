@@ -1,0 +1,6 @@
+source /proj/cayman/wa/rchatty/scripts/highlight_paths.tcl
+ highlight_path -from channel_mid_ptout2fb[10608] -to  channel_mid_fb2ptin[10608]
+ highlight_path -from temp_slice_1/papb_mode_reg/dout_reg_0_/CP -to  apb_0_user_chain_term_paddr[9]
+
+  # ring_pll_core/u_pll_top/pll_instance/sicr_pll_g/TDR/*
+ # ring_pll_core/u_clkio/testclkout/*
