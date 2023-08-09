@@ -1,0 +1,27 @@
+set file1 [open "cayman_rlm_coords.txt" w ]
+     foreach block [::get_db insts -if {.base_cell.base_class==block && .place_status!=unplaced}] {
+       #Unroll subblocks
+       set hier_name [::get_db $block .name]
+       set next_layer [list]
+       foreach hinfo [::get_db $block .base_cell.RLM_INFO] {
+         lappend next_layer [list $hier_name $hinfo]
+       }
+
+       while {[llength $next_layer] > 0} {
+         set this_layer $next_layer
+         set next_layer [list]
+         foreach linfo $this_layer {
+           lassign $linfo layer_name hinfo
+           lassign $hinfo hier_info name cell type ceiling rects orient
+
+           #Current block
+           puts $file1 "$layer_name/$name $cell $orient $rects"
+
+           #Get any next layer blocks
+           foreach child_info $hier_info {
+             lappend next_layer [list "$layer_name/$name" $child_info]
+           }
+         }
+       }
+     }
+close $file1
