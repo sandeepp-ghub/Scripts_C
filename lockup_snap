@@ -1,0 +1,21 @@
+foreach latch [::get_db [::get_db insts *lockup_latch*] -if {.is_sequential==true}] {
+  set dpin [::get_db [::get_db $latch .pins -if {.base_name==D}] .net.driver_pins]
+  if {$dpin eq ""} {
+    ::mortar::echo -warning -text "Skip latch with no driver: [::get_db $latch .name]"
+  } elseif {[::get_db $dpin .inst.place_status] eq "unplaced"} {
+    ::mortar::echo -warning -text "Skip latch with unplaced driver: [::get_db $latch .name] ([::get_db $dpin .name])"
+  } else {
+    lassign [lindex [::get_db $dpin .location] 0] x y
+    lassign [lindex [::get_db $latch .bbox.ll] 0] ox oy
+    set g [::get_db $latch .group.name]
+    if {$g ne "" && ![string match "PowerDomain_*" $g]} {
+      ::update_group -name $g -delete -objs $latch
+      ::mortar::echo -text "Snap lockup [::get_db $latch .name] to source [::get_db $dpin .name] at ($x, $y) - delta=[expr {abs($oy - $y) + abs($ox - $x)}] (also removed from group)"
+    } else {
+      ::mortar::echo -text "Snap lockup [::get_db $latch .name] to source [::get_db $dpin .name] at ($x, $y) - delta=[expr {abs($oy - $y) + abs($ox - $x)}]"
+    }
+    ::place_inst [::get_db $latch .name] [list $x $y] -placed
+  }
+}
+
+source $::env(PROJ_ROOT)/$::env(PROJ_PHASE)/pd/post_place.tcl
