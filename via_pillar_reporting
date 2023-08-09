@@ -1,0 +1,45 @@
+proc find_via_pillar_used {} {
+
+  set out [open via_pillar_used_cui.txt "w"]
+  foreach vp [get_db pins .stack_via_rule.name -unique ] {
+    if !{[regexp $vp 0x0]} {
+      puts $out $vp
+    }
+  }
+  close $out
+}
+
+proc find_number_of_inst_having_via_pillar {} {
+  set inp [open via_pillar_used_cui.txt "r"]
+  set out [open via_pillar_number_of_inst_cui.txt "w"]
+  while {[gets $inp x]>=0} {
+    set y [llength [get_db pins .stack_via_rule.name $x]]
+    puts "$out" "$y instance has $x via pillars"
+  }
+  close $inp
+  close $out
+}
+
+
+ proc find_detail_via_pillar_inst {} {
+   set inp [open via_pillar_used_cui.txt "r"]
+   set out [open via_pillar_detail_of_signal_inst_cui.txt "w"]
+   set out1 [open via_pillar_detail_of_clock_inst_cui.txt "w"]
+   puts "$out"  "####Following signal pins have via pillars##### \n \n"
+   puts "$out1" "####Following clock pins have via pillars##### \n \n"
+   while {[gets $inp x]>=0} {
+     foreach  instTerm [get_db [get_db pins -if {.stack_via_rule.name == $x}] .name] {
+       set cts [get_db [get_db pins $instTerm] .net.is_clock]
+         if {$cts == false} {
+         set stackViaList [get_db [get_db pins $instTerm ] .base_pin.stack_via_rule_list.name]
+         set stackViaRequired [get_db [get_db pins $instTerm ] .base_pin.stack_via_required]
+         puts "$out" "######### \n The instTerm $instTerm has $x via pillars \n The stackViaList for $instTerm is {$stackViaList} \n Required value for $instTerm is $stackViaRequired \n ######### \n"
+     } else {
+         puts "$out1" "######### \n The clock instTerm $instTerm $x via pillars"
+       }
+     }
+   }
+   close $inp
+   close $out
+   close $out1
+}
