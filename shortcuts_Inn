@@ -1,0 +1,238 @@
+proc lss {} {
+  ## write selected to console
+  foreach i [lsort -dictionary [get_db selected .name]] {puts $i}
+}
+
+proc sn {net} {
+  ## select net
+  deselect_obj -all
+  select_net $net
+}
+
+
+proc si {inst} {
+  ## select instance
+  deselect_obj -all
+  select_obj $inst
+}
+
+proc sp {pin} {
+  ## select pin
+  deselect_obj -all
+  select_pin $pin
+}
+
+
+#proc lGT { {size 2000} } {
+# ## select long nets
+# set nets {}
+# foreach net [get_db nets -if { .is_power == false}]
+#
+
+proc listNetsDontTouch {} {
+  ## query all dont touch nets
+  get_db [get_db nets -if {.is_dont_touch}] .name
+}
+
+proc listNetsFixed {} {
+  ## query all fixed nets
+  get_db [get_db nets -if {.wires.status == fixed}] .name
+}
+
+## get net status
+get_db [get_db nets <net_name>] .wires.status
+
+## change net routing status from FIXED to ROUTED
+set_db [get_db nets <net_name>] .wires.status routed
+
+proc listAllClockNets {} {
+   ## needs timing
+   get_db [get_db nets -if {.is_clock}] .name
+}
+
+proc usefulStuff {} {
+#Get the driver and load information for a net.
+
+        get_db net:<net_name> .drivers.inst.name
+        get_db net:<net_name> .drivers.inst.base_cell.name
+        get_db net:<net_name> .loads.inst.name
+
+#Get top and bottom routing layers for a route_type
+
+   get_db route_type:routeTypeName .bottom_preferred_layer
+   get_db route_type:routeTypeName .top_preferred_layer
+
+}
+
+proc getFOgt {num} {
+    get_db nets -if {.num_loads >$num}
+}
+
+proc getFOgt {num} {
+        set report_file [open HFN_nets.rpt w+]
+        set fo [ get_db nets -if {.num_loads >$num}]
+        foreach n $fo {
+        set fo_num [get_db [ get_db $n -if {.num_loads >$num}] .num_loads]
+        set netname [get_db [get_db $n -if {.num_loads >$num}] .name]
+        puts $report_file "$netname:$fo_num"
+        }
+        close $report_file
+}
+
+proc net_length {netname} {
+   ##find length of a net based on bounding box of placed sink
+   set net_length 0
+   set x [get_db net:$netname .bbox.length]
+   set y [get_db net:$netname .bbox.width]
+   return [expr $x + $y]
+}
+
+proc netsGTlength {length filename} {
+    ## find nets greater than a length based on bounding box of placed sink
+    set fp [open $filename w]
+    puts $fp "Nets with length greater than $length"
+    puts $fp "net length \t\t net name"
+    set cnt 0
+    set signal_nets [get_db [get_db nets -if {.is_clock != true && .is_power !=true && .is_ground != true}] .name]
+    foreach net $signal_nets {
+          if {[net_length $net] > $length} {
+	     puts $fp "[net_length $net] \t\t $net"
+	     incr cnt
+	  }
+    }
+    close $fp
+    puts "Number of nets with length gt $length um = $cnt"
+    puts "net names in file $filename \n"
+}
+
+proc netsclockkGTlength {length filename} {
+    ## find nets greater than a length based on bounding box of placed sink
+    set fp [open $filename w]
+    puts $fp "Nets with length greater than $length"
+    puts $fp "net length \t\t net name"
+    set cnt 0
+    set signal_nets [get_db [get_db nets -if {.is_clock == true && .is_power !=true && .is_ground != true}] .name]
+    foreach net $signal_nets {
+          if {[net_length $net] > $length} {
+	     puts $fp "[net_length $net] \t\t $net"
+	     incr cnt
+	  }
+    }
+    close $fp
+    puts "Number of nets with length gt $length um = $cnt"
+    puts "net names in file $filename \n"
+}
+
+proc wire_length {netname} {
+   ##find length of a net
+   set wire_length 0
+   set net_wire_lengths [get_db net:$netname .wires.length]
+   foreach i $net_wire_lengths {
+         set wire_length [expr $wire_length + $i]
+   }
+   return $wire_length
+}
+
+proc wiresGTlength {length filename} {
+    ## find nets greater than a length
+    set fp [open $filename w]
+    puts $fp "Nets with wire length greater than $length"
+    puts $fp "wire length \t\t net name"
+    set cnt 0
+    set signal_nets [get_db [get_db nets -if {.is_clock != true && .is_power !=true && .is_ground != true}] .name]
+    foreach net $signal_nets {
+          if {[wire_length $net] > $length} {
+	     puts $fp "[wire_length $net] \t\t $net"
+	     incr cnt
+	  }
+    }
+    close $fp
+    puts "Number of nets with wire length gt $length um = $cnt"
+    puts "net names in file $filename \n"
+}
+
+proc netLengthPerLayer {netname} {
+  puts "\n#######################################################"
+  puts "NETNAME: $netname"
+  # find total length of the net &
+  # finds the wirelength of each metal layer of this net
+  # netLengthPerLayer <netname>                                                                                   ##
+  set wireList [get_db net:$netname .wires]
+  set layername_length ""
+  for {set wire 0} {$wire < [llength $wireList]} {incr wire} {
+        set layerName [get_db [lindex $wireList $wire] .layer.name]
+        set layerLength [get_db [lindex $wireList $wire] .length]
+        lappend layername_length $layerName $layerLength
+  }
+
+   ## MAKING AN ARRAY TO DISPLAY THE RESULTS ##
+   unset -nocomplain length
+   set count 0
+
+   foreach i $layername_length {
+      if {[regexp "M" $i]} { set length($i) 0}
+   }
+
+   foreach i $layername_length {
+      if {[regexp "M" $i]} {
+         set length($i) [expr $length($i) + [lindex $layername_length [expr $count + 1]]]
+      }
+      incr count
+   }
+   parray length
+
+   ## TO FIND TOTAL NET LENGTH ##
+   proc listadd L {expr [join $L +]+0}
+   puts "TOTAL NET LENGTH = [listadd [get_db net:$netname .wires.length]]"
+}
+
+proc CapturePlace {{filename "PlaceCapture.tcl"}} {
+     ## write place command for selected instances
+      set fp [open $filename w]
+      foreach INST [get_db selected] {
+                  puts $fp "place_inst [get_db $INST .name] \
+                             [get_db $INST .location] \
+                             [get_db $INST .orient] \
+                             -[get_db $INST .place_status]"
+      }
+      close $fp
+}
+
+proc PlaceInstAtPin {inst pin} {
+   set lox [get_db pin:$pin .location]
+   place_inst [get_db inst:$inst .name] $lox
+}
+
+proc findPwrPinRect {} {
+   set cnt 0 ;
+   foreach rect [get_db [get_db [get_db selected .base_cell.pg_base_pins -if {.name== *gd}] .physical_pins.layer_shapes -if {.layer.name==AP}] .shapes.rect] {
+        incr cnt ;
+        puts "[get_transform_shapes -local_pt $rect -inst [get_db selected]] "
+        set rect2 [get_transform_shapes -local_pt $rect -inst [get_db selected]]
+        create_gui_shape  -rect  $rect2 \
+                    -layer M5 \
+                     -width 1  ;
+
+   }
+   echo $cnt
+   delete_obj [get_db gui_rects ]
+}
+
+ proc instPin_rects {instName} {
+  puts "Inst Name : $instName. \n \nThe local coordinates of the pin rects are : "
+  set instPin_names [get_db inst:$instName .pins.name]
+    foreach pinname $instPin_names {
+      puts "$pinname = [get_db pin:$pinname .lib_pins.base_pin.physical_pins.layer_shapes.shapes.rect]"
+    }
+  puts "\nThe Global design coordinates of the pin rects are : "
+    foreach pinname $instPin_names {
+      puts "$pinname = [get_transform_shapes -local_pt [get_db pin:$pinname .base_pin.physical_pins.layer_shapes.shapes.rect] -inst $instName]"
+    }
+ }
+
+ proc allPorts_rects {} {
+  set all_ports [get_db ports .name]
+  foreach portname $all_ports {
+    #puts "$portname = [get_db port:$portname .physical_pins.layer_shapes.shapes.rect]"
+    }
+}
