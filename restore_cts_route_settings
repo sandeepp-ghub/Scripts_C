@@ -1,0 +1,64 @@
+proc reset_route_info {args} {
+  set opt_start_net               ""
+  set opt_trunk_top_layer         [::mVar FLOW(pnr_cts_trunk_preferred_top_layer)]
+  set opt_trunk_bot_layer         [::mVar FLOW(pnr_cts_trunk_preferred_botton_layer)]
+  set opt_trunk_ndr               [::mVar FLOW(pnr_cts_trunk_ndr)]
+  set opt_trunk_shield            [::mVar FLOW(pnr_cts_trunk_shield)]
+  set opt_trunk_routing_effort    [::mVar FLOW(pnr_cts_trunk_routing_effort)]
+
+  set opt_leaf_top_layer          [::mVar FLOW(pnr_cts_leaf_preferred_top_layer)]
+  set opt_leaf_bot_layer          [::mVar FLOW(pnr_cts_leaf_preferred_botton_layer)]
+  set opt_leaf_ndr                [::mVar FLOW(pnr_cts_leaf_ndr)]
+  set opt_leaf_shield             [::mVar FLOW(pnr_cts_leaf_shield)]
+  set opt_leaf_routing_effort     [::mVar FLOW(pnr_cts_leaf_routing_effort)]
+
+
+  ::mortar::parse_args $args {
+    { "start_net"         opt_start_net                 string  1  }
+    { "trunk_top_layer"   opt_trunk_top_layer           string  0  }
+    { "trunk_bot_layer"   opt_trunk_bot_layer           string  0  }
+    { "trunk_ndr"         opt_trunk_ndr                 string  0  }
+    { "trunk_shield"      opt_trunk_shield              string  0  }
+    { "trunk_effort"      opt_trunk_routing_effort      string  0  }
+    { "leaf_top_layer"    opt_leaf_top_layer            string  0  }
+    { "leaf_bot_layer"    opt_leaf_bot_layer            string  0  }
+    { "leaf_ndr"          opt_leaf_ndr                  string  0  }
+    { "leaf_shield"       opt_leaf_shield               string  0  }
+    { "leaf_effort"       opt_leaf_routing_effort       string  0  }
+  } {
+
+
+    set net [::get_db nets $opt_start_net]
+
+    if { $net ne "" } {
+      set start_pin [::get_db $net .drivers]
+
+      if { $start_pin ne "" } {
+
+	set clock_tree [::get_db $start_pin .cts_clock_tree]
+	if { $clock_tree ne "" } {
+	  foreach clknet [::get_db $clock_tree .nets] {
+	    if { [::get_db $clknet .cts_net_type] eq "leaf" } {
+	      ::set_route_attributes -nets [::get_db $clknet .name] \
+		  -route_rule $opt_leaf_ndr \
+		  -bottom_preferred_routing_layer $opt_leaf_bot_layer \
+		  -top_preferred_routing_layer $opt_leaf_top_layer \
+		  -preferred_routing_layer_effort $opt_leaf_routing_effort
+	    } elseif { ( [::get_db $clknet .cts_net_type] eq "trunk" ) || ( [::get_db $clknet .cts_net_type] eq "top" ) } {
+	      ::set_route_attributes -nets [::get_db $clknet .name] \
+		  -route_rule $opt_trunk_ndr \
+		  -bottom_preferred_routing_layer $opt_trunk_bot_layer \
+		  -top_preferred_routing_layer $opt_trunk_top_layer \
+		  -preferred_routing_layer_effort $opt_trunk_routing_effort	
+	    }
+	} else {	
+	  puts [format "Start pin: %s does not have a ccopt clock tree" [::get_db $start_pin .name]]
+	}
+      } else {
+	puts "Cannot find start pin: $start_pin"
+      }
+    } else {
+      puts "Cannot find net: $opt_start_net"
+    }
+
+  }
