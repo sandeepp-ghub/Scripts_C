@@ -1,0 +1,72 @@
+################################################################################
+#  DISCLAIMER: The following code is provided for Cadence customers to use at  #
+#   their own risk. The code may require modification to satisfy the           #
+#   requirements of any user. The code and any modifications to the code may   #
+#   not be compatible with current or future versions of Cadence products.     #
+#   THE CODE IS PROVIDED "AS IS" AND WITH NO WARRANTIES, INCLUDING WITHOUT     #
+#   LIMITATION ANY EXPRESS WARRANTIES OR IMPLIED WARRANTIES OF MERCHANTABILITY #
+#   OR FITNESS FOR A PARTICULAR USE.                                           #
+################################################################################
+
+check_connectivity -type regular -geometry_connect -out_file check_connectivity_bf_eco.rpt
+set rpt check_connectivity_bf_eco.rpt
+set mk_open_nets [ list ]
+set open_nets [ list ]
+
+catch {set fptr [open $rpt r]}
+set contents [read -nonewline $fptr]
+close $fptr
+set line [split $contents "\n"]
+
+## opens
+foreach l $line {
+     # puts "line $l"
+  if {[lindex $l 0] != "Net" || [lindex $l 6] != "opens"} { continue }
+  lappend mk_open_nets [lindex $l 1]
+  puts "##INFO==> open nets [lindex $l 1]"
+}
+foreach l $line {
+     # puts "line $l"
+  if {[lindex $l 0] != "Net" || [lindex $l 3] != "routing"} { continue }
+  lappend mk_open_nets [lindex $l 1]
+  puts "##INFO==> open nets [lindex $l 1]"
+}
+
+## unconnected
+foreach l $line {
+     # puts "line $l"
+  if {[lindex $l 0] != "Net" || [lindex $l 11] != "unconnected"} { continue }
+  lappend mk_open_nets [lindex $l 1]
+  puts "##INFO==> unconnected [lindex $l 1]"
+}
+
+## dangling
+foreach l $line {
+     # puts "line $l"
+  if {[lindex $l 0] != "Net" || [lindex $l 2] != "dangling"} { continue }
+  lappend mk_open_nets [lindex $l 1]
+  puts "##INFO==> dangling [lindex $l 1]"
+}
+
+## selected net based route
+gui_deselect -all
+foreach op_net $mk_open_nets {
+  regsub {\{} $op_net {} op_net
+  regsub {\}} $op_net {} op_net
+  regsub {:} $op_net {} op_net
+  regsub {,} $op_net {} op_net
+  lappend open_nets $op_net
+}
+
+foreach net [lsort -unique $open_nets ] {
+  puts "## INFO SELECTED NETS for ECO : $net"
+  set_db [get_db nets $net] .wires.status routed
+  set_db [get_db nets $net] .vias.status routed
+  set_route_attributes -nets $net -skip_routing false
+  select_obj $net
+}
+puts " ## INFO ECO NETS COUNT : [llength [get_db selected .name]] "
+set_db route_design_selected_net_only true
+route_eco
+set_db route_design_selected_net_only false
+##End
