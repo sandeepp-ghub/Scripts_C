@@ -1,0 +1,309 @@
+proc undo_1axis_routes { args } {
+    delete_routes -status unknown
+
+    #set obj_name [get_db current_design .name]
+    #set nets [get_db [concat {*}[get_db pins] {*}[get_db ports]] .net]
+
+    set ss_net_objs [get_db nets $::MINT_DB_SSROUTES]
+    #delete_obj [get_db $ss_net_objs .wires]
+    if { [llength $ss_net_objs] } {
+        set routes_to_del [get_db $ss_net_objs -if {.wires != ""}]
+
+        if { [llength $routes_to_del] } {
+            puts "Deleting [llength $routes_to_del] wires"
+            delete_routes -net $routes_to_del
+        } else {
+            puts "Found no wires to delete"
+        }
+
+        puts "Resetting dont_touch/skip_routing on [llength $ss_net_objs] nets"
+        set_db $ss_net_objs .dont_touch false
+        set_db $ss_net_objs .skip_routing false
+        set_db $ss_net_objs .skip_antenna_repair false
+        set ::MINT_DB_SSROUTES [list]
+    } else {
+        puts "No nets to delete in \$::MINT_DB_SSROUTES"
+    }
+
+    #set nets_2term [get_db -unique $nets -if { .num_connections == 2 && ![llength .wires]}]
+    #set nets_2term [get_db -unique $nets -if { .num_connections == 2 }]
+    #delete_routes -net [get_db $nets_2term .base_name]
+    #set_db $nets_2term .dont_touch false
+    #set_db $nets_2term .skip_routing false
+    #set_db $nets_2term .skip_antenna_repair false
+}
+
+proc mint_inv_route_1axis { args } {
+    set ::MINT_DB_SSROUTES [list]
+
+    # Clear out early global routes first that were left behind.  This
+    # will make 1axis think those nets are already routed.
+    # Could try to do in nets_2term filter ([llength .wires]) instead
+    delete_routes -status unknown
+
+        # Start with no nets
+        set nets [list]
+
+        set obj_name [get_db current_design .name]
+        set nets [get_db [concat {*}[get_db pins] {*}[get_db ports]] .net]
+
+
+        set nets_2term [get_db -unique $nets -if { .num_connections == 2 && ![llength .wires]}]
+
+        if { ! [llength $nets_2term] } {
+            mint_warn -msg "Did not find 2 terminal nets to route."
+            return
+        }
+
+        mint_info -msg "Found [llength $nets_2term] two terminal nets to consider for routing"
+
+        set route_dict [dict create]
+
+        set route_cnt 0
+        foreach net_2term $nets_2term {
+            set driver [lindex [get_db $net_2term .drivers] 0]
+            set load [lindex [get_db $net_2term .loads] 0]
+
+            #Error checking for illegal pin shapes for straight shot routing
+            set driver_base_pin ""
+            set load_base_pin ""
+            if { [get_db $driver .obj_type] == "port" } {
+                set driver_base_pin $driver
+            } else {
+                set driver_base_pin [get_db $driver .base_pin]
+            }
+            if { [get_db $load .obj_type] == "port" } {
+                set load_base_pin $load
+            } else {
+                set load_base_pin [get_db $load .base_pin]
+            }
+            set driver_shapes [get_db -dbu $driver_base_pin .physical_pins.layer_shapes.shapes]
+            set load_shapes [get_db -dbu $load_base_pin .physical_pins.layer_shapes.shapes]
+            if { [llength $driver_shapes] != 1 || [llength $load_shapes] != 1 } {
+                mint_warn -msg "2 term net [get_db $net_2term .name] has illegal driver/load PIN shapes.  NOT STRAIGHT SHOTTING"
+                continue
+            }
+
+
+            #Check for layer alignment
+            set driver_layer [get_db $driver .layer.name]
+            set load_layer [get_db $load .layer.name]
+            if { $driver_layer != $load_layer } {
+                continue
+            }
+            set layer_is_vert [expr [lay2num $driver_layer] % 2]
+            #Check for 1-axis
+            set driver_loc {*}[get_db -dbu $driver .location]
+            set load_loc {*}[get_db -dbu $load .location]
+            if { ! (( $layer_is_vert && ([lindex $driver_loc 0] == [lindex $load_loc 0])) || \
+                        (!$layer_is_vert && ([lindex $driver_loc 1] == [lindex $load_loc 1]))) } {
+                continue
+            }
+            #Usually this catches unplaced pins
+            #But anyway, if the pins are at the same location, dont need to route
+            if { [lindex $driver_loc 0] == [lindex $load_loc 0] && \
+                     [lindex $driver_loc 1] == [lindex $load_loc 1] } {
+                continue
+            }
+            #Check for width equality
+            set driver_width [pin_width $driver]
+            set load_width [pin_width $load]
+            if { $driver_width != $load_width } {
+                continue
+            }
+            #Set axis coords for sorting
+            if { [lindex $driver_loc 0] == [lindex $load_loc 0] } {
+                set axis_ord [lindex $driver_loc 0]
+            } elseif { [lindex $driver_loc 1] == [lindex $load_loc 1] } {
+                set axis_ord [lindex $driver_loc 1]
+            }
+
+            #Add route information to route dictionary
+            #route_dict -> [list [dict net_name to_coord from_coord width] ]
+            set route_list_per_layer [list]
+            if { [dict exists $route_dict $driver_layer] } {
+                set route_list_per_layer [dict get $route_dict $driver_layer]
+            }
+            set route_entry [dict create \
+                                 net_name [get_db $net_2term .name] \
+                                 to_coord $driver_loc \
+                                 from_coord $load_loc \
+                                 axis_ord $axis_ord \
+                                 width $driver_width \
+                                ]
+            lappend route_list_per_layer $route_entry
+            dict set route_dict $driver_layer $route_list_per_layer
+
+            incr route_cnt
+            #            if { ! [expr $route_cnt % 10000] } {
+            #                puts "Processing $route_cnt of [llength $nets_2term] nets ..."
+            #            }
+        }
+
+
+        #Setup command file
+        set draw_wire_cmd_name "draw_1axis_wire_commands.tcl"
+        set pref [open "$draw_wire_cmd_name" w]
+        #puts $pref "set_db edit_wire_type regular"
+        #puts $pref "set_db edit_wire_drc_on {0}"
+        #puts $pref "set_db edit_wire_stop_at_drc {0}"
+        #puts $pref "set_db edit_wire_disable_snap {1}"
+        #puts $pref "set_db edit_wire_via_allow_geometry_drc {1}"
+
+        #puts $pref "set_db edit_wire_snap_bus_to_pin {0}"
+        #puts $pref "set_db edit_wire_snap_to_track_honor_color {0}"
+        #puts $pref "set_db edit_wire_snap_trim_metal_to_trim_grid {0}"
+        #puts $pref "set_db edit_wire_via_auto_snap {0}"
+        #puts $pref "set_db edit_wire_via_snap_honor_color {0}"
+        #puts $pref "set_db edit_wire_via_snap_to_intersection {0}"
+        #puts $pref "set_db edit_wire_create_crossover_vias {0}"
+        #puts $pref "set_db edit_wire_create_via_on_pin {0}"
+        #puts $pref "gui_set_tool addWire"
+
+        mint_info -msg "Adding create_shape commands to $draw_wire_cmd_name"
+
+        puts $pref ""
+
+        #Write routes from route dict to route command file
+        dict for {route_layer route_shape_list} $route_dict {
+
+            set route_layer_is_vert [expr [lay2num $route_layer] % 2]
+
+            #Sort all potential net shapes by their extents then their axis ordinate to maximize grouping
+            set route_shape_list_sorted [lsort -integer -index [list 3 $route_layer_is_vert] \
+                                             [lsort -integer -index [list 5 $route_layer_is_vert] \
+                                                  [lsort -integer -index {7} $route_shape_list] \
+                                                 ]
+                                        ]
+
+            mint_info -msg "Adding [llength $route_shape_list_sorted] routes on layer $route_layer to $draw_wire_cmd_name ..."
+
+
+
+            puts $pref ""
+#            if { $route_layer_is_vert } {
+#                puts $pref "set_db edit_wire_layer_vertical $route_layer"
+#            } else {
+#                puts $pref "set_db edit_wire_layer_horizontal $route_layer"
+#            }
+            set prev_extents {}
+            set prev_width 0
+            set prev_axis_ord 0
+            set prev_space 0
+            set override_list {}
+            set net_list {}
+            set orig_from_coord {}
+            set orig_to_coord {}
+
+            #set route_shape_idx 0
+            foreach route_shape_entry $route_shape_list_sorted {
+                set net_name [dict get $route_shape_entry net_name]
+                set to_coord [dict get $route_shape_entry to_coord]
+                set from_coord [dict get $route_shape_entry from_coord]
+                set axis_ord_dbu [dict get $route_shape_entry axis_ord]
+                set width_dbu [dict get $route_shape_entry width]
+
+                #set extents [lsort -integer [concat [lindex $to_coord $route_layer_is_vert] [lindex $from_coord $route_layer_is_vert]]]
+                #if { ![llength $override_list] || $extents == $prev_extents  && $width_dbu == $prev_width_dbu && ([string length $net_list] < 256000)} {}
+                set path_seg [list {*}[convert_dbu_to_um $to_coord] {*}[convert_dbu_to_um $from_coord]]
+                puts $pref "create_shape -layer $route_layer -net $net_name -path_segment \{$path_seg\} -shape none -status fixed -width [convert_dbu_to_um $width_dbu]"
+
+                lappend net_list $net_name
+                lappend ::MINT_DB_SSROUTES $net_name
+            }
+
+        }
+
+        puts $pref ""
+
+
+        close $pref
+        set start_time [clock clicks -millisec]
+
+        mint_info -msg "Routing $route_cnt nets ..."
+        set ew_log_fname "edit_wires.log"
+        if { [catch {redirect -append -stderr -file $ew_log_fname { source -e -v $draw_wire_cmd_name }}] } {
+            mint_error -msg "There was an error in $draw_wire_cmd_name. Check $ew_log_fname"
+        }
+        set tot_time_ms [format "%0.1f" [expr {([clock clicks -millisec]-$start_time)}]]
+        set time_per_ms [format "%0.1f" [expr $tot_time_ms / double($route_cnt)]]
+        set tot_time_s [format "%0.1f" [expr $tot_time_ms / 1000.]]
+        mint_info -msg "Drew $route_cnt routes in $tot_time_s s. $time_per_ms ms per route"
+
+        
+        mint_info -msg "Checking for routes overlapping instances ..."
+        #Now remove any routes that cross insts (that are NOT route_over_modules
+        set pin_shapes [list]
+
+        #Get all instances and remove any that are marked as route_over
+        set insts [get_db insts -if {.base_cell.base_class == block }] 
+
+        #Find all pin shapes of instances and tranform them to global coordinates
+        foreach inst $insts {
+            set local_pin_shapes [get_db $inst .pins.base_pin.physical_pins.layer_shapes.shapes.rect]
+            if {[llength $local_pin_shapes] == 0} { continue }
+            set global_pin_shapes [get_transform_shapes -inst $inst -local_pt $local_pin_shapes]
+            lappend pin_shapes {*}$global_pin_shapes
+        }
+
+        #All the route shapes we have just drawn
+        set full_route_shapes [get_db nets .wires.rect]
+
+        if {[llength $full_route_shapes]==0} {
+            return
+        }
+        if {[llength $pin_shapes] == 0} {
+            return
+        }
+
+        #get the route shapes and REMOVE where they overlap with pin shapes.  This gives us route shapes that only exist at partition level.  (Should *not* overlap instances)
+        # Does this need to be hardened to handle $pin_shapes=={} or 
+        set non_inst_ovlp_route_shapes [get_computed_shapes -output rect [get_computed_shapes -output rect $full_route_shapes XOR $pin_shapes] AND $full_route_shapes]
+
+#        #This is some debug code used to visualize the shapes created to check for overlaps
+#        delete_obj [get_db gui_shapes ]
+#        for { set i 0 } { $i < [llength $non_inst_ovlp_route_shapes] } { incr i } {
+#            set shp [lindex $non_inst_ovlp_route_shapes $i]
+#            create_gui_shape -layer 100 -rect $shp
+#        }
+
+        set inst_shapes [get_db $insts .overlap_rects]
+
+        set overlap_shapes [get_computed_shapes -output rect $non_inst_ovlp_route_shapes AND $inst_shapes]
+#        #This is some debug code used to visualize the shapes where we WILL delete shapes
+#        foreach overlap_shape $overlap_shapes {
+#            create_gui_shape -layer 100 -rect $shp
+#        }
+
+        if {[llength $overlap_shapes] > 0} {
+            set bad_wires [get_obj_in_area -areas $overlap_shapes -obj_type wire]
+
+            if { [llength $bad_wires] } {
+                mint_info -msg "Found [llength $bad_wires] route shapes that overlap instances.  Deleting."
+                set bad_nets [get_db $bad_wires .net]
+                set bad_net_names [get_db $bad_nets .name]
+
+                set_db $bad_nets .dont_touch false
+                set_db $bad_nets .skip_routing false
+                set_db $bad_nets .skip_antenna_repair false
+
+                delete_obj $bad_wires
+
+                foreach bad_net_name $bad_net_names {
+                    set idx [lsearch -exact $::MINT_DB_SSROUTES $bad_net_name]
+                    if { $idx > -1 } {
+                        set ::MINT_DB_SSROUTES [lreplace $::MINT_DB_SSROUTES $idx $idx]
+                    }
+                }
+            }
+        }
+
+        set ss_net_objs [get_db nets $::MINT_DB_SSROUTES]
+        set_db $ss_net_objs .dont_touch true
+        set_db $ss_net_objs .skip_routing true
+        set_db $ss_net_objs .skip_antenna_repair true
+
+
+}
+
+
