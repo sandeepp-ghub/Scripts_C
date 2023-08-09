@@ -1,0 +1,512 @@
+#################
+# Check: MIMCAP #
+#################
+#/**
+#
+# KEYWORDS checking pd
+#
+# DESCRIPTION
+#   Verify number of MIMCAPs in design is within tolerance of base pattern.
+#
+# OPTION output_directory
+#   Directory to write violation report file into.  If not
+#   specified, violations will only be reported to the log.
+#
+# OPTION design_state
+#   Current processing state of the design (init, placed,
+#   postcts, routed).  This is used to determine what
+#   should be checked when design state modifies the
+#   extent of a particular check.  If not specified, the
+#   current design state will be automatically determined.
+#
+#   Design state does not effect the MIMCAP check.
+#
+# RETURN_VALUE bool
+#   0   check failed to run
+#   1   check completed
+#
+# EXAMPLE
+#   ::mdc::check_mimcap
+#
+#*/
+proc ::mdc::check_mimcap {args} {
+  if { ![::mdc::__init] } { return 0 }
+
+  set output_directory ""
+  set design_state [::mdc::__current_design_state]
+
+  ::mortar::parse_args $args {
+    {"output_directory"   output_directory    string    0}
+    {"design_state"       design_state        string    0}
+  } {
+    ::mdc::__global_pre_check
+
+    set check_title "MIMCAP"
+    set check_name "mimcap"
+    set check_start_time [clock seconds]
+
+    #Setup
+    set mimcap_cell_pattern [::mdc::get_rule_value -name "mimcap_cell_pattern"]
+    set remove_tolerance [::mdc::get_rule_value -name "mimcap_remove_tolerance"]
+    set mimcap_coverage_rect_adjust [::mdc::get_rule_value -name "mimcap_coverage_rect_adjust"]
+    set mimcap_max_plate_area [::mdc::get_rule_value -name "mimcap_max_plate_area"]
+    set mimcap_cell_plate_area [::mdc::get_rule_value -name "mimcap_cell_plate_area"]
+    set mimcap_reused_block_max_delta_area [::mdc::get_rule_value -name "mimcap_reused_block_max_delta_area"]
+    set mimcap_reused_block_ceilings [::mdc::get_rule_value -name "mimcap_reused_block_ceilings"]
+    set mimcap_overlap_expand_x [::mdc::get_rule_value -name "mimcap_overlap_expand_x"]
+    set mimcap_overlap_expand_y [::mdc::get_rule_value -name "mimcap_overlap_expand_y"]
+
+    ::mdc::__clear_violations -type $check_name
+    set violation_count 0
+    if {$output_directory ne "" && ![file exists $output_directory]} {
+      file mkdir $output_directory
+    }
+
+    if {[::mdc::__block_type] eq "CHIP"} {
+      #Run check
+      ::mortar::echo -timestamp -msgid "mdc_running_check" -text [list $check_title]
+      if {[::mortar::tool -name -is {Innovus}]} {
+        #Innovus check
+        set pre_check_violations [::get_db markers -if {.user_type==mimcap}]
+
+        #Get MIMCAP pattern
+        ::mortar::echo -timestamp -msgid "mdc_mimcap_gen_map" -text [list]
+        array unset mimcap_pnets
+        array set mimcap_pnets {}
+        array unset mimcap_ideal_rects
+        array set mimcap_ideal_rects {}
+        array unset mimcap_ideal_map
+        array set mimcap_ideal_map {}
+        array unset mimcap_legal_map
+        array set mimcap_legal_map {}
+        ::df::__mimcap_gen_maps
+        foreach mimcap_mpb [::df::__mimcap_mpbs] {
+          lassign [::df::__mimcap_mpb_best_solution -mpb $mimcap_mpb -all] best_solution all_solutions
+
+          #Record ideal solution
+          foreach solution_comp $best_solution {
+            lassign $solution_comp box cell orient pnet
+            lassign $box llx lly urx ury
+            if {![info exists mimcap_pnets($pnet)]} {
+              set mimcap_pnets($pnet) 0
+            }
+            incr mimcap_pnets($pnet)
+            set mimcap_ideal_map($pnet|$llx|$lly) [list $cell $orient]
+            if {![info exists mimcap_ideal_rects($pnet)]} {
+              set mimcap_ideal_rects($pnet) [list]
+            }
+            lappend mimcap_ideal_rects($pnet) $box
+          }
+
+          #Record legal solutions
+          foreach solution $all_solutions {
+            foreach solution_comp $solution {
+              lassign $solution_comp box cell orient pnet
+              lassign $box llx lly urx ury
+              if {![info exists mimcap_pnets($pnet)]} {
+                set mimcap_pnets($pnet) 0
+              }
+              incr mimcap_pnets($pnet)
+              set mimcap_legal_map($pnet|$cell|$llx|$lly) [list $orient]
+            }
+          }
+        }
+
+        #Unpack cell plate area
+        array unset mimcap_plate_area
+        array set mimcap_plate_area {}
+        foreach cell_area $mimcap_cell_plate_area {
+          lassign $cell_area cell area
+          set mimcap_plate_area($cell) $area
+        }
+
+        #Collect info for existing MIMCAPs
+        ::mortar::echo -timestamp -msgid "mdc_mimcap_collect_existing" -text [list]
+        array unset mimcap_info
+        array set mimcap_info {}
+        array unset mimcap_pos_lookup
+        array set mimcap_pos_lookup {}
+        array unset mimcap_real_rects
+        array set mimcap_real_rects {}
+        set real_plate_area 0
+        foreach mimcap [::get_db insts -if {.base_cell.name==$mimcap_cell_pattern && .place_status!=unplaced}] {
+          set mimcap_name [lindex [::get_db $mimcap .name] 0]
+          set box [lindex [::get_db $mimcap .bbox] 0]
+          lassign $box llx lly urx ury
+          set cell [lindex [::get_db $mimcap .base_cell.name] 0]
+          set orient [::get_db $mimcap .orient]
+          set pnet [lindex [::get_db [::get_db $mimcap .pg_pins.net -if {.is_power==true}] .name] 0]
+
+          #Get plate area (ensure violation if area undefined)
+          set plate_area $mimcap_max_plate_area
+          if {[info exists mimcap_plate_area($cell)]} {
+            set plate_area $mimcap_plate_area($cell)
+          }
+          set real_plate_area [expr {$real_plate_area + $plate_area}]
+
+          set mimcap_info($mimcap_name) [list $cell $box $orient $pnet]
+          set mimcap_pos_lookup($cell|$pnet|$llx|$lly|$orient) $mimcap_name
+
+          if {![info exists mimcap_real_rects($pnet)]} {
+            set mimcap_real_rects($pnet) [list]
+          }
+          lappend mimcap_real_rects($pnet) $box
+        }
+
+        #Dynamic MIMCAP area accounting
+        set real_plate_area [expr {$real_plate_area + [::mdc::__dynamic_mimcap -area]}]
+
+        set pgv_golden_collection [::mdc::setting -name pgv_golden_collection]
+        set pgv_golden_ref ""
+        foreach session_dir [glob -nocomplain -directory [file join $pgv_golden_collection [::get_db current_design .name]] -types d *] {
+          foreach ref [glob -nocomplain -directory [file join $session_dir dataout] -types [list f l] *.mimcap_ref.csv] {
+            set pgv_golden_ref $ref
+          }
+        }
+        if {$design_state eq "signoff" || [string match "som-*" $design_state]} {
+          #For signoff, collection must exist
+          if {$pgv_golden_ref eq ""} {
+            ::mdc::add_violation -type $check_name -name "pgv_golden_not_specified" -msg_items [list]
+          }
+        }
+
+        if {$pgv_golden_ref ne ""} {
+          ::mortar::echo -timestamp -msgid "mdc_mimcap_pgv_golden_check" -text [list $pgv_golden_ref]
+
+          #Check MIMAPs against golden reference
+          set fi [open $pgv_golden_ref r]
+          while {![eof $fi]} {
+            gets $fi fl
+            set fl [string trim $fl]
+            if {$fl ne "" && ![string match "#*" $fl]} {
+              lassign [split $fl ,] cell llx lly orient pnet
+              if {[info exists mimcap_pos_lookup($cell|$pnet|$llx|$lly|$orient)]} {
+                #Match
+                unset mimcap_pos_lookup($cell|$pnet|$llx|$lly|$orient)
+              } else {
+                #No match
+                ::mdc::add_violation -type $check_name -name "pgv_golden_missing" -msg_items [list $cell $llx $lly $orient $pnet]
+              }
+            }
+          }
+          catch {close $fi}
+
+          #Report any DB MIMCAPs not matched in reference
+          foreach db_mimcap [array names mimcap_pos_lookup] {
+            set mimcap_name $mimcap_pos_lookup($db_mimcap)
+            lassign [split $db_mimcap |] cell pnet llx lly orient
+            ::mdc::add_violation -type $check_name -name "pgv_db_missing" -msg_items [list $cell $llx $lly $orient $pnet $mimcap_name]
+          }
+        } else {
+          #Check against depop limit
+          ::mortar::echo -timestamp -msgid "mdc_mimcap_check_removal" -text [list]
+          foreach pnet [array names mimcap_ideal_rects] {
+            set real_rects [list]
+            if {[info exists mimcap_real_rects($pnet)]} {
+              set real_rects $mimcap_real_rects($pnet)
+            }
+
+            set ideal_area [::get_computed_shapes -output area $mimcap_ideal_rects($pnet)]
+            set real_area [::get_computed_shapes -output area $real_rects]
+            set removed_pct [expr {1.0 * ($ideal_area - $real_area) / $ideal_area}]
+
+            if {$removed_pct > $remove_tolerance} {
+              ::mdc::add_violation -type $check_name -name "remove_over_threshold" -msg_items [list $pnet $removed_pct $remove_tolerance $real_area $ideal_area]
+            }
+          }
+
+          #Check area coverage
+          ::mortar::echo -timestamp -msgid "mdc_mimcap_check_coverage" -text [list]
+          lassign $mimcap_coverage_rect_adjust cover_adjust_x cover_adjust_y
+          foreach pnet [array names mimcap_ideal_rects] {
+            set real_rects [list]
+            if {[info exists mimcap_real_rects($pnet)]} {
+              set real_rects $mimcap_real_rects($pnet)
+            }
+
+            set ideal_merged_rects [::get_computed_shapes [::get_computed_shapes $mimcap_ideal_rects($pnet) SIZEX $cover_adjust_x SIZEY $cover_adjust_y] SIZEX [expr {$cover_adjust_x * -1.0}] SIZEY [expr {$cover_adjust_y * -1.0}]]
+
+            foreach uncovered_rect [::get_computed_shapes $ideal_merged_rects ANDNOT [::get_computed_shapes $real_rects SIZEX $cover_adjust_x SIZEY $cover_adjust_y]] {
+              ::mdc::add_violation -type $check_name -name "area_uncovered" -rect $uncovered_rect -msg_items [list $pnet $uncovered_rect]
+            }
+          }
+        }
+
+        #Collect child block MIMCAP overlap shapes
+        ::mortar::echo -timestamp -msgid "mdc_mimcap_reused_block_overlap_check" -text [list]
+        array unset mimcap_child_block_shape
+        array set mimcap_child_block_shape {}
+        array unset mimcap_child_block_reuse
+        array set mimcap_child_block_reuse {}
+        array unset mimcap_child_block_overlap
+        array set mimcap_child_block_overlap {}
+        array unset mimcap_child_block_overlap_merged
+        array set mimcap_child_block_overlap_merged {}
+        set block_data [list]
+        foreach block [::get_db insts -if {.base_cell.base_class==block && .place_status!=unplaced}] {
+          if {[string match "RLM*" [::mdc::__block_type -pointer $block]]} {
+            #This block
+            if {[lsearch -exact $mimcap_reused_block_ceilings [::mdc::__block_ceiling -pointer $block]] > -1} {
+              lappend block_data [list [::get_db $block .name] [::get_db $block .base_cell.name] [::get_db $block .orient] [::get_db $block .overlap_rects]]
+            }
+
+            #Any sub-blocks
+            set hier_name [::get_db $block .name]
+            set next_layer [list]
+            foreach hinfo [::get_db $block .base_cell.RLM_INFO] {
+              lappend next_layer [list $hier_name $hinfo]
+            }
+            while {[llength $next_layer] > 0} {
+              set this_layer $next_layer
+              set next_layer [list]
+
+              foreach linfo $this_layer {
+                lassign $linfo layer_name hinfo
+                lassign $hinfo hier_info name cell type ceiling rects orient
+
+                #Only continue traversing if ceiling is at MIM layer
+                if {[lsearch -exact $mimcap_reused_block_ceilings $ceiling] > -1} {
+                  #Transform rects
+                  set rects [::get_transform_shapes -inst $block -local_pt $rects]
+
+                  #Transform orient
+                  set owner_orient [::get_db $block .orient]
+                  if {$owner_orient eq "r180"} {
+                    if {$orient eq "r180"} {
+                      set orient "r0"
+                    } elseif {$orient eq "my"} {
+                      set orient "mx"
+                    } elseif {$orient eq "mx"} {
+                      set orient "my"
+                    } else {
+                      set orient "r180"
+                    }
+                  } elseif {$owner_orient eq "mx"} {
+                    if {$orient eq "r180"} {
+                      set orient "my"
+                    } elseif {$orient eq "my"} {
+                      set orient "r180"
+                    } elseif {$orient eq "mx"} {
+                      set orient "r0"
+                    } else {
+                      set orient "mx"
+                    }
+                  } elseif {$owner_orient eq "my"} {
+                    if {$orient eq "r180"} {
+                      set orient "mx"
+                    } elseif {$orient eq "my"} {
+                      set orient "r0"
+                    } elseif {$orient eq "mx"} {
+                      set orient "r180"
+                    } else {
+                      set orient "my"
+                    }
+                  }
+
+                  #Record
+                  lappend block_data [list "$layer_name/$name" $cell $orient $rects]
+
+                  #Set up next layer
+                  foreach child_info $hier_info {
+                    lappend next_layer [list "$layer_name/$name" $child_info]
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        foreach block_dat $block_data {
+          lassign $block_dat block_name block_cell block_orient block_shape
+          lassign [lindex [::get_computed_shapes $block_shape BBOX] 0] block_llx block_lly block_urx block_ury
+
+          set mimcap_child_block_shape($block_name) [list $block_llx $block_lly $block_urx $block_ury]
+          if {![info exists mimcap_child_block_overlap($block_name)]} {
+            set mimcap_child_block_overlap($block_name) [list]
+          }
+          if {![info exists mimcap_child_block_overlap_merged($block_cell)]} {
+            set mimcap_child_block_overlap_merged($block_cell) [list]
+          }
+          if {![info exists mimcap_child_block_reuse($block_cell)]} {
+            set mimcap_child_block_reuse($block_cell) [list]
+          }
+          lappend mimcap_child_block_reuse($block_cell) $block_name
+
+          foreach pnet [array names mimcap_real_rects] {
+            set child_block_overlap [list]
+            foreach overlap_shape [::get_computed_shapes $block_shape AND $mimcap_real_rects($pnet)] {
+              lassign $overlap_shape overlap_llx overlap_lly overlap_urx overlap_ury
+
+              #Shift to origin/0
+              set overlap_llx [expr {$overlap_llx - $block_llx}]
+              set overlap_urx [expr {$overlap_urx - $block_llx}]
+              set overlap_lly [expr {$overlap_lly - $block_lly}]
+              set overlap_ury [expr {$overlap_ury - $block_lly}]
+
+              #Adjust for any mirror
+              if {$block_orient eq "my" || $block_orient eq "r180"} {
+                set mirrored_llx [expr {($block_urx - $block_llx) - $overlap_urx}]
+                set mirrored_urx [expr {($block_urx - $block_llx) - $overlap_llx}]
+                set overlap_llx $mirrored_llx
+                set overlap_urx $mirrored_urx
+              }
+              if {$block_orient eq "mx" || $block_orient eq "r180"} {
+                set mirrored_lly [expr {($block_ury - $block_lly) - $overlap_ury}]
+                set mirrored_ury [expr {($block_ury - $block_lly) - $overlap_lly}]
+                set overlap_lly $mirrored_lly
+                set overlap_ury $mirrored_ury
+              }
+
+              lappend child_block_overlap [list $overlap_llx $overlap_lly $overlap_urx $overlap_ury]
+            }
+
+            set mimcap_child_block_overlap($block_name) [::get_computed_shapes $mimcap_child_block_overlap($block_name) OR $child_block_overlap]
+            set mimcap_child_block_overlap_merged($block_cell) [::get_computed_shapes $mimcap_child_block_overlap_merged($block_cell) OR $mimcap_child_block_overlap($block_name)]
+          }
+        }
+
+        #Check for child block MIMCAP overlap delta
+        foreach block_cell [array names mimcap_child_block_overlap_merged] {
+          set total_area [::get_computed_shapes -output area $mimcap_child_block_overlap_merged($block_cell)]
+
+          foreach block_name $mimcap_child_block_reuse($block_cell) {
+            set delta_area [::get_computed_shapes -output area $mimcap_child_block_overlap_merged($block_cell) ANDNOT $mimcap_child_block_overlap($block_name)]
+
+            if {[::mortar::__num_compare $total_area 0] > 0 && [::mortar::__num_compare [set delta_ratio [expr {(1.0 * $delta_area) / $total_area}]] $mimcap_reused_block_max_delta_area] > 0} {
+              #set viol_rect [::get_transform_shapes -inst [::get_db insts $block_name] -local_pt [lindex [::get_computed_shapes $mimcap_child_block_overlap_merged($block_cell) ANDNOT $mimcap_child_block_overlap($block_name) BBOX] 0]]
+              set viol_rect $mimcap_child_block_shape($block_name)
+              ::mdc::add_violation -type $check_name -name "reused_block_overlap_max_delta" -rect $viol_rect -msg_items [list $delta_ratio $mimcap_reused_block_max_delta_area $block_name $block_cell]
+            }
+          }
+        }
+
+        #Collect up all MIMCAP pin shapes
+        ::mortar::echo -timestamp -msgid "mdc_mimcap_pin_shape_fit_check" -text [list]
+        array unset mimcap_shape_layers
+        array set mimcap_shape_layers {}
+        array unset mimcap_pgnets
+        array set mimcap_pgnets {}
+        array unset mimcap_layer_shapes
+        array set mimcap_layer_shapes {}
+        foreach mimcap [::get_db insts -if {.base_cell.name==$mimcap_cell_pattern && .place_status!=unplaced}] {
+          foreach pg_pin [::get_db $mimcap .pg_pins] {
+            set pg_net [::get_db $pg_pin .net.name]
+            set mimcap_pgnets($pg_net) 1
+            foreach layer_shape [::get_db $pg_pin .pg_base_pin.physical_pins.layer_shapes] {
+              set layer [::get_db $layer_shape .layer.name]
+              set mimcap_shape_layers($layer) 1
+              if {![info exists mimcap_layer_shapes($pg_net|$layer)]} {
+                set mimcap_layer_shapes($pg_net|$layer) [list]
+              }
+
+              set ls_rects [list]
+              foreach shape [::get_db $layer_shape .shapes] {
+                if {[::get_db $shape .type] eq "polygon"} {
+                  foreach rect [::get_computed_shapes -output rect [::get_db $shape .polygon]] {
+                    lappend ls_rects $rect
+                  }
+                } else {
+                  lappend ls_rects [::get_db $shape .rect]
+                }
+              }
+              foreach rect [::get_transform_shapes -inst $mimcap -local_pt $ls_rects] {
+                lappend mimcap_layer_shapes($pg_net|$layer) $rect
+              }
+            }
+          }
+        }
+
+        #Collect power grid shapes around MIMCAPs
+        set all_mimcap_rects [list]
+        foreach pnet [array names mimcap_real_rects] {
+          set all_mimcap_rects [concat $all_mimcap_rects $mimcap_real_rects($pnet)]
+        }
+        if {[llength $all_mimcap_rects] > 0} {
+          array unset power_grid_layer_shapes
+          array set power_grid_layer_shapes {}
+          set objs [::get_obj_in_area -obj_type [list special_wire special_via] -areas $all_mimcap_rects -layers [array names mimcap_shape_layers]]
+          foreach pgnet [array names mimcap_pgnets] {
+            set pgnet_objs [::get_db $objs -if {.net.name==$pgnet}]
+
+            foreach layer [array names mimcap_shape_layers] {
+              set pgnet_layer_wires [::get_db $pgnet_objs -if {.obj_type==special_wire && .layer.name==$layer}]
+              set pgnet_layer_vias [::get_db $pgnet_objs -if {.obj_type==special_via && .via_def.cut_layer.name==$layer}]
+
+              set power_grid_layer_shapes($pgnet|$layer) [concat [::get_db $pgnet_layer_wires .rect] [::get_db $pgnet_layer_vias .cut_rects]]
+            }
+          }
+
+          #Collect RLM power pin shapes
+          foreach block [::get_db insts -if {.base_cell.base_class==block}] {
+            if {[string match "RLM*" [::mdc::__block_type -pointer $block]]} {
+              foreach pgpin [::get_db $block .pg_pins] {
+                set pgnet [::get_db $pgpin .net.name]
+                if {[info exists mimcap_pgnets($pgnet)]} {
+                  foreach layer [array names mimcap_shape_layers] {
+                    foreach layershape [::get_db $pgpin .pg_base_pin.physical_pins.layer_shapes -if {.layer.name==$layer}] {
+                      foreach rect [::get_transform_shapes -inst $block -local_pt [::get_db $layershape .shapes.rect]] {
+                        lappend power_grid_layer_shapes($pgnet|$layer) $rect
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          #Check that MIMCAP shapes are within power grid shapes
+          foreach pgnet_layer [array names mimcap_layer_shapes] {
+            lassign [split $pgnet_layer |] pgnet layer
+            if {![info exists power_grid_layer_shapes($pgnet_layer)]} {
+              set power_grid_layer_shapes($pgnet_layer) [list]
+            }
+            foreach viol_rect [::get_computed_shapes -output rect $mimcap_layer_shapes($pgnet_layer) ANDNOT $power_grid_layer_shapes($pgnet_layer)] {
+              ::mdc::add_violation -type $check_name -name "pin_shape_fit_mismatch" -rect $viol_rect -layer $layer -msg_items [list $pgnet $layer $viol_rect]
+            }
+          }
+        }
+
+        #Check for MIMCAP overlaps
+        ::mortar::echo -timestamp -msgid "mdc_mimcap_overlap_check" -text [list]
+        foreach mimcap_rect $all_mimcap_rects {
+          foreach overlap_rect [::get_computed_shapes $all_mimcap_rects ANDNOT $mimcap_rect SIZEX $mimcap_overlap_expand_x SIZEY $mimcap_overlap_expand_y AND $mimcap_rect] {
+            ::mdc::add_violation -type $check_name -name "overlap" -rect $overlap_rect -msg_items [list $overlap_rect]
+          }
+        }
+
+        #Check max plate area
+        ::mortar::echo -timestamp -msgid "mdc_mimcap_check_plate_area" -text [list]
+        ::mortar::echo -info -text "mimcap real plate area, max plate area :[list $real_plate_area $mimcap_max_plate_area]"
+        if {$real_plate_area > $mimcap_max_plate_area} {
+          ::mdc::add_violation -type $check_name -name "plate_area_over_limit" -msg_items [list $real_plate_area $mimcap_max_plate_area]
+        }
+
+        #Summarize violations
+        set new_violations [::mdc::__get_new_violations -old_markers $pre_check_violations -new_markers [::get_db markers -if {.user_type==mimcap}]]
+        set violation_count [llength $new_violations]
+        if {$output_directory ne "" && [file exists $output_directory] && [file isdirectory $output_directory]} {
+          set output_file "$output_directory/$check_name.viol"
+          ::mdc::__write_violation_file -markers $new_violations -file $output_file
+        } else {
+          set output_directory ""
+        }
+      } else {
+        ::mortar::unsupported_tool "$check_title check"
+      }
+
+      #Report result
+      if { ![info exists output_file] } { set output_file "" }
+      ::mdc::__report_result -name $check_name -title $check_title -dir $output_directory -fname ${output_file}.gz -viol $violation_count -runtime [expr {[clock seconds] - $check_start_time}]
+    } else {
+      ::mortar::echo -timestamp -msgid "mdc_skipped_check" -text [list $check_title [::mdc::__block_type]]
+    }
+
+    ::mdc::__global_post_check
+
+    return 1
+  }
+}
+::mdc::check -register mimcap -reg_full_name "MIMCAP" -reg_proc ::mdc::check_mimcap
+
+
+
