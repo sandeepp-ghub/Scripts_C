@@ -1,0 +1,1142 @@
+namespace eval "ft" ""
+proc ft::traceSinksCheck {net sourcePin sinkBlock} {
+    set returnList [list]
+    set throughgates [list "^INV" "^BUF" "^DLY" "^AND" "^AO\[IA21\]*_" "^NOR" "^OR" "^NAND" "^SCAN" "^MXT" "^MX2" "^OA\[21I\]"]
+    foreach p [mortar::get_net_pins -net_name $net -sink] {
+        set g [mortar::get_pin_gate -pin_name $p]
+        set c [mortar::get_gate_attribute -name $g -cell_name]
+        set doit 0
+        foreach tg $throughgates {
+            if {[regexp $tg $c] == 1} {
+                set doit 1
+                if {[regexp "INV" $c] == 0 && [regexp "BUF" $c] == 0} {
+                    echo "Top level gate:  $c $g $sourcePin $sinkBlock"
+                }
+            }
+        }
+        if {$doit == 1} {
+            set n [mortar::get_pin_net -pin_name [mortar::get_gate_pins -gate_name $g -output]]
+            set returnList [concat $returnList [ft::traceSinksCheck $n $sourcePin $sinkBlock]]
+        } else {
+            lappend returnList $g
+        }
+    }
+    return $returnList
+}
+
+proc ft::traceSinks {net {count 1}} {
+    set returnList [list]
+    echo $count
+    if {$count > 100} {
+        echo "Hit wall with $net"
+        return [list]
+    }
+    set throughgates [list "^INV" "^BUF" "^DLY" "^AND" "^AO\[IA21\]*_" "^NOR" "^OR" "^NAND" "^SCAN" "^MXT" "^MX2" "^OA\[21I\]"]
+    foreach p [mortar::get_net_pins -net_name $net -sink] {
+        set g [mortar::get_pin_gate -pin_name $p]
+        set c [mortar::get_gate_attribute -name $g -cell_name]
+        set doit 0
+        foreach tg $throughgates {
+            if {[regexp $tg $c] == 1} {
+                set doit 1
+                break
+            }
+        }
+        if {$doit == 1} {
+            set n [mortar::get_pin_net -pin_name [mortar::get_gate_pins -gate_name $g -output]]
+            set returnList [concat $returnList [ft::traceSinks $n [expr 1+ $count]]]
+        } else {
+            lappend returnList $g
+        }
+    }
+    return $returnList
+}
+
+proc ft::treeSinks {net {count 1}} {
+    set returnList [list]
+    if {$count > 100} {
+        echo "Hit wall with $net"
+        return [list]
+    }
+    set throughgates [list "^INV" "^BUF" "^DLY"]
+    foreach p [mortar::get_net_pins -net_name $net -sink] {
+        set g [mortar::get_pin_gate -pin_name $p]
+        set c [mortar::get_gate_attribute -name $g -cell_name]
+        set doit 0
+        foreach tg $throughgates {
+            if {[regexp $tg $c] == 1} {
+                set doit 1
+                break
+            }
+        }
+        if {$doit == 1} {
+            set n [mortar::get_pin_net -pin_name [mortar::get_gate_pins -gate_name $g -output]]
+            set returnList [concat $returnList [ft::treeSinks $n [expr 1+ $count]]]
+        } else {
+            lappend returnList $g
+        }
+    }
+    return $returnList
+}
+
+proc ft::traceSinkPins {net {count 1}} {
+    set returnList [list]
+    if {$count > 100} {
+        echo "Hit wall with $net"
+        return [list]
+    }
+    set throughgates [list "^INV" "^BUF" "^DLY" "^AND" "^AO\[IA21\]*_" "^NOR" "^OR" "^NAND" "^SCAN" "^MXT" "^MX2" "^OA\[21I\]"]
+    foreach p [mortar::get_net_pins -net_name $net -sink] {
+        set g [mortar::get_pin_gate -pin_name $p]
+        set c [mortar::get_gate_attribute -name $g -cell_name]
+        set doit 0
+        foreach tg $throughgates {
+            if {[regexp $tg $c] == 1} {
+                set doit 1
+                break
+            }
+        }
+        if {$doit == 1} {
+            set n [mortar::get_pin_net -pin_name [mortar::get_gate_pins -gate_name $g -output]]
+            set returnList [concat $returnList [ft::traceSinkPins $n [expr 1+ $count]]]
+        } else {
+            lappend returnList $p
+        }
+    }
+    return $returnList
+}
+
+proc ft::traceSources {net} {
+    set returnList [list]
+    set throughgates [list "^INV" "^BUF" "^DLY" "^AND" "^AO\[IA21\]*_" "^NOR" "^OR" "^NAND" "^SCAN" "^MXT" "^MX2" "^OA\[I21\]"]
+    foreach p [mortar::get_net_pins -net_name $net -source] {
+        set g [mortar::get_pin_gate -pin_name $p]
+        set c [mortar::get_gate_attribute -name $g -cell_name]
+        set doit 0
+        foreach tg $throughgates {
+            if {[regexp $tg $c] == 1} {
+                set doit 1
+                break
+            }
+        }
+        if {$doit == 1} {
+            foreach n [mortar::get_pin_net -pin_name [mortar::get_gate_pins -gate_name $g -input]] {
+                set returnList [concat $returnList [ft::traceSources $n]]
+            }
+        } else {
+            lappend returnList $g
+        }
+    }
+    return $returnList
+}
+
+proc ft::traceSourcePorts {net} {
+    set returnList [list]
+    set throughgates [list "^INV" "^BUF" "^DLY" "^AND" "^AO\[IA21\]*_" "^NOR" "^OR" "^NAND" "^SCAN" "^MXT" "^MX2" "^OA\[I21\]"]
+    foreach p [mortar::get_net_pins -net_name $net -source] {
+        set g [mortar::get_pin_gate -pin_name $p]
+        set c [mortar::get_gate_attribute -name $g -cell_name]
+        set doit 0
+        foreach tg $throughgates {
+            if {[regexp $tg $c] == 1} {
+                set doit 1
+                break
+            }
+        }
+        if {$doit == 1} {
+            foreach n [mortar::get_pin_net -pin_name [mortar::get_gate_pins -gate_name $g -input]] {
+                set returnList [concat $returnList [ft::traceSourcePorts $n]]
+            }
+        }
+    }
+    if {[llength [mortar::get_net_ports -net_name $net -source] ] > 0} {
+	lappend returnList [mortar::get_net_ports -net_name $net -source]
+    }
+    if {[llength $returnList] == 0} {
+	set returnList ""
+    }
+    return $returnList
+}
+
+proc ft::traceSinkPorts {net {count 1}} {
+    set returnList [list]
+    set throughgates [list "^INV" "^BUF" "^DLY" "^AND" "^AO\[IA21\]*_" "^NOR" "^OR" "^NAND" "^SCAN" "^MXT" "^MX2" "^OA\[21I\]"]
+
+    foreach p [mortar::get_net_pins -net_name $net -sink] {
+        set g [mortar::get_pin_gate -pin_name $p]
+        set c [mortar::get_gate_attribute -name $g -cell_name]
+        set doit 0
+        foreach tg $throughgates {
+            if {[regexp $tg $c] == 1} {
+                set doit 1
+                break
+            }
+        }
+        if {$doit == 1} {
+            set n [mortar::get_pin_net -pin_name [mortar::get_gate_pins -gate_name $g -output]]
+            set returnList [concat $returnList [ft::traceSinkPorts $n [expr 1+ $count]]]
+        }
+    }
+    if {[llength [mortar::get_net_ports -net_name $net -sink] ] > 0} {
+	lappend returnList [mortar::get_net_ports -net_name $net -sink]
+    }
+    if {[llength $returnList] == 0} {
+	set returnList ""
+    }
+    
+    return $returnList
+}
+
+proc ft::write_ft_eco { args } {
+    set procname "ft::write_ft_eco"
+    set write_guide 0
+    ::mortar::parse_args $args {
+        { "ft_file"     ft_file      string 1 }
+        { "dir"         dir          string 1 }
+        { "write_guide" write_guide  boolean 0 }
+    } {
+        #set dir "/proj/dc_chia_001/viaphy3/usr/rschwar1/RTF1/ft"
+        #set ft_file "/proj/dc_chia_001/viaphy3/usr/rschwar1/RTF1/ft/vp3ft_0306.ft"
+
+        global pgarray
+        
+        # Clean up file name if it is pointed by a directory
+        if {[regexp "\.ft$" $ft_file] == 0} {
+            mortar::echo -prefix $procname -error -text "ft_file needs to end in .ft"
+            return
+        }
+        regexp ".*/(\[a-zA-Z0-9_\]*)\.ft$" $ft_file full base
+        set ft_file "${base}.ft"
+
+        # Create directory if it doesn't exist
+        if {[file exists "${dir}/${base}"] == 0} {
+            file mkdir "${dir}/${base}"
+        }
+
+        # Keep lists of commands to execute in each level of hierarchy
+        # Write files after we're done
+        array unset eco_lists
+        array unset pg_lists
+        array unset pin_guides
+        
+        set infile [open "${dir}/$ft_file" r]
+        foreach l [split [read $infile] "\n"] {
+            set lsplit [split $l]
+            set net [lindex $lsplit 0]
+            if {$net == ""} {
+                continue
+            }
+            if {[llength [mortar::find_net -name $net]] == 0} {
+                mortar::echo -prefix $procname -error -text "Net $net wasn't found.  Skipping it."
+                continue
+            }
+            if {[llength [ft::traceSources $net]] != 1 || [llength [ft::traceSinks $net]] != 1} {
+                mortar::echo -prefix $procname -error -text "Net $net is not 1-1.  Skipping it."
+                continue
+            }
+            set mode 0
+            set cur_net $net
+            set opin [mortar::get_net_pins -source -net_name $net]
+            set ipin [mortar::get_net_pins -sink -net_name $net]
+
+            # Filter the list we're working with
+            set pathList [list]
+            foreach e [lrange $lsplit 1 end] {
+                if {$e != ""} {
+                    lappend pathList $e
+                }
+            }
+
+            for {set i 0} {$i < [llength $pathList]} {incr i} {
+                set e [lindex $pathList $i]
+
+                if {$mode == 0} {
+                    set block $e
+                    set mode 1
+                } elseif {$mode == 1} {
+                    set num $e
+                    set mode 0
+
+                    # Check that feedthrough inst is uniquified
+                    if {[llength [mortar::find_gate -lib_name [mortar::get_gate_attribute -name $block -cell_name]]] > 1} {
+                        mortar::echo -prefix $procname -error -text "Can't feed through $block because it isn't unique."
+                        continue
+                    }
+                    
+                    # Top Level
+                    set cell_name [mortar::get_gate_attribute -name $block -cell_name]
+                    set new_net "${net}_ft_${cell_name}"
+                    set scrub_net [regsub -all {/} $net "_"]
+                    set new_ipin "i_ft_${scrub_net}"
+                    set new_opin "o_ft_${scrub_net}"
+                    set ipinp [lindex [split $ipin "/"] end]
+                    set ipini ""
+                    foreach e [lrange [split $ipin "/"] 0 end-1] {
+                        set ipini "${ipini}${e}/"
+                    }
+                    set ipini [string trimright $ipini "/"]
+                    lappend eco_lists([dbGet top.name]) "ADDNET $new_net"
+                    #lappend eco_lists([dbGet top.name]) "DISCONNECT $ipin"
+                    lappend eco_lists([dbGet top.name]) "ATTACHTERM ${ipini} ${ipinp} $new_net"
+                    lappend eco_lists([dbGet top.name]) "ATTACHTERM ${block} ${new_ipin} $cur_net"
+                    lappend eco_lists([dbGet top.name]) "ATTACHTERM ${block} ${new_opin} $new_net"
+                    lappend eco_lists([dbGet top.name]) ""
+
+                    # Pin guide
+                    if {$write_guide == 1} {
+
+                        if {$i == 1} {
+                            set iblock [ft::traceSources $net]
+                        } else {
+                            # Since the list alternates between block and reg count, go back 3 to get the previous block
+                            set iblock [lindex $pathList [expr $i - 3]]
+                        }
+
+                        if {$i == [expr [llength $pathList] - 1]} {
+                            set oblock [ft::traceSinks $net]
+                        } else {
+                            set oblock [lindex $pathList [expr $i + 1]]
+                        }
+                        if {[info exists pg_lists($cell_name:$iblock)] == 0} {
+                            set pg_lists($cell_name:$iblock) [list "createPinGroup [regsub -all {/} $iblock {_}]"]
+                        }
+                        if {[info exists pg_lists($cell_name:$oblock)] == 0} {
+                            set pg_lists($cell_name:$oblock) [list "createPinGroup [regsub -all {/} $oblock {_}]"]
+                        }
+
+                        # Do input pin
+                        lappend pg_lists($cell_name:$iblock) "addPinToPinGroup -pinGroup [regsub -all {/} $iblock {_}] -pin $new_ipin"
+                        # Do output pin
+                        lappend pg_lists($cell_name:$oblock) "addPinToPinGroup -pinGroup [regsub -all {/} $oblock {_}] -pin $new_opin"
+
+                    }
+
+                    set cur_net $new_net
+                    
+                    # Block Level
+                    if {$num != 0} {
+                        mortar::echo -prefix $procname -error -text "Pipelining isn't implemented yet.  Just doing IO buffers for $net"
+                    }
+                    set new_net "${net}_ft"
+                    set scrub_net [regsub -all {/} $new_net "_"]
+                    lappend eco_lists($cell_name) "ADDNET $scrub_net"
+                    lappend eco_lists($cell_name) "ADDMODULEPORT - $new_ipin input"
+                    lappend eco_lists($cell_name) "ADDMODULEPORT - $new_opin output"                   
+                    lappend eco_lists($cell_name) "ADDINST IObuf_${new_ipin} BUF_X1N_A9PP84TH_C16 2"
+                    lappend eco_lists($cell_name) "  INSTTERM A ${new_ipin}"
+                    lappend eco_lists($cell_name) "  INSTTERM Y $scrub_net"
+                    lappend eco_lists($cell_name) "ADDINST IObuf_${new_opin} BUF_X1N_A9PP84TH_C16 2"
+                    lappend eco_lists($cell_name) "  INSTTERM A $scrub_net"
+                    lappend eco_lists($cell_name) "  INSTTERM Y ${new_opin}"
+                    lappend eco_lists($cell_name) ""
+
+                }
+            }
+        }
+
+        close $infile
+
+        # Write out eco files
+        foreach b [array names eco_lists] {
+            set outfile [open "${dir}/${base}/${b}_ft.eco" w]
+            # Write out header info
+            puts $outfile "# $b"
+            puts $outfile ""
+            puts $outfile "FORMATVERSION 2"
+            puts $outfile ""
+            foreach l $eco_lists($b) {
+                puts $outfile $l
+            }
+            close $outfile
+            
+            if {$write_guide == 1 && $b != [dbGet top.name]} {
+                set outfile [open "${dir}/${base}/${b}_pg.tcl" w]
+                puts $outfile "# Pin guide for $b"
+                puts $outfile "# Below coordinates are suggestions for area to place groupings"
+                foreach key [array names pgarray] {
+                    if {[regexp "${b}:" $key] == 1} {
+                        set ksplit [split $key ":"]
+                        puts $outfile "# [lindex $ksplit 1] $pgarray($key)"
+                    }
+                }
+                puts $outfile ""
+                foreach k [array names pg_lists] {
+                    if {[regexp "^$b:" $k] == 1} {
+                        set ksplit [split $k ":"]
+                        foreach l $pg_lists($k) {
+                            puts $outfile $l
+                        }
+                    }
+                }
+                close $outfile
+            }
+        }
+    }
+}
+
+proc ft::read_map { args } {
+    set procname "ft::read_map"
+    ::mortar::parse_args $args {
+        { "map"    map     string 1 }
+    } {
+        global marray
+        array unset marray
+        set mode 0
+        set infile [open $map r]
+        foreach l [split [read $infile] "\n"] {
+            if {$mode == 0} {
+                set start [lindex $l 0]
+                set mode 1
+                set mlist [list]
+            } elseif {$mode == 1} {
+                set end [lindex $l 0]
+                set mode 2
+            } elseif {$mode == 2} {
+                if {[regexp "\\*" [lindex $l 0]] == 1} {
+                    lappend mlist [string trimleft [lindex $l 0] "*"]
+                } elseif {$l == ""} {
+                    set mode 0
+
+                    if {[info exists marray(${start}:${end})] == 0} {
+                        set marray(${start}:${end}) $mlist
+                    } else {
+                        # Check if it matches
+                        if {$mlist != $marray(${start}:${end})} {
+                            echo "Bad match for:"
+                            echo "  $start"
+                            echo "  $end"
+                            echo "  List 1"
+                            foreach r $mlist {
+                                echo $r
+                            }
+                            echo "  List 2"
+                            foreach r $marray(${start}:${end}) {
+                                echo $r
+                            }
+                        }
+                    }
+                    
+                    if {[info exists marray(${end}:${start})] == 0} {
+                        set marray(${end}:${start}) [lreverse $mlist]
+                    } else {
+                        # Check if it matches
+                        if {[lreverse $mlist] != $marray(${end}:${start})} {
+                            echo "Bad match for:"
+                            echo "  $start"
+                            echo "  $end"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+proc ft::write_ft_file { args } {
+    set procname "ft::write_ft_file"
+    ::mortar::parse_args $args {
+        { "map"       map       string 1 }
+        { "blocks"    blocks    string 1 }
+        { "ft_file"   ft_file   string 1 }
+    } {
+        # Global variable to pass the map array around to different procs
+        global marray
+        global pgarray
+        # Read map file
+        ft::read_map -map $map
+
+        set outfile [open $ft_file w]
+
+        foreach block $blocks {
+            echo "Starting $block"
+            foreach op [mortar::get_gate_pins -gate_name $block -output] {
+                set pn [mortar::get_pin_net -pin_name $op]
+                if {[llength $pn] == 0} {
+                    continue
+                }
+                set rSinks [ft::traceSinks $pn]
+                foreach rs $rSinks {
+                    if {[regexp "^PAD_" $rs] == 1 || [regexp "^TBB_BSC_" $rs] == 1 || [regexp "IBM_BISTLAT.\[0-9\]*.$" $rs] == 1} {
+                        continue
+                    }
+                    set rscell [mortar::get_gate_attribute -name $rs -cell_name]
+                    if {[regexp "^SYS_EFUSE" $rscell] == 1 || [regexp "^TERM_" $rscell] == 1 || [regexp "^PLL" $rscell] == 1} {
+                        continue
+                    }
+
+                    set oblock $rs
+                    if {[lsearch $blocks $oblock] == -1} {
+                        mortar::echo -error -prefix $procname -text "Feeding something that isn't in block list:  $op $rs"
+                        continue
+                    }
+
+                    if {$block == $oblock} {
+                        # Feeds self....is that a problem?
+                        continue
+                    }
+
+                    if {[info exists pgarray(${block}:${oblock})] == 1} {
+                        # Have a pin map, no need for a feedthrough
+                        continue
+                    }
+
+                    # Check for mapping
+                    if {[info exists marray(${block}:${oblock})] == 1} {
+                        # Count all the connections
+                        puts -nonewline $outfile [format "%-100s %-50s " $pn $op]
+                        foreach ip [mortar::get_net_pins -sink -net_name $pn] {
+                            puts -nonewline $outfile [format "%-50s " $ip]
+                        }
+                        foreach fblock $marray(${block}:${oblock}) {
+                            #puts -nonewline $outfile [format "%-100s %-5i" $fblock 0]
+                            puts -nonewline $outfile [format "%-100s " $fblock]
+                        }
+                        puts $outfile ""
+                    } else {
+                        mortar::echo -error -prefix $procname -text "No pin guide or map available:  $op $rs"
+                    }
+                }
+            }
+        }
+        close $outfile
+    }
+}
+        
+
+
+proc ft::itemize_ft { args } {
+    set procname "ft::itemize_ft"
+    ::mortar::parse_args $args {
+        { "blocks"    blocks     string 1 }
+    } {
+        global parray
+        global farray
+        global marray
+        array unset parray
+        array unset farray
+
+        foreach block $blocks {
+            echo "Starting $block"
+            foreach op [mortar::get_gate_pins -gate_name $block -output] {
+                set pn [mortar::get_pin_net -pin_name $op]
+                if {[llength $pn] == 0} {
+                    continue
+                }
+                set rSinks [ft::traceSinks $pn]
+                foreach rs $rSinks {
+                    if {[regexp "^PAD_" $rs] == 1} {
+                        continue
+                    }
+                    set oblock $rs
+                    if {[lsearch $blocks $oblock] == -1} {
+                        continue
+                    }
+                    # Check for mapping
+                    if {[info exists marray(${block}:${oblock})] == 1} {
+                        # Count all the connections
+                        set pathlist [concat [list $block] $marray(${block}:${oblock}) [list $oblock]]
+                        for {set i 0} {$i < [llength $pathlist]} {incr i} {
+                            set b1 [lindex [split [lindex $pathlist $i]  "/"] end]
+                            set b2 [lindex [split [lindex $pathlist [expr $i+ 1]]  "/"] end]
+                            if {[info exists farray(${b1}:${b2})] == 1} {
+                                incr farray(${b1}:${b2})
+                            } else {
+                                set farray(${b1}:${b2}) 1
+                            }
+                        }
+                    } else {
+                        set b1 [lindex [split $block  "/"] end]
+                        set b2 [lindex [split $oblock  "/"] end]
+                        if {[info exists parray(${b1}:${b2})] == 1} {
+                            incr parray(${b1}:${b2})
+                        } else {
+                            set parray(${b1}:${b2}) 1
+                        }
+                    }
+                }
+            }; #here
+        }
+    }
+}
+
+proc ft::report_pins { args } {
+    set procname "ft::report_pins"
+    ::mortar::parse_args $args {
+        { "blocks"    blocks     string 1 }
+    } {
+        global parray
+        global farray
+        global marray
+
+        foreach b1 $blocks {
+            set b1n [lindex [split $b1  "/"] end]
+            echo "----------------------------------------------"
+            echo "Reporting $b1n"
+            echo "---------------"
+            set bp 0
+            set bf 0
+            set bt 0
+            foreach b2 $blocks {
+                if {$b1 == $b2} {
+                    continue
+                }
+                set b2n [lindex [split $b2  "/"] end]
+                set p_in 0
+                set p_out 0
+                set f_in 0
+                set f_out 0
+                if {[info exists parray(${b1n}:${b2n})] == 1} {
+                    set p_in $parray(${b1n}:${b2n})
+                }
+                if {[info exists parray(${b2n}:${b1n})] == 1} {
+                    set p_out $parray(${b2n}:${b1n})
+                }
+                if {[info exists farray(${b1n}:${b2n})] == 1} {
+                    set f_in $farray(${b1n}:${b2n})
+                }
+                if {[info exists farray(${b2n}:${b1n})] == 1} {
+                    set f_out $farray(${b2n}:${b1n})
+                }
+                if {$p_in != 0 || $p_out != 0 || $f_in != 0 || $f_out != 0} {
+                    echo "$b2n [expr $p_in + $p_out] [expr $f_in + $f_out]  [expr $f_in + $f_out + $p_in + $p_out]"
+                    set bp [expr $bp + $p_in + $p_out]
+                    set bf [expr $bf + $f_in + $f_out]
+                    set bt [expr $bt + $f_in + $f_out + $p_in + $p_out]
+                }
+            }
+            echo "Totals:  $bp $bf $bt"
+        }
+    }
+}
+
+proc ft::create_pg_map { args } {
+    set procname "ft::create_pg_map"
+    set channel_width 400
+    set user_defined_map ""
+    ::mortar::parse_args $args {
+        { "blocks"    blocks     string 1 }
+        { "channel_width" channel_width double 0}
+        { "user_defined_map"  user_defined_map string 0}
+    } {
+        global pgarray
+        array unset pgarray
+
+        foreach b $blocks {
+            set bptr [mortar::find_gate -return_ptrs -name $b]
+            set pointList [dbGet $bptr.pHaloPoly]
+            set pA [lindex $pointList end]
+            foreach pB $pointList {
+                set xlist [list [lindex $pA 0] [lindex $pB 0]]
+                set ylist [list [lindex $pA 1] [lindex $pB 1]]
+                # Create a box to query
+                set edge ""
+                if {[llength [lsort -unique $xlist]] == 1 && [llength [lsort -unique $ylist]] == 2} {
+                    # Vertical edge
+                    set llx [expr [lindex [lsort -increasing -real $xlist] 0] - $channel_width]
+                    set urx [expr [lindex [lsort -increasing -real $xlist] 0] + $channel_width]
+                    set lly [lindex [lsort -increasing -real $ylist] 0]
+                    set ury [lindex [lsort -increasing -real $ylist] 1]
+                    # Use this later to measure edge distance
+                    set mp [lindex [lsort -increasing -real $xlist] 0]
+                    set edge "v"
+                } elseif {[llength [lsort -unique $ylist]] == 1 && [llength [lsort -unique $xlist]] > 1} {
+                    # Horizontal edge
+                    set lly [expr [lindex [lsort -increasing -real $ylist] 0] - $channel_width]
+                    set ury [expr [lindex [lsort -increasing -real $ylist] 0] + $channel_width]
+                    set llx [lindex [lsort -increasing -real $xlist] 0]
+                    set urx [lindex [lsort -increasing -real $xlist] 1]
+                    # Use this later to measure edge distance
+                    set mp [lindex [lsort -increasing -real $ylist] 0]
+                    set edge "h"
+                } else {
+                    mortar::echo -error -text "$procname did something weird on $b...I'm confused"
+                }
+                #echo "---"
+                #echo "$llx $lly $urx $ury"
+                set qinsts [dbQuery -area [list $llx $lly $urx $ury] -objType inst -bbox_overlap]
+                foreach qi $qinsts {
+                    if {[dbGet $qi.name] == "$b" || [lsearch $blocks [dbGet $qi.name]] == -1} {
+                        continue
+                    }
+                    # Calculate guide area
+                    set qpointList [dbGet $qi.pHaloPoly]
+                    set qpA [lindex $qpointList end]
+                    set dist 100000
+                    foreach qpB $qpointList {
+                        set qxlist [list [lindex $qpA 0] [lindex $qpB 0]]
+                        set qylist [list [lindex $qpA 1] [lindex $qpB 1]]
+                        # Create a box to query
+                        set qedge ""
+                        if {[llength [lsort -unique $qxlist]] == 1 && [llength [lsort -unique $qylist]] == 2} {
+                            # Vertical edge
+                            set qmp [lindex [lsort -increasing -real $qxlist] 0]
+                            set qedge "v"
+                        } elseif {[llength [lsort -unique $qylist]] == 1 && [llength [lsort -unique $qxlist]] > 1} {
+                            # Horizontal edge
+                            set qmp [lindex [lsort -increasing -real $qylist] 0]
+                            set qedge "h"
+                        } else {
+                            mortar::echo -error -text "$procname did something weird on $b...I'm confused"
+                        }
+                        if {$qedge == $edge} {
+                            if {$edge == "v"} {
+                                if {[lindex [lsort -increasing -real $qylist] end] < [lindex [lsort -increasing -real $ylist] 0] || [lindex [lsort -increasing -real $ylist] end] < [lindex [lsort -increasing -real $qylist] 0]} {
+                                    # edges don't overlap, skip
+                                    set qpA $qpB
+                                    continue
+                                }
+                            } else {
+                                if {[lindex [lsort -increasing -real $qxlist] end] < [lindex [lsort -increasing -real $xlist] 0] || [lindex [lsort -increasing -real $xlist] end] < [lindex [lsort -increasing -real $qxlist] 0]} {
+                                    # edges don't overlap, skip
+                                    set qpA $qpB
+                                    continue
+                                }
+                            }
+                            if {[expr abs($mp - $qmp)] < $dist && [expr abs($mp - $qmp)] < $channel_width} {
+                                set dist [expr abs($mp - $qmp)]
+                                set pgqpA $qpA
+                                set pgqpB $qpB
+                            }
+                        }
+                        set qpA $qpB
+                    }
+
+                    if {$dist == 100000} {
+                        # didn't find anything
+                        continue
+                    }
+                    
+                    # Add the guide to the list
+                    if {$edge == "h"} {
+                        set gxlist [lsort -increasing -real [concat $xlist [lindex $pgqpA 0] [lindex $pgqpB 0]] ]
+                        set guide [list [lindex $gxlist 1] [expr [lindex [lsort -increasing -real $ylist] 0] - 5] [lindex $gxlist 2] [expr [lindex [lsort -increasing -real $ylist] 0] + 5]]
+                    } else {
+                        set gylist [lsort -increasing -real [concat $ylist [lindex $pgqpA 1] [lindex $pgqpB 1]] ]
+                        set guide [list [expr [lindex [lsort -increasing -real $xlist] 0] - 5] [lindex $gylist 1] [expr [lindex [lsort -increasing -real $xlist] 0] + 5] [lindex $gylist 2]]
+                    }
+                    # To do:  we're going to assume these are all R0
+                    # Just translate for origin
+                    set x0 [mortar::get_gate_attribute -name $b -x_coord]
+                    set y0 [mortar::get_gate_attribute -name $b -y_coord]
+                    set guide [list [expr [lindex $guide 0] - $x0] [expr [lindex $guide 1] - $y0] [expr [lindex $guide 2] - $x0] [expr [lindex $guide 3] - $y0]]
+                    set key "$b:[dbGet $qi.name]"
+                    #echo "Key:  $key"
+                    #echo "Guide:  $guide"
+                    if {[info exists pgarray($key)] == 1} {
+                        lappend pgarray($key) $guide
+                    } else {
+                        set pgarray($key) [list $guide]
+                    }
+                }
+                set pA $pB
+            }
+        }
+
+        # Go through and consolidate 
+        foreach k [array names pgarray] {
+            if {[llength $pgarray($k)] > 1} {
+                # Consolidate
+                if {[llength $pgarray($k)] > 2} {
+                    mortar::echo -warning -text "$procname $k has more than 2 common edges...this pin map could require manual intervention"
+                } else {
+                    set llx [lindex [lsort -increasing -real [list [lindex [lindex $pgarray($k) 0] 0] [lindex [lindex $pgarray($k) 1] 0]]] 0]
+                    set lly [lindex [lsort -increasing -real [list [lindex [lindex $pgarray($k) 0] 1] [lindex [lindex $pgarray($k) 1] 1]]] 0]
+                    set urx [lindex [lsort -decreasing -real [list [lindex [lindex $pgarray($k) 0] 2] [lindex [lindex $pgarray($k) 1] 2]]] 0]
+                    set ury [lindex [lsort -decreasing -real [list [lindex [lindex $pgarray($k) 0] 3] [lindex [lindex $pgarray($k) 1] 3]]] 0]
+                    unset pgarray($k)
+                    lappend pgarray($k) [list $llx $lly $urx $ury]
+                }
+            }
+        }
+
+        # if user defined additions, source it now
+        if {$user_defined_map != ""} {
+            set inFile [open $user_defined_map r]
+            set mode 1
+            foreach line [split [read $inFile] "\n"] {
+                if {"$line" == ""} {
+                    continue
+                }
+                if {$mode == 1} {
+                    set b1 $line
+                    set mode 2
+                } elseif {$mode == 2} {
+                    set b2 $line
+                    set mode 3
+                } elseif {$mode == 3} {
+                    set mode 1
+                    set x0 [mortar::get_gate_attribute -name $b1 -x_coord]
+                    set y0 [mortar::get_gate_attribute -name $b1 -y_coord]
+                    set llx [expr [lindex [split $line] 0] - $x0]
+                    set lly [expr [lindex [split $line] 1] - $y0]
+                    set urx [expr [lindex [split $line] 2] - $x0]
+                    set ury [expr [lindex [split $line] 3] - $y0]
+                    set k "$b1:$b2"
+                    set pgarray($k) [list [list $llx $lly $urx $ury]]
+                }
+            }
+            close $inFile
+        }
+
+    }
+}
+
+proc ft::check_ft_paths { args } {
+    set procname "ft::check_ft_paths"
+    set ud_map ""
+    ::mortar::parse_args $args {
+        { "map"       map       string 1 }
+        { "blocks"    blocks    string 1 }
+        { "ud_map"    ud_map    string 0 }
+    } {
+        # Global variable to pass the map array around to different procs
+        global marray
+        global pgarray
+
+        # No need to make these global for only this checking
+        # make them global for checking
+        global parray 
+        array unset parray
+        global farray
+        array unset farray
+
+        # Read map file
+        ft::read_map -map $map
+
+        # Create pin map
+        if {$ud_map == ""} {
+            ft::create_pg_map -blocks $blocks
+        } else {
+            ft::create_pg_map -blocks $blocks -user_defined_map $ud_map
+        }
+
+        foreach block $blocks {
+            echo "Starting $block"
+            foreach op [mortar::get_gate_pins -gate_name $block -output] {
+                set pn [mortar::get_pin_net -pin_name $op]
+                if {[llength $pn] == 0} {
+                    continue
+                }
+                set rSinks [ft::traceSinks $pn]
+                set sList [list]
+                set foundAdjacent 0
+
+                foreach rs $rSinks {
+                    if {[regexp "^PAD_" $rs] == 1} {
+                        continue
+                    }
+                    set oblock $rs
+                    if {[lsearch $blocks $oblock] == -1} {
+                        continue
+                    }
+
+                    lappend sList $oblock
+                    
+                    ################ Flag problems ####################
+                    if {$block == $oblock} {
+                        #echo "Feeds self:  $op"
+                        continue
+                    }
+                    if {[info exists pgarray(${block}:${oblock})] == 1} {
+                        set foundAdjacent 1
+                    }
+
+                    # Check for mapping
+                    if {[info exists marray(${block}:${oblock})] == 0 && [info exists pgarray(${block}:${oblock})] == 0} {
+                        echo "No mapping or pin guide  between $block and $oblock"
+                        continue
+                    }
+                    # Count pins
+                    set key "${block}:${oblock}"
+                    if {[info exists pgarray($key)] == 1} {
+                        if {[info exists parray($key)] == 0} {
+                            set parray($key) 1
+                        } else {
+                            incr parray($key)
+                        }
+                    } elseif {[info exists marray($key)] == 1} {
+                        # Count all added pins
+                        set pathList [concat $block $marray($key) $oblock]
+                        for {set i 1} {$i < [expr [llength $pathList] - 1]} {incr i} {
+                            set current [lindex $pathList $i]
+                            set last [lindex $pathList [expr $i - 1]]
+                            set next [lindex $pathList [expr $i + 1]]
+                            
+                            set mykey "${current}:${last}"
+                            if {[info exists farray($mykey)] == 0} {
+                                set farray($mykey) 1
+                            } else {
+                                incr farray($mykey)
+                            }
+                            set mykey "${current}:${next}"
+                            if {[info exists farray($mykey)] == 0} {
+                                set farray($mykey) 1
+                            } else {
+                                incr farray($mykey)
+                            }
+                        }
+                    }
+                }
+                # Check for bad sinks
+                if {[llength $sList] != 0 && $foundAdjacent == 0} {
+                    ft::traceSinksCheck $pn $op $sList
+                }
+                
+            }
+        }
+
+        # Report
+        foreach b1 $blocks {
+            echo "-------------------------------------------------"
+            echo $b1
+            echo "---"
+            set ptot 0
+            set ftot 0
+            set ttot 0
+            foreach b2 $blocks {
+                set key "${b1}:${b2}"
+                # Outputs
+                if {[info exists parray($key)] == 1} {
+                    set ocount $parray($key)
+                } else {
+                    set ocount 0
+                }
+                # Feedthroughs (inputs and outputs are tallied here)
+                if {[info exists farray($key)] == 1} {
+                    set fcount $farray($key)
+                } else {
+                    set fcount 0
+                }
+                # Inputs
+                set key "${b2}:${b1}"
+                if {[info exists parray($key)] == 1} {
+                    set icount $parray($key)
+                } else {
+                    set icount 0
+                }
+                set pcount [expr $ocount + $icount]
+                set total [expr $pcount + $fcount]
+
+                set ptot [expr $ptot + $pcount]
+                set ftot [expr $ftot + $fcount]
+                set ttot [expr $ttot + $total]
+                if {$total > 0} {
+                    echo [format "%-80s %5i %5i %5i" $b2 $pcount $fcount $total]
+                }
+            }
+            echo [format "%-80s %5i %5i %5i" "total" $ptot $ftot $ttot]
+            
+        }  
+
+
+    }
+}
+
+proc ft::get_pg_coords {} {
+    set p1 [uiGetCoord]
+    set p2 [uiGetCoord]
+    echo "$p1 $p2"
+}
+
+proc ft::box_center {coords} {
+    set x1 [lindex $coords 0]
+    set y1 [lindex $coords 1]
+    set x2 [lindex $coords 2]
+    set y2 [lindex $coords 3]
+
+    return [list [expr ($x1 + $x2)/2] [expr ($y1 + $y2)/2]]
+}
+
+proc ft::pg_center {key} {
+    global pgarray
+
+    set b1 [lindex [split $key ":"] 0]
+
+    set pg $pgarray($key)
+    set pgc [ft::box_center [lindex $pg 0]]
+    return [list [expr [lindex $pgc 0] + [mortar::get_gate_attribute -name $b1 -x_coord]] [expr [lindex $pgc 1] + [mortar::get_gate_attribute -name $b1 -y_coord]]]
+}
+
+
+proc ft::distance {p1 p2} {
+    return [expr abs([lindex $p1 0] - [lindex $p2 0]) + abs([lindex $p1 1] - [lindex $p2 1])]
+}
+    
+
+proc ft::budget_ft_paths { args } {
+    set procname "ft::budget_ft_paths"
+    ::mortar::parse_args $args {
+        { "ft_file"         ft_file   string 1 }
+        { "rd_speed"        rd_speed  double 1 }
+        { "cycle"           cycle     double 1 }
+    } {
+        global pgarray
+        set inFile [open $ft_file r]
+        set verboseOut [open [regsub ".ft$" $ft_file "_ftreport.txt"] w]
+        set summaryOut [open [regsub ".ft$" $ft_file "_fthops.txt"] w]
+
+        foreach line [split [read $inFile] "\n"] {
+            set lsplit [split $line]
+            set net [lindex $lsplit 0]
+
+            if {$net == "" || [llength [ft::traceSources $net]] != 1 || [llength [ft::traceSinks $net]] != 1} {
+                continue
+            }
+            echo "Working on $net"
+            set pathList [list [mortar::get_net_pins -source -net_name $net]]
+            set done 0
+            set inet $net
+            while {$done == 0} {
+                #set ipin [mortar::get_net_pins -sink -net_name $inet]
+                set ipin [ft::traceSinkPins $inet]
+                if {[regexp "^i_ft_" [lindex [split $ipin "/"] end]] == 1} {
+                    set opin [regsub "/i_ft_" $ipin "/o_ft_"]
+                    set inet [mortar::get_pin_net -pin_name $opin]
+                    lappend pathList [list $ipin $opin]
+                } else {
+                    lappend pathList $ipin
+                    set done 1
+                }
+            }
+
+            puts $verboseOut "------------------------------------------------------"
+            puts $verboseOut "Net:  $net"
+            puts $verboseOut "Start: [lindex $pathList 0]"
+            puts $verboseOut "End:   [lindex [lindex $pathList end] 0]"
+
+            # Calculate start middle to pg
+            #set sp [ft::box_center [lindex [dbGet [mortar::get_gate_attribute -name [mortar::get_pin_gate -pin_name [lindex $pathList 0]] -gate_ptr].box] 0]]
+            #set ep [list [mortar::get_pin_attribute -name [lindex $pathList 0] -x_coord] [mortar::get_pin_attribute -name [lindex $pathList 0] -y_coord]]
+
+            #set d [ft::distance $sp $ep]
+            #set t [expr $d * $rd_speed]
+            #set b [expr $t / $cycle]
+            #puts $verboseOut [format "%-10s %-10s %-10s"   "Block" "Distance" "Budget %"]
+            #puts $verboseOut [format "%-10s %-10s %-10s"   "-----" "--------" "--------"]
+            #puts $verboseOut [format "%-10s %10.3f %10.3f" "Launch" $d $b]
+            
+            # Calculate end middle to pg
+            #set ep [ft::box_center [lindex [dbGet [mortar::get_gate_attribute -name [mortar::get_pin_gate -pin_name [lindex $pathList end]] -gate_ptr].box] 0]]
+            #set sp [list [mortar::get_pin_attribute -name [lindex $pathList end] -x_coord] [mortar::get_pin_attribute -name [lindex $pathList end] -y_coord]]
+            #set d [ft::distance $sp $ep]
+            #set t [expr $d * $rd_speed]
+            #set b [expr $t / $cycle]
+            #puts $verboseOut [format "%-10s %10.3f %10.3f" "Capture" $d $b]
+
+            # Minimum 1 hop
+            set pipeStages 0
+
+            # Iterate through the ft hops
+            for {set i 1} {$i < [expr [llength $pathList] - 1]} {incr i} {
+                #set last [lindex $pathList [expr $i - 1]]
+                set cur [lindex $pathList $i]
+                #set next [lindex $pathList [expr $i + 1]]
+
+                set dt 0
+                set bt 0
+                
+                puts $verboseOut ""
+                puts $verboseOut [mortar::get_gate_attribute -name [mortar::get_pin_gate -pin_name [lindex $cur 0]] -cell_name]
+
+                # Calc top level to in
+                set pin [mortar::get_net_pins -source -net_name [mortar::get_pin_net -pin_name [lindex $cur 0]]]
+                set sp [list [mortar::get_pin_attribute -name $pin -x_coord] [mortar::get_pin_attribute -name $pin -y_coord]]
+                set pin [lindex $cur 0]
+                set ep [list [mortar::get_pin_attribute -name $pin -x_coord] [mortar::get_pin_attribute -name $pin -y_coord]]
+                set d [ft::distance $sp $ep]
+                set t [expr $d * $rd_speed]
+                set b [expr $t / $cycle]
+                puts $verboseOut [format "%-10s %10.3f %10.3f" "Top2In" $d $b]
+                set dt [expr $dt + $d]
+                set bt [expr $bt + $b]
+
+                # Calc Internal
+                set pin [lindex $cur 0]
+                set sp [list [mortar::get_pin_attribute -name $pin -x_coord] [mortar::get_pin_attribute -name $pin -y_coord]]
+                set pin [lindex $cur 1]
+                set ep [list [mortar::get_pin_attribute -name $pin -x_coord] [mortar::get_pin_attribute -name $pin -y_coord]]
+                set d [ft::distance $sp $ep]
+                set t [expr $d * $rd_speed]
+                set b [expr $t / $cycle]
+                puts $verboseOut [format "%-10s %10.3f %10.3f" "Internal" $d $b]
+                set dt [expr $dt + $d]
+                set bt [expr $bt + $b]
+                
+                # Calc out to top
+                set pin [lindex $cur 1]
+                set sp [list [mortar::get_pin_attribute -name $pin -x_coord] [mortar::get_pin_attribute -name $pin -y_coord]]
+                #set pin [mortar::get_net_pins -sink -net_name [mortar::get_pin_net -pin_name [lindex $cur 1]]]
+                set pin [ft::traceSinkPins [mortar::get_pin_net -pin_name [lindex $cur 1]]]
+                set ep [list [mortar::get_pin_attribute -name $pin -x_coord] [mortar::get_pin_attribute -name $pin -y_coord]]
+                set d [ft::distance $sp $ep]
+                set t [expr $d * $rd_speed]
+                set b [expr $t / $cycle]
+                puts $verboseOut [format "%-10s %10.3f %10.3f" "Out2Top" $d $b]
+                set dt [expr $dt + $d]
+                set bt [expr $bt + $b]
+
+                # Hop aggregate
+                set stages [expr int(ceil($bt / 0.86 - 0.4))]
+                puts $verboseOut [format "%-10s %10.3f %10.3f" "Hop Total" $dt $bt]
+                puts $verboseOut "Stages needed: $stages"
+                puts $verboseOut ""
+
+                set pipeStages [expr $pipeStages + $stages]
+
+            }
+            puts $summaryOut "$pipeStages $net"
+        }
+
+        close $verboseOut
+        close $summaryOut
+    }
+}
+
+proc ft::eco2tcl {eco} {
+    set inFile [open $eco r]
+    set outFile [open [regsub ".eco$" $eco ".tcl"] w]
+
+    foreach line [split [read $inFile] "\n"] {
+        set splitline [split $line]
+        if {[lindex $splitline 0] == "ADDNET"} {
+            puts $outFile "mortar::create_net -name [lindex $splitline 1]"
+        } elseif {[lindex $splitline 0] == "ATTACHTERM"} {
+            puts $outFile "mortar::disconnect_pin -pin_name [lindex $splitline 1]/[lindex $splitline 2]"
+            puts $outFile "mortar::connect_pin -pin_name [lindex $splitline 1]/[lindex $splitline 2] -net_name [lindex $splitline 3]"
+        }
+    }
+    close $outFile
+}
+
+proc ft::eco2moduleeco {eco} {
+    set inFile [open $eco r]
+    set outFile [open [regsub ".eco$" $eco ".heco"] w]
+
+    puts $outFile "FORMATVERSION 2"
+
+    foreach line [split [read $inFile] "\n"] {
+        set splitline [split [string trimleft $line " "]]
+        if {[lindex $splitline 0] == "ADDNET"} {
+            puts $outFile ""
+            puts $outFile "ADDNET -moduleBased $module [lindex $splitline 1]"
+        } elseif {[lindex $splitline 0] == "ADDINST"} {
+            set inst [regsub {\]} [regsub {\[} [lindex $splitline 1] "_"] "_"]
+            puts $outFile "START_HECO"
+            puts $outFile "CURRENT_INST $minst"
+            puts $outFile "CREATE_INST $inst [lindex $splitline 2]"
+            puts $outFile "END_HECO" 
+        } elseif {[lindex $splitline 0] == "INSTTERM"} {
+            puts $outFile "START_HECO"
+            puts $outFile "CURRENT_INST $minst"
+            puts $outFile "CONNECT_NET [lindex $splitline 2] $inst/[lindex $splitline 1]"
+            puts $outFile "END_HECO" 
+        } elseif {[lindex $splitline 0] == "ADDMODULEPORT"} {
+            puts $outFile "ADDMODULEPORT $minst [lindex $splitline 2] [lindex $splitline 3]"
+        } elseif {[lindex $splitline 0] == "#"} {
+            set module [lindex $splitline 1]
+            set minst [dbGet [dbGet -p2 head.allCells.hInst.cell.name $module].name]
+        } 
+    }
+    close $outFile
+}
+
