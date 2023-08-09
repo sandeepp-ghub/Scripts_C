@@ -1,0 +1,6 @@
+source $env(PROJ_ROOT)/memset/$env(PROJ_MEMSET_VERSION)/ip.memset.tcl
+foreach mem [lsort [array names IPSRC]] {
+  set type [lindex [file split $IPSRC($mem)] 5]
+  regsub {ts05p0g4} $type {} type
+  puts [format "%18s %s" $type $mem]
+}
