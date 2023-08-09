@@ -1,0 +1,1082 @@
+## ssn hookup eco
+#mortar::tag_eco -name "cayman.connect_ssn_DE3"
+
+####### connect segnine_ssn_forward_bus_in to TPB_1_u_tpb_top ##################
+proc test2 {} {
+
+  read_eco /proj/cayman/wa/rchatty/scripts/DE3_sengine_ssn_port_connection.eco
+}
+###############################################################################
+
+###############################################################################
+
+####### connect SDMA_0__SEL_sdma to SDMA_1__SEL_sdma  ########################
+proc test3 {} {
+  set block1  [get_db insts *SDMA_0__SEL_sdma]
+  set block2  [get_db insts *SDMA_1__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_1__SEL_sdma to SDMA_2__SEL_sdma ########################
+proc test4 {} {
+  set block1  [get_db insts *SDMA_1__SEL_sdma]
+  set block2  [get_db insts *SDMA_2__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_2__SEL_sdma to SDMA_3__SEL_sdma ########################
+proc test5 {} {
+  set block1  [get_db insts *SDMA_2__SEL_sdma]
+  set block2  [get_db insts *SDMA_3__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect sengine_fabric_top ssn1 to SDMA_31__SEL_sdma ########################
+proc test6 {} {
+  set block1  [get_db insts *sengine_fabric_top]
+  set block2  [get_db insts *SDMA_31__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_1_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_1_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_1_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_31__SEL_sdma to SDMA_15__SEL_sdma ########################
+proc test7 {} {
+  set block1  [get_db insts *SDMA_31__SEL_sdma]
+  set block2  [get_db insts *SDMA_15__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_15__SEL_sdma to SDMA_14__SEL_sdma ########################
+proc test8 {} {
+  set block1  [get_db insts *SDMA_15__SEL_sdma]
+  set block2  [get_db insts *SDMA_14__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_14__SEL_sdma to sengine_fabric_top ssn2 ########################
+proc test9 {} {
+  set block1  [get_db insts *SDMA_14__SEL_sdma]
+  set block2  [get_db insts *sengine_fabric_top]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_2_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_2_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_2_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect sengine_fabric_top ssn2 to SDMA_13__SEL_sdma ########################
+proc test10 {} {
+  set block1  [get_db insts *sengine_fabric_top]
+  set block2  [get_db insts *SDMA_13__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_2_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_2_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_2_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_13__SEL_sdma to SDMA_12__SEL_sdma ########################
+proc test11 {} {
+  set block1  [get_db insts *SDMA_13__SEL_sdma]
+  set block2  [get_db insts *SDMA_12__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_12__SEL_sdma to SDMA_11__SEL_sdma ########################
+proc test12 {} {
+  set block1  [get_db insts *SDMA_12__SEL_sdma]
+  set block2  [get_db insts *SDMA_11__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_11__SEL_sdma to sengine_fabric_top ssn3 ########################
+proc test13 {} {
+  set block1  [get_db insts *SDMA_11__SEL_sdma]
+  set block2  [get_db insts *sengine_fabric_top]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_3_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_3_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_3_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect sengine_fabric_top ssn3 to SDMA_10__SEL_sdma ########################
+proc test14 {} {
+  set block1  [get_db insts *sengine_fabric_top]
+  set block2  [get_db insts *SDMA_10__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_3_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_3_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_3_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_10__SEL_sdma to SDMA_9__SEL_sdma ########################
+proc test15 {} {
+  set block1  [get_db insts *SDMA_10__SEL_sdma]
+  set block2  [get_db insts *SDMA_9__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+
+####### connect SDMA_9__SEL_sdma to SDMA_8__SEL_sdma ########################
+proc test16 {} {
+  set block1  [get_db insts *SDMA_9__SEL_sdma]
+  set block2  [get_db insts *SDMA_8__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+
+####### connect SDMA_8__SEL_sdma to SDMA_WRAP_19__sdma_wrap ########################
+proc test17 {} {
+  set block1  [get_db insts *SDMA_8__SEL_sdma]
+  set block2  [get_db insts *SDMA_WRAP_19__sdma_wrap]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+
+####### connect SDMA_WRAP_19__sdma_wrap to SDMA_WRAP_18__sdma_wrap ########################
+proc test18 {} {
+  set block1  [get_db insts *SDMA_WRAP_19__sdma_wrap]
+  set block2  [get_db insts *SDMA_WRAP_18__sdma_wrap]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+
+####### connect SDMA_WRAP_18__sdma_wrap to SDMA_WRAP_17__sdma_wrap ########################
+proc test19 {} {
+  set block1  [get_db insts *SDMA_WRAP_18__sdma_wrap]
+  set block2  [get_db insts *SDMA_WRAP_17__sdma_wrap]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_WRAP_17__sdma_wrap to SDMA_WRAP_16__sdma_wrap ########################
+proc test20 {} {
+  set block1  [get_db insts *SDMA_WRAP_17__sdma_wrap]
+  set block2  [get_db insts *SDMA_WRAP_16__sdma_wrap]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_WRAP_16__sdma_wrap to sengine_fabric_top ssn4 ########################
+proc test21 {} {
+  set block1  [get_db insts *SDMA_WRAP_16__sdma_wrap]
+  set block2  [get_db insts *sengine_fabric_top]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_4_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_4_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_4_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect sengine_fabric_top ssn4 to SDMA_4__SEL_sdma ########################
+proc test22 {} {
+  set block1  [get_db insts *sengine_fabric_top]
+  set block2  [get_db insts *SDMA_4__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_4_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_4_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_4_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_4__SEL_sdma to SDMA_5__SEL_sdma ########################
+proc test23 {} {
+  set block1  [get_db insts *SDMA_4__SEL_sdma]
+  set block2  [get_db insts *SDMA_5__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_5__SEL_sdma to SDMA_6__SEL_sdma ########################
+proc test24 {} {
+  set block1  [get_db insts *SDMA_5__SEL_sdma]
+  set block2  [get_db insts *SDMA_6__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_6__SEL_sdma to sengine_fabric_top ssn5 ########################
+proc test25 {} {
+  set block1  [get_db insts *SDMA_6__SEL_sdma]
+  set block2  [get_db insts *sengine_fabric_top]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_5_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_5_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_5_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect sengine_fabric_top ssn5 to SDMA_7__SEL_sdma ########################
+proc test26 {} {
+  set block1  [get_db insts *sengine_fabric_top]
+  set block2  [get_db insts *SDMA_7__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_5_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_5_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_5_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_7__SEL_sdma to sengine_fabric_top ssn6 ########################
+proc test27 {} {
+  set block1  [get_db insts *SDMA_7__SEL_sdma]
+  set block2  [get_db insts *sengine_fabric_top]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_6_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_6_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_6_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect sengine_fabric_top ssn6 to SDMA_23__SEL_sdma ########################
+proc test28 {} {
+  set block1  [get_db insts *sengine_fabric_top]
+  set block2  [get_db insts *SDMA_23__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_6_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_6_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_6_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_23__SEL_sdma to SDMA_22__SEL_sdma ########################
+proc test29 {} {
+  set block1  [get_db insts *SDMA_23__SEL_sdma]
+  set block2  [get_db insts *SDMA_22__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_22__SEL_sdma to SDMA_21__SEL_sdma ########################
+proc test30 {} {
+  set block1  [get_db insts *SDMA_22__SEL_sdma]
+  set block2  [get_db insts *SDMA_21__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_21__SEL_sdma to SDMA_20__SEL_sdma ########################
+proc test31 {} {
+  set block1  [get_db insts *SDMA_21__SEL_sdma]
+  set block2  [get_db insts *SDMA_20__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_20__SEL_sdma to sengine_fabric_top ########################
+proc test32 {} {
+  set block1  [get_db insts *SDMA_20__SEL_sdma]
+  set block2  [get_db insts *sengine_fabric_top]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect sengine_fabric_top  to channel_vmid ########################
+proc test33 {} {
+  set block1  [get_db insts *sengine_fabric_top]
+  set block2  [get_db insts *channel_vmid]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect channel_vmid to sengine_fabric_top ssn7 ########################
+proc test34 {} {
+  set block1  [get_db insts *channel_vmid]
+  set block2  [get_db insts *sengine_fabric_top]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_7_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_7_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_7_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect sengine_fabric_top  ssn7 to SDMA_24__SEL_sdma ########################
+proc test35 {} {
+  set block1  [get_db insts *sengine_fabric_top]
+  set block2  [get_db insts *SDMA_24__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_7_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_7_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_7_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_24__SEL_sdma to SDMA_25__SEL_sdma ########################
+proc test36 {} {
+  set block1  [get_db insts *SDMA_24__SEL_sdma]
+  set block2  [get_db insts *SDMA_25__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_25__SEL_sdma to SDMA_26__SEL_sdma ########################
+proc test37 {} {
+  set block1  [get_db insts *SDMA_25__SEL_sdma]
+  set block2  [get_db insts *SDMA_26__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_26__SEL_sdma to SDMA_27__SEL_sdma ########################
+proc test38 {} {
+  set block1  [get_db insts *SDMA_26__SEL_sdma]
+  set block2  [get_db insts *SDMA_27__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_27__SEL_sdma to sengine_fabric_top ssn8 ########################
+proc test39 {} {
+  set block1  [get_db insts *SDMA_27__SEL_sdma]
+  set block2  [get_db insts *sengine_fabric_top]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_8_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_8_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_8_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect sengine_fabric_top  ssn8 to SDMA_30__SEL_sdma ########################
+proc test40 {} {
+  set block1  [get_db insts *sengine_fabric_top]
+  set block2  [get_db insts *SDMA_30__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_8_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_8_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_8_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+  }
+}
+###############################################################################
+
+####### connect SDMA_30__SEL_sdma to SDMA_29__SEL_sdma ########################
+proc test41 {} {
+  set block1  [get_db insts *SDMA_30__SEL_sdma]
+  set block2  [get_db insts *SDMA_29__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+####### connect SDMA_29__SEL_sdma to SDMA_28__SEL_sdma ########################
+proc test42 {} {
+  set block1  [get_db insts *SDMA_29__SEL_sdma]
+  set block2  [get_db insts *SDMA_28__SEL_sdma]
+  mortar::echo -info -text "Connecting ${block1} to ${block2}"
+  # clock
+  set b1_ssn_bus_clock_out_pin [get_db $block1 .pins *ssn_bus_clock_out]
+  set b1_ssn_bus_clock_out_net [get_db $b1_ssn_bus_clock_out_pin .net.name]
+  set b2_ssn_bus_clock_in_pin  [get_db [get_db $block2 .pins *ssn_bus_clock_in] .base_name]
+  connect_pin  -net $b1_ssn_bus_clock_out_net  -inst   [get_db $block2 .name]  -pin  $b2_ssn_bus_clock_in_pin
+  for {set i 0} { $i < 40} {incr i} {
+     #forward bus out
+     set b1_ssn_forward_bus_out_pin [get_db $block1 .pins *ssn_forward_bus_out[$i]]
+     set b1_ssn_forward_bus_out_net [get_db $b1_ssn_forward_bus_out_pin .net.name]
+     set b2_ssn_forward_bus_in_pin  [get_db [get_db $block2 .pins *ssn_forward_bus_in[$i]] .base_name]
+     connect_pin  -net $b1_ssn_forward_bus_out_net  -inst  [get_db $block2 .name]  -pin  $b2_ssn_forward_bus_in_pin
+     # return bus in
+     set b2_ssn_return_bus_out_pin  [get_db $block2 .pins *ssn_return_bus_out[$i]]
+     set b2_ssn_return_bus_out_net  [get_db $b2_ssn_return_bus_out_pin .net.name]
+     set b1_ssn_return_bus_in_pin   [get_db [get_db $block1 .pins *ssn_return_bus_in[$i]] .base_name]
+
+     connect_pin  -net $b2_ssn_return_bus_out_net    -inst  [get_db $block1 .name]  -pin  $b1_ssn_return_bus_in_pin
+
+  }
+}
+###############################################################################
+
+for {set i 2} {$i<43} {incr i} {
+	test$i
+}
+
+source  /proj/cayman/wa/rchatty/scripts/cayman.connect_ssn_trace_DE3.tcl
+
+
