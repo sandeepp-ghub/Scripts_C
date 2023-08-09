@@ -1,0 +1,243 @@
+
+#auto populate the right_out_ports
+set design_llx [get_db designs .boundary.bbox.ll.x]
+set south_side_ports [get_db ports -if {.location.x == $design_llx}]
+set south_out_ports [get_db $south_side_ports -if {.direction == out}]
+
+
+set tot_ports [llength $south_out_ports]
+
+puts "Processing $tot_ports pins ..."
+
+set fi_dict [dict create]
+
+# set right_port pin:hbm_xbar_wrapper_0/HBM_XBAR_WRAPPER/HBM_XBAR/hbm_rd0_rdata[0]
+
+set i 1
+foreach right_port $south_out_ports {
+  #puts $i of $tot_ports"
+  set port_name [get_db $right_port .name]
+  set fi_clk_pins [list]
+  #puts -nonewline "$port_name"
+  set afi [get_object_name [all_fanin -to $right_port]]
+  foreach fi $afi {
+    if { [regexp {\/Q\d*$} $fi] } {
+      #lappend fi_dict $fi
+      set flop_inst [get_db [get_db pins $fi] .inst]
+      set clk_pin [get_db [get_db $flop_inst .pins] -if {.is_clock == true}]
+      set ck_port_name [get_db $clk_pin .name]
+      if { ! [regexp {fifo_pop_ptr_scr|fifo_push_ptr_scr} $ck_port_name] } {
+        lappend fi_clk_pins $clk_pin
+      }
+    }
+  }
+  #dict set pin_info $port_name q_fanin_list $fi_dict
+  dict set fi_dict $port_name $fi_clk_pins
+  incr i
+}
+
+#unique
+#set uniq_pins [get_db [get_db -uniq pins $fi_dict] .name]
+
+#D, Q, EN
+set latch_base_cell_name "LNQD2BWP210H6P51CNODLVT"
+
+set data_buf_cell "BUFFD6BWP210H6P51CNODULVTLL"
+
+set ck_inv "CKND6BWP210H6P51CNODULVT"
+
+set latch_cmd_fname "add_hold_fix_latches.tcl"
+set of [open $latch_cmd_fname w]
+
+
+puts $of ""
+
+set eco_add_rptr_cmds [list]
+
+set i 1
+dict for {port_name ck_fi_list} $fi_dict {
+  if { ! [expr $i % 100] } {
+    puts $of "puts \"$i of $tot_ports ...\""
+  }
+  #if { [llength $ck_fi_list] <=2 }  { continue }
+  puts $of "#######################"
+  puts $of "#set port_name $port_name"
+  puts $of "#######################"
+
+  if { ! [llength $ck_fi_list] } {
+    puts "$port_name has do fanin from flops.  (Likely tie-off). Not adding LU latch"
+    continue
+  }
+
+  set pin_obj [get_db ports $port_name]
+  set iobuf_net_obj [get_db $pin_obj .net]
+  set iobuf_net_loads [get_db $iobuf_net_obj .loads]
+
+  set iobuf_net_drivers [get_db $iobuf_net_obj .drivers]
+  set iobuf_net_name [get_db $iobuf_net_obj .name]
+
+  set iobuf_inst [get_db $iobuf_net_drivers .inst]
+  if { ! [regexp {encIOBuf} [get_db $iobuf_inst .name]] } {
+    puts "$port_name is not driven by an encIOBuf.  (Likely tie-off). Not adding LU latch"
+    continue
+  }
+  set iobuf_input_pin [get_db [get_db $iobuf_net_drivers .inst.pins] -if {.direction == in}]
+
+  set orig_net_obj [get_db $iobuf_input_pin .net]
+  set orig_net_loads $iobuf_input_pin
+  set orig_net_drivers [get_db $orig_net_obj .drivers]
+  set orig_net_name [get_db $orig_net_obj .name]
+
+  set load_inst_name [get_db $orig_net_loads .inst.name]
+  set load_pin_bname [get_db $orig_net_loads .base_name]
+
+  #if { [llength $orig_net_loads] > 1 } {
+    #puts "ERROR net for $port_name has [llength $orig_net_loads] loads!"
+    #foreach orig_net_load $orig_net_loads {
+      #puts "  [get_db $orig_net_load .name]"
+    #}
+    #return
+  #}
+
+  set orig_net_term_locations [concat [get_db $orig_net_loads .location] [get_db $orig_net_drivers .location]]
+  set data_pin_centroid [::mortar::get_centroid -points $orig_net_term_locations]
+
+  set ck_pin [lindex $ck_fi_list 0]
+  set ck_insts [get_db $ck_fi_list .inst]
+  set ck_insts_loc [get_db $ck_insts .location]
+  if { ! [llength $ck_insts_loc] } {
+    puts ""
+    puts "################### FATAL! #########################################"
+    puts "FATAL! $port_name doesn't have an ck_inst fanin?"
+    puts "################### FATAL! #########################################"
+    puts ""
+    break
+  }
+
+  set hier_path [join [lrange [split [get_db $ck_pin .inst.name] "/"] 0 end-1] "/"]
+
+  set pin_base_name [get_db $pin_obj .base_name]
+  regsub -all {[\[\]]} $pin_base_name "_" latch_name_postfix
+  set latch_base_name "inst_HoldFix_Latch_${latch_name_postfix}"
+  set latch_q_net_name "net_HoldFix_${latch_name_postfix}"
+
+  #set pin_loc {*}[get_db $pin_obj .location]
+  #lassign {*}$pin_loc pin_x pin_y
+  #set xbt_buf_loc [list [expr $pin_x - 8] $pin_y]
+
+  puts $of "#set ck_fi_list \[list \\"
+  foreach ck_fi $ck_fi_list {
+    puts $of "#  $ck_fi \\"
+  }
+  puts $of "#\]"
+
+  set latch_loc [::mortar::get_centroid -points $ck_insts_loc]
+
+  puts $of "create_inst -name $latch_base_name -base_cell $latch_base_cell_name -location \{$latch_loc\}"
+  puts $of "create_net -name ${latch_q_net_name}"
+
+  #pin:hbm_xbar_wrapper_0/HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_31__hbm_xbar_clk_rd_regslice/AXI_SLICE_LOGIC_0__genblk1_rd_if_axi3_regslice/SYN6/A2
+  #pin:hbm_xbar_wrapper_0/HBM_XBAR_WRAPPER/HBM_XBAR/hbm_rd31_rvalid
+
+
+  set latch_inst_name "$latch_base_name"
+  set latch_EN_port_name "$latch_inst_name/EN"
+  set latch_D_port_name "$latch_inst_name/D"
+  set latch_Q_port_name "$latch_inst_name/Q"
+
+  #Disconnect orginal data net
+  puts $of ""
+  puts $of "disconnect_pin -inst $load_inst_name -net $orig_net_name -pin $load_pin_bname"
+  puts $of ""
+
+  #connect net net to term and output of latch
+  puts $of "connect_pin -inst $load_inst_name -net $latch_q_net_name -pin $load_pin_bname"
+  puts $of "connect_pin -inst $latch_inst_name -net $latch_q_net_name -pin Q"
+  lassign $latch_loc latch_x latch_y
+  #set q_buf_loc [list [expr $latch_x+3] $latch_y]
+  #lappend eco_add_rptr_cmds "eco_add_repeater -name inst_HXW2XBT_HoldFix_BUF_${latch_name_postfix} -cells $data_buf_cell -pins $port_name -location \{$q_buf_loc\}"
+  puts $of ""
+
+  #connect d-pin of latch to the orig net
+  puts $of "connect_pin -inst $latch_inst_name -net $orig_net_name -pin D"
+  puts $of ""
+
+
+
+  set ck_pin_net_name [get_db $ck_pin .net.name]
+  puts $of "connect_pin -inst $latch_inst_name -net $ck_pin_net_name -pin EN"
+
+
+  #set ck_net_loads [get_db [get_db nets $ck_pin_net_name] .loads]
+  #set ck_net_drivers [get_db [get_db nets $ck_pin_net_name] .drivers]
+  #set ck_net_term_locations [concat [get_db $ck_net_loads .location] [get_db $ck_net_drivers .location]]
+  #set ck_term_center [::mortar::get_centroid -points $ck_net_term_locations]
+
+  #set inv2_loc [::mortar::get_centroid -points [list $ck_term_center $data_pin_centroid]]
+  #set inv_locs [concat {*}$ck_term_center {*}$inv2_loc]
+  #lappend eco_add_rptr_cmds "eco_add_repeater -name \{inst_HXW2XBT_HoldFix_inv0_ inst_HXW2XBT_HoldFix_inv1_\} -cells $ck_inv -pins ${latch_inst_name}/EN -location \{$inv_locs\}"
+
+
+  #puts $of "set ck_loads \[get_db $ck_pin .net.loads\]"
+  #puts $of "#  CK_LOADS"
+  #foreach ck_load $ck_loads {
+      #puts $of "#    $ck_load"
+  #}
+  puts $of ""
+  incr i
+}
+
+#puts $of "puts \"START eco_add_repeater ...\""
+#puts $of ""
+#puts $of "set_db eco_honor_dont_touch false"
+#puts $of "set_db eco_honor_dont_use false"
+#puts $of "set_db eco_honor_fixed_status false"
+#puts $of "set_db eco_refine_place false"
+#puts $of "set_db eco_update_timing false"
+#puts $of "set_db eco_check_logical_equivalence true"
+#puts $of "set_db eco_batch_mode true"
+#puts $of ""
+#foreach cmd $eco_add_rptr_cmds {
+#  puts $of "$cmd"
+#}
+#puts $of ""
+#puts $of "set_db eco_honor_dont_touch false"
+#puts $of "set_db eco_honor_dont_use false"
+#puts $of "set_db eco_honor_fixed_status false"
+#puts $of "set_db eco_refine_place false"
+#puts $of "set_db eco_update_timing false"
+#puts $of "set_db eco_check_logical_equivalence true"
+#puts $of "set_db eco_batch_mode false"
+#puts $of "puts \"DONE eco_add_repeater ...\""
+
+puts $of ""
+puts $of "puts \"Removing FILLER\""
+puts $of "cayman::remove_postfill"
+puts $of ""
+puts $of "puts \"START place_detail ...\""
+puts $of "set new_insts \[get_db insts *inst_HoldFix_*\]"
+puts $of "puts \"Legalizing \[llength \$new_insts\] new latches ...\""
+puts $of "set_db place_detail_eco_max_distance 5"
+puts $of "place_detail -inst \[get_db \$new_insts .name\]"
+puts $of "puts \"END place_detail ...\""
+puts $of ""
+#puts $of "#GLOBAL ROUTE?"
+#puts $of ""
+#puts $of "#Re-routing clock_nets"
+#puts $of "puts \"START clock route ...\""
+#puts $of "::df::clk::cleanup_route"
+#puts $of "puts \"DONE clock route ...\""
+
+close $of
+
+puts "Created $latch_cmd_fname"
+
+#mSource $latch_cmd_fname
+
+
+
+#mVar FLOW(pnr_dataout_include) [list lef def_fp tcl_floorplan tcl_ports tcl_physcells tcl_placement spef def]
+#mRunStep common_dataout
+
+#mRunStep setup_views
+#mRunStep configure_timing
