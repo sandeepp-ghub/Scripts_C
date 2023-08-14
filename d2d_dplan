@@ -1,0 +1,108 @@
+#Break up the top level module
+#ungroup hinst:u_d2d_subsys
+
+#Child blocks:
+#u_d2d_subsys/CTRL_MPCS_GEN_0__u_d2d_ctrl_mpcs
+#u_d2d_subsys/CTRL_MPCS_GEN_1__u_d2d_ctrl_mpcs
+set child_w 720.885
+set child_h 1021.440
+set locs [list [list 23.256 26.88 u_d2d_subsys/CTRL_MPCS_GEN_0__u_d2d_ctrl_mpcs] [list [expr {23.256 + $child_w}] 26.88 u_d2d_subsys/CTRL_MPCS_GEN_1__u_d2d_ctrl_mpcs] \
+]
+foreach loc $locs {
+	lassign $loc x y mod
+	set_obj_floorplan_box Module $mod $x $y [expr {$x + $child_w}] [expr {$y + $child_h}]
+}
+
+#Logical modules:
+#u_d2d_subsys_fis
+#u_d2d_subsys/XSR_GEN_0__u_d2d_xsr
+set_obj_floorplan_box Module u_d2d_subsys_fis 23.256 [expr {(2.0 * 26.88) + $child_h}] [expr {23.256 + (2.0 * $child_w)}] [expr {(2.0 * 26.88) + $child_h + 100}]
+set_obj_floorplan_box Module u_d2d_subsys/XSR_GEN_0__u_d2d_xsr [::get_db current_design .bbox.ll.x] [expr {(3.0 * 26.88) + $child_h + 100}] [::get_db current_design .bbox.ur.x] [::get_db current_design .bbox.ur.y]
+
+#Place the XSR core
+#legalized with df::snap_block
+::mortar::move_gate -name u_d2d_subsys/XSR_GEN_0__u_d2d_xsr/NO_CHOP_u_xsr -x_coord 8.364 -y_coord 1227.52 -orient r0 -status_fixed
+
+#Specify child partitions
+set fo [open hinsts.txt w]
+puts $fo "u_d2d_subsys/CTRL_MPCS_GEN_0__u_d2d_ctrl_mpcs M14 RLMUNRINGEDPWR"
+puts $fo "u_d2d_subsys/CTRL_MPCS_GEN_1__u_d2d_ctrl_mpcs M14 RLMUNRINGEDPWR"
+catch {close $fo}
+df::legalize_selected_modules -hinst_file hinsts.txt
+file delete -force hinsts.txt
+
+::df::specify_partitions -masters u_d2d_subsys/CTRL_MPCS_GEN_0__u_d2d_ctrl_mpcs
+
+#Set up child orientations
+#set_clone_partition_orient core/a55cl1/cpu  r0 
+
+#Add fp / power straps
+::df::add_block_halo
+::df::snap_block
+::df::insert_endcaps
+::df::insert_welltaps
+::df::__establish_power_nets
+::df::route_power -planning
+
+#Get port groups
+set child0_ports [::get_db [::get_db ports d2d*_0_*] .base_name]
+set child1_ports [::get_db [::get_db ports d2d*_1_*] .base_name]
+set xsr_ports [::get_db [::get_db ports XSR*] .base_name]
+set misc_ports [::get_db [::get_db ports -if {.base_name!=XSR* && .base_name!=d2d*_0_* && .base_name!=d2d*_1_*}] .base_name]
+#non-AP XSR pins; misc
+lappend misc_ports [::get_db ports XSR_SPI_IN*]
+lappend misc_ports [::get_db ports XSR_SPI_OUT*]
+
+
+#Assign XSR ports
+set a_in_rect [lindex [::get_transform_shapes -inst [::get_db insts u_d2d_subsys/XSR_GEN_0__u_d2d_xsr/NO_CHOP_u_xsr] -local_pt [::get_db [::get_db pins u_d2d_subsys/XSR_GEN_0__u_d2d_xsr/NO_CHOP_u_xsr/PIN_REFCLK_A_IN] .base_pin.physical_pins.layer_shapes.shapes.rect]] 0]
+lassign $a_in_rect pin_llx pin_lly pin_urx pin_ury
+lassign [lindex [::get_db current_design .bbox] 0] fp_llx fp_lly fp_urx fp_ury
+set port_w [expr {$pin_ury - $pin_lly}]
+set port_h [expr {$pin_ury - $pin_lly}]
+set port_cx [expr {$fp_urx - ($port_w / 2.0)}]
+set port_cy [expr {$pin_lly + ($port_h / 2.0)}]
+::set_db assign_pins_edit_in_batch true
+set port_cy [expr {$port_cy - 3.76}]
+::edit_pin -pin XSR_REFCLK_A_OUT[0] -layer 4 -assign [list $port_cx $port_cy] -pin_width $port_w -pin_depth $port_h -fix_overlap 0
+set port_cy [expr {$port_cy + 3.76}]
+::edit_pin -pin XSR_REFCLK_A_IN[0] -layer 4 -assign [list $port_cx $port_cy] -pin_width $port_w -pin_depth $port_h -fix_overlap 0
+set port_cy [expr {$port_cy + 3.76}]
+::edit_pin -pin XSR_REFCLK_B_OUT[0] -layer 4 -assign [list $port_cx $port_cy] -pin_width $port_w -pin_depth $port_h -fix_overlap 0
+set port_cy [expr {$port_cy + 3.76}]
+::edit_pin -pin XSR_REFCLK_B_IN[0] -layer 4 -assign [list $port_cx $port_cy] -pin_width $port_w -pin_depth $port_h -fix_overlap 0
+::set_db assign_pins_edit_in_batch false
+
+df::pop_ports -insts u_d2d_subsys/XSR_GEN_0__u_d2d_xsr/NO_CHOP_u_xsr
+
+#Create child port areas / misc area and spread
+::create_pin_group -name child1_ports -pins $child1_ports -spacing 1 -spread_pins
+::create_pin_guide -pin_group child1_ports -layers {M6 M8 M10 M12} -area [list -1 [expr {26.88 + $child_h}] 1 [expr {26.88 + $child_h + 80}]]
+::create_pin_group -name child0_ports -pins $child0_ports -spacing 1 -spread_pins
+::create_pin_guide -pin_group child0_ports -layers {M6 M8 M10 M12} -area [list -1 [expr {26.88 + $child_h + 80}] 1 [expr {26.88 + $child_h + 160}]]
+::create_pin_group -name misc_ports -pins $misc_ports -spacing 1 -spread_pins
+::create_pin_guide -pin_group misc_ports -layers {M6 M8 M10 M12} -area [list -1 [expr {26.88 + $child_h + 160}] 1 [expr {26.88 + $child_h + 178}]]
+::assign_io_pins -pins [concat $child0_ports $child1_ports $misc_ports]
+
+#Set up constraints for partition pins
+set_pin_constraint -cell d2d_ctrl_mpcs_wrapper -side {N} -spacing 4 -corner_to_pin_distance 80
+set_pin_constraint -cell d2d_ctrl_mpcs_wrapper -side {S E W} -layer {}
+
+#Assign partition pins
+set_obj_floorplan_box Module u_d2d_subsys_fis 23.256 [expr {(2.0 * 26.88) + $child_h}] [expr {23.256 + (1.0 * $child_w)}] [expr {(2.0 * 26.88) + $child_h + 100}]
+::assign_partition_pins -based_on_master_only
+set_obj_floorplan_box Module u_d2d_subsys_fis 23.256 [expr {(2.0 * 26.88) + $child_h}] [expr {23.256 + (2.0 * $child_w)}] [expr {(2.0 * 26.88) + $child_h + 100}]
+
+#Stop here to review
+return
+
+#Save out result
+::df::capture_snapshot -dplan_partitions -ports
+
+::df::route_power -delete
+::df::delete_welltaps
+::df::delete_endcaps
+
+::commit_partitions
+::write_partitions -dir PTN -def
+::df::create_transfer_files
