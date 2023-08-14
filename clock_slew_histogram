@@ -1,0 +1,128 @@
+proc clock_slew_histogram {args} {
+	set listofnets ""
+	set args_cnt [llength $args]
+	if {$args_cnt == 0} {
+		puts "No arguments specified , check \"-help\" option"
+		return
+	} elseif {[lindex $args 0] == "-help"} {
+		puts "Usage: This script dumps clock slew histograms of all fanout instance terms associated with the specified clock nets"
+		puts "clock_slew_histogram <step_size> <target_slew> <clock_tree> <worst/allinstTerms> <leaf/trunk>"
+		puts "clock_slew_histogram 10.0 100.0 CLK1 worst leaf.  Here assumption is step size is 10ps , target slew is 100ps , name of clock tree is CLK1 , and user wants only leaf nets to be considered"
+		puts "Third arguement can also be \"*\" , meaning consider all clock_trees"
+		puts "Fourth arguement specifies whether the histogram is based on the worst slew for a net , or slews on all fanout terms of a net"
+		puts "Fifth arguement need not be specified if user doesn't want to specify leaf or trunk"
+		puts "First 4 arguements are mandatory"
+		return
+	} else {
+		if {[expr int([lindex $args 0])] == [lindex $args 0]} {
+			set step_size [expr int([lindex $args 0])].0
+		} else {
+			set step_size [lindex $args 0]
+		}
+		if {[expr int([lindex $args 1])] == [lindex $args 1]} {
+			set target_slew [expr int([lindex $args 1])].0
+		} else {
+			set target_slew [lindex $args 1]
+		}
+		set bin_count_flt [expr $target_slew / $step_size]
+		set bin_count_rnd [expr round($bin_count_flt)]
+		if {$bin_count_rnd == $bin_count_flt} {
+			set bin_count $bin_count_rnd
+		} elseif {$bin_count_rnd > $bin_count_flt} {
+			set bin_count $bin_count_rnd
+		} elseif {$bin_count_rnd < $bin_count_flt} {
+			set bin_count [expr $bin_count_rnd + 1]
+		} else {
+			puts "Some error with script usage, step_size should be less then target_slew specified"
+			return
+		}
+		set slew_step0 0.0
+		set slew_step_incr 0.0
+		for {set i 1} {$i <= $bin_count} {incr i} {
+			if {$i == $bin_count} {
+				set count$i 0
+				set slew_step$i $target_slew
+				break
+			}
+			set count$i 0
+			set slew_step_incr [expr $slew_step_incr + $step_size]
+			set slew_step$i $slew_step_incr
+		}
+		set count_ul [expr $bin_count + 1]
+		set count$count_ul 0
+		if {[lindex $args 2] == "*"} {
+			if {[lindex $args 4] == ""} {
+				set listofnets [get_ccopt_clock_tree_nets *]
+			} else {
+				set listofnets [get_ccopt_clock_tree_nets -net_types [lindex $args 4] *]
+			}
+		} else {
+			if {[lindex $args 4] == ""} {
+				set listofnets [get_ccopt_clock_tree_nets -in_clock_trees [lindex $args 2] *]
+			} else {
+				set listofnets [get_ccopt_clock_tree_nets -in_clock_trees [lindex $args 2] -net_types [lindex $args 4] *]
+			}
+		}
+		foreach net $listofnets {
+			set sinks ""
+			set slew_values ""
+			set slew_values_sorted ""
+			set sinks [dbGet [dbGet -p [dbGet -p top.nets.name $net].instTerms.isInput 1].name]
+			if {$sinks != 0x0} {
+				if {[lindex $args 3] == "worst"} {
+					foreach sink $sinks {
+						set slew [get_ccopt_clock_tree_slew $sink]
+						lappend slew_values $slew
+					}
+					set slew_values_sorted [lsort -decreasing $slew_values]
+					set slew [expr [lindex $slew_values_sorted 0] * 1000]
+					for {set j 1} {$j <= $bin_count} {incr j} {
+						set k [expr $j - 1]
+						if {($slew > [set slew_step$k]) && ($slew <= [set slew_step$j])} {
+							incr count$j
+							break
+						}
+					}
+					if {$j > $bin_count} {
+						if {$slew > [set slew_step$bin_count]} {
+							incr count$count_ul
+						}
+					}
+				} elseif {[lindex $args 3] == "allinstTerms"} {
+					foreach sink $sinks {
+						set slew [expr [lindex [get_ccopt_clock_tree_slew $sink] 0] * 1000]
+						for {set j 1} {$j <= $bin_count} {incr j} {
+							set k [expr $j - 1]
+							if {($slew > [set slew_step$k]) && ($slew <= [set slew_step$j])} {
+								incr count$j
+								break
+							}
+						}
+						if {$j > $bin_count} {
+							if {$slew > [set slew_step$bin_count]} {
+								incr count$count_ul
+							}
+						}
+					}
+				} else {
+					puts "Fourth option can have only two values worst/allinstTerms. Try again"
+					return
+				}
+			}
+		}
+	}
+	for {set l 1} {$l <= $bin_count} {incr l} {
+		set m [expr $l - 1]
+		puts "slew between [set slew_step$m]ps and [set slew_step$l]ps : [set count$l]"
+	}
+	if {$l > $bin_count} {
+		puts "slew greater then [lindex $args 1]ps : [set count$count_ul]"
+	}
+}
+
+# clock_slew_histogram 50 160 fast_func_clock worst leaf
+#slew between 0.0ps and 50.0ps : 2
+#slew between 50.0ps and 100.0ps : 149
+#slew between 100.0ps and 150.0ps : 854
+#slew between 150.0ps and 160.0ps : 6
+#slew greater then 160ps : 4
