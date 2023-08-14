@@ -1,0 +1,95 @@
+proc fix_spare_regions {threshold } {
+   set dev_mode 0
+   #Get block_rects (blockage rectangles) this code is copied from: /proj/asictools/m1dpe/2022.06.000e-frozen/common/flow/tcl/df_pd.tcl
+   set edge_inset 0.85
+
+   lassign [lindex [::get_db current_design .bbox] 0] fp_llx fp_lly fp_urx fp_ury
+              #Calculate blockage map
+   ::mortar::echo -text "Creating blockage map..."
+   set block_rects [list]
+   foreach finst [::get_db insts -if {(.base_cell.base_class==block || .base_cell.base_class==pad) && .place_status!=unplaced}] {
+      foreach rect [::get_computed_shapes [::get_db $finst .place_halo_polygon]] {
+         lappend block_rects $rect
+      }
+   }
+   foreach blk [::get_db place_blockages -if {.type==hard}] {
+      foreach rect [::get_db $blk .rects] {
+         lappend block_rects $rect
+      }
+   }
+   foreach outside_rect [::get_computed_shapes [list $fp_llx $fp_lly $fp_urx $fp_ury] ANDNOT [::df::__get_circuit_row_perimeter]] {
+      lappend block_rects $outside_rect
+   }
+   
+   set block_rects [::get_computed_shapes $block_rects SIZE $edge_inset]
+   
+   
+   #Get all the sp_regions_objs 
+   set sp_regions_objs [get_db groups SPARE_CELL_REGION* ]
+   #set sp_regions_objs [lrange $sp_regions_objs 0 10]
+
+   #Fix each one that is more than %25 blocked
+   if { $dev_mode } {  set sp_regions_objs [lrange $sp_regions_objs 0 30] } 
+   
+   foreach i $sp_regions_objs {
+      set tile [get_db $i .rects]
+      set blk_pct [calc_block_pct $tile $block_rects]
+      puts "Initial:  $i $tile $blk_pct"
+      if {$blk_pct > $threshold} {
+         fix_blocked_spare_region $i $block_rects $threshold 
+      }
+   }
+
+}
+
+proc fix_blocked_spare_region { sp_region_obj block_rects threshold } {
+      set tile [get_db $sp_region_obj .rects]
+
+            #The for loops are meant to check the corner and mid-points of increaing size squares with edge of distance d from the center
+            # *---------*---------*
+            # |                   |
+            # |                   |
+            # |     *---*---*     |
+            # |     |       |     |
+            # *     *       *     *
+            # |     |       |     |
+            # |     *---*---*     |
+            # |                   |
+            # |                   |
+            # *---------*---------*
+
+
+
+            #Update to check entire perimeteri of each square
+            #Also do go up to 25um, maximum before MDC errors?
+
+         for { set d 1 } { $d <= 25} { incr d} {
+            puts "d = $d"
+            #Check X = +d and -d
+            for { set x [expr - $d] } { $x <= $d } { set x [expr $x + 2 * $d]} {
+               #check +/-Y from 1 ... d
+               for { set y 0} { $y <= $d} { incr y } {
+                  foreach delta [list [expr $y ]  [expr -$y]] {
+                     #puts " x = $x , y = $delta (delta)"
+                     foreach delta_list [list [list $x $delta] [list $delta $x] ]  {
+                        #puts $delta_list 
+                        set temp_tile [get_computed_shape $tile MOVE $delta_list ] 
+                        #puts $temp_tile
+                        set blk_pct [calc_block_pct $temp_tile $block_rects]
+                        #puts "   TRY $temp_tile $blk_pct ($delta_list)"
+                        if { $blk_pct <= $threshold } {
+                           puts "      FIXED $sp_region_obj: $tile -> $temp_tile ($delta_list) $blk_pct  "
+                           set_db $sp_region_obj .rects $temp_tile
+                           return
+                        }
+                     }
+                  }
+               }
+            }
+
+         }
+}
+
+proc calc_block_pct {tile block_rects} {
+   return [expr {100.0 * [::get_computed_shapes -output area $tile AND $block_rects] / [::get_computed_shapes -output area $tile]}]
+}
