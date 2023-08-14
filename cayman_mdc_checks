@@ -1,0 +1,24 @@
+# Cayman specific checks
+cayman::add_postfill
+cayman::boundary_flop_clock_latency
+cayman::buffer_perimeter_post
+cayman::buffer_perimeter_pre
+cayman::correlate_timing
+cayman::drive_strength_histogram
+cayman::eco_check
+cayman::esd_connect
+cayman::faux_designset
+cayman::get_designs_recursive
+cayman::get_reset_extenders
+cayman::hbm_phy_without_feedthrough
+cayman::highlight
+cayman::highlight_clock_domain
+cayman::hinsts_by_size
+cayman::import_designset
+cayman::insert_perimeter_decap
+cayman::invcui_updatedb_dependencies
+cayman::is_pgcover_def
+cayman::is_pgcover_required
+cayman::load_hier_data
+cayman::mdc_check_DBLK.H210P51.S.1.1
+cayman::mdc_check_above_ceiling
