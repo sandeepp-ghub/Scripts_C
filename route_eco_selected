@@ -1,0 +1,6 @@
+set_db [get_db nets $net] .wires.status routed
+set_db [get_db nets $net] .vias.status routed
+set_route_attributes -nets $net -skip_routing false
+select_obj $net
+set_db route_design_selected_net_only true
+route_eco
