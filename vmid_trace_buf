@@ -1,0 +1,35 @@
+set threshold 100.0
+create_basic_path_groups
+foreach_in_collection path [report_timing -collection -max_slack 0 -max_paths 5000 -group reg2po] {
+  set endp [get_property $path endpoint]
+  set snkn [get_nets -of_objects $endp]
+
+  set snet [mortar::trace_repower -name [get_property $snkn full_name] -source_net]
+  set spin [get_property $snet drivers]
+  set rpwr [mortar::trace_repower -name [get_property $snkn full_name] -backtrace -repower_gates]
+  set dist [expr abs([get_property $endp x_coordinate] - [get_property $spin x_coordinate]) + abs([get_property $endp y_coordinate] - [get_property $spin y_coordinate])]
+
+  if { [llength $rpwr] > 5 && $dist < $threshold } {
+    set is_inverted [is_endp_inverted $endp]
+    if { $is_inverted == 1 } {
+       create_inst ...
+       create_net ...
+       connect_pin $inv I $snet
+       connect_pin $inv ZN $new_net
+    } else {
+       set new_net $snet
+    }
+    connect_pin $endp $new_net
+  }
+}
+
+#create_basic_path_groups
+foreach_in_collection path [report_timing -collection -max_slack 0 -max_paths 4 -group reg2po] {
+set endp [get_property $path endpoint]
+set snkn [get_nets -of_objects $endp]
+set snet [mortar::trace_repower -name [get_property $snkn full_name] -source_net]
+set spin [get_property [get_nets $snet] driver_pins]
+mortar::remove_repower -name [get_property $snkn full_name] -backtrace -repower_gates
+}
+
+
