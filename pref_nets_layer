@@ -1,0 +1,10 @@
+proc layer_assignment_lists {} {
+   set netsbotM9 [get_db nets -if {.bottom_preferred_layer.name  == M9}]
+   set netsbotM11 [get_db nets -if {.bottom_preferred_layer.name  == M11}]
+   set netsbotM13 [get_db nets -if {.bottom_preferred_layer.name  == M13}]
+   set netsbotM15 [get_db nets -if {.bottom_preferred_layer.name  == M15}]
+   mortar::write_list_to_file -list $netsbotM9 -file netsbotM9
+   mortar::write_list_to_file -list $netsbotM11 -file netsbotM11
+   mortar::write_list_to_file -list $netsbotM13 -file netsbotM13
+   mortar::write_list_to_file -list $netsbotM15 -file netsbotM15
+}
