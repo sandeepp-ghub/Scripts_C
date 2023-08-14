@@ -1,0 +1,142 @@
+# Load for 35ps and 60ps o/p slope
+#  CKND2BWP210H6P51CNODULVT 6.6 14.1 
+#  CKND4BWP210H6P51CNODULVT 12.4 26.5
+#  CKND6BWP210H6P51CNODULVT 18.1 38.8
+#  CKND8BWP210H6P51CNODULVT 24 51.6
+#  CKND10BWP210H6P51CNODULVT 29.5 63.3
+#  CKND12BWP210H6P51CNODULVT 35.1 75.2
+#  CKND14BWP210H6P51CNODULVT 41.1 88.2
+#  CKND16BWP210H6P51CNODULVT 46.9 100.5
+
+set ckn [dict create \
+  CKND2BWP210H6P51CNODULVT [list 0 6.6] \
+  CKND4BWP210H6P51CNODULVT [list 6.6 12.4] \
+  CKND6BWP210H6P51CNODULVT [list 12.4 18.1] \
+  CKND8BWP210H6P51CNODULVT [list 18.1 24] \
+  CKND10BWP210H6P51CNODULVT [list 24 29.5] \
+  CKND12BWP210H6P51CNODULVT [list 29.5 35.1] \
+  CKND14BWP210H6P51CNODULVT [list 35.1 41.1] \
+  CKND16BWP210H6P51CNODULVT [list 41.1 46.9] \
+]
+
+# Load for 25ps and 50ps o/p slope
+#  CKBD2BWP210H6P51CNODULVT 7.4 15.8
+#  CKBD4BWP210H6P51CNODULVT 13.8 29.6
+#  CKBD6BWP210H6P51CNODULVT 20.1 43.1
+#  CKBD8BWP210H6P51CNODULVT 26.8 57.5
+#  CKBD10BWP210H6P51CNODULVT 32.8 70.3
+#  CKBD12BWP210H6P51CNODULVT 39.5 84.6
+#  CKBD14BWP210H6P51CNODULVT 45.8 98.2
+#  CKBD16BWP210H6P51CNODULVT 52.1 111.7
+
+
+set ckb [dict create \
+  CKBD2BWP210H6P51CNODULVT [list 0 7.4 ] \
+  CKBD4BWP210H6P51CNODULVT [list 7.4 13.8 ] \
+  CKBD6BWP210H6P51CNODULVT [list 13.8 20.1] \
+  CKBD8BWP210H6P51CNODULVT [list 20.1 26.8] \
+  CKBD10BWP210H6P51CNODULVT [list 26.8 32.8] \
+  CKBD12BWP210H6P51CNODULVT [list 32.8 39.5] \
+  CKBD14BWP210H6P51CNODULVT [list 39.5 45.8] \
+  CKBD16BWP210H6P51CNODULVT [list 45.8 52.1] \
+]
+
+# Load for 28ps and 50ps o/p slope
+#  CKLNQD2BWP210H6P51CNODULVT 7.5 16.2
+#  CKLNQD4BWP210H6P51CNODULVT 13.9 29.8
+#  CKLNQD6BWP210H6P51CNODULVT 20.4 43.8
+#  CKLNQD8BWP210H6P51CNODULVT 27.1 58.1
+#  CKLNQD10BWP210H6P51CNODULVT 32.5 69.7
+#  CKLNQD12BWP210H6P51CNODULVT 38.9 83.3
+#  CKLNQD14BWP210H6P51CNODULVT 44.8 96
+#  CKLNQD16BWP210H6P51CNODULVT 50.9 109.1 
+
+
+
+set cklnq [dict create \
+  CKLNQD2BWP210H6P51CNODULVT [list 0 7.5] \
+  CKLNQD4BWP210H6P51CNODULVT [list 7.5 13.9] \
+  CKLNQD6BWP210H6P51CNODULVT [list 13.9 20.4] \
+  CKLNQD8BWP210H6P51CNODULVT [list 20.4 27.1] \
+  CKLNQD10BWP210H6P51CNODULVT [list 27.1 32.5] \
+  CKLNQD12BWP210H6P51CNODULVT [list 32.5 38.9] \
+  CKLNQD14BWP210H6P51CNODULVT [list 38.9 44.8] \
+  CKLNQD16BWP210H6P51CNODULVT [list 44.8 50.9] \
+]
+
+proc pgv_eco_cell {fam nload old_base} { 
+  global ckn
+  global ckb
+  global cklnq
+  #puts "$fam $nload $old_base" 
+  set new_base ""
+  set cells [dict keys [set $fam]]
+  foreach cell $cells {
+    #puts $cell
+    set capl [lindex [dict get [set $fam] $cell] 0]
+    set caph [lindex [dict get [set $fam] $cell] 1]
+    if {$nload >= $capl && $nload < $caph} {
+      set new_base $cell
+      break
+    } else {
+      set new_base $old_base
+    }
+  }
+  return $new_base
+}
+
+proc fix_pgv {infile} { 
+
+  set ifile $infile 
+  set ofile pgv_eco.tcl 
+
+  if { [file exists $ofile] } { 
+    file delete $ofile 
+  } 
+
+  set fp [open $ifile "r"] 
+  set fpo [open $ofile "w"] 
+
+  while {[gets $fp line] >= 0} {
+    set opin [get_object_name [get_pins -of $line -filter "direction==out"]]
+    set net_cap [get_db [get_db pins $opin] .net.capacitance_max]
+    set net_ccap [get_db [get_db pins $opin] .net.coupling_capacitance_max]
+    set net_load [expr $net_cap + $net_ccap]
+    set org_base [get_db [get_db insts $line] .base_cell.name]
+    #puts $line
+    if {[regexp ^CKN $org_base]} {
+      set fam ckn 
+    } elseif {[regexp ^CKB $org_base]} { 
+      set fam ckb
+    } elseif {[regexp ^CKLNQ $org_base]} { 
+      set fam cklnq 
+    } else {
+      set fam ""
+    }
+
+    if {$fam != ""} {
+      set new_base [pgv_eco_cell $fam $net_load $org_base]   
+    } else {
+      puts $fpo "# $line cannot be sized as $fam does not exist in script"
+      continue
+    }
+
+    regexp {(\d+)BWP} $org_base match org_drv
+    regexp {(\d+)BWP} $new_base match new_drv
+
+    if {$new_drv > $org_drv} {
+      set new_base $org_base
+     } 
+
+    if {$new_base == $org_base} { 
+      puts $fpo "#Inst: $line Load:$net_load Org:$org_base New:$new_base TAG:NO_ECO_POSSIBLE"
+      puts $fpo ""
+    } else {
+      puts $fpo "#Inst: $line Load:$net_load Org:$org_base New:$new_base TAG:ECO_POSSIBLE"
+      puts $fpo "eco_update_cell -insts $line -cells $new_base"
+      puts $fpo ""
+    }
+  }
+  close $fp
+  close $fpo
+}
