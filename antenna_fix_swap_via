@@ -1,0 +1,31 @@
+delete_drc_markers
+read_markers /proj/cayman/wa/jeffb/ANTENNA_FIXES/tpb_pb_partition_cluster_0/ant_AL005T/tpb_pb_partition_cluster_0/antratio/A.R.4.VIA13.rep -type calibre
+#eval_legacy {violationBrowser -no_display_false }
+get_db current_design .markers -if {.user_type == A.R.4:*VIA13 } -foreach {
+    set box [get_db $object .bbox]
+    select_obj [get_db [get_obj_in_area -area $box -obj_type via] -if {.via_def.name == NR_VIA14* }]
+    }
+edit_update_via -selected -to VIA1314_1cut
+deselect_obj -all
+
+delete_drc_markers
+read_markers /proj/cayman/wa/jeffb/ANTENNA_FIXES/tpb_pb_partition_cluster_0/ant_AL005T/tpb_pb_partition_cluster_0/antratio/A.R.4.VIA12.rep -type calibre
+#eval_legacy {violationBrowser -no_display_false }
+get_db current_design .markers -if {.user_type == A.R.4:*VIA12 } -foreach {
+    set box [get_db $object .bbox]
+    select_obj [get_db [get_obj_in_area -area $box -obj_type via] -if {.via_def.name == NR_VIA13* }]
+    }
+edit_update_via -selected -to VIA1213_1cut
+deselect_obj -all
+
+delete_drc_markers
+read_markers /proj/cayman/wa/jeffb/ANTENNA_FIXES/tpb_pb_partition_cluster_0/ant_AL005T/tpb_pb_partition_cluster_0/antratio/A.R.4.VIA11.rep -type calibre
+#eval_legacy {violationBrowser -no_display_false }
+get_db current_design .markers -if {.user_type == A.R.4:*VIA11 } -foreach {
+    set box [get_db $object .bbox]
+    select_obj [get_db [get_obj_in_area -area $box -obj_type via] -if {.via_def.name == NR_VIA12* }]
+    }
+edit_update_via -selected -to VIA1112_1cut
+deselect_obj -all
+
+delete_drc_markers
