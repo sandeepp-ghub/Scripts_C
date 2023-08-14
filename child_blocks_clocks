@@ -1,0 +1,12 @@
+set fp [open "tpb_top_clk_at.txt" w]
+puts $fp [format "%-40s  %-10s %-10s" "Clk Pin" "Early AT" "Late AT"]
+set blocks { tpb_array_wrapper tpb_dve_wrapper tpb_pseq_pengine_wrapper tpb_aseq_aengine_wrapper tpb_pb_wrapper tpb_interconnect tpb_sb_wrapper tpb_array_sequencer pe_seq sp_seq }
+
+foreach block $blocks {
+  foreach clkp [get_object_name [get_pins -of $block -filter "direction == in && defined(clocks)"]] { 
+    set early_at [get_property [get_pins $clkp] arrival_min_rise]
+    set late_at [get_property [get_pins $clkp] arrival_max_rise]
+    puts $fp [format "%-40s  %6.2f   %6.2f" $clkp $early_at $late_at]
+  }
+}
+close $fp
