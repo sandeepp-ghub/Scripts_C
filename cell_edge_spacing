@@ -1,0 +1,17 @@
+set cell_list {\
+MB6SRLSDFQD1BWP210H6P51CNODLVT \
+MB6SRLSDFQD1BWP210H6P51CNODLVTLL \
+MB6SRLSDFQD1BWP210H6P51CNODSVT \
+MB6SRLSDFQD1BWP210H6P51CNODULVT \
+MB6SRLSDFQD2BWP210H6P51CNODLVT \
+MB6SRLSDFQD2BWP210H6P51CNODSVT \
+MB6SRLSDFQD2BWP210H6P51CNODULVT \
+}
+
+foreach flop $cell_list {
+set_cell_edge_spacing GROUP1 GROUP2 -spacing 0.21
+set_cell_edge_type -cell $flop -top GROUP1 -range {0 0.2}
+set_cell_edge_type -cell $flop -top GROUP2  -range {0 0.2}
+set_cell_edge_type -cell $flop -bottom  GROUP2  -range {0.2 0.4}
+set_cell_edge_type -cell $flop -bottom  GROUP1  -range {0.2 0.4}
+}
