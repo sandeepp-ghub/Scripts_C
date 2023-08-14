@@ -1,0 +1,803 @@
+##################################################################################################################
+# ::df::__add_m1_m2_colorb_shapes
+#
+# DESCRIPTION
+#
+#       N5 Mitigation Flow for M1/M2.DN.3.8 Calibre DRC Errors. Use this proc if pv.signoff.drc results in
+#		M1/M2.DN.3.8 errors.
+
+#		This will add M1/M2 VDD/VSS color B stripes to the error regions marked by the Calibre DRC 	file.
+#		Color B metal stripes will be added to the tracks adjacent to the power rails in each failing 	region.
+# 		Adding strapping the appropriate M1/M2 power rails.
+#		Inserted VDD/VSS stripes and VIAs are marked with the .user_class: M1/M2_fill_power_maskb
+#
+#
+# OPTION keep_exisiting boolean
+# 		Allows existing Color B shapes with the .user_class M1/M2_fill_power_maskb to not be deleted/regenerated during proc call
+#
+#
+# OPTION delete_shapes string
+#		Allows for removal of either or both M1/M2 Color B shapes generated with the 	.user_class M1/M2_fill_power_maskb
+#
+#
+# EXAMPLE
+#		::df::__add_m1_m2_colorb_shapes -keep_exisiting
+#		::df::__add_m1_m2_colorb_shapes -delete_shapes "M1"
+#		::df::__add_m1_m2_colorb_shapes -delete_shapes "M1 M2"
+
+proc get_rect_height {rect} {
+	if {$rect==""} {return 0}
+	set lly [lindex $rect 1]
+	set ury [lindex $rect 3]
+	set dy [expr $ury-$lly]
+	set dy [expr [expr double([expr round([expr $dy*2000])])]/2000]
+	return $dy
+}
+
+proc get_rect_length {rect} {
+	if {$rect==""} {return 0}
+	set llx [lindex $rect 0]
+	set urx [lindex $rect 2]
+	set dx [expr $urx-$llx]
+	set dx [expr [expr double([expr round([expr $dx*2000])])]/2000]
+	return $dx
+}
+
+proc get_rect_center {rect} {
+	if {$rect==""} {return "0 0"}
+	set x [expr ([lindex $rect 0]+[lindex $rect 2])/2]
+	set y [expr ([lindex $rect 1]+[lindex $rect 3])/2]
+	#puts "$x $y"
+	set x [expr [expr double([expr round([expr $x*2000])])]/2000]
+	set y [expr [expr double([expr round([expr $y*2000])])]/2000]
+	return "$x $y"
+}
+
+proc layer_up {layer} {
+        set layer_index [string range $layer 1 [expr [string length $layer]-1]]
+        set layer_up_index [expr $layer_index+1]
+        return "M$layer_up_index"
+}
+proc layer_down {layer} {
+        set layer_index [string range $layer 1 [expr [string length $layer]-1]]
+        set layer_down_index [expr $layer_index-1]
+        return "M$layer_down_index"
+}
+proc via_up {layer} {
+        set layer_index [string range $layer 1 [expr [string length $layer]-1]]
+        #set layer_up_index [expr $layer_index+1]
+        return "VIA$layer_index"
+}
+proc via_down {layer} {
+        set layer_index [string range $layer 1 [expr [string length $layer]-1]]
+        set layer_down_index [expr $layer_index-1]
+        return "VIA$layer_down_index"
+}
+
+
+proc remove_existing_fill {rects layer} {
+	set existing_special_wires [get_obj_in_area -areas $rects -obj_type "special_wire" -layer $layer]
+	set keyword ${layer}_fill_power_maskb
+	set fill_wires [get_db $existing_special_wires -if { .user_class==$keyword}]
+	if {$fill_wires!=""} {
+	        mortar::echo -info -text "    ********** DELETING FILL ************"
+		set existing_special_vias [get_obj_in_area -areas [get_db $fill_wires .rect] -obj_type "special_via" -layer [via_up $layer]]
+		set fill_vias [get_db $existing_special_vias -if { .user_class==$keyword}]
+		delete_obj $fill_vias
+		delete_obj $fill_wires
+	}
+}
+
+
+proc get_cutting_rects {rects dir length gap} {
+	set rect [get_computed_shapes $rects BBOX -output rect]
+	set llx [lindex $rect 0 0]
+	set lly [lindex $rect 0 1]
+	set urx [lindex $rect 0 2]
+	set ury [lindex $rect 0 3]
+	if [regexp horizontal $dir] {
+		set num [expr round([expr ($urx-$llx)/$length])]
+		set interval [expr ($urx-$llx)/$num]
+		set interval [expr [expr double([expr round([expr $interval*2000])])]/2000]
+		set cutting_rects ""
+		for {set i 1} {$i<$num} {incr i} {
+			lappend cutting_rects "[expr $llx+$interval*$i-$gap/2] $lly [expr $llx+$interval*$i+$gap/2] $ury"
+		}
+	} else {
+		set num [expr round([expr ($ury-$lly)/$length])]
+		set interval [expr ($ury-$lly)/$num]
+		set interval [expr [expr double([expr round([expr $interval*2000])])]/2000]
+		set new_rects ""
+		for {set i 1} {$i<$num} {incr i} {
+			lappend cutting_rects "$llx [expr $lly+$interval*$i-$gap/2] $urx [expr $lly+$interval*$i+$gap/2]"
+		}
+	}
+	return $cutting_rects
+}
+
+proc get_track_rects {rects layer effective_track_rects_ vdd_net vss_net is_short_wire} {
+
+	upvar 1 $effective_track_rects_ track_rects
+
+	#set vdd_net [lindex [array names track_rects] 0]
+	#set vss_net [lindex [array names track_rects] 1]
+	#puts "$vdd_net $vss_net"	
+
+	set wire_width [get_db [get_db layers $layer] .width]
+	set layer_direction [get_db [get_db layers $layer] .direction]
+	if [regexp horizontal $layer_direction] {
+		set track_pitch [get_db [get_db layers $layer] .pitch_y]
+	} else {
+		set track_pitch [get_db [get_db layers $layer] .pitch_x]
+	}
+
+	set all_special_wires [get_obj_in_area -areas $rects -obj_type "special_wire" -layer $layer]
+	set stripe_special_wires [get_db $all_special_wires -if { .shape==stripe}]
+	foreach snet "$vdd_net $vss_net" {
+		set swires($snet) [get_db $stripe_special_wires -if { .net.name==$snet}]
+		set wire_rects($snet) [get_db $swires($snet) .rect]
+	}
+
+	if [regexp horizontal $layer_direction] {
+		#looking for M2 MaskB tracks
+		#available track for VDD is the VSS stripe 2 adjacent tracks
+		#available track for VSS is the VDD stripe 2 adjacent tracks
+		foreach snet "$vdd_net $vss_net" {
+			if {$snet==$vdd_net} {
+				set oppsite_snet $vss_net
+			} else {
+				set oppsite_snet $vdd_net
+			}
+			set track_rects($snet) [get_computed_shapes [get_computed_shapes $wire_rects($oppsite_snet) MOVE "0 $track_pitch"] OR [get_computed_shapes $wire_rects($oppsite_snet) MOVE "0 -$track_pitch"] -output rect]
+
+			#gating track_rects by tile rects
+			set track_rects($snet) [get_computed_shapes $track_rects($snet) AND $rects -output rect]
+			#filter out tracks partially overlap with tile rects
+			set track_rects($snet) [get_computed_shapes $track_rects($snet) SIZEY -[expr $wire_width/2-0.0005] -output rect]
+			set track_rects($snet) [get_computed_shapes $track_rects($snet) SIZEY [expr $wire_width/2-0.0005] -output rect]
+		}
+
+	} else {
+		#looking for M1 MaskB tracks
+		#available track for VDD is the VSS stripe 2 adjacent tracks + 1 track shift left
+		#available track for VSS is the VDD stripe 2 adjacent tracks + 1 tracks shift right
+		#VSS could have 2 tracks more but not necessary
+		set track_rects($vdd_net) [get_computed_shapes [get_computed_shapes $wire_rects($vss_net) MOVE "$track_pitch 0"] OR [get_computed_shapes $wire_rects($vss_net) MOVE "-$track_pitch 0"] -output rect]
+		set track_rects($vdd_net) [get_computed_shapes $track_rects($vdd_net) OR [get_computed_shapes $wire_rects($vss_net) MOVE "-[expr $track_pitch*3] 0"] -output rect]
+
+		set track_rects($vss_net) [get_computed_shapes [get_computed_shapes $wire_rects($vdd_net) MOVE "$track_pitch 0"] OR [get_computed_shapes $wire_rects($vdd_net) MOVE "-$track_pitch 0"] -output rect]
+		set track_rects($vss_net) [get_computed_shapes $track_rects($vss_net) OR [get_computed_shapes $wire_rects($vdd_net) MOVE "[expr $track_pitch*3] 0"] -output rect]
+		#set track_rects($vss_net) [get_computed_shapes $track_rects($vss_net) OR [get_computed_shapes $wire_rects($vdd_net) MOVE "[expr $track_pitch*5] 0"] -output rect]
+		#set track_rects($vss_net) [get_computed_shapes $track_rects($vss_net) OR [get_computed_shapes $wire_rects($vdd_net) MOVE "[expr $track_pitch*7] 0"] -output rect]
+
+ 		foreach snet "$vdd_net $vss_net" {
+			#gating track_rects by tile rects
+			set track_rects($snet) [get_computed_shapes $track_rects($snet) AND $rects -output rect]
+			#filter out tracks partially overlap with tile rects
+			set track_rects($snet) [get_computed_shapes $track_rects($snet) SIZEX -[expr $wire_width/2-0.0005] -output rect]
+			set track_rects($snet) [get_computed_shapes $track_rects($snet) SIZEX [expr $wire_width/2-0.0005] -output rect]
+		}
+
+	}
+
+	#incase there is some places not covered by circuit row, gating effective_track_rects with row shapes
+	set rows [get_obj_in_area -areas $rects -obj_type "row"]
+	set row_rects [get_db [get_db $rows -if { .site.name==core}] .rect]
+	foreach snet "$vdd_net $vss_net" {
+		set track_rects($snet) [get_computed_shapes $track_rects($snet) AND $row_rects -output rect]
+	}
+
+	#break the continious track rects into 3um short wire rects
+	if {$is_short_wire==1} {
+		set gap 0.001
+		set length 2.2
+		set cutting_rects [get_cutting_rects $rects $layer_direction $length $gap]
+		foreach snet "$vdd_net $vss_net" {
+			set track_rects($snet) [get_computed_shapes $track_rects($snet) ANDNOT $cutting_rects -output rect]
+		}
+	}	
+
+
+	#return $track_rects
+}
+
+
+proc get_existing_obj_rects {rects layer cut_rects} {
+
+	upvar 1 $cut_rects enlarged_upper_cut_rects
+
+	#enlarge the target rects by 1, to include shapes across boundary
+	set rects [get_computed_shapes $rects SIZE 1 -output rect]
+	
+        set delta_size [ get_db [get_db layers $layer] .pitch_x]
+	set existing_obj_rects ""
+	#looking for existing objects
+        #0314 - PJS replace with new
+	#set existing_wires [get_obj_in_area -areas $rects -obj_type "wire patch_wire special_wire" -layer $layer]
+        set existing_wires [get_obj_in_area -areas $rects -obj_type "wire patch_wire" -layer $layer]
+	foreach existing_wire $existing_wires {
+		set wire_rect [get_db $existing_wire .rect]
+		lappend existing_obj_rects [get_computed_shapes $wire_rect SIZE $delta_size -output rect]
+	}
+	set existing_wires [get_obj_in_area -areas $rects -obj_type "special_wire" -layer $layer]
+
+	foreach existing_wire $existing_wires {
+		set wire_rect [get_db $existing_wire .rect]
+		lappend existing_obj_rects $wire_rect
+	}
+	set lower_vias [get_obj_in_area -areas $rects -obj_type "via special_via" -layer [via_down $layer]]
+	foreach lower_via $lower_vias {
+		set top_rect [get_db $lower_via .top_rects]
+		lappend existing_obj_rects $top_rect
+	}
+	set upper_vias [get_obj_in_area -areas $rects -obj_type "via special_via" -layer [via_up $layer]]
+	set upper_cut_rects ""
+	foreach upper_via $upper_vias {
+		set bottom_rect [get_db $upper_via .bottom_rects]
+		lappend existing_obj_rects $bottom_rect
+		set cut_rect [get_db $upper_via .cut_rects]
+		lappend upper_cut_rects $cut_rect
+	}
+	#enlarge upper_cut_rects by 0.1 to aviod VIAx.S.1.6(pretty pessimistic)
+	#VIAx.S.1.6 didn't apply, use VIAx.S.2 instead, enlarge 0.048
+	set enlarged_upper_cut_rects [get_computed_shapes $upper_cut_rects SIZE 0.048]
+
+	set pins [get_obj_in_area -areas $rects -obj_type "pin"]
+	set existing_pins [get_db $pins -if { .layer.name==$layer}]
+	foreach existing_pin $existing_pins {
+		set pin_rect [get_db [get_db $existing_pin .base_pin.physical_pins.layer_shapes -if { .layer.name==$layer}] .shapes.rect]
+		if {$pin_rect !=""} {
+			set pin_inst [get_db $existing_pin .inst]
+                        #0314 - PJS replace with new
+			#set pin_global_rect [get_transform_shapes -inst $pin_inst -local_pt $pin_rect]
+                        set pin_global_rect [get_computed_shapes [get_transform_shapes -inst $pin_inst -local_pt $pin_rect]  SIZEY $delta_size -output rect ]
+			lappend existing_obj_rects $pin_global_rect
+		}
+	}
+	#need to check if inst with pins has M2 blockage
+	set inst_of_interest [get_db $pins .inst]
+	foreach inst $inst_of_interest {
+		set obs_rect [get_db [get_db $inst .base_cell.obs_layer_shapes -if { .layer.name==$layer}] .shapes.rect]
+		if {$obs_rect !=""} {
+                        #0314 - PJS replace with new
+			#set obs_global_rect [get_transform_shapes -inst $inst -local_pt $obs_rect]
+                        set obs_global_rect [get_computed_shapes [get_transform_shapes -inst $inst -local_pt $obs_rect] SIZEY $delta_size -output rect ]
+			lappend existing_obj_rects $obs_global_rect
+		}
+	}
+
+	set existing_obj_rects [get_computed_shapes $existing_obj_rects OR $existing_obj_rects -output rect]
+	return $existing_obj_rects
+
+}
+
+
+proc get_available_track_rects {effective_track_rects_ existing_obj_rects layer available_track_rects_} {
+	
+	upvar 1 $effective_track_rects_ effective_track_rects
+	upvar 1 $available_track_rects_ available_track_rects
+
+	if [regexp horizontal [get_db [get_db layers $layer] .direction]] {
+		#M2 horizontal wires
+		set track_pitch [get_db [get_db layers $layer] .pitch_y]
+		#search for line end shapes, cut 0.04 on both side in adjacent track to aviod M2.CS.13 and M2.C.14
+		set line_end_shapes [get_computed_shapes [get_computed_shapes $existing_obj_rects SIZEX 0.04] ANDNOT [get_computed_shapes $existing_obj_rects SIZEX -0.04] -output rect]
+		set line_end_shapes_shift_up [get_computed_shapes $line_end_shapes MOVE "0 $track_pitch"]
+		set line_end_shapes_shift_down [get_computed_shapes $line_end_shapes MOVE "0 -$track_pitch"]
+		set risk_shapes [get_computed_shapes $line_end_shapes_shift_up OR $line_end_shapes_shift_down -output rect]
+
+		#looking for available track rects for M2 power fill
+		foreach snet [array names effective_track_rects] {
+			set available_track_rects($snet) [get_computed_shapes $effective_track_rects($snet) ANDNOT $existing_obj_rects -output rect]
+			#shrink by 0.1 to aviod spacing to existing objs, M2.S.xx
+			set available_track_rects($snet) [get_computed_shapes $available_track_rects($snet) SIZEX -0.1]
+			#cut 0.04 on both side in adjacent track to aviod M2.CS.13 and M2.C.14
+			set bad_track_rects($snet) [get_computed_shapes $risk_shapes STRADDLE $available_track_rects($snet) -output rect]
+			set available_track_rects($snet) [get_computed_shapes $available_track_rects($snet) ANDNOT $bad_track_rects($snet) -output rect]
+		}
+	} else {
+		#M1 vertical wires
+		set track_pitch [get_db [get_db layers $layer] .pitch_x]
+		#search for line end shapes, cut 0.04 on both side in adjacent track to aviod M1.CS.13 and M1.C.14
+		set line_end_shapes [get_computed_shapes [get_computed_shapes $existing_obj_rects SIZEY 0.04] ANDNOT [get_computed_shapes $existing_obj_rects SIZEY -0.04] -output rect]
+		set line_end_shapes_shift_right [get_computed_shapes $line_end_shapes MOVE "$track_pitch 0"]
+		set line_end_shapes_shift_left [get_computed_shapes $line_end_shapes MOVE "-$track_pitch 0"]
+		set risk_shapes [get_computed_shapes $line_end_shapes_shift_right OR $line_end_shapes_shift_left -output rect]
+
+		#looking for available track rects for M1 power fill
+		foreach snet [array names effective_track_rects] {
+			set available_track_rects($snet) [get_computed_shapes $effective_track_rects($snet) ANDNOT $existing_obj_rects -output rect]
+			#shrink by 0.1 to aviod spacing to existing objs, M1.S.xx
+			set available_track_rects($snet) [get_computed_shapes $available_track_rects($snet) SIZEY -0.1]
+			#cut 0.04 on both side in adjacent track to aviod M1.CS.13 and M1.C.14
+			set bad_track_rects($snet) [get_computed_shapes $risk_shapes STRADDLE $available_track_rects($snet) -output rect]
+			set available_track_rects($snet) [get_computed_shapes $available_track_rects($snet) ANDNOT $bad_track_rects($snet) -output rect]
+		}
+	}
+
+}
+
+
+proc get_upper_power_rects {rects layer power_rects power_maskA_rects power_maskB_rects} {
+
+	upvar 1 $power_rects shrinked_upper_power_rects
+	upvar 1 $power_maskA_rects shrinked_upper_power_maskA_rects
+	upvar 1 $power_maskB_rects shrinked_upper_power_maskB_rects
+
+	set power_wires [get_obj_in_area -areas $rects -obj_type "special_wire" -layer [layer_up $layer]]
+	foreach snet [array names shrinked_upper_power_rects] {
+		set upper_power_maskB_rects($snet) [get_db [get_db $power_wires -if { .net.name==$snet && .shape==stripe && .mask==2}] .rect]
+		set upper_power_maskA_rects($snet) [get_db [get_db $power_wires -if { .net.name==$snet && .shape==stripe && .mask==1}] .rect]
+		if [regexp horizontal [get_db [get_db layers $layer] .direction]] {
+			#M2
+			#m3 width 0.02, via2 enclosure 0.03, shrink m3_rects by 0.05, then gated by tile rects
+			#shrink via enclosure 0.03 for now, the width 0.02 is shrunk in next step
+			set shrinked_upper_power_maskA_rects($snet) [get_computed_shapes [get_computed_shapes $upper_power_maskA_rects($snet) SIZEY -0.03] AND $rects -output rect]
+			set shrinked_upper_power_maskB_rects($snet) [get_computed_shapes [get_computed_shapes $upper_power_maskB_rects($snet) SIZEY -0.03] AND $rects -output rect]
+		} else {
+			#M1
+			#m2 width 0.02, via2 enclosure 0.03, shrink m2_rects by 0.05, then gated by tile rects
+			#shrink via enclosure 0.03 for now, the width 0.02 is shrunk in next step
+			set shrinked_upper_power_maskA_rects($snet) [get_computed_shapes [get_computed_shapes $upper_power_maskA_rects($snet) SIZEX -0.03] AND $rects -output rect]
+			set shrinked_upper_power_maskB_rects($snet) [get_computed_shapes [get_computed_shapes $upper_power_maskB_rects($snet) SIZEX -0.03] AND $rects -output rect]
+		}
+		set shrinked_upper_power_rects($snet) [get_computed_shapes $shrinked_upper_power_maskA_rects($snet) OR $shrinked_upper_power_maskB_rects($snet) -output rect]
+	}
+
+}
+
+
+proc fill_track_rects {layer available_track_rects_ shrinked_upper_power_rects_ enlarged_upper_cut_rects_ upper_power_maskA_rects_ via_def} {
+
+	upvar 1 $available_track_rects_ available_track_rects
+	upvar 1 $shrinked_upper_power_rects_ shrinked_upper_power_rects
+	upvar 1 $enlarged_upper_cut_rects_ enlarged_upper_cut_rects
+	upvar 1 $upper_power_maskA_rects_ upper_power_maskA_rects
+
+	#selecte the candidate track rects if they satisfy
+	#a. length > length_threshold
+	#b. intersects shrinked_upper_power_rects
+	#c. at least one of the intersection is far away from upper_cut_rects(not intersect enlarged_upper_cut_rects)
+
+	set length_threshold 0.2
+	foreach snet [array names available_track_rects] {
+		set i 0
+		set j 0
+		
+		foreach rect $available_track_rects($snet) {
+			#shrink rect by 0.05 at line ends as well to cover upper layer width 0.02, via enclosure 0.03
+			#need to shrink upper_power_rects further by 0.02, incase the it could full cross the available_track_rects
+			if [regexp horizontal [get_db [get_db layers $layer] .direction]] {
+				#M2
+				if {[get_rect_length $rect]<$length_threshold} {continue}
+				set cross_rects [get_computed_shapes [get_computed_shapes $rect SIZEX -0.05] AND [get_computed_shapes $shrinked_upper_power_rects($snet) SIZEY -0.02] -output rect]
+			} else {
+				#M1
+				if {[get_rect_height $rect]<$length_threshold} {continue}
+				set cross_rects [get_computed_shapes [get_computed_shapes $rect SIZEY -0.05] AND [get_computed_shapes $shrinked_upper_power_rects($snet) SIZEX -0.02] -output rect]
+			}
+			if {$cross_rects!=""} {
+				set valid_cross 0
+				#incase this cross rect is partial rect due to shrink rect, need to restore it to full rect
+				if [regexp horizontal [get_db [get_db layers $layer] .direction]] {
+					#M2
+					set full_cross_rects [get_computed_shapes [get_computed_shapes $cross_rects SIZEX 0.02] AND $shrinked_upper_power_rects($snet) -output rect]
+				} else {
+					#M1
+					set full_cross_rects [get_computed_shapes [get_computed_shapes $cross_rects SIZEY 0.02] AND $shrinked_upper_power_rects($snet) -output rect]
+				}
+				foreach full_cross_rect $full_cross_rects {
+					if {[get_computed_shape $full_cross_rect AND $enlarged_upper_cut_rects]==""} {
+						set valid_cross 1
+						set fill_via [create_via -shape fillwire -location [get_rect_center $full_cross_rect] -net $snet -via_def $via_def -user_class ${layer}_fill_power_maskb -status routed]
+						set_db $fill_via .cut_mask 0
+						set_db $fill_via .bottom_mask 2
+						if {[get_computed_shapes $full_cross_rect AND $upper_power_maskA_rects($snet)]!=""} {
+							set_db $fill_via .top_mask 1
+						} else {
+							set_db $fill_via .top_mask 2
+						}
+						incr j
+					}
+				}
+				if {$valid_cross==1} {
+					set fill_shape [create_shape -shape fillwire -rect $rect -net $snet -layer $layer -user_class ${layer}_fill_power_maskb -status routed]
+					set_db $fill_shape .mask 2
+					incr i
+				}
+			}
+		}
+		mInfo "added $i $layer $snet shapes, $j [via_up $layer] $snet vias"
+	}
+
+}
+
+
+proc get_rid_of_tab {rects direction num} {
+
+	if [regexp horizontal $direction] {
+		set new_rects [get_computed_shapes $rects SIZEX -[expr $num/2] -output rect]
+		set new_rects [get_computed_shapes $new_rects SIZEX [expr $num/2] -output rect]
+	} else {
+		set new_rects [get_computed_shapes $rects SIZEY -[expr $num/2] -output rect]
+		set new_rects [get_computed_shapes $new_rects SIZEY [expr $num/2] -output rect]
+	}
+	return $new_rects
+}
+
+proc fill_track_rects_new {layer available_track_rects_ shrinked_upper_power_maskA_rects_ shrinked_upper_power_maskB_rects_ enlarged_upper_cut_rects_ via_def tile full_proc_call} {
+
+	upvar 1 $available_track_rects_ available_track_rects
+	upvar 1 $shrinked_upper_power_maskA_rects_ shrinked_upper_power_maskA_rects
+	upvar 1 $shrinked_upper_power_maskB_rects_ shrinked_upper_power_maskB_rects
+	upvar 1 $enlarged_upper_cut_rects_ enlarged_upper_cut_rects
+
+	#try to use shape calculation to improve runtime
+	
+	set wire_width [get_db [get_db layers $layer] .width]
+	set dir [get_db [get_db layers $layer] .direction]
+	set uplayer_dir [get_db [get_db layers [layer_up $layer]] .direction]
+	set uplayer_width [get_db [get_db layers [layer_up $layer]] .width]
+	set length_threshold 0.2
+	foreach snet [array names available_track_rects] {
+
+		#
+		#step 1. get rid of track rects which length<=length_threshold
+		#
+		set available_track_rects($snet) [get_rid_of_tab $available_track_rects($snet) $dir $length_threshold]
+
+		#
+		#step 2. looking for intersection with shrinked_upper_power_maskA_rects and shrinked_upper_power_maskB_rects
+		#
+
+		#shrink rect by 0.03 at line ends as well to cover via enclosure 0.03
+		if [regexp horizontal [get_db [get_db layers $layer] .direction]] {
+			#M2
+			set cross_maskA_rects [get_computed_shapes [get_computed_shapes $available_track_rects($snet) SIZEX -0.03] AND $shrinked_upper_power_maskA_rects($snet) -output rect]
+			set cross_maskB_rects [get_computed_shapes [get_computed_shapes $available_track_rects($snet) SIZEX -0.03] AND $shrinked_upper_power_maskB_rects($snet) -output rect]
+		} else {
+			#M1
+			set cross_maskA_rects [get_computed_shapes [get_computed_shapes $available_track_rects($snet) SIZEY -0.03] AND $shrinked_upper_power_maskA_rects($snet) -output rect]
+			set cross_maskB_rects [get_computed_shapes [get_computed_shapes $available_track_rects($snet) SIZEY -0.03] AND $shrinked_upper_power_maskB_rects($snet) -output rect]
+		}
+
+		#gui_delete_objs -all
+		#puts [llength [concat $cross_maskA_rects $cross_maskA_rects]]
+		#foreach rect $cross_maskA_rects {create_gui_shape -rect $rect -layer debug -width 2}
+		#foreach rect $cross_maskB_rects {create_gui_shape -rect $rect -layer debug -width 2}
+
+		#get rid of partial cross both X and Y
+		set cross_maskA_rects [get_rid_of_tab $cross_maskA_rects $dir [expr $wire_width-0.001]]
+		set cross_maskB_rects [get_rid_of_tab $cross_maskB_rects $dir [expr $wire_width-0.001]]
+		
+		set cross_maskA_rects [get_rid_of_tab $cross_maskA_rects $uplayer_dir [expr $uplayer_width-0.001]]
+		set cross_maskB_rects [get_rid_of_tab $cross_maskB_rects $uplayer_dir [expr $uplayer_width-0.001]]
+
+		#gui_delete_objs -all
+		#foreach rect $cross_maskA_rects {create_gui_shape -rect $rect -layer debug -width 2}
+		#foreach rect $cross_maskB_rects {create_gui_shape -rect $rect -layer debug -width 2}
+
+
+		#
+		#step 3. validate intersections away from enlarged_upper_cut_rects, drop vias
+		#
+		set bad_cross_maskA_rects_inside [get_computed_shapes $cross_maskA_rects INSIDE $enlarged_upper_cut_rects -output rect]
+		set bad_cross_maskA_rects_straddle [get_computed_shapes $cross_maskA_rects STRADDLE $enlarged_upper_cut_rects -output rect]
+		set valid_cross_maskA_rects [get_computed_shapes $cross_maskA_rects ANDNOT [get_computed_shapes $bad_cross_maskA_rects_inside OR $bad_cross_maskA_rects_straddle] -output rect]
+		set bad_cross_maskB_rects_inside [get_computed_shapes $cross_maskB_rects INSIDE $enlarged_upper_cut_rects -output rect]
+		set bad_cross_maskB_rects_straddle [get_computed_shapes $cross_maskB_rects STRADDLE $enlarged_upper_cut_rects -output rect]
+		set valid_cross_maskB_rects [get_computed_shapes $cross_maskB_rects ANDNOT [get_computed_shapes $bad_cross_maskB_rects_inside OR $bad_cross_maskB_rects_straddle] -output rect]
+		#these valid rects are fine to drop vias
+		set j 0
+		foreach rect $valid_cross_maskA_rects {
+
+			set fill_via [create_via -shape corewire -location [get_rect_center $rect] -net $snet -via_def $via_def -user_class ${layer}_fill_power_maskb -status routed]
+			set_db $fill_via .cut_mask 0
+			set_db $fill_via .bottom_mask 2
+			set_db $fill_via .top_mask 1
+			incr j
+		}
+		foreach rect $valid_cross_maskB_rects {
+			set fill_via [create_via -shape corewire -location [get_rect_center $rect] -net $snet -via_def $via_def -user_class ${layer}_fill_power_maskb -status routed]
+			set_db $fill_via .cut_mask 0
+			set_db $fill_via .bottom_mask 2
+			set_db $fill_via .top_mask 2
+			incr j
+		}
+
+
+		#
+		#step 4. looking for track rects touching these valid cross rects, drop wires
+		#
+		
+		set valid_via_rects [get_computed_shapes $valid_cross_maskA_rects OR $valid_cross_maskB_rects -output rect]
+		set i 0
+		foreach rect $available_track_rects($snet) {
+			if {[get_computed_shapes $rect AND $valid_via_rects]!=""} {
+				set fill_shape [create_shape -shape corewire -rect $rect -net $snet -layer $layer -user_class ${layer}_fill_power_maskb -status routed]
+				set_db $fill_shape .mask 2
+				incr i
+				
+				if {[get_db $fill_shape .width] != "0.02" && [get_db [get_db $fill_shape .layer] .name] == "M1"} {
+				
+				        set delete_area [get_db $fill_shape .rect]
+				        set delete_reg_vias [get_obj_in_area -areas $delete_area -layers "M1" -obj_type via]
+				        set delete_special_vias [get_obj_in_area -areas $delete_area -layers "M1" -obj_type special_via]
+				        set delete_vias [concat $delete_reg_vias $delete_special_vias]
+				        foreach via $delete_vias {
+				                if {[get_db $via .user_class] == "M1_fill_power_maskb"} {
+				                        puts "Deleting Violation VIA: $via"
+				                        delete_obj $via
+				                }
+				        }
+				        puts "** Deleting Violation Fill Shape: $fill_shape"
+				        delete_obj $fill_shape
+				} else {
+				    incr i
+				}
+
+			}
+		}
+
+		
+		mInfo "added $i $layer $snet shapes, $j [via_up $layer] $snet vias"
+
+	}
+}
+
+
+
+proc process_tile {rects vdd_net vss_net layer via_def keep_existing full_proc_call} {
+
+	#
+	#step 1. remove existing fill shapes
+	#
+	if {$keep_existing == 0} {
+	        remove_existing_fill $rects $layer
+        }
+
+	#
+	#step 2. get potential track shapes to fill
+	#
+	foreach snet "$vdd_net $vss_net" {
+		set effective_track_rects($snet) ""
+	}
+	get_track_rects $rects $layer effective_track_rects $vdd_net $vss_net 1
+	#puts 2
+	
+	#parray effective_track_rects
+	#gui_delete_objs -all
+	#foreach snet "$vdd_net $vss_net" {foreach rect $effective_track_rects($snet) {create_gui_shape -rect $rect -layer debug -width 2}}
+
+	#
+	#step 3. looking for existing objects on that layer, merge all shapes
+	#
+	set enlarged_upper_cut_rects ""
+	set existing_obj_rects [get_existing_obj_rects $rects $layer enlarged_upper_cut_rects]
+	#puts 3
+
+	#gui_delete_objs -all
+	#foreach rect $enlarged_upper_cut_rects {create_gui_shape -rect $rect -layer debug -width 2}
+	#foreach rect $existing_obj_rects {create_gui_shape -rect $rect -layer debug -width 2}
+
+	#
+	#step 4. calculate empty track rects to fill, take account DRC aviodence measures
+	#
+	foreach snet "$vdd_net $vss_net" {
+		set available_track_rects($snet) ""
+	}
+	get_available_track_rects effective_track_rects $existing_obj_rects $layer available_track_rects
+	#puts 4
+
+	#parray available_track_rects
+	#gui_delete_objs -all
+	#foreach snet "$vdd_net $vss_net" {foreach rect $available_track_rects($snet) {create_gui_shape -rect $rect -layer debug -width 2}}
+	
+	#
+	#step 5. looking for existing upper layer power stripes to hook up
+	#
+	foreach snet "$vdd_net $vss_net" {
+		set shrinked_upper_power_rects($snet) ""
+		set shrinked_upper_power_maskA_rects($snet) ""
+		set shrinked_upper_power_maskB_rects($snet) ""
+	}
+	get_upper_power_rects $rects $layer shrinked_upper_power_rects shrinked_upper_power_maskA_rects shrinked_upper_power_maskB_rects
+	#puts 5
+	
+	#gui_delete_objs -all
+	#foreach snet "$vdd_net $vss_net" {foreach rect $shrinked_upper_power_maskB_rects($snet) {create_gui_shape -rect $rect -layer debug -width 2}}
+
+	
+	#
+	#step 6. select those candidate rects to fill M2 shapes on MaskB
+	#
+	#fill_track_rects $layer available_track_rects shrinked_upper_power_rects enlarged_upper_cut_rects shrinked_upper_power_maskA_rects $via_def
+	fill_track_rects_new $layer available_track_rects shrinked_upper_power_maskA_rects shrinked_upper_power_maskB_rects enlarged_upper_cut_rects $via_def $rects $full_proc_call
+	#puts 6
+
+}
+#::get_obj_in_area -areas {2025.55700, 36.08900 2025.63850 36.22150} -obj_type special_via -layer M1
+proc m1_drc_fix {} {
+    set markers [get_db markers -if {.type == drc}]
+    foreach marker $markers {
+       if {[get_db $marker .subtype] == "Adjacent_Cut_Four_Cuts"} {
+        mInfo "[get_db $marker .subtype] Error Found. Fixing..."
+        set error_region [lindex [get_db $marker .bbox] 0]
+        set error_region [get_db $marker .bbox]
+
+
+        set problem_special_vias [::get_obj_in_area -areas $error_region -obj_type special_via -layer M1]
+        set problem_reg_vias [::get_obj_in_area -areas $error_region -obj_type via -layer M1]
+        set problem_vias [concat $problem_special_vias $problem_reg_vias]
+        set fixed 0
+        foreach via $problem_vias {
+                if {$fixed} {
+                        break
+                } else {
+                        if {[get_db $via .user_class] == "M1_fill_power_maskb"} {
+                                # get center point of via
+                                set point [get_db $via .point]
+                                set via_y [lindex $via 1]
+                                # Find fill where via sits
+                                # .0160
+                                set via_x [lindex [lindex $point 0] 0]
+                                set via_y [lindex [lindex $point 0] 1]
+
+                                set lx [expr $via_x - 0.008]
+                                set ly [expr $via_y - 0.008]
+                                set rx [expr $via_x + 0.008]
+                                set ry [expr $via_y + 0.008]
+
+                                set metal_fill_area "{$lx $ly $rx $ry}"
+
+                                # Delete via
+                                #delete_obj $via
+
+                                # Get fill that contacts via
+                                set fill_shapes [::get_obj_in_area -areas $metal_fill_area -obj_type special_wire -layer M1]
+
+                                # Remove one via/metal fill pair to account for Mx.R.18 (Adjacent_Cut_Four_Cuts)
+                                foreach fill_shape $fill_shapes {
+                                        if {[get_db $fill_shape .user_class] == "M1_fill_power_maskb"} {
+                                                mInfo "Removing Via: $via"
+                                                delete_obj $via
+                                                mInfo "Removing Metal fill: $fill_shape"
+                                                delete_obj $fill_shape
+                                                set fixed 1
+                                                break
+                                        }
+                                }
+
+                        }
+                }
+        }
+
+       }
+
+    }
+
+}
+
+
+############################### END OF HELPER PROCS #####################################################
+
+#main run script
+proc df::__add_m1_m2_colorb_shapes {args} {
+        mortar::parse_args $args {
+        {"delete_shapes" delete_layers string 0}
+        {"keep_existing" keep_existing boolean}
+        } {
+                if {[info exist delete_layers]} {
+                        set delete_layers [split $delete_layers " "]
+                        mortar::echo -info -text "Deleting fill for layers: $delete_layers"
+                }
+                if {[info exist keep_existing]} {
+                        mortar::echo -info -text "Existing fill will not be removed"
+                        set keep_existing 1
+                } else {
+                        set keep_existing 0
+                }
+
+	        set vdd_net [get_db [get_db current_design .power_domains -if { .is_default==true}] .primary_power_net.name]
+	        if {$vdd_net==""} {set vdd_net VDD}
+	        set vss_net [get_db [get_db current_design .power_domains -if { .is_default==true}] .primary_ground_net.name]
+	        if {$vss_net==""} {set vss_net VSS}
+	        #create Via1 and Via2 to hook up to upper layer power stripe
+	        if {[get_db via_defs M1_POWER_FILL]==""} {
+		        #create_via_definition -via_rule VIAGEN12 -cut_size "0.016 0.016" -cut_spacing "0.032 0.032" -row_column "1 1" -bottom_enclosure "0.002 0.03" -top_enclosure "0.03 0.002" -name M1_POWER_FILL
+		        create_via_definition -cut_layer VIA1 -top_layer M2 -bottom_layer M1 -cut_rects "-0.008 -0.008 0.008 0.008" -top_rects "-0.038 -0.01 0.038 0.01" -bottom_rects "-0.01 -0.038 0.01 0.038" -name M1_POWER_FILL -top_layer_masks 1 -bottom_layer_masks 2
+	        }
+	        if {[get_db via_defs M2_POWER_FILL]==""} {
+		        #create_via_definition -via_rule VIAGEN23 -cut_size "0.016 0.016" -cut_spacing "0.036 0.036" -row_column "1 1" -bottom_enclosure "0.03 0.002" -top_enclosure "0.002 0.03" -name M2_POWER_FILL
+		        create_via_definition -cut_layer VIA2 -top_layer M3 -bottom_layer M2 -cut_rects "-0.008 -0.008 0.008 0.008" -bottom_rects "-0.038 -0.01 0.038 0.01" -top_rects "-0.01 -0.038 0.01 0.038" -name M2_POWER_FILL -top_layer_masks 1 -bottom_layer_masks 2
+	        }
+
+	        if [info exist tile_x] {unset tile_x}
+	        if [info exist tile_y] {unset tile_y}
+	        set tile_x(M1) 12
+	        set tile_y(M1) 12
+	        set tile_x(M2) 15
+	        set tile_y(M2) 15
+
+	        if [info exist markers] {unset markers}
+	        foreach layer "M1 M2" {
+
+		        set total_marker_area 0
+		        set drc_rule ${layer}.DN.3.8
+		        set markers($layer) [get_db markers -if { .originator==external && .user_originator==Calibre && .user_type==$drc_rule}]
+		        #set markers [get_db selected]
+		        set total_marker [llength $markers($layer)]
+		        mInfo "There are $total_marker $drc_rule marker(s) in DB"
+		        if {$total_marker>0} {
+			        set i 0
+			        set k 0
+			        foreach marker $markers($layer) {
+				        incr i
+				        #set marker_bbox [get_db $marker .bbox]
+				        set marker_polygon [get_db $marker .polygon]
+				        set total_marker_area [expr $total_marker_area + [get_computed_shapes $marker_polygon -output area]]
+
+				        set tiles ""
+				        set offsetx [expr $tile_x($layer)-[expr fmod([get_db $marker .bbox.dx],$tile_x($layer))]]
+				        set offsety [expr $tile_y($layer)-[expr fmod([get_db $marker .bbox.dy],$tile_y($layer))]]
+				        set startx [expr [get_db $marker .bbox.ll.x]-$offsetx/2]
+				        set starty [expr [get_db $marker .bbox.ll.y]-$offsety/2]
+				        set endx [get_db $marker .bbox.ur.x]
+				        set endy [get_db $marker .bbox.ur.y]
+				        set currentx $startx
+				        set currenty $starty
+				        while {$currentx < $endx} {
+					        while {$currenty < $endy} {
+						        set tile_rect "$currentx $currenty [expr $currentx+$tile_x($layer)] [expr $currenty+$tile_y($layer)]"
+						        if {[get_computed_shapes $tile_rect AND $marker_polygon]!=""} {
+							        lappend tiles $tile_rect
+						        }
+						        set currenty [expr $currenty+$tile_y($layer)]
+					        }
+					        set currentx [expr $currentx+$tile_x($layer)]
+					        set currenty $starty
+				        }
+		
+				        set total_tile [llength $tiles]
+				        mInfo "process #$i of $total_marker markers, total $total_tile tiles in this marker"
+				        set j 0
+				        foreach tile $tiles {
+					        incr j
+					        mInfo "process #$j of $total_tile tiles in marker #$i..."
+					        #mInfo "Tile $tile"
+					        if {[info exist delete_layers]} {
+					                if {$layer in $delete_layers} {
+					                        remove_existing_fill $tile $layer
+					                }
+					
+					        } else {
+					                set full_proc_call "process_tile $tile $vdd_net $vss_net $layer ${layer}_POWER_FILL $keep_existing"
+					                process_tile $tile $vdd_net $vss_net $layer ${layer}_POWER_FILL $keep_existing $full_proc_call
+					
+					
+				                }
+					        incr k
+				        }
+			        }
+			        if {![info exist delete_layers]} {
+			                mInfo "Fix on $layer is completed, total marker area $total_marker_area, total $k tiles are processed"
+		                }
+		        }
+	        }
+	
+	
+        # Now check error markers and delete via issues
+        if {![info exist delete_layers]} {
+                mInfo "Running DRC Checks for metal fill errors..."
+                mdc::check_drc -layer "M1 M2"
+                m1_drc_fix
+                mInfo "******** Checking Complete ********"
+        }
+
+        mInfo "   End of Proc"
+
+
+        }
+}
+
+
