@@ -1,0 +1,52 @@
+if {[mVar SESSION(session) -regexp lec]} {
+mVar UPF([mVar DESIGN]) -unset
+mVar UPF([mVar DESIGN],golden) -unset
+}
+
+mVar INFILE([mVar DESIGN],ec_constraints) {/mrvl2g/cayman_extvol08/cayman/cayman/wa_008/bkillampalli/lec_constraints_rlm.dft}
+mVar VERILOG([mVar DESIGN],golden) {/proj/cayman/release/dfx_top.1.0A/DE1p5.DFT.dft.3.insert_tp_scan.2021_11_03_04_13_26/dataout/dfx_top.tes.dft.gate.v}
+mVar VERILOG([mVar DESIGN]) {/mrvl2g/aw5_xtl_cayman/cayman/cayman/release/dfx_top.1.0A/DE1p5.PNR.release.signoff.2021_11_19_11_39_26/invcui.signoff.qrcprep/dataout/dfx_top.invcui.signoff.qrcprep.common_dataout.v.gz}
+ 
+###constraints for IJTAG ports
+add_pin_constraints 0 ijtag_si    -revised
+add_ignored_output    ijtag_so    -revised
+##constraints for SE to keep design is in functional logic
+add_pin_constraints 0 scan_en   -both
+##constraints for EDT logic
+add_ignored_output *_c1_DFT_EDTOUT* -revised
+### Memory port Constraints
+### Diagnosis chains are through the ports of SI_Q ,SI_QB ,SI_Q_L and SI_Q_LB so not adding these ports for ignored category
+add_ignored_input SI_D_LA -module sa*ls0g4*mg0  -both
+#### To make child module into BBOX
+add_black_box -module hbm_ctrl -both
+add_black_box -module CWGDSK -both
+### To ignore child ports
+add_ignored_input hbm_ctrl_c1_DFT_EDTIN* -module hbm_ctrl  -revised
+### TDR Bits scan_mode and dft_rst_disable
+add_primary_input u_dfx/ijtag_regs/atpg_ctrl/TDR/i_data_reg/dout_reg_0_/Q -both
+add_pin_constraints 0 u_dfx/ijtag_regs/atpg_ctrl/TDR/i_data_reg/dout_reg_0_/D -both
+
+if { [regexp {lec.signoff.g2g} [mVar SESSION(name)]] } {
+   mVar SESSION(lec.signoff.g2g,env,VERSION_LEC) "22.10.000"
+   set golden_file [open "golden_netlists.f" "w"]
+   puts $golden_file "/proj/cayman/designset/cayman.DE3_DFT/tpb_pb_wrapper/tpb_pb_wrapper.v"
+   puts $golden_file "/proj/cayman/designset/cayman.DE3_DFT/tpb_pb_partition_cluster_0/tpb_pb_partition_cluster_0.v"
+   puts $golden_file "/proj/cayman/designset/cayman.DE3_DFT/tpb_pb_partition_cluster_1/tpb_pb_partition_cluster_1.v"
+   puts $golden_file "/proj/cayman/designset/cayman.DE3_DFT/tpb_pb_partition_cluster_2/tpb_pb_partition_cluster_2.v"
+   puts $golden_file "/proj/cayman/designset/cayman.DE3_DFT/tpb_pb_partition_cluster_3/tpb_pb_partition_cluster_3.v"
+   puts $golden_file "/proj/cayman/memcache/synopsys/ts05p0g42p11sacul256sa11p1/a11p1/memgen_2022.09.000/saculs0g4u2p128x70m2b1w1c1p0d0r1rm4rw00e10zh0h0ms0mg0/verilog/saculs0g4u2p128x70m2b1w1c1p0d0r1rm4rw00e10zh0h0ms0mg0_tt0p85v85c.v"
+   close $golden_file
+   mVar VERILOG([mVar DESIGN],golden) "golden_netlists.f"
+   set revised_file [open "revised_netlists.f" "w"]
+   puts $revised_file "${parent_track}/invcui.signoff.eco/dataout/tpb_pb_wrapper.invcui.signoff.eco.common_dataout.v.gz"
+   puts $revised_file "${child_0_track}/invcui.signoff.eco/dataout/tpb_pb_partition_cluster_0.invcui.signoff.eco.common_dataout.v.gz"
+   puts $revised_file "${child_1_track}/invcui.signoff.eco/dataout/tpb_pb_partition_cluster_1.invcui.signoff.eco.common_dataout.v.gz"
+   puts $revised_file "${child_2_track}/invcui.signoff.eco/dataout/tpb_pb_partition_cluster_2.invcui.signoff.eco.common_dataout.v.gz"
+   puts $revised_file "${child_3_track}/invcui.signoff.eco/dataout/tpb_pb_partition_cluster_3.invcui.signoff.eco.common_dataout.v.gz"
+   puts $revised_file "/proj/cayman/memcache/synopsys/ts05p0g42p11sacul256sa11p1/a11p1/memgen_2022.09.000/saculs0g4u2p128x70m2b1w1c1p0d0r1rm4rw00e10zh0h0ms0mg0/verilog/saculs0g4u2p128x70m2b1w1c1p0d0r1rm4rw00e10zh0h0ms0mg0_tt0p85v85c.v"
+   close $revised_file
+   mVar VERILOG([mVar DESIGN]) "revised_netlists.f"
+   mVar INFILE(tpb_pb_wrapper,mbff_inpin_map) "${eco_track}/invcui.signoff.eco/dataout/tpb_pb_wrapper.invcui.signoff.eco.common_dataout.fv/invs/tpb_pb_wrapper/tpb_pb_wrapper.map.mp"
+   mVar INFILE([mVar DESIGN],ec_constraints) "/proj/cayman/DE3/asic-dft/lec/[mVar DESIGN].PD.tcl"
+   mVar UPF([mVar DESIGN]) ""
+}
