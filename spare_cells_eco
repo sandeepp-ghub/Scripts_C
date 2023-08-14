@@ -1,0 +1,22 @@
+set_multi_cpu_usage -keep_license true
+# set below prior to running df::spare_cells
+set_db place_detail_eco_priority_insts fixed
+foreach spare_entry [mVar FLOW(m1dpe_pnr_spare_cells)] {
+lassign $spare_entry spare_prefix spare_tilex spare_tiley spare_group;
+::df::spare_cells -insert -prefix $spare_prefix  -tile_x $spare_tilex  -tile_y $spare_tiley  -group $spare_group  -place  -place_randomize
+}
+
+#Spare cells/modules will be inserted and there will be overlaps to the child block aengine. Carefully move the spare module regions to a legal location nearby.
+#OR
+#source /proj/cayman/extvols/wa_002/aarock/scripts/fix_spare_regions.tcl
+#fix_spare_regions 25
+
+# set below to help with max_distance spread for place_detail
+set_db place_detail_eco_max_distance 10
+# refine Place
+place_detail -eco true ; # check if there are no overlaps w.r.t. spare cells
+# set below after mdc::check_place is clean
+set_db place_detail_eco_priority_insts placed
+# set below prior to route_eco to have minimal impact on the design
+set_db [get_db insts SPARE_CELL*] .pins.net.weight 0
+route_eco;  
