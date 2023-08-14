@@ -1,0 +1,5 @@
+set_db route_design_with_timing_driven false
+set_db route_design_with_si_driven false
+set_db opt_hold_target_slack -0.999
+set_db opt_setup_target_slack -0.999
+set_db opt_power_effort none
