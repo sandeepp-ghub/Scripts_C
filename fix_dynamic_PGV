@@ -1,0 +1,144 @@
+
+
+
+source /proj/cayman/wa/seth/scripts/pgv_fix_procs.tcl
+source /proj/cayman/wa/seth/tools.tcl
+source /proj/cayman/wa/seth/scripts/utils.tcl
+
+
+#grep "set inst_name" ../../../../track.DE3_Jan13postDFT_pd_1162_run103_baseline_eco8/pgv.signoff.dynamic.top/dynamic_run/adsRpt/psi_highlight_fails | grep -v hbm_group | grep -v fab_group | awk '{print "set_inst_padding -top_side 1 -bottom_side 1 -left side 4 -right_side 4 -inst " $3}' > xbar_top_32_eco.tcl
+
+#Source the tcl in tempus session
+#
+#fix_pgv <ifile with the list of instances to downsize>
+#
+#O/P: pgv_eco.tcl
+#It will be in the directory where you run the proc
+
+set psi_hl_fails "/proj/cayman/wa/shiriyurputt/impl/tpb_interconnect.1.0A/track.PGV_trials_4density_mahesh_3_L_shape_axi_interactive_short_fixECO/pgv.signoff.dynamic.top/dynamic_run/adsRpt/psi_highlight_fails"
+#set psi_rpt_dir [file dirname $psi_hl_fails]
+
+#exec /proj/cayman/wa/gford/tcl/split_pgv_dynamic_hxw $psi_rpt_dir
+#
+#set hxw_fails_file $psi_rpt_dir/psi_highlight_fails.HXW
+#
+#if { ! [file exists $hxw_fails_file] } {
+#  puts "$hxw_fails file does NOT exist!"
+#  exit
+#}
+
+proc create_pgv_eco_from_psi { psi_hl_fails_file {pfx ""}} {
+
+  set lines [f2l $psi_hl_fails_file]
+
+  set tot_lines [llength $lines]
+  puts ""
+
+  set fpfx ""
+  if { $pfx != "" } {
+    set fpfx "${pfx}."
+  }
+
+
+  set inst_names [list ]
+
+  foreach line $lines {
+    set fields [regexp -inline -all -- {\S+} $line]
+    if { [lindex $fields 1] == "inst_name" } {
+      set inst_name [lindex $fields 2]
+      regsub -all {;} $inst_name {} inst_name
+      if { [regexp {^CIF} $inst_name] } {
+        puts "INFO: Found CIF buffer: $inst_name ... Skipping to avoid CIF re-routes!"
+        continue
+      }
+      if { [llength [get_db insts $inst_name]] } {
+        lappend inst_names $inst_name
+      } else {
+        puts "ERROR: $inst_name does not exist???"
+      }
+    }
+  }
+
+  l2f tmp_insts.txt $inst_names
+
+
+  set curr_dir [pwd]
+
+  set pgv_eco_tcl "$curr_dir/${fpfx}pgv_eco.tcl"
+  set pgv_inst_tcl "$curr_dir/${fpfx}pgv_insts.tcl"
+
+  fix_pgv tmp_insts.txt $pgv_eco_tcl $pgv_inst_tcl
+
+  puts ""
+  puts "Created $pgv_eco_tcl"
+  puts "Created $pgv_inst_tcl"
+  puts ""
+
+  puts "######################################"
+  puts "######################################"
+  puts "## REMEMBER TO ADD THIS TO flow/track_config.tcl when you"
+  puts "## source in this ECO otherwise the ECOed clock cells"
+  puts "## WILL NOT LEGALIZE!!!!!!"
+  puts "######################################"
+  puts "######################################"
+  puts "proc mSessionStartHook_user { args } {"
+  puts "  if { \[mStepStatus eco_place\] ne \"\" } {"
+  puts "    mConfigStep eco_place -pre {"
+  puts "       source $pgv_inst_tcl"
+  puts "       set_db \[get_db insts \$pgv_inst_list\] .place_status soft_fixed"
+  puts "       set_db \[get_db insts \$pgv_inst_list\] .place_status_cts unset"
+  puts "    }"
+  puts "    mConfigStep eco_place -post {"
+  puts "       source $pgv_inst_tcl"
+  puts "       set_db \[get_db insts \$pgv_inst_list\] .place_status fixed"
+  puts "       set_db \[get_db insts \$pgv_inst_list\] .place_status_cts fixed"
+  puts "    }"
+  puts "  }"
+  puts "}"
+
+  #base_cell:DCAP8XPBWP210H6P51CNODLVT
+  #base_cell:DCAP64XPBWP210H6P51CNODLVT
+  #base_cell:DCAP4XPBWP210H6P51CNODLVT
+  #base_cell:DCAP32XPBWP210H6P51CNODLVT
+  #base_cell:DCAP16XPBWP210H6P51CNODLVT
+  #base_cell:DCAP7XPBWP210H6P51CNODLVT
+  #base_cell:DCAP6XPBWP210H6P51CNODLVT
+  #base_cell:DCAP5XPBWP210H6P51CNODLVT
+
+  set sr [dict create \
+    "fab" "HBM_XBAR_WRAPPER\/HBM_XBAR\/axi_top\/fab_group_.\/" \
+    "hbm" "HBM_XBAR_WRAPPER\/HBM_XBAR\/axi_top\/hbm_group_.\/" \
+    "xbt" "HBM_XBAR_WRAPPER\/HBM_XBAR\/" \
+  ]
+
+  if { [dict exists $sr $pfx] } {
+
+    set r [dict get $sr $pfx]
+
+    set tmp_inst "$curr_dir/TMP.${fpfx}pgv_insts.tcl"
+    set tmp_eco "$curr_dir/TMP.${fpfx}pgv_eco.tcl"
+
+    file rename -force $pgv_inst_tcl $tmp_inst
+    file rename -force $pgv_eco_tcl $tmp_eco
+
+    #list with insts with hier stripped
+    set inst_lines [f2l $tmp_inst]
+    set ofp [open $pgv_inst_tcl w]
+    foreach l $inst_lines {
+      regsub -all $r $l {} nl
+      puts $ofp $nl
+    }
+    close $ofp
+
+    #strip hier from ECO
+    set inst_lines [f2l $tmp_eco]
+    set ofp [open $pgv_eco_tcl w]
+    foreach l $inst_lines {
+      regsub -all $r $l {} nl
+      puts $ofp $nl
+    }
+    close $ofp
+
+  }
+}
+
