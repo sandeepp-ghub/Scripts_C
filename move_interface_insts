@@ -1,0 +1,33 @@
+source /mrvl2g/cayman_extvol04/cayman/cayman/wa_004/pkamat/impl/scripts/utils.tcl
+
+package require struct::set
+#set y [get_db [get_obj_in_area -area 3415.81 13.5385 3435.1665 50.653] .name]
+set y [get_db [get_obj_in_area -area 3376.774 199.4305 3387.414 205.1535] .name]
+deselect_obj -all
+gui_select_highlighted
+set x [get_db selected .name]
+set final [::struct::set intersect $x $y]
+
+set fp [open interface w]
+foreach inst $final {
+    puts $fp $inst
+}
+close $fp
+set insts_file [file normalize interface]
+puts $insts_file
+
+set insts [f2l $insts_file]
+set fp [open move_eco.tcl w]
+puts $fp "cayman::remove_postfill"
+foreach inst $insts {
+    set locationx [get_db inst:$inst .location.x]    
+    set locationy [get_db inst:$inst .location.y]
+    puts $fp "place_inst $inst $locationx [expr $locationy + 5] -placed"
+}
+puts $fp "mRunStep eco_place"
+puts $fp "cayman::add_postfill"
+puts $fp "mRunStep eco_route"
+
+close $fp
+
+
