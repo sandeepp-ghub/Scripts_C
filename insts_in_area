@@ -1,0 +1,13 @@
+proc get_cells_in_area {x1 y1 x2 y2} {
+ set ptr [get_cells -hierarchical -filter "@x_coordinate_min >= $x1 && @y_coordinate_min >= $y1 && @x_coordinate_max <= $x2 && y_coordinate_max <= $y2 "]
+ set count 0
+ foreach_in_collection i $ptr {
+   set Inst_name [get_property $i hierarchical_name]
+   set Cell_name [get_property $i ref_lib_cell_name]
+   set x_coord [get_property $i x_coordinate_min]
+   set y_coord [get_property $i y_coordinate_min]
+   puts "Inst : $Inst_name \t Cell : $Cell_name \t location : {$x_coord $y_coord} "
+   incr count
+ }
+ puts "Total cells in the Given area : $count"
+}
