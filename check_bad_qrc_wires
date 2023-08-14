@@ -1,0 +1,18 @@
+#!/proj/mkit/pkgs/minfra/tclkit/kit8.6.11/tclsh
+#
+set f /proj/cayman/extvols/wa_003/spletch/impl/xbar_top_32_1.1.0A/track.DE3_Jan13postDFT_pd_1162_run103_baseline_eco25/qrc.signoff.spef/dataout/xbar_top_32_1.incompletenets
+set bad_nets [list]
+set fi [open $f r]
+while {![eof $fi]} {
+  gets $fi fl
+  if {![string match "- *" $fl]} {
+    set net [lindex [split $fl] end]
+    set p [get_db nets $net]
+    if {$p ne "" && [llength [get_db $p .load_pins]] > 0} {
+      lappend bad_nets $p
+    }
+  }
+}
+catch {close $fi}
+puts "[llength $bad_nets] bad nets"
+
