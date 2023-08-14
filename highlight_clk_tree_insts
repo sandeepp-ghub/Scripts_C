@@ -1,0 +1,28 @@
+#
+# Script to report clock tree instances (sinks, gates, buffers, etc.)
+#
+# Instance names output to $filename
+#
+set filename "clock_instances.rpt"
+set filePtr [open $filename "w"]
+
+puts "Make sure timing Graph is created by running timeDesign"
+set clock_cells { }
+set clock_nets [ get_db [get_db nets -if { .is_clock == 1 } ] .name]
+ foreach net $clock_nets {
+ set instances {}
+ set instances [get_db net:$net .loads.inst.name]
+  lappend clock_cells $instances
+}
+
+set clock_cells_ordered [eval [list concat] $clock_cells]
+set clock_cells_unique [lsort -u $clock_cells_ordered ]
+set counter 0
+foreach inst $clock_cells_unique {
+  puts $filePtr "$inst ([get_db inst:$inst .base_cell.name ])"
+  incr counter
+}
+puts "Total Clock Tree Instances: $counter"
+puts "Output File: $filename"
+close $filePtr
+
