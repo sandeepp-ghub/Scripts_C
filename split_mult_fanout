@@ -1,0 +1,80 @@
+###usage fix_fanout <netName> <Fanout required> <Buffer master name>#########
+proc fix_fanout {net fanout cellname} {
+  set fanout_req $fanout
+  set cell $cellname
+  set net1 $net
+  set net2 [split $net1 /]
+  set length [llength $net2]
+  set length1 [expr $length -1]
+  set net3 [lindex $net2 $length1]
+###Driver of net###
+  set pinout1 [get_property [get_nets $net1] driver_pins]
+  set pinout [get_object_name $pinout1]
+  set module [dbget [dbget -p top.insts.instTerms.name $pinout].inst.hInst.name]
+###Finding fanout of net####
+  set output [all_connected $net1 -leaf ]
+  set fanout_current [sizeof_collection $output]
+  set num [expr $fanout_current/$fanout_req]
+###Parse all fanout into variable####
+  set i 0
+  foreach_in_collection x [all_fanout -from $pinout -pin_levels 1 ] {
+    set x_$i [get_object_name $x]
+    incr i
+  }
+ set i 1
+####Disconnect all instances from current driver###
+  while {$i<$fanout_current} {
+    set cmd x_$i
+    set x2 [eval dbget -p top.insts.instTerms.name $$cmd]
+    set Term_$i [dbget $x2.cellTerm.name]
+    set Inst_$i [ dbget $x2.inst.name]
+    set cmd1 Term_$i
+    set cmd2 Inst_$i 
+    eval detachterm $$cmd2 $$cmd1 $net1
+    incr i
+  }
+###add the buffers
+  set i 0
+  while {$i<$num} {
+    set cmd ${net3}_fanout_net_$i
+    set cmd1 ${net3}_fanout_$i
+    addInst -cell $cell -inst $module/$cmd1
+    addNet $module/$cmd
+    attachTerm $module/$cmd1 A $net1
+    attachTerm $module/$cmd1 Z $module/$cmd
+    incr i
+  }
+###Attach the instances with new buffer##
+  set i 0
+  set j 0
+  set k 1
+  while {$i<$num} {
+    while {$j<$fanout_req} {
+      set cmd1 Term_$k
+      set cmd2 Inst_$k 
+      set cmd ${net3}_fanout_net_$i
+      eval attachTerm $$cmd2 $$cmd1 $module/$cmd
+      incr j
+      incr k
+    }
+    incr i
+    set j 0
+  }
+####Attach the last remaining buffers. e.g fanout is 32 and we want fanout 10.This will connect remaining 2 buffers###
+  if {$k<$fanout_current} {
+    set cmd ${net3}_fanout_net_$i
+    set cmd1 ${net3}_fanout_$i
+    addInst -cell $cell -inst $module/$cmd1
+    addNet $module/$cmd
+    attachTerm $module/$cmd1 A $net1
+    attachTerm $module/$cmd1 Z $module/$cmd
+  }
+  while {$k<$fanout_current} {
+    set cmd1 Term_$k
+    set cmd2 Inst_$k 
+    eval attachTerm $$cmd2 $$cmd1 $module/$cmd
+    incr k
+  }
+}
+
+
