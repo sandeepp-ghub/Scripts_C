@@ -1,0 +1,442 @@
+
+set ::pgv_file_loc [info script]
+
+if { ! [llength [info proc ::mortar::parse_args]] } {
+  source /proj/mkit/pkgs/minfra/mPkg/2022.06.000/mflow_mortar/mortar.tcl
+}
+
+source /proj/cayman/wa/seth/scripts/create_ds_eco_and_padding_from_psi.tcl
+source /mrvl2g/cayman_extvol06/cayman/cayman/wa_006/dabhatia/impl/scripts/pgv_fix_procs_expanded.tcl
+source /proj/cayman/wa/seth/scripts/utils.tcl
+source /proj/cayman/wa/seth/PRODUCTION/downsize_insts.tcl
+
+proc get_cell_delay {tpath inst_base_name} {
+  set timing_points [get_db $tpath .timing_points]
+  #set in_arr 0
+  foreach tpoint $timing_points {
+    set tpin [get_db $tpoint .pin]
+    set name [get_db $tpin .name]
+    if { [regexp $inst_base_name $name] } {
+      set dir [get_db $tpin .direction]
+      if {$dir == "out"} {
+        set dly [get_db $tpoint .delay]
+        return $dly
+      }
+    }
+  }
+  return "NA"
+}
+
+
+proc dump_pgv_insts {args} {
+
+  set area 0
+  set load_split 0
+  set include_io 0
+  set inst_file ""
+
+  ::mortar::parse_args $args {
+    {"area"            area               boolean   0}
+    {"load_split"      load_split         boolean   0}
+    {"include_io"      include_io         boolean   0}
+    {"inst_file"       inst_file          string    0}
+  } {
+
+    set block_name [mVar DESIGN]
+
+    #set /proj/cayman/wa/esayre/impl/combined_psi_highlight_fails/latest/hbm_top_0/combined_psi_highlight_fails___ALL
+
+    set viol_inst_objs [list]
+
+    if { $inst_file != "" } {
+      puts ""
+      puts "VIOL INST FILE: $inst_file"
+      set viol_inst_objs [get_db -uniq insts [f2l $inst_file]]
+    } else {
+      set psi_dir "/proj/cayman/wa/esayre/impl/combined_psi_highlight_fails/latest"
+
+      set psi_hl_file ${psi_dir}/${block_name}/combined_psi_highlight_fails___ALL
+
+      puts ""
+      puts "PSI FILE: $psi_hl_file"
+
+      if { ! [file exists $psi_hl_file] } {
+        puts "ERROR $psi_hl_file does NOT exist!"
+        return
+      }
+      set viol_inst_objs [get_db -uniq [get_fail_insts_from_psi $psi_hl_file]]
+    }
+
+    set num_psi_viols [llength $viol_inst_objs]
+
+    puts "Found $num_psi_viols violating insts"
+
+    set adjacent_insts [list]
+    if { ! $area } {
+      set adjacent_insts $viol_inst_objs
+    } else {
+      set fail_areas [fail_boxes $viol_inst_objs]
+      set adjacent_insts [get_obj_in_area -obj_type {inst} -areas $fail_areas]
+    }
+
+    set filt_adj_insts [get_db [get_db $adjacent_insts -if {.base_cell.base_class == core && \
+                                                            .base_cell.base_name != *d2sdsyncrx* && \
+                                                            .base_cell.base_name != *d2sdsyncsx* && \
+                                                            .base_cell.base_name != *tie* && \
+                                                            .base_cell.base_name != *MRVCK* && \
+                                                            .base_cell.base_name != *SPBUF* && \
+                                                            .name != *SPARE_CELL_REGION* && \
+                                                            .name != *DIODE* && \
+                                                            .name != *CIF* && \
+                                                            .is_physical == false \
+                                                           }] .name]
+
+    set adj_inst_names $filt_adj_insts
+
+    set num_insts_before_filter [llength $adj_inst_names]
+
+
+    #This filters out encIO bufs from the CURRENT DESIGN.
+    #Meaning if this is run at partition level the encIO bufs will not be filtered out
+    if { ! $include_io } {
+
+      set all_ports [get_db ports]
+
+      set all_loads [get_db $all_ports .net.loads]
+      set all_drivers [get_db $all_ports .net.drivers]
+      set all_conn_pin [get_db [concat {*}$all_loads {*}$all_drivers] -if {.obj_type == pin}]
+      set all_io_bufs [get_db $all_conn_pin .inst.name]
+
+      #set io_dict [lmap a $all_io_bufs {set b "$a 1"}]
+      set io_dict [dict create]
+      foreach io_buf_name $all_io_bufs {
+        dict set io_dict $io_buf_name 1
+      }
+
+      set adj_inst_names [lmap {a} $filt_adj_insts { expr { ! [dict exists $io_dict $a] ? $a : [continue] }}]
+      set num_insts_after_filter [llength $adj_inst_names]
+      set num_ios_filtered [expr $num_insts_before_filter - $num_insts_after_filter]
+      puts ""
+      puts "FILTERED $num_ios_filtered encIOs filtered.  (Use -include_io to include encIO buffers to be considered in downsizing)"
+      puts ""
+    }
+
+    #llength $adj_inst_names
+
+    set ofname "$block_name.pgv_insts.tcl"
+    set of [open $ofname w]
+    puts $of "set pgv_inst_info \[dict create \\"
+    if { $load_split } {
+      foreach adj_inst_name $adj_inst_names {
+        set inst_obj [get_db insts $adj_inst_name]
+        set outp_pin [get_db $inst_obj .pins -if {.direction == out}]
+        set outp_wires [get_db $outp_pin .net.wires]
+
+        set wire_bb [get_computed_shapes [get_db $outp_wires .rect] BBOX]
+        set wire_box_x [get_rect $wire_bb -dx]
+        set wire_box_y [get_rect $wire_bb -dy]
+        set wire_bb_sz [expr $wire_box_x + $wire_box_y]
+        puts $of "  $adj_inst_name $wire_bb_sz \\"
+      }
+    } else {
+      foreach adj_inst_name $adj_inst_names {
+        puts $of "  $adj_inst_name 1 \\"
+      }
+    }
+
+    puts $of "\]"
+
+    close $of
+
+    #l2f $ofname $adj_inst_names
+    if { $load_split } {
+      set sfname "tempus_load_splitter.tcl"
+      set sf [open $sfname w]
+      puts $sf "## Wrapper script to source in load splitter"
+      #puts $sf "source  /proj/cayman/wa/seth/PRODUCTION/pgv_v2.tcl"
+      puts $sf "source  $::pgv_file_loc"
+      puts $sf "create_load_split_eco $block_name [pwd]/$ofname"
+      close $sf
+    } else {
+      set sfname "tempus_downsizer.tcl"
+      set sf [open $sfname w]
+      puts $sf "## Wrapper script to source in downsizer"
+      #puts $sf "source  /proj/cayman/wa/seth/PRODUCTION/pgv_v2.tcl"
+      puts $sf "source  $::pgv_file_loc"
+      puts $sf "area_downsize $block_name [pwd]/$ofname -noexpand"
+      close $sf
+    }
+
+    puts ""
+    puts "Created [pwd]/$ofname"
+    puts ""
+    puts "Next Step: IN TEMPUS FLAT PARTITION RUN func_setup_ssgnp0p675v0c_cworstCCwT0c corner"
+    puts "-----------"
+    puts "source [pwd]/$sfname"
+    puts ""
+
+  }
+}
+
+proc area_downsize {args} {
+  set block_name ""
+  set info_file ""
+  set noexpand 0
+  ::mortar::parse_args $args {
+      {"?block_name"            block_name         string    1}
+      {"?info_file"             info_file          string    1}
+      {"noexpand"               noexpand           boolean   0}
+  } {
+    if { [file exists $info_file] } {
+      source $info_file
+    } else {
+      puts "ERROR $info_file does NOT exist!"
+    }
+
+    set tot [dict size $pgv_inst_info]
+
+    #filter out anything with <20ps delay assuming it it a balanced RC path
+    #set filtered_insts [dict filter $pgv_inst_info script {i d} {expr {$d > 20 || $d == "NA"}}]
+    set filtered_insts $pgv_inst_info
+
+    set tot_filt [dict size $filtered_insts]
+
+    set design_name [get_db designs .name]
+
+    if { $design_name == $block_name } {
+      downsize_insts [dict keys $filtered_insts]
+    } else {
+      set module_name $block_name
+      set hier_insts [get_db hinsts -if {.module.name == $module_name}]
+      set hier_inst_names [get_db $hier_insts .name]
+
+      downsize_insts [dict keys $filtered_insts] $hier_inst_names
+    }
+
+    set ck_fname ${block_name}.[exec date +%Y%m%d].ck_insts.tcl
+    set data_fname ${block_name}.[exec date +%Y%m%d].data_insts.tcl
+    set eco_fname ${block_name}.[exec date +%Y%m%d].downsize_eco.tcl
+
+    file rename -force ck_insts.tcl $ck_fname
+    file rename -force data_insts.tcl $data_fname
+    file rename -force downsize_eco.tcl $eco_fname
+
+    puts ""
+    puts "Created [pwd]/$ck_fname"
+    puts "Created [pwd]/$data_fname"
+    puts ""
+    puts "ECO File: [pwd]/$eco_fname"
+    puts ""
+
+    puts "######################################"
+    puts "######################################"
+    puts "## REMEMBER TO ADD THIS TO flow/track_config.tcl when you"
+    puts "## source in this ECO otherwise the ECOed clock cells"
+    puts "## WILL NOT LEGALIZE!!!!!!"
+    puts "######################################"
+    puts "######################################"
+    puts "proc mSessionStartHook_user { args } {"
+    puts "  if { \[mStepStatus eco_place\] ne \"\" } {"
+    puts "    mConfigStep eco_place -pre {"
+    puts "       source [pwd]/$ck_fname"
+    puts "       set_db \[get_db insts \$ck_insts\] .place_status_cts unset"
+    puts "       set_db \[get_db insts \$ck_insts\] .place_status placed"
+    puts "    }"
+    puts "    mConfigStep eco_place -post {"
+    puts "       source [pwd]/$ck_fname"
+    puts "       set_db \[get_db insts \$ck_insts\] .place_status_cts fixed"
+    puts "    }"
+    puts "  }"
+    puts "}"
+  }
+}
+
+proc tpath_by_slack {a b} {
+  set slack_a [get_db $a .slack]
+  set slack_b [get_db $b .slack]
+
+  return [expr { $slack_a < $slack_b } ]
+}
+
+proc create_load_split_eco {args} {
+  set block_name ""
+  set info_file ""
+  set distance_thresh 150
+  set slack_thresh 50
+  set drive_thresh 8
+  ::mortar::parse_args $args {
+      {"?block_name"            block_name         string    1}
+      {"?info_file"             info_file          string    1}
+      {"distance_thresh"        distance_thresh    integer   0}
+      {"slack_thresh"           slack_thresh       integer   0}
+      {"drive_thresh"           drive_thresh       integer   0}
+  } {
+
+    if { [file exists $info_file] } {
+      source $info_file
+    } else {
+      puts "ERROR $info_file does NOT exist!"
+    }
+
+    ::set_multi_cpu_usage -keep_license true
+    set_message -id TCLCMD-513 -suppress
+    set_message -id TCLCMD-1469 -suppress
+
+
+    set tot [dict size $pgv_inst_info]
+
+    #filter out anything with <20ps delay assuming it it a balanced RC path
+    #set filtered_insts [dict filter $pgv_inst_info script {i d} {expr {$d > 20 || $d == "NA"}}]
+    #set filtered_insts $pgv_inst_info
+    #set tot_filt [dict size $filtered_insts]
+    puts ""
+    puts "Filtering [llength $tot] total PGV failing instances"
+    puts "Criteria: wire_bbox > ${distance_thresh}um AND setup slack > ${slack_thresh}ps"
+    puts ""
+
+    set design_name [get_db designs .name]
+
+
+    set hier_inst_names [list]
+    if { $design_name != $block_name } {
+      set module_name $block_name
+      set hier_insts [get_db hinsts -if {.module.name == $module_name}]
+      set hier_inst_names [get_db $hier_insts .name]
+    }
+
+    #ECO
+    set eco_fname ${block_name}.[exec date +%Y%m%d].load_split.eco.tcl
+    set ef [open $eco_fname w]
+
+    #Filter out insts with wire box <200 and slack <50ps
+    puts $ef ""
+    puts $ef "set filtered_insts \[dict create\]"
+    puts $ef ""
+    puts $ef "#dict set filtered_insts INST_NAME \[list WIRE_BOX SLACK CELL_DELAY\]"
+    puts $ef ""
+    set filtered_insts [dict create]
+    set cnt 0
+    dict for {base_inst_name wire_box_size} $pgv_inst_info {
+      if { $cnt && ! [expr $cnt % 100] } { puts "Processing $cnt of $tot ..." }
+      incr cnt
+
+      set thru_insts $base_inst_name
+      if { [llength $hier_inst_names] } {
+        set thru_insts [lmap a $hier_inst_names {get_db insts [string cat $a "/" $base_inst_name]}]
+      }
+
+      set base_cell_name [get_db -uniq $thru_insts .base_cell.base_name]
+      if { ! [regexp {([A-Za-z0-9]+)D([0-9]+)BWP210H6P51CNOD([A-Za-z]+)} $org_base match func drive vt] } {
+        puts "$org_base INVALID_CELL_TYPE"
+        puts $fpe "$org_base INVALID_CELL_TYPE"
+        continue
+      }
+
+      if { $drive <= $drive_thresh } {
+        puts $ef "#CONTINUING past $base_inst_name.  Drive is $drive ($base_cell_name)"
+        continue
+      }
+
+      set slack "NA"
+      set cell_d "NA"
+
+      #puts "SETH thru_insts"
+      #pl $thru_insts
+
+      #Check to see if it is a clock cell.  We NEVER want to load split a clock cell
+      set all_out_pins [get_db $thru_insts .pins -if {.direction == out}]
+      set clocks_exist [llength [get_db $all_out_pins .clocks]]
+      if { $clocks_exist } {
+        puts $ef "#CONTINUING past $base_inst_name.  It is a clock cell.  NEVER load split a clock cell"
+        continue
+      }
+
+      #foreach thru_inst $thru_insts {
+        #set tpath [report_timing -collection -late -through $thru_inst -max_paths 1 -unconstrained]
+      #}
+      set worst_tpath [report_timing -collection -through $thru_insts -max_paths 1 ]
+
+
+      if { [llength $worst_tpath] } {
+        set slack [get_db $worst_tpath .slack]
+        set tpoints [get_db $worst_tpath .timing_points]
+        set cell_d [get_cell_delay $worst_tpath $base_inst_name]
+      }
+
+
+      if { $slack < $slack_thresh } {
+        puts $ef "#CONTINUING past $base_inst_name.  $slack < $slack_thresh (slack_thresh)"
+        continue
+      }
+
+      if { $wire_box_size < $distance_thresh } {
+        puts $ef "#CONTINUING past $base_inst_name.  $slack < $slack_thresh (slack_thresh)"
+        continue
+      }
+
+      puts $ef "dict set filtered_insts $base_inst_name \[list $wire_box_size $slack $cell_d\]"
+      dict set filtered_insts $base_inst_name [list $wire_box_size $slack $cell_d]
+
+      #if { $cnt > 200 } { break }
+    }
+
+
+
+    set tot_filt [dict size $filtered_insts]
+
+
+    puts $ef ""
+    puts $ef ""
+    puts $ef "set sram_insts \[get_db insts -if {.base_cell.base_class == block}\]"
+    puts $ef "if { \[llength \$sram_insts\] } {"
+    puts $ef "  set sram_rects \[get_db \$sram_insts .overlap_rects\]"
+    puts $ef "  set all_lay \[get_db \[get_db layers -if {.route_index > 0}\] .name\]"
+    puts $ef ""
+    puts $ef "  create_route_blockage -name TMP_load_split -layers \$all_lay -rects \$sram_rects"
+    puts $ef "  set rblk_obj \[get_db route_blockages TMP_load_split\]"
+    puts $ef "}"
+    puts $ef ""
+    puts $ef "set outp_pins \[get_db \[get_db insts \[dict keys \$filtered_insts\] .pins -if {.direction == \"out\"}\]"
+    puts $ef "set outp_nets \[get_db \$outp_pins .net.name\]"
+    puts $ef "delete_routes -obj_type {wire via} -net \$outp_nets"
+    puts $ef ""
+    puts $ef "set_db route_early_global_route_selected_net_only true"
+    puts $ef "set_db route_design_selected_net_only true"
+    puts $ef ""
+    puts $ef "route_early_global"
+    
+    #Set up buffering rule
+    set rule_file [file join [pwd] eco_buf.rule]
+    set rf [open $rule_file w]
+    set vt "ULVT"
+    puts $rf "SetInverterMaxNetLength     INVD6BWP210H6P51CNOD${vt}    160.0"
+    puts $rf "SetBufferMaxNetLength       BUFFD6BWP210H6P51CNOD${vt}   160.0"
+    puts $rf "SetInverterMaxRadiusLength  INVD6BWP210H6P51CNOD${vt}    100.0"
+    puts $rf "SetBufferMaxRadiusLength    BUFFD6BWP210H6P51CNOD${vt}   100.0"
+    puts $rf "SetInverterMaxCap           INVD6BWP210H6P51CNOD${vt}    0.3"
+    puts $rf "SetBufferMaxCap             BUFFD6BWP210H6P51CNOD${vt}   0.3"
+    puts $rf "SetInverterMaxFanout        INVD6BWP210H6P51CNOD${vt}    20"
+    puts $rf "SetBufferMaxFanout          BUFFD6BWP210H6P51CNOD${vt}   20"
+    puts $rf "SetDrfaultMaxNetLength                                   100.0"
+    puts $rf "SetDrfaultMaxRadiusLength                                50.0"
+    puts $rf "SetDrfaultMaxCap                                         0.15"
+    puts $rf "SetDistLastRepToSink                                     25.0"
+    puts $rf "SetDrfaultMaxFanout                                      5"
+    close $rf
+
+
+
+    close $ef
+
+    puts ""
+    puts "######################################"
+    puts "######################################"
+    puts "## ADD THIS TO flow/track_config.tcl for invcui.signoff.eco session"
+    puts "######################################"
+    puts "######################################"
+    puts ""
+    puts "mVar TCL(\[mVar DESIGN\],eco_inv) [pwd]/$eco_fname"
+    puts ""
+  }
+}
+
