@@ -1,0 +1,726 @@
+#!/bin/env tclsh
+
+## Quickie unix script to run ZWL (Zero WireLoad) timing on a list of blocks.
+#   - Tom Arneberg, 10/6/2021
+
+source /proj/cayman/wa/tarneberg/code/tcl/general/misc.tcl
+set ::LOGFILE_TEXT ""
+
+#####################################################################
+proc main_loop { } {
+  set blk_suffix     "1.0A"
+  set trackname      "Jul21_DE3_preDFT"
+  set tmpscr_dir     "./tmpscr.zwl"
+  set track_cfg_file "track_config.timing.local_DE3.tcl"
+
+  set ::BLOCKS_TO_RUN {sfabric_sdma_grp0_macro sfabric_sdma_grp1_macro sfabric_sdma_grp2_macro sfabric_tpb0_macro sfabric_tpb1_macro sfabric_d2d_channel_macro sfabric_hbm_channel_macro}
+  source /proj/cayman/DE3/timing/postdft/sdc.current/common/set_design_hierarchy_vars.tcl
+
+  file mkdir $tmpscr_dir
+  set num_blocks [ llength $::BLOCKS_TO_RUN ]
+  set time_step_all [ clock seconds ]
+  puts2 "\nRunning ZWL timing on $num_blocks blocks for track \"track.$trackname\"."
+  foreach block $::BLOCKS_TO_RUN {
+    set time_step1 [ clock seconds ]
+    puts2 "\n----------- Processing $block"
+    set blkname $block.$blk_suffix
+    if {[info exists sub_blocks($block)]} {
+      set proj_cfg_str "parent_pd"
+    } else {
+      set proj_cfg_str "block_pd"
+    }
+
+    exec mfw setup -make track  \
+      -b $blkname \
+      -c "$proj_cfg_str $track_cfg_file" \
+      -n $trackname
+
+    print_elapsed_time $time_step1 "mfw setup for $blkname"
+
+    set rundir $blkname/track.$trackname/tempuscui.syn.sta
+    set tmp_script $tmpscr_dir/tmpscr.runzwl.$blkname
+    set OFS [ open $tmp_script w ]
+    puts $OFS "pushd $rundir > tmp.stdout1"
+    #puts $OFS "mfw run --bg --exit &"
+    #The above works for Innovus, but apparently not for Tempus (Tom A, 11/9/2021)
+    #puts $OFS "mfw run"
+    puts $OFS "mfw run >& tmp.stdout2 &"
+    puts $OFS "popd > tmp.stdout3"
+    close $OFS
+    exec chmod +x $tmp_script
+
+    set time_step1 [ clock seconds ]
+    exec $tmp_script &
+    print_elapsed_time $time_step1 "mfw run   for $blkname"
+    if { ! [ catch { set grep_results [exec grep "ERROR:" $rundir/stdout.log] } errmsg ] } {
+      #puts2 "$grep_results"
+      puts2 "  Found errors for $blkname --"
+      set prev_line ""
+      foreach line [ split $grep_results "\n" ] {
+	if { $line ne $prev_line } {
+          puts2 "    $line"  ;# Only print if it's not the same as previous line
+	}
+        set prev_line $line
+      }
+    }
+  }
+
+  puts2 "\n--- DONE with all $num_blocks blocks for \"track.$trackname\"."
+  print_elapsed_time $time_step_all "Total time for all $num_blocks blocks"
+  write_logfile
+}
+
+#####################################################################
+proc ta_get_timestamp { } {
+  # Return a string with the current timestamp in ISO format.
+  #   - Tom Arneberg, 10/25/2017
+  set system_time [ clock seconds ]
+  set timestamp [ clock format $system_time -format %Y-%m-%d_%H:%M:%S ]
+  return $timestamp
+}
+
+#####################################################################
+proc write_logfile { } {
+  set timestamp [ ta_get_timestamp ]
+  set logdir log.zwl.dir
+  file mkdir $logdir
+  set logfile $logdir/$timestamp
+  set OFS [ open $logfile w ]
+  foreach line $::LOGFILE_TEXT {
+    puts $OFS "$line"
+  }
+  close $OFS
+
+  ## Create symbolic link to the latest logfile:
+  set linkname "log.zwl"
+  file delete -force $linkname
+  file link -symbolic $linkname $logfile
+}
+
+#####################################################################
+proc puts2 { outstr } {
+  ## Print a message to both the console and the logfile
+  puts "$outstr"
+  lappend ::LOGFILE_TEXT $outstr
+}
+
+#####################################################################
+proc print_elapsed_time { prev_seconds step_name } {
+  ## Print comment to logfile showing elapsed time in formatted minutes and hours.
+  #    - Tom A., 9/30/2019
+  #
+  # Usage example:
+  #   set time_step1 [ clock seconds ]
+  #   ahp_write_reports
+  #   print_elapsed_time $time_step1 ahp_write_reports
+
+  set minutes [ ::ta::elapsed_time minutes $prev_seconds ]
+  set hours   [ ::ta::elapsed_time hours   $prev_seconds ]
+
+  puts2 [ format "  elapsed time: %6.1f minutes / %4.1f hours for \"%s\"" \
+    $minutes $hours $step_name ]
+}
+
+#####################################################################
+proc set_block_list_rerun { } {
+  set ::BLOCKS_TO_RUN {
+    tpb_pb_wrapper
+    tpb_pseq_pengine_wrapper
+    tpb_psum_combine_tile
+    tpb_sb_partition_sub_cluster
+    tpb_sb_partition_sub_cluster_with_arb
+    tpb_sb_partition_sub_cluster_with_arb_and_rfifo
+    tpb_sb_pool_act_pipeline
+    tpb_sb_wrapper
+    tpb_simd_rd_tensor_generate
+    tpb_simd_wr_tensor_generate
+    tpb_top
+    vm_wrap
+    xbar_fab_group
+    xbar_hbm_group_32
+    xbar_top_32
+  }
+}
+
+#####################################################################
+proc set_block_list_all { } {
+  # cayman_top  ;# no netlist yet
+  # out_data_conv_lfsr_wrapper ;# not a physical block
+  # an_io_pair_wrap -- missing data from the DE1p5 drop
+  set ::BLOCKS_TO_RUN {
+    Xm_CAYMAN_NX_TIEXtsubsystem
+    Xm_cayman_Q7Xtsubsystem
+    channel_bot
+    channel_mid
+    channel_top
+    compute_cluster
+    d2d_ctrl_mpcs_wrapper
+    d2d_subsys_4x_wrapper
+    d2d_subsys_wrapper
+    d2d_top
+    dfx_top
+    dts_hub_wrap
+    hbm_ctrl
+    hbm_top
+    hbm_xbar_wrapper_0
+    hbm_xbar_wrapper_1
+    io_fabric
+    pcie_x8_wrapper
+    peb_top
+    ring_io_bot
+    ring_io_top
+    ring_pll
+    rts_pd_wrap
+    sdma_arith
+    sengine_fabric_cayman
+    sengine_xbar
+    sfabric_10x1_mux
+    sfabric_1x10_demux
+    sfabric_1x5_demux
+    sfabric_1x5_demux_bcast
+    sfabric_1x7_demux_bcast
+    sfabric_1x9_demux_bcast
+    sfabric_5x1_mux
+    sfabric_downsizer_256b_32b
+    sfabric_nx1_mux_256b
+    sfabric_nx1_mux_32b
+    tdiode_wrap
+    top_sp
+    tpb_act_lane_wrapper
+    tpb_aengine
+    tpb_array
+    tpb_array_sequencer
+    tpb_array_sequencer_sbuf_rd_rsp_cluster
+    tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster
+    tpb_array_tile
+    tpb_array_wrapper
+    tpb_array_xbus_pre_tile
+    tpb_aseq_aengine_wrapper
+    tpb_dve_bank_half
+    tpb_dve_bank_wrapper
+    tpb_dve_wrapper
+    tpb_interconnect
+    tpb_pb_partition_cluster
+    tpb_pb_wrapper
+    tpb_pseq_pengine_wrapper
+    tpb_psum_combine_tile
+    tpb_sb_partition_cluster
+    tpb_sb_partition_cluster_with_arb
+    tpb_sb_partition_cluster_with_arb_and_rfifo
+    tpb_sb_partition_sub_cluster
+    tpb_sb_partition_sub_cluster_with_arb
+    tpb_sb_partition_sub_cluster_with_arb_and_rfifo
+    tpb_sb_pool_act_pipeline
+    tpb_sb_wrapper
+    tpb_simd_rd_tensor_generate
+    tpb_simd_wr_tensor_generate
+    tpb_top
+    vm_wrap
+    xbar_fab_group
+    xbar_hbm_group_32
+    xbar_top_32
+  }
+}
+
+#####################################################################
+proc set_block_list_rel1102_release { } {
+  ## cayman_top -- no netlist yet
+  ## Following are missing netlists:
+  #  out_data_conv_lfsr_wrapper
+  #  tpb_array_tile_topo
+  #  tpb_sb_partition_cluster
+  #  tpb_sb_partition_cluster_with_arb
+  #  tpb_sb_partition_cluster_with_arb_and_rfifo
+  set ::BLOCKS_TO_RUN {
+    Xm_CAYMAN_NX_TIEXtsubsystem
+    Xm_cayman_Q7Xtsubsystem
+    an_io_pair_wrap
+    channel_bot
+    channel_mid
+    channel_top
+    compute_cluster
+    d2d_ctrl_mpcs_wrapper
+    d2d_subsys_4x_wrapper
+    d2d_subsys_wrapper
+    d2d_top
+    dfx_top
+    dts_hub_wrap
+    hbm_ctrl
+    hbm_top
+    hbm_xbar_wrapper_0
+    hbm_xbar_wrapper_1
+    io_fabric
+    pcie_x8_wrapper
+    peb_top
+    ring_io_bot
+    ring_io_top
+    ring_pll
+    rts_pd_wrap
+    sdma_arith
+    sengine
+    sengine_fabric_cayman
+    sengine_xbar
+    sfabric_10x1_mux
+    sfabric_1x10_demux
+    sfabric_1x5_demux
+    sfabric_1x5_demux_bcast
+    sfabric_1x7_demux_bcast
+    sfabric_1x9_demux_bcast
+    sfabric_5x1_mux
+    sfabric_downsizer_256b_32b
+    sfabric_nx1_mux_256b
+    sfabric_nx1_mux_32b
+    tdiode_wrap
+    top_sp
+    tpb_act_lane_wrapper
+    tpb_aengine
+    tpb_array
+    tpb_array_sequencer
+    tpb_array_sequencer_sbuf_rd_rsp_cluster
+    tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster
+    tpb_array_tile
+    tpb_array_wrapper
+    tpb_array_xbus_pre_tile
+    tpb_aseq_aengine_wrapper
+    tpb_dve_bank_half
+    tpb_dve_bank_wrapper
+    tpb_dve_wrapper
+    tpb_interconnect
+    tpb_pb_partition_cluster
+    tpb_pb_wrapper
+    tpb_pseq_pengine_wrapper
+    tpb_psum_combine_tile
+    tpb_sb_partition_sub_cluster
+    tpb_sb_partition_sub_cluster_with_arb
+    tpb_sb_partition_sub_cluster_with_arb_and_rfifo
+    tpb_sb_pool_act_pipeline
+    tpb_sb_wrapper
+    tpb_simd_rd_tensor_generate
+    tpb_simd_wr_tensor_generate
+    tpb_top
+    vm_wrap
+    xbar_fab_group
+    xbar_hbm_group_32
+    xbar_top_32
+  }
+}
+
+#####################################################################
+proc set_block_list_rel0208_DE2_test_orig { } {
+  ## From Dan's email, 2/10/2022:
+  set ::BLOCKS_TO_RUN {
+    rts_pd_wrap
+    tpb_aengine
+    tpb_act_lane_wrapper
+    Xm_CAYMAN_NX_TIEXtsubsystem_aseq
+    tpb_aseq_aengine_wrapper
+  }
+}
+#####################################################################
+proc set_block_list_rel0222_DE2_by_level  { } {
+  ## From Dan's slack, 2/25/22, sorted by level
+    #tpb_top
+    #pcie_x8_wrapper
+    #sengine
+    #cayman_top
+  set ::BLOCKS_TO_RUN {
+    tpb_aengine
+    tpb_array_tile
+    tpb_dve_bank_half
+    Xm_CAYMAN_NX_TIEXtsubsystem_aseq
+    Xm_cayman_Q7Xtsubsystem_pseq
+    Xm_cayman_Q7Xtsubsystem_pseq0
+    rts_pd_wrap
+    tpb_act_lane_wrapper
+    tpb_array
+    tpb_array_sequencer_sbuf_rd_rsp_cluster
+    tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster
+    tpb_array_xbus_pre_tile
+    tpb_dve_bank_wrapper
+    tpb_pb_partition_cluster_0
+    tpb_pb_partition_cluster_1
+    tpb_pb_partition_cluster_2
+    tpb_pb_partition_cluster_3
+    tpb_psum_combine_tile
+    tpb_sb_partition_sub_cluster
+    tpb_sb_partition_sub_cluster_with_arb
+    tpb_sb_partition_sub_cluster_with_arb_and_rfifo
+    tpb_sb_pool_act_pipeline
+    tpb_simd_rd_tensor_generate_pool
+    tpb_simd_wr_tensor_generate
+    sfabric_axi3_id_comp_256b
+    sfabric_axi3_id_comp_32b
+    sfabric_nx1_mux_256b
+    sfabric_nx1_mux_32b
+    tpb_array_sequencer
+    tpb_array_wrapper
+    tpb_aseq_aengine_wrapper
+    tpb_dve_wrapper
+    tpb_interconnect
+    tpb_pb_wrapper
+    tpb_pe_seq
+    tpb_pseq_pengine_wrapper
+    tpb_sb_wrapper
+    tpb_top_sp_seq
+    sfabric_d2d_channel_macro
+    sfabric_d2d_macro
+    sfabric_hbm_channel_macro
+    sfabric_preprocess_macro
+    sfabric_remote_vert_macro
+    sfabric_sdma_grp0_macro
+    sfabric_sdma_grp1_macro
+    sfabric_sdma_grp2_macro
+    sfabric_top
+    sfabric_tpb0_macro
+    sfabric_tpb1_macro
+    xbar_fab_group
+    xbar_hbm_group_32
+    Xm_cayman_Q7Xtsubsystem_cctop
+    d2d_ctrl_mpcs_wrapper
+    fis_sprot
+    hbm_ctrl
+    hbm_dfi_bridge_wrapper
+    sengine_fabric_top
+    top_sp
+    xbar_top_32_0
+    xbar_top_32_1
+    channel_vmid
+    sdma_arith
+    sdma_arith_east
+    sdma_wrap
+    cc_top_wrapper
+    channel_mid
+    channel_vl_bot
+    channel_vl_top
+    channel_vr_bot
+    channel_vr_top
+    d2d_subsys_wrapper
+    d2d_subsys_wrapper_flip
+    dfx_top
+    dts_hub_wrap
+    hbm_top_0
+    hbm_top_1
+    hbm_xbar_wrapper_0
+    hbm_xbar_wrapper_1
+    io_fabric
+    peb_top
+    ring_io_bot
+    ring_io_top
+    ring_pll
+    sdma_dre
+    vm_wrap
+  }
+}
+
+#####################################################################
+proc set_block_list_rel0222_DE2_priority { } {
+  ## From Dan's email 2/22/2022
+    #Not dropped yet -- pcie_x8_wrapper
+    #Not dropped yet -- tpb_top, sengine
+    #Not dropped yet -- cayman_top
+    #Not dropped yet -- dts_vm_an_io_wrap
+  set ::BLOCKS_TO_RUN {
+    tpb_aengine
+    tpb_array_sequencer_sbuf_rd_rsp_cluster
+    tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster
+    tpb_array_tile
+    tpb_array_xbus_pre_tile
+    tpb_dve_bank_half
+    tpb_pb_partition_cluster_0
+    tpb_pb_partition_cluster_1
+    tpb_pb_partition_cluster_2
+    tpb_pb_partition_cluster_3
+    tpb_psum_combine_tile
+    tpb_sb_partition_sub_cluster
+    tpb_sb_partition_sub_cluster_with_arb
+    tpb_sb_partition_sub_cluster_with_arb_and_rfifo
+    tpb_sb_pool_act_pipeline
+    tpb_simd_rd_tensor_generate_pool
+    tpb_simd_wr_tensor_generate
+    Xm_CAYMAN_NX_TIEXtsubsystem
+    Xm_CAYMAN_NX_TIEXtsubsystem_aseq
+    Xm_CAYMAN_NX_TIEXtsubsystem_dve
+    Xm_CAYMAN_NX_TIEXtsubsystem_pe_seq
+    Xm_CAYMAN_NX_TIEXtsubsystem_sp_seq
+    Xm_cayman_Q7Xtsubsystem
+    Xm_cayman_Q7Xtsubsystem_cctop
+    Xm_cayman_Q7Xtsubsystem_pseq
+    Xm_cayman_Q7Xtsubsystem_pseq0
+    rts_pd_wrap
+    d2d_ctrl_mpcs_wrapper
+    hbm_ctrl
+    xbar_fab_group
+    xbar_hbm_group_32
+    hbm_dfi_bridge_wrapper
+    tpb_top_sp_seq
+    tpb_pe_seq
+    top_sp
+    tpb_act_lane_wrapper
+    tpb_dve_bank_wrapper
+    tpb_array
+    fis_sprot
+    sfabric_d2d_channel_macro
+    sfabric_d2d_macro
+    sfabric_hbm_channel_macro
+    sfabric_nx1_mux_256b
+    sfabric_nx1_mux_32b
+    sfabric_preprocess_macro
+    sfabric_remote_vert_macro
+    sfabric_sdma_grp0_macro
+    sfabric_sdma_grp1_macro
+    sfabric_sdma_grp2_macro
+    sfabric_tpb0_macro
+    sfabric_tpb1_macro
+    peb_top
+    tpb_pb_wrapper
+    tpb_sb_wrapper
+    tpb_dve_wrapper
+    tpb_pseq_pengine_wrapper
+    tpb_aseq_aengine_wrapper
+    tpb_array_wrapper
+    tpb_array_sequencer
+    tpb_interconnect
+    xbar_top_32_0
+    xbar_top_32_1
+    hbm_top_0
+    hbm_top_1
+    hbm_xbar_wrapper_0
+    hbm_xbar_wrapper_1
+    d2d_subsys_wrapper
+    d2d_subsys_wrapper_flip
+    dfx_top
+    sdma_arith
+    sdma_dre
+    sdma_wrap
+    sengine_fabric_top
+    tpb_top
+    cc_top_wrapper
+    vm_wrap
+    channel_mid
+    channel_vl_bot
+    channel_vl_top
+    channel_vmid
+    channel_vr_bot
+    channel_vr_top
+    dts_hub_wrap
+    io_fabric
+    ring_io_bot
+    ring_io_top
+    ring_pll
+  }
+}
+
+#####################################################################
+proc set_block_list_rel0214_DE2_priority { } {
+  ## From Dan's email 2/17/2022
+  # not dropped --  dts_vm_an_io_wrap
+  set ::BLOCKS_TO_RUN {
+    tpb_aengine
+    tpb_array_sequencer_sbuf_rd_rsp_cluster
+    tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster
+    tpb_array_tile
+    tpb_array_xbus_pre_tile
+    tpb_dve_bank_half
+    tpb_interconnect_axi_domain
+    tpb_pb_partition_cluster_0
+    tpb_pb_partition_cluster_1
+    tpb_pb_partition_cluster_2
+    tpb_pb_partition_cluster_3
+    tpb_psum_combine_tile
+    tpb_sb_partition_sub_cluster
+    tpb_sb_partition_sub_cluster_with_arb
+    tpb_sb_partition_sub_cluster_with_arb_and_rfifo
+    tpb_sb_pool_act_pipeline
+    tpb_simd_rd_tensor_generate_pool
+    tpb_simd_wr_tensor_generate
+    Xm_CAYMAN_NX_TIEXtsubsystem
+    Xm_CAYMAN_NX_TIEXtsubsystem_aseq
+    Xm_CAYMAN_NX_TIEXtsubsystem_dve
+    Xm_CAYMAN_NX_TIEXtsubsystem_pe_seq
+    Xm_CAYMAN_NX_TIEXtsubsystem_sp_seq
+    Xm_cayman_Q7Xtsubsystem
+    Xm_cayman_Q7Xtsubsystem_cctop
+    Xm_cayman_Q7Xtsubsystem_pseq
+    Xm_cayman_Q7Xtsubsystem_pseq0
+    rts_pd_wrap
+    d2d_ctrl_mpcs_wrapper
+    hbm_ctrl
+    xbar_fab_group
+    xbar_hbm_group_32
+    hbm_dfi_bridge_wrapper
+    tpb_top_sp_seq
+    tpb_pe_seq
+    top_sp
+    tpb_act_lane_wrapper
+    tpb_dve_bank_wrapper
+    tpb_array
+    fis_sprot
+    sfabric_axi3_id_comp_256b
+    sfabric_axi3_id_comp_32b
+    sfabric_d2d_channel_macro
+    sfabric_d2d_macro
+    sfabric_hbm_channel_macro
+    sfabric_nx1_mux_256b
+    sfabric_nx1_mux_32b
+    sfabric_preprocess_macro
+    sfabric_remote_vert_macro
+    sfabric_sdma_grp0_macro
+    sfabric_sdma_grp1_macro
+    sfabric_sdma_grp2_macro
+    sfabric_tpb0_macro
+    sfabric_tpb1_macro
+    peb_top
+    tpb_pb_wrapper
+    tpb_sb_wrapper
+    tpb_dve_wrapper
+    tpb_pseq_pengine_wrapper
+    tpb_aseq_aengine_wrapper
+    tpb_array_wrapper
+    tpb_array_sequencer
+    tpb_interconnect
+    xbar_top_32_0
+    xbar_top_32_1
+    hbm_top_0
+    hbm_top_1
+    hbm_xbar_wrapper_0
+    hbm_xbar_wrapper_1
+    d2d_subsys_wrapper
+    d2d_subsys_wrapper_flip
+    dfx_top
+    sdma_arith
+    sdma_dre
+    sdma_wrap
+    sengine_fabric_top
+    tpb_top
+    cc_top_wrapper
+    vm_wrap
+    channel_mid
+    channel_vl_bot
+    channel_vl_top
+    channel_vmid
+    channel_vr_bot
+    channel_vr_top
+    dts_hub_wrap
+    io_fabric
+    ring_io_bot
+    ring_io_top
+    ring_pll
+  }
+}
+
+#####################################################################
+proc set_block_list_rel0208_DE2_test { } {
+  ## From Dan's email, 2/10/2022:
+  ## (and Dan's 2/14/22 slack)
+  set ::BLOCKS_TO_RUN {
+    rts_pd_wrap
+    tpb_aengine
+    tpb_act_lane_wrapper
+    Xm_CAYMAN_NX_TIEXtsubsystem_aseq
+    tpb_aseq_aengine_wrapper
+    hbm_ctrl
+    hbm_dfi_bridge_wrapper
+    tpb_array_sequencer
+    tpb_array_sequencer_sbuf_rd_rsp_cluster
+    tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster
+    tpb_array_tile
+    tpb_pb_partition_cluster_0
+    tpb_pb_partition_cluster_1
+    tpb_pb_partition_cluster_2
+    tpb_pb_partition_cluster_3
+    tpb_pb_wrapper
+  }
+}
+
+#####################################################################
+proc set_block_list_rel1102_collection { } {
+  # cayman_top -- no netlist yet
+  set ::BLOCKS_TO_RUN {
+    an_io_pair_wrap
+    channel_bot
+    channel_mid
+    channel_top
+    compute_cluster
+    compute_cluster_pseq
+    d2d_ctrl_mpcs_wrapper
+    d2d_subsys_4x_wrapper
+    d2d_subsys_wrapper
+    d2d_subsys_wrapper_flip
+    d2d_top
+    dfx_top
+    dts_hub_wrap
+    hbm_ctrl
+    hbm_top
+    hbm_xbar_wrapper_0
+    hbm_xbar_wrapper_1
+    io_fabric
+    pcie_x8_wrapper
+    peb_top
+    ring_io_bot
+    ring_io_top
+    ring_pll
+    rts_pd_wrap
+    sdma_arith
+    sdma_arith_v2
+    sengine
+    sengine_fabric_cayman
+    sengine_xbar
+    sfabric_1x5_demux
+    sfabric_1x5_demux_bcast
+    sfabric_1x7_demux_bcast
+    sfabric_1x9_demux_bcast
+    sfabric_1x10_demux
+    sfabric_5x1_mux
+    sfabric_10x1_mux
+    sfabric_downsizer_256b_32b
+    sfabric_nx1_mux_32b
+    sfabric_nx1_mux_256b
+    tdiode_wrap
+    top_sp
+    tpb_act_lane_wrapper
+    tpb_aengine
+    tpb_array
+    tpb_array_sequencer
+    tpb_array_sequencer_sbuf_rd_rsp_cluster
+    tpb_array_sequencer_sbuf_rd_rsp_with_psum_cluster
+    tpb_array_tile
+    tpb_array_wrapper
+    tpb_array_xbus_pre_tile
+    tpb_aseq_aengine_wrapper
+    tpb_dve_bank_half
+    tpb_dve_bank_wrapper
+    tpb_dve_wrapper
+    tpb_interconnect
+    tpb_pb_partition_cluster
+    tpb_pb_wrapper
+    tpb_pseq_pengine_wrapper
+    tpb_psum_combine_tile
+    tpb_sb_partition_sub_cluster
+    tpb_sb_partition_sub_cluster_with_arb
+    tpb_sb_partition_sub_cluster_with_arb_and_rfifo
+    tpb_sb_pool_act_pipeline
+    tpb_sb_wrapper
+    tpb_simd_rd_tensor_generate
+    tpb_simd_wr_tensor_generate
+    tpb_top
+    vm_wrap
+    xbar_fab_group
+    xbar_hbm_group_32
+    xbar_top_32_0
+    xbar_top_32_1
+    Xm_CAYMAN_NX_TIEXtsubsystem
+    Xm_CAYMAN_NX_TIEXtsubsystem_pseq
+    Xm_CAYMAN_NX_TIEXtsubsystem_top_sp
+    Xm_cayman_Q7Xtsubsystem
+    Xm_cayman_Q7Xtsubsystem_pseq
+  }
+}
+
+# ## Look at reports:  (?)
+# cd /proj/cayman/wa/tarneberg/impl/tpb_sb_wrapper.1.0A/track.Oct04_preDFT_ETM_multi/tempuscui.syn.sta/func_setup_ssgnp0p675v0c_cworstCCwT0c.001.2021-10-05-16:04:34/report
+#
+# ## Find blocks at the end of:  /proj/cayman/DE1/cayman.hier_info.tcl
+
+#####################################################################
+## Run the main loop:
+main_loop
