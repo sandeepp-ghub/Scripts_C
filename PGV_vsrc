@@ -1,0 +1,338 @@
+
+# The objective of 'synthesize_vsources' is to define the voltage sources for RLM-level simulation,
+# when C4s are absent.
+#
+# The voltage sources are attached to the power bus stripes at the ceiling of the RLM, and are
+# spatially distributed according to the pitch of intersections between the ceiling buses and the
+# buses on the wiring level directly beneath the ceiling.
+#
+# If a candidate source location (with specified xPitch/yPitch) doesn't land precisely on a ceiling-level
+# power stripe, the create_power_pads parameter will use the snap_distance parameter to snap the sources
+# to the stripes.
+
+proc synthesize_vsources_2 { file_prefix pgnets list_of_gnd_nets vsrcDir add_vsrc_inductance design_system ceiling} {
+
+   global log_prefix_txt
+
+   if [ is_common_ui_mode ] {
+   #  set ceiling  [get_db [get_db -p top.props.name PG_CEILING].value]
+      set region   [get_db current_design .bbox]
+   } else {
+   #  set ceiling  [dbget [dbget -p top.props.name PG_CEILING].value]
+      set region   [dbGet top.fplan.box]
+   }; # End IF -stylus
+
+   puts "ceiling = $ceiling"
+   puts "region = $region"
+
+   puts "INFO($log_prefix_txt): Rail analysis will utilize \"synthesized\" voltage sources connected to power buses at the RLM ceiling"
+   puts " - The RLM ceiling for this macro is at level '$ceiling'"
+
+   if { [string match -nocase $design_system "fx14"] } {
+      set levels   {    C5     K1     K2     K3     K4     H1      H2      G1      G2 }
+      set pitchx   { 1.344  1.344  5.376  5.376  5.376  5.376  10.752  10.752  32.256 }
+      set pitchy   { 1.152  4.608  4.608  4.608  4.608  9.216   9.216  23.040  23.040 }
+      set snapd    { 1.344  4.608  5.376  4.608  5.376  9.216  10.752  23.040  32.256 }
+   } elseif { [string match -nocase $design_system "fx7"] } {
+      set levels   {    C5    C7     C9     K1     K2      H1      H2      G1      G2 }
+      set pitchx   { 1.260 1.260  1.260  1.260  5.040   5.040  10.080  10.080  30.240 }
+      set pitchy   { 0.960 0.960  0.960  2.880  2.880  11.520  11.520  23.040  23.040 }
+      set snapd    { 1.260 1.260  1.260  2.880  5.040  11.520  10.080  23.040  30.240 }
+   } else {
+      # this should never happen due to prior error checking
+      puts "ERROR($log_prefix_txt): can't create voltage sources because the design-system specification ('${design_system}') is invalid."
+      return;
+   }
+
+   set i 0
+   foreach level $levels {
+      if { $level == $ceiling } { set cindx $i }
+      incr i
+   }
+
+   if { ! [info exists cindx] } {
+      puts "ERROR($log_prefix_txt): level '$ceiling' is an unexpected RLM ceiling for design system '${design_system}'."
+      puts "ERROR($log_prefix_txt): If this is an unusual RLM with an 'LB' ceiling, use 'set design_has_c4s 1' in the svf_run_job.tcl."
+      return;
+   }
+
+   set layer [ lindex $levels $cindx ]
+   set px    [ lindex $pitchx $cindx ]
+   set py    [ lindex $pitchy $cindx ]
+   set sd    [ lindex $snapd  $cindx ]
+
+   # Create a voltage-source file for each power net...
+   set pgnets_for_analysis [list]
+
+   foreach net $pgnets {
+      if { [string compare -nocase $net "GND"] == 0 } {
+         puts "INFO($log_prefix_txt): No voltage source file was generated for the non-PD power net GND (this is typical)"
+      } else {
+         puts "INFO($log_prefix_txt): Attempting to create voltage source connections for downstream rail analysis (net '$net')..."
+         set padfile_tmp /tmp/[pid]_${file_prefix}-${net}.vsrc
+         set padfile_usr ${vsrcDir}/${file_prefix}-${net}.vsrc
+         if [ is_common_ui_mode ] {
+            write_power_pads -clear
+            write_power_pads -format xy -layer $layer -net $net -region $region -region_pitch $px $py -snap_distance $sd -voltage_source_file $padfile_tmp
+         } else {
+            create_power_pads -clear
+            create_power_pads -format xy -layer $layer -net $net -region $region -region_pitch $px $py -snap_distance $sd -vsrc_file $padfile_tmp
+         }; # End IF -stylus
+         puts "INFO($log_prefix_txt): The Innovus command 'create_power_pads' was run using the following parameters:"
+         puts " ... -region_pitch {$px, $py}"
+         puts " ... -net $net"
+         puts " ... -region $region"
+         puts " ... -layer $layer"
+         puts " ... -snap_distance $sd"
+         puts " ... -vsrc_file $padfile_tmp"
+         if [file exists $padfile_tmp] {
+            puts "INFO($log_prefix_txt): The voltage source file '$padfile_tmp' was generated for power domain $net"
+#           set npstr [exec wc -l $padfile]
+#           set np [lindex $npstr 0]
+            set npads [expr {([lindex [exec wc -l $padfile_tmp] 0]) - 1}]
+            if { $add_vsrc_inductance } {
+               set seriesL_henries [get_per_pad_inductance_henries $npads $net $list_of_gnd_nets]
+               append_inductance_to_user_vsrc_file $seriesL_henries $padfile_tmp $padfile_usr
+               puts "INFO($log_prefix_txt): For DYNAMIC rail analysis, package inductance was added to the voltage source data."
+               puts "INFO($log_prefix_txt): The updated voltage source file for power net $net is '$padfile_usr'"
+            } else {
+               file copy -force $padfile_tmp $padfile_usr
+               puts "INFO($log_prefix_txt): File '$padfile_tmp' was copied to '$padfile_usr'"
+            }
+            file delete $padfile_tmp
+#           puts " - '$padfile_usr' contains $npads x-y locations for $net voltage source assignment on layer $layer"
+            lappend pgnets_for_analysis $net
+         } else {
+            puts "WARN($log_prefix_txt): The voltage source file '$padfile_usr' could not be generated for power domain $net"
+            puts " - An absence of $net power routing on RLM ceiling level '$layer' is the likely cause of this issue."
+            puts "WARN($log_prefix_txt): Net $net will _NOT be simulated using Voltus analyze_rail."
+         }
+      }
+   }
+
+   return $pgnets_for_analysis
+}
+
+# The objective of 'convert_c4s_to_vsources' is to define the voltage sources for top-level
+# or full-chip analysis, at the locations of the chip power C4s
+
+proc convert_c4s_to_vsources { file_prefix pgnets list_of_gnd_nets vsrcDir add_vsrc_inductance } {
+
+   global log_prefix_txt
+
+   set pgnets_for_analysis [list]
+
+   foreach net $pgnets {
+      if { [string compare -nocase $net "GND"] == 0 } {
+         puts "INFO($log_prefix_txt): No voltage source file was generated for the non-PD power net GND (this is typical)"
+      } else {
+         puts "INFO($log_prefix_txt): Attempting to create voltage source connections for downstream rail analysis (net '$net')..."
+#        set padfile ${vsrcDir}/${file_prefix}-${net}.vsrc
+         set padfile_tmp /tmp/[pid]_${file_prefix}-${net}.vsrc
+         set padfile_usr ${vsrcDir}/${file_prefix}-${net}.vsrc
+         create_power_pads -clear
+#        create_power_pads -net $net -auto_fetch -vsrc_file $padfile
+         create_power_pads -net $net -auto_fetch -vsrc_file $padfile_tmp
+         if [file exists $padfile_tmp] {
+            puts "INFO($log_prefix_txt): The voltage source file '$padfile_tmp' was generated for power domain $net"
+#           set npstr [exec wc -l $padfile]
+#           set np [lindex $npstr 0]
+            set npads [expr {([lindex [exec wc -l $padfile_tmp] 0]) - 1}]
+            if { $add_vsrc_inductance } {
+               set seriesL_henries [get_per_pad_inductance_henries $npads $net $list_of_gnd_nets]
+               append_inductance_to_user_vsrc_file $seriesL_henries $padfile_tmp $padfile_usr
+               puts "INFO($log_prefix_txt): For DYNAMIC rail analysis, package inductance was added to the voltage source data."
+               puts "INFO($log_prefix_txt): The updated voltage source file for power net $net is '$padfile_usr'"
+            } else {
+               file copy -force $padfile_tmp $padfile_usr
+               puts "INFO($log_prefix_txt): File '$padfile_tmp' was copied to '$padfile_usr'"
+            }
+            file delete $padfile_tmp
+#           puts " - '$padfile_usr' contains $np x-y locations for $net voltage source assignment"
+            lappend pgnets_for_analysis $net
+         } else {
+            puts "WARN($log_prefix_txt): The voltage source file '$padfile_usr' could not be generated for power domain $net"
+         }
+      }
+   }
+
+   return $pgnets_for_analysis
+}
+
+proc gen_voltage_source_files_2 { pgnets list_of_gnd_nets design_has_c4s vsrcDir add_vsrc_inductance design_system ceiling } {
+
+   global init_top_cell
+   set file_prefix $init_top_cell
+
+   if { $design_has_c4s } {
+      set pgnets_rail_analysis [convert_c4s_to_vsources $file_prefix $pgnets $list_of_gnd_nets $vsrcDir $add_vsrc_inductance]
+   } else {
+      set pgnets_rail_analysis [synthesize_vsources_2 $file_prefix $pgnets $list_of_gnd_nets $vsrcDir $add_vsrc_inductance $design_system $ceiling]
+   }
+
+   return $pgnets_rail_analysis
+}
+
+proc apply_user_vsrc_overrides { vsrcDir vsrcOverrideDir } {
+   global log_prefix_txt
+   set replacedVsrcFiles [ replace_files_with_same_names $vsrcDir $vsrcOverrideDir ]
+   if { [llength $replacedVsrcFiles] > 0 } {
+      puts "INFO($log_prefix_txt): The following voltage-source files were overwritten, based on user overrides:"
+      foreach fname $replacedVsrcFiles {
+         puts " - $fname"
+      }
+   }
+}
+
+proc apply_user_vsrc_overrides_2 { vsrcDir vsrcOverrideDir } {
+   global log_prefix_txt
+
+   set filesToCopy [glob -nocomplain -directory $vsrcOverrideDir *.vsrc]
+   foreach fname $filesToCopy {
+      file copy -force $fname $vsrcDir
+   }
+   puts "INFO($log_prefix_txt): The following voltage-source files have been provided for downstream rail analysis ..."
+   foreach fname $filesToCopy {
+      puts " - $fname"
+   }
+   puts "INFO($log_prefix_txt): These files have been copied to: ${vsrcDir}\n"
+}
+
+proc remove_vsrc_markers {pgnet} {
+   remove_gui_marker -name ${pgnet}_vsrc
+}
+
+proc add_vsrc_markers {pgnet color} {
+
+   global workDir
+   global macro_name
+   global log_prefix_txt
+
+   if { ! [markerColorIsValid $color] } {
+      puts "ERROR($log_prefix_txt): can't add voltage source markers for $pgnet, because the specified color '$color' is not valid."
+      puts " - valid colors are: [getValidMarkerColors]"
+      return
+   }
+
+   set color [string tolower $color]
+
+#  set workDir    /btv/data/NTSG/designs/wemple/ivan_work/rlms-xenon/somewhere_else
+#  set macro_name adc_if_subchip
+
+   set vsrcDir  ${workDir}/${macro_name}-vsrc
+   set vsrcFile ${vsrcDir}/${macro_name}-${pgnet}.vsrc
+
+   if { ! [file exists $vsrcFile] } {
+      puts "ERROR($log_prefix_txt): can't add voltage source markers for $pgnet, because dependent file '$vsrcFile' cannot be accessed, or does not exist"
+      return;
+   }
+
+   set infile  [open $vsrcFile "r"]
+
+   while {[gets $infile inline] >= 0} {
+      set records [regexp -all -inline {\S+} $inline]
+
+      # skip lines of whitespace
+      if { [llength $records] == 0 } { continue }
+      # skip header
+      if {[string first \* [lindex $records 0]] == 0} { continue }
+
+      set px         [lindex $records 1]
+      set py         [lindex $records 2]
+      set layer_name [lindex $records 3]
+
+#     puts "px = $px"
+#     puts "py = $py"
+#     puts "layer = $layer_name"
+
+   if [ is_common_ui_mode ] {
+      gui_add_marker -name ${pgnet}_vsrc -color $color -point $px $py -type STAR
+   } else {
+      add_gui_marker -name ${pgnet}_vsrc -color $color -pt $px $py -type STAR
+   }; # End of IF;
+
+   }
+
+   close $infile
+}
+
+proc getValidMarkerColors { } {
+   return [set valid_list {red blue green yellow magenta cyan pink orange brown purple violet teal olive gold maroon wheat}]
+}
+
+proc markerColorIsValid {mc} {
+   set color        [string tolower $mc]
+   set valid_colors [getValidMarkerColors]
+
+   if { [lsearch -exact $valid_colors $color] == -1 } { return false }
+   return true
+}
+
+proc collect_vsrc_files_for_rail_analysis {macro_name supplyNetsRailAnalysis vsrcDir} {
+   foreach net $supplyNetsRailAnalysis {
+      if { [file exists [set fname ${vsrcDir}/${macro_name}-${net}.vsrc]] } { set pgnetVsrcFiles($net) $fname }
+   }
+   return $pgnetVsrcFiles
+}
+
+proc get_per_pad_inductance_henries {npads net list_of_gnd_nets} {
+
+   global vsrc_l_per_mm2_henries_gnd
+   global vsrc_l_per_mm2_henries_pwr
+
+   set vsrc_l_per_mm2_henries_gnd 1.0e-09
+   set vsrc_l_per_mm2_henries_pwr 2.0e-09
+
+   if { [lsearch $list_of_gnd_nets $net] == -1 } {
+      set vsrc_l_per_mm2_henries $vsrc_l_per_mm2_henries_pwr
+   } else {
+      set vsrc_l_per_mm2_henries $vsrc_l_per_mm2_henries_gnd
+   }
+
+   if [ is_common_ui_mode ] {
+      set area_mm2 [expr {[get_db current_design .area]/1000000.0}]
+   } else {
+      set area_mm2 [expr {[dbget top.fplan.area]/1000000.0}]
+   }; # End IF -stylus
+   set Lhenries [expr {($npads * $vsrc_l_per_mm2_henries) / $area_mm2}]
+
+   return $Lhenries
+}
+
+proc append_inductance_to_user_vsrc_file { lvalue_henries infname outfname } {
+
+   set infile  [open $infname "r"]
+   set outfile [open $outfname "w"]
+
+   set n_padentries 0
+   while {[gets $infile inline] >= 0} {
+
+      set records [regexp -all -inline {\S+} $inline]
+
+      # skip comments
+      if {[string first * [lindex $records 0]] == 0} {
+         puts $outfile "$inline"
+         continue
+      }
+
+      puts $outfile "$inline r=0.0 c=0.0 l=$lvalue_henries"
+      incr n_padentries
+   }
+
+   set ltotal_henries [expr {$lvalue_henries/$n_padentries}]
+   if [ is_common_ui_mode ] {
+      set area_mm2       [expr {[get_db current_design .area]/1000000.0}]
+   } else {
+      set area_mm2       [expr {[dbget top.fplan.area]/1000000.0}]
+   }; # End IF -stylus
+
+   puts $outfile "* $n_padentries voltage sources written to file"
+   puts $outfile "* L per source = $lvalue_henries H"
+   puts $outfile "* Total effective L = $ltotal_henries H"
+   puts $outfile "* Design layout area = $area_mm2 mm2"
+
+   close $infile
+   close $outfile
+}
+
+
