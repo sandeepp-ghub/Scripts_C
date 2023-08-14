@@ -1,0 +1,18 @@
+proc findInstUnderMarkers {} {
+     set out [open findInstUnderMarkers.txt "w"]
+     set markers [dbGet top.markers]
+     foreach marker $markers {
+          set box [dbGet $marker.box]
+          foreach inst [dbQuery -area $box -objType inst] {
+               set area [dbGet $inst.area]
+               set inst_box [dbGet $inst.box]
+               if {[dbShape -output area $inst_box ANDNOT $box] != $area } {
+                    puts [dbGet $inst.name]
+		    puts [dbGet $inst.cell.name]
+                    puts $out "[dbGet $inst.name] [dbGet $inst.cell.name]"
+               }
+          }
+     }
+
+     close $out
+}
