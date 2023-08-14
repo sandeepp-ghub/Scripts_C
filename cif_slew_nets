@@ -1,0 +1,16 @@
+set fp [open "[pwd]/cif_slews.rpt" w]
+
+mortar::source /proj/asictools/m1dpe/sandbox/common/flow/tcl/cif.tclz
+#cifi::set_technology 5
+
+set SCB_sink_pin_names [list]
+cif::dsa
+cif::st MRVCKS*
+foreach SCB_ptr [cif::gs] {
+   set net_ptr [cifi::cell_output_net $SCB_ptr]
+   foreach sink_ptr [lrange [cifi::net_pins $net_ptr] 1 end] {
+     puts $fp "$net_ptr sink:[cifi::pin_name $sink_ptr] slew:[get_property [get_pins $sink_ptr] slew_max_rise]"
+      lappend SCB_sink_pin_names [cifi::pin_name $sink_ptr]
+   }
+}
+close $fp
