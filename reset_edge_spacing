@@ -1,0 +1,5 @@
+foreach cell {MB6* AO*D1BW* OA*D1BW*} {
+  foreach cell [get_db base_cells $cell] {
+    set_cell_edge_type -cell [get_db $cell .name] -reset
+  }
+}
