@@ -1,0 +1,275 @@
+
+
+get_db timing_report_fields 
+set_db timing_report_fields {delay delay_sigma incr_delay user_derate arrival transition load fanout edge cell hpin pin_location phys_info annotation}
+set_db timing_report_fields {delay incr_delay arrival transition fanout edge cell hpin pin_location phys_info}
+
+#set_db timing_report_fields {delay incr_delay arrival transition load fanout edge cell hpin annotation}
+
+::set_multi_cpu_usage -keep_license true
+
+alias rtx "report_timing -late"
+alias rtm "report_timing -early"
+
+alias rtxp "report_timing -late -retime path_slew_propagation"
+alias rtmp "report_timing -early -retime path_slew_propagation"
+
+alias rtxe "report_timing -late -path_type endpoint"
+alias rtme "report_timing -early -path_type endpoint"
+
+alias rtxs "report_timing -late -path_type summary"
+alias rtms "report_timing -early -path_type summary"
+
+
+#proc get_clock_latency {fh i clk {verbose 0}} {
+#
+#  set view "func_setup_ssgnp0p675v0c_cworstCCwT0c"
+#  #set view "func_hold_ffgnp0p825v125c_rcworstCCw125c"
+#
+#  set clk_port_name ""
+#  set hxw_clk_name ""
+#  if { $clk == "axi" } {
+#    set clk_port_name "clk_axi"
+#    set hxw_clk_name "HBM_XBAR_WRAPPER/HBM_XBAR/clk_axi_local"
+#  } elseif { $clk == "fast" } {
+#    set clk_port_name "clk_fast"
+#    set hxw_clk_name "HBM_XBAR_WRAPPER/HBM_XBAR/clk_xbar_buf"
+#  } else {
+#    puts "ERROR! clk: $clk is NOT valid.  (axi|fast)"
+#    return
+#  }
+#  set clk_path [report_clock_timing -to HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/${fh}_group_${i}/$clk_port_name -type latency -clock $hxw_clk_name -view $view -verbose -tcl_list]
+#  if { $verbose } {
+#    puts "report_clock_timing -to HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/${fh}_group_${i}/$clk_port_name -type latency -clock $hxw_clk_name -view $view"
+#  }
+#  set start_lat 0
+#  set end_lat 0
+#  foreach rpt_line [lindex $clk_path 1 1 0 1 1 2 1 1 0 1] {
+#    set row_title [lindex $rpt_line 0]
+#    #puts "row_t: $row_title"
+#    set vals [lindex $rpt_line 1]
+#    set lat [lindex $vals 4]
+#    if { $row_title == "row_1" } {
+#      set start_lat $lat
+#      continue
+#      #puts "SETH start_latency: $start_lat"
+#    }
+#    set child_entry "HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/${fh}_group_${i}"
+#    set curr_pt {*}[lindex $vals 0]
+#    #puts "SETH vals\[0\]: $curr_pt == $child_entry latency: $lat"
+#    #if { [string equal $curr_pt $child_entry] } {}
+#    if { [regexp {(fab|hbm)_group_\d\/clk_(axi|fast)_IencIOBuf} $curr_pt] } {
+#      #puts "vals: $vals"
+#      set end_lat $lat
+#      break
+#    }
+#  }
+#  #puts "expr $end_lat - $start_lat"
+#  return [expr $end_lat - $start_lat]
+#}
+
+proc get_clock_latency {fh i clk {early_late "late"} {launch_cap "capture"} {view "func_setup_ssgnp0p675v0c_cworstCCwT0c"} {verbose 0}} {
+
+  #set view "func_setup_ssgnp0p675v0c_cworstCCwT0c"
+  #set view "func_hold_ffgnp0p825v125c_rcworstCCw125c"
+
+  set clk_port_name ""
+  set hxw_clk_name ""
+  if { $clk == "axi" } {
+    set clk_port_name "clk_axi"
+    set hxw_clk_name "HBM_XBAR_WRAPPER/HBM_XBAR/clk_axi_local"
+  } elseif { $clk == "fast" } {
+    set clk_port_name "clk_fast"
+    set hxw_clk_name "HBM_XBAR_WRAPPER/HBM_XBAR/clk_xbar_buf"
+  } else {
+    puts "ERROR! clk: $clk is NOT valid.  (axi|fast)"
+    return
+  }
+
+  set launch_cap "-${launch_cap}"
+  set early_late "-${early_late}"
+
+  set clk_path [report_clock_timing -to HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/${fh}_group_${i}/$clk_port_name -type latency -clock $hxw_clk_name -view $view {*}$early_late {*}$launch_cap -verbose -tcl_list]
+  if { $verbose } {
+    puts "report_clock_timing -to HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/${fh}_group_${i}/$clk_port_name -type latency -clock $hxw_clk_name -view $view $early_late $launch_cap -verbose"
+  }
+  set start_lat 0
+  set end_lat 0
+  foreach rpt_line [lindex $clk_path 1 1 0 1 1 2 1 1 0 1] {
+    set row_title [lindex $rpt_line 0]
+    #puts "row_t: $row_title"
+    set vals [lindex $rpt_line 1]
+    set lat [lindex $vals 4]
+    if { $row_title == "row_1" } {
+      set start_lat $lat
+      continue
+      #puts "SETH start_latency: $start_lat"
+    }
+    set child_entry "HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/${fh}_group_${i}"
+    set curr_pt {*}[lindex $vals 0]
+    #puts "SETH vals\[0\]: $curr_pt == $child_entry latency: $lat"
+    #if { [string equal $curr_pt $child_entry] } {}
+    if { [regexp {(fab|hbm)_group_\d\/clk_(axi|fast)_IencIOBuf} $curr_pt] } {
+      #puts "vals: $vals"
+      set end_lat $lat
+      break
+    }
+  }
+  #puts "expr $end_lat - $start_lat"
+  return [expr $end_lat - $start_lat]
+}
+
+
+proc print_arrivals {fh {verbose 0}} {
+  set tpaths ""
+  set fline "%-15s%-15s%-15s%-15s"
+  set l [format $fline "${fh}_num" "axi_arrival" "xbar_arrival" "delta"]
+  puts $l
+
+  set l [format $fline "---------" "-----------" "------------" "-----"]
+  puts $l
+  foreach i [list 0 1 2 3] {
+
+    set axi_arr [get_clock_latency $fh $i axi "late" "capture" "func_setup_ssgnp0p675v0c_cworstCCwT0c" $verbose]
+    set fast_arr [get_clock_latency $fh $i fast "late" "capture" "func_setup_ssgnp0p675v0c_cworstCCwT0c" $verbose]
+
+    set delta [expr $axi_arr - $fast_arr]
+
+    set axi_arr_str [format "%.2f" $axi_arr]
+    set fast_arr_str [format "%.2f" $fast_arr]
+    set delta_str [format "%.2f" $delta]
+    set l [format $fline "${fh}_group_$i" $axi_arr_str $fast_arr_str $delta_str]
+    puts $l
+
+  }
+}
+
+
+proc all_scen {args} {
+  pl $scenarios_signoff
+}
+
+proc reset_latency_files { } {
+  global prev_latency_file
+  set view_list [get_db analysis_views -if {.is_setup == true || .is_hold == true || .is_leakage == true}]
+  foreach view $view_list {
+    set view_name    [get_db $view .name]
+    if {[info exist prev_latency_file($view_name)]} {
+      set latency_file $prev_latency_file($view_name)	    
+      puts "Resetting latency file on view: $view_name with: $latency_file"
+      update_analysis_view -name $view_name -latency_file $prev_latency_file($view_name)
+    }
+  }
+}
+
+proc store_latency_files { } {
+  global prev_latency_file
+  set view_list [get_db analysis_views -if {.is_setup == true || .is_hold == true || .is_leakage == true}]
+  foreach view $view_list {
+    set view_name [get_db $view .name]
+    set latency_file [get_db $view .latency_file]
+    if { $lat_file != "" } {
+      set prev_latency_file($view_name) $latency_file
+    }
+  }
+}
+
+proc get_input_tran {fh i {view "func_setup_ssgnp0p675v0c_cworstCCwT0c"} {verbose 0}} {
+
+  set fh_insts [dict create \
+    fab HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_${i} \
+    hbm HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/hbm_group_${i} \
+  ]
+
+  set sp_ep [dict create \
+    sp [dict create \
+      fab [dict create \
+        xbar g_fab_port_3__fab_port/xbar_axi4_rout/g_speedup_f2s/dn_data_reg_161_/CP \
+        axi g_fab_port_0__fab_port/xbar_axi4_win/up_deco_w/up_deco_/async_fifo_out_reg/dout_reg_280_/CP \
+      ] \
+      hbm [dict create \
+        xbar hbm_port_6/xbar_axi4_wout/g_speedup_f2s/dn_sb_reg_47_/CP \
+        axi hbm_port_7/xbar_axi4_rin/genblk1_ma_valid_hold_reg/CP \
+      ] \
+    ] \
+    ep [dict create \
+      fab [dict create \
+        xbar g_fab_port_0__fab_port/xbar_axi4_win/g_speedup_s2f/up_data_lower_reg_123_/D \
+        axi g_fab_port_3__fab_port/xbar_axi4_rout/g_qos_deco_r/up_deco_/FIFO_ENTRY_PACK_2__async_fifo_entry/dout_reg_161_/D \
+      ] \
+      hbm [dict create \
+        xbar hbm_port_7/xbar_axi4_rin/genblk3_g_speedup_s2f_decoupler/dn_data_reg_66_/D \
+        axi hbm_port_6/xbar_axi4_wout/wsplit/dn_wstrb_reg_reg_15_/D \
+      ] \
+    ] \
+  ]
+    
+  set clock_map [dict create axi axi fast xbar]
+
+  set clock_list [dict values $clock_map]
+
+  set full_to_from_list [concat {*}$clock_list {*}[lreverse $clock_list]]
+  #puts "SETH $full_to_from_list"
+
+  set clk_slew [dict create]
+  foreach {from_clk to_clk} $full_to_from_list  {
+    set sp [dict get $sp_ep sp $fh $from_clk]
+    set ep [dict get $sp_ep ep $fh $to_clk]
+
+    set fh_inst [dict get $fh_insts $fh]
+
+    set full_sp "${fh_inst}/$sp"
+    set full_ep "${fh_inst}/$ep"
+
+
+    #puts "set tpath \[report_timing -collection -from $full_sp -to $full_ep -retime path_slew_propagation -view $view -path_type full_clock\]"
+    set tpath [report_timing -collection -from $full_sp -to $full_ep -retime path_slew_propagation -view $view -path_type full_clock]
+
+    foreach lc [list launch capture] {
+      set clock_path [get_db $tpath .${lc}_clock_path]
+      puts ""
+      set tpoints [get_db $clock_path .timing_points]
+      foreach tpoint $tpoints {
+        set name [get_db $tpoint .pin.name]
+        if { [regexp {HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/(fab|hbm)_group_\d/clk_(axi|fast)_IencIOBuf/I} $name] } {
+          lassign [regexp -inline {HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/(fab|hbm)_group_\d/clk_(axi|fast)_IencIOBuf/I} $name] match trash clk_unmap
+          set clk_name [dict get $clock_map $clk_unmap]
+          set slew [get_db $tpoint .slew]
+          #puts "$slew : $clk_name"
+          dict set clk_slew $lc $clk_name $slew
+        }
+      }
+      #puts ""
+    }
+  }
+
+  set ret_hdr [list]
+  set ret_list [list]
+  dict for {lc name_slew_dict} $clk_slew {
+    dict for {name slew} $name_slew_dict {
+      #puts "$lc : $name : $slew"
+      lappend ret_hdr "${lc}_${name}"
+      lappend ret_list $slew
+    }
+  }
+  puts $ret_hdr
+  return $ret_list
+}
+
+proc input_tran_csv {} {
+  set csv_fname "fab_hbm_input_clk_tran.csv"
+  set cf [open $csv_fname w]
+
+  puts $cf "launch_axi,launch_xbar,capture_xbar,capture_axi"
+
+  foreach fh [list fab hbm] {
+    foreach inst_idx [list 0 1 2 3] {
+      set tran_list [get_input_tran $fh $inst_idx]
+      set csv_line [join [split $tran_list] ","]
+      puts $cf $csv_line
+    }
+  }
+
+  close $cf
+  puts "Created $csv_fname ..."
+}
