@@ -1,0 +1,68 @@
+################################################################################################################
+# Notes / Assumptions
+#
+# 1) HTB level contains OCC structures
+# 2) OCC muxes have both func and test input paths
+# 3) Both func and test input ports must be placed (relatively) near each other
+# 4) OCC mux and associated OCC logic should be regioned/placed near the func/test clock ports
+#
+# This script does the following clock port checks:
+# 1) check to be sure the RLM does not have more than one test clock port
+# 2) check to be sure all the func clock ports are placed near the test clock port
+#
+# Contact Clocking Skills Group if you need an updated version of this script
+#
+################################################################################################################
+
+# get sandbox mortar containing distance measurement function
+source /proj/mkit/pkgs/minfra/mPkg/latest/mflow_mortar/mortar_math.tcl
+source /proj/mkit/pkgs/minfra/mPkg/latest/mflow_mortar/mortar.tcl
+
+# set func to test clock port distance limit
+set port_dist_limit 200.0
+
+# get list of occ output muxes
+set test_logic_output_muxes_htb  [get_db insts -if {.name == *tessent*cell_clock_out_mux}]
+set test_logic_output_muxes_non_htb  [get_db insts -if {.name == *tessent*_clock_mux}]
+set test_logic_output_muxes [concat $test_logic_output_muxes_htb $test_logic_output_muxes_non_htb]
+
+set rlm [get_db designs .name]
+
+foreach mux $test_logic_output_muxes {
+    # detect slow clock input port
+    gui_deselect -all
+    select_obj $mux
+    set inst_name [get_db selected .name]
+    set fast_clock_net [mortar::get_pin_net -pin_name $inst_name/I0]
+    set slow_clock_net [mortar::get_pin_net -pin_name $inst_name/I1]
+    set func_clk_port [all_fanin -startpoints_only -to $fast_clock_net]
+    set test_clk_port [all_fanin -startpoints_only -to $slow_clock_net]
+    gui_deselect -all
+    select_obj $test_clk_port
+    set test_clk_port_name [get_db selected .name]
+    set test_clk_px   [get_db selected .location.x]
+    set test_clk_py   [get_db selected .location.y]
+    set test_clk_side [get_db selected .side]
+    gui_deselect -all
+    select_obj $func_clk_port
+    set func_clk_port_name [get_db selected .name]
+    set func_clk_px   [get_db selected .location.x]
+    set func_clk_py   [get_db selected .location.y]
+    set func_clk_side [get_db selected .side]
+    mortar::echo "##############################################################################################"
+    mortar::echo "Clock Mux: $mux"
+    mortar::echo "Func Clk Port: $func_clk_port_name"
+    mortar::echo "Func Clk Side: $func_clk_side"
+    mortar::echo "Func Clk Location: $func_clk_px $func_clk_py"
+    mortar::echo "Test Clk Port: $test_clk_port_name"
+    mortar::echo "Test Clk Side: $test_clk_side"
+    mortar::echo "Test Clk Location: $test_clk_px $test_clk_py"
+    set clk_port_distance [mortar::distance -straightline -x1 $func_clk_px -y1 $func_clk_py -x2 $test_clk_px -y2 $test_clk_py]
+    mortar::echo "Func to Test Clk Port Distance: $clk_port_distance"
+    if {$clk_port_distance > $port_dist_limit} {
+	mortar::echo -error -text "Func to Test Clk Port Distance: $clk_port_distance exceeds distance limit $port_dist_limit"
+	mortar::echo -error -text "Please correct port placement to move $func_clk_port_name closer to $test_clk_port_name"
+    }
+    gui_deselect -all
+}
+
