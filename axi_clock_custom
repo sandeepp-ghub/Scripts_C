@@ -1,0 +1,245 @@
+
+puts "Default skew groups prior to Override:"
+foreach one [get_db skew_groups * ] {
+    puts "[llength [get_db $one .sinks.name ] ] [get_db $one .name ]"
+}
+
+
+
+
+
+     #catch { set skewGroups [get_db [get_db skew_groups sg_port* ] .name ]
+     catch { set  skewGroups [get_db [get_db skew_groups CCLK_sms_* ] .name ]
+     lappend skewGroups [get_db [get_db skew_groups WRCK_sms_* ] .name ]
+     lappend skewGroups [get_db [get_db skew_groups WRCK_ieee_* ] .name ]
+     lappend skewGroups [get_db [get_db skew_groups WRCK_merged* ] .name ]
+     lappend skewGroups [get_db [get_db skew_groups testing_* ] .name ]
+     lappend skewGroups [get_db [get_db skew_groups combined_* ] .name ]
+     lappend skewGroups [get_db [get_db skew_groups merge_* ] .name ]
+     set jj [join $skewGroups ]
+     foreach one $jj {
+        puts "delete_skew_groups  $one"
+        delete_skew_groups  $one
+      }
+     }
+puts "Finish skew groups initialization"
+
+#so that we can make CCLK and WRCK be per port group, delete below and pull out as we need
+#catch { delete_skew_groups CCLK_WRCK_balance_group/m1dpx/wrck }
+#
+#
+#bug from customer flop replacement
+#catch { delete_skew_groups CCLK_mem_rdata }
+catch { delete_skew_groups CCLK }
+
+
+#build WRCK and CCLK to leaf pin instead
+catch { delete_skew_groups CCLK_WRCK_balance_group/m1dpx/wrck }
+
+catch { delete_clock_trees  *OR*  } 
+catch { delete_skew_groups *SMS_proc* }
+
+#separate titming on 38 controllers:
+#32 controllers inside of the fab/hbm hierarchy. ( 8 x 4 )
+#3 fab2hbm
+#3 hbm2fab
+#keep stop pin on clk_xbar and keep delay of 150ps after.
+foreach one [get_db pins *i_SMS_proc*clock_mux*OR_AP_CELL_BIT_0__anpa_keep_or/A1  ] {
+    set_db $one .cts_sink_type stop
+    set_db $one .cts_pin_insertion_delay 150ps
+}
+
+#change from stop pin to remove pin on WRCK
+foreach one [get_db pins *i_SMS_proc*clock_mux*OR_AP_CELL_BIT_0__anpa_keep_or/A2  ] {
+    set_db $one .cts_sink_type through
+    reset_db $one .cts_pin_insertion_delay
+}
+
+
+#stop pin on TCK and func muxes. This will allow u_dfx to balance, but will keep TCK/tessent clocks out of full trees during CTS:
+#DONT delete tessent clocks because you want to balance u_dfx.
+
+#CLK_XBAR_buf
+set p1 [get_db pins XBAR_TOP_16/u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_clock_out_f1_mux/anpa_keep_clk_mux/I1 ]
+set_db $p1 .cts_sink_type stop
+
+#CLK_MEM_buf
+set p2 [get_db pins XBAR_TOP_16/u_dfx/ckgen/GEN_OCC_OCC_2__occ/u_occ/tessent_persistent_cell_clock_out_mux/anpa_keep_clk_mux/I1 ]
+set_db $p2 .cts_sink_type stop
+
+#CLK_AXI_LOCAL_buf
+set p3 [get_db pins XBAR_TOP_16/u_dfx/ckgen/GEN_OCC_sync_occ/u_occ/tessent_persistent_cell_clock_out_f2_mux/anpa_keep_clk_mux/I1 ]
+set_db $p3 .cts_sink_type stop
+
+
+#recreate combo sync including WRCK sinks to mem TCLK* and sinks of ORgate Z pin:
+
+  set cmd "create_skew_group -name CCLK -auto_sinks  -sources CCLK"
+  eval $cmd
+  set cmd "create_skew_group -name merge_CCLK -auto_sinks  -sources \[list CCLK WRCK \]"
+  eval $cmd
+
+
+if { [llength [get_db skew_groups testing_fast_icg_0  ] ] < 1 } {
+
+#remove input pin as skew pin and change to stop pin
+
+
+for { set m 1 } { $m < 39 } { incr m } {
+set cmd "set WRCK_sms_${m}_j \[list \]"
+eval $cmd
+set cmd "set WRCK_ieee_${m} \[list \]"
+eval $cmd
+set cmd "set CCLK_sms_${m} \[list \]"
+eval $cmd
+
+}
+
+#WRCK split of cells after OrGate
+array unset found
+
+foreach one [get_db [get_db skew_groups WRCK/func ] .sinks.name ] {
+    set found($one) 0
+}
+
+array unset myName
+array unset myNameSMS
+
+set m 1
+#recreate a separate skew group for each controller by using fanout.
+foreach pa [ get_db pins *i_SMS_proc*clock_mux*OR_AP_CELL_BIT_0__anpa_keep_or/Z ]  {
+set cmd " set sinks \[all_fanout -flat -endpoints_only -from [get_db $pa .name ] \]"
+eval $cmd
+set cmd  "lappend WRCK_sms_${m}_j \[get_object_name $sinks \]"
+eval $cmd
+set cmd "set WRCK_sms_${m} \[join \$WRCK_sms_${m}_j \]"
+eval $cmd
+ foreach one [get_db $sinks .name ]  {
+       set found($one) 1
+ }
+ set nme [get_db $pa .name ]
+ set myParts [split $nme "\/" ]
+ set myNameSMS($m) "[lindex $myParts 0]\/[lindex $myParts 1]\/[lindex $myParts 2]\/[lindex $myParts 3]"
+ set myName($m) "[lindex $myParts 0]\/[lindex $myParts 1]\/[lindex $myParts 2]\/[lindex $myParts 3]"
+ if { [regexp {fa2hbm|hbm2fab}  [lindex $myParts 2] ] } {
+ set myName($m) "[lindex $myParts 0]\/[lindex $myParts 1]\/[lindex $myParts 2]"
+ }
+ incr m
+
+}
+
+set rest [list ]
+
+foreach one [get_db [get_db skew_groups WRCK/func ] .sinks.name ] {
+    if { !$found($one) } {
+         if { ! [regexp {anpa_keep} $one ] } {
+          lappend rest $one
+         }
+    }
+}
+
+foreach one $rest {
+     set cmd "for { set z 1 } { \$z < 39 } { incr z } {
+            if { \[regexp \"\$myNameSMS(\$z)\" \$one \] } {
+                 lappend WRCK_ieee_\${z} \$one
+            }
+      } "
+      eval "$cmd"
+}
+
+
+
+if { ! [regexp -nocase preDFT $SESSION(track) ] } {
+
+
+
+  foreach one [get_db pins retime_latch_ts0*/D ] {
+      set afi [all_fanin -to $one -flat -startpoints_only ]
+      set afig [get_object_name $afi ]
+      set inst [get_db $one .inst ]
+      set cp "[get_db $inst .name]/E"
+      set cmd "for { set z 1 } { \$z < 39 } { incr z } {
+            if { \[regexp \"\$myName(\$z)\" \$afig \] } {
+                 lappend CCLK_sms_\${z} \$cp
+            }
+      } "
+      eval "$cmd"
+  }
+
+foreach one [get_db [get_db skew_groups CCLK ] .sinks.name ] {
+      set cmd "for { set z 1 } { \$z < 39 } { incr z } {
+            if { \[regexp \"\$myName(\$z)\" \$one \] } {
+                 lappend CCLK_sms_\${z} \$one
+            }
+      } "
+      eval "$cmd"
+
+}
+
+ 
+#balance the two skew groups of the main clocks:
+catch { \
+set cmd "::create_skew_group -name combined_xbar_axi_func -balance_skew_groups \"CLK_AXI_local/func CLK_XBAR_buf/func \"" ; \
+    eval "$cmd" \
+}
+
+
+
+foreach port [list  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38] {
+
+#    set cmd "::create_skew_group -name sg_port_${port} -exclusive_sinks \"\$clk_axi_port_${port} \$clk_xbar_port_${port}\""
+#    eval "$cmd"
+
+    set cmd "::create_skew_group -name merge_WRCK_CCLK_sms_${port} -exclusive_sinks \"\$CCLK_sms_${port} \$WRCK_sms_${port}\""
+    eval "$cmd"
+
+}
+
+foreach port [list  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38] {
+
+    set cmd "set icgl \[get_db \[get_db pins $myNameSMS($port)\*/i_SMS_proc/\*reset/clk2_gate_latch/clk_gate/U_ICG/CP] .name\]"
+    eval $cmd
+    set cmd "create_skew_group -name testing_fast_icg_${port} -exclusive_sinks $icgl -sources clk_xbar"
+    eval $cmd
+
+    set cmd "::create_skew_group -name WRCK_ieee_${port} -exclusive_sinks \"\$WRCK_ieee_${port}\""
+    eval "$cmd"
+
+    set cmd "create_skew_group -balance_skew_groups \[list testing_fast_icg_${port} WRCK_ieee_${port} \] -name WRCK_merged_skew_group_${port}"
+    eval $cmd
+}
+
+} else {
+# preDFT out-of-date
+
+}
+
+
+}
+
+
+
+
+
+#make sure that -150ps are included in the model edge prior to making the clock spec
+# in snapshot file.
+
+#report to try and get the full model rebuilt after change
+#
+redirect -file ./report/REPORT_SKEW_GROUP_MODIFICATION { report_skew_groups }
+
+
+
+#Active or not-Active doesn't yet resolve.
+#
+puts "Skew groups after Override:"
+puts "All:"
+foreach one [get_db skew_groups * ] {
+    puts "[llength [get_db $one .sinks.name ] ] [get_db $one .name ]"
+}
+puts "Active:"
+foreach one [get_db skew_groups * ] {
+    puts "[llength [get_db $one .sinks_active.name ] ] [get_db $one .name ]"
+}
+
+
