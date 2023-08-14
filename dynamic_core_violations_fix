@@ -1,0 +1,29 @@
+set cell_list ""
+set pins_of_cells [get_db [get_db insts $cell_list] .pins.name]
+set cell_names []
+set fp [open output.txt w]
+set fp2 [open report.rpt w]
+
+foreach pin $pins_of_cells {
+
+    set timing_paths [report_timing -through $pin -collection -path_type full_clock]
+    report_timing -through $pin -path_type full_clock >> report.rpt
+    foreach_in_collection tpaths $timing_paths {
+        set slack [get_property $tpaths slack]
+        if {$slack > 0} {
+            set cell_name [get_object_name [get_cells -of_objects $pin]]
+            lappend cell_names $cell_name
+        }
+    }
+}   
+puts $cell_names
+set unique_cells [lsort -unique $cell_names]
+
+foreach cell $unique_cells {
+    puts $fp "eco_update_cell -insts $cell -down_size"
+    puts $fp ""
+}
+    
+close $fp
+close $fp2
+
