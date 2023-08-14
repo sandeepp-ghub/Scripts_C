@@ -1,0 +1,718 @@
+## Sets de-synchronized switching activity to all non-clock inpu ports of a block.
+##      For AF: 10%
+##      For AF: 20%
+##      For AF: 25%
+##      For AF: 30%
+##      For AF: 40%
+##      For AF: 50%
+##      For AF: 60%
+
+
+redirect -variable -quiet AF_value {puts [get_default_switching_activity -input_activity]}
+set AF_value2 [exec -- echo $AF_value | grep input_activity | sed {s/.*activity//g} | sed {s/[{}]//g} | sed {s/ //g} ]
+echo "   (PSI-random_PI) - block AF: $AF_value2"
+
+set pattern_repository                       /proj/cayman/DE3/pgv/IObuff_pattern/
+set source_repository_pattern_file           true
+
+####################################################################################
+# PROC:  get_non_clock_ports
+####################################################################################
+proc get_non_clock_ports { args } {
+   set non_clk_IOBuf_list [list]
+   set show_output_ports     0
+   set show_clock_ports      1
+   set show_non_clock_ports  1
+   foreach port [::get_db ports] {
+
+      #### INPUT PORTS ####
+      if { [::get_db $port .direction] eq "in" } {
+
+         # CLOCKS #
+         if { [llength [::get_db $port .clocks]] > 0 } {
+            if { $show_clock_ports } {
+               foreach pin [::get_db $port .net.load_pins] {
+                  set inst [::get_db $pin .inst]
+                  foreach opin [::get_db $inst .pins -if { .direction eq "out" }] {
+                     if { $show_clock_ports } {
+                        puts [format "      |--> CLOCK PORT: %s (clocks: %s)" [::get_db $opin .name] [::get_db $port .clocks.name]]
+                     }; # End of IF;
+                  }; # End of FOREACH;
+               }; # End of FOREACH;
+            }; # End of IF;
+
+         # NON-CLOCKS #
+         } else {
+            foreach pin [::get_db $port .net.load_pins] {
+               set inst [::get_db $pin .inst]
+               if { [::get_db $inst .is_buffer] } {
+                  foreach opin [::get_db $inst .pins -if { .direction eq "out" }] {
+                     #JGF#puts [format "      IencIOBuf:%s" [::get_db $opin .name]]
+                     lappend non_clk_IOBuf_list [::get_db $opin .name]
+                  }; # End of FOREACH;
+               } else {
+                  puts "      |--> Port not connected to buffer: [::get_db $port .name]"
+               }; # End of IF;
+            }; # End of FOREACH;
+         }; # End of IF;
+
+      #### OUTPUT PORTS ####
+      } else {
+         if { ! $show_non_clock_ports } {
+            if { [llength [::get_db $port .clocks]] > 0 } {
+               if { $show_output_ports } {
+                  puts [format "      OUTPUT PORT: %s (clocks: %s)" [::get_db $port .name] [::get_db $port .clocks.name]]
+               }; # End of IF;
+            }; # End of IF;
+         }; # End of IF;
+      }; # End of IF;
+   }; # END OF FOREACH;
+   return $non_clk_IOBuf_list;
+}; # End of PROC;
+####################################################################################
+
+####################################################################################
+# PROC:  move_pattern_to_repository
+####################################################################################
+proc move_pattern_to_repository { pattern_file_path block_name repository_path {file_action replace}} {
+
+            if { [file isdirectory ${repository_path}] } {
+               if { ! [file isdirectory ${repository_path}/${block_name}] } {
+                  mkdir -p ${repository_path}/${block_name}
+               }; # End of IF;
+               if { $file_action == "replace" } {
+                  echo "   (PSI-INFO): (Re)placing ${pattern_file_path} in repository..."
+                  file copy -force ${pattern_file_path}  ${repository_path}/${block_name}
+               } elseif { $file_action == "only_one" && ! [file exists ${repository_path}/${block_name}/${pattern_file_path}]} {
+                  echo "   (PSI-INFO): adding copy of ${pattern_file_path} in repository..."
+                  file copy -force ${pattern_file_path}  ${repository_path}/${block_name}
+               } elseif { $file_action == "only_one" && [file exists ${repository_path}/${block_name}/${pattern_file_path}]} {
+                  echo "   (PSI-INFO): File ${pattern_file_path} already in repository..."
+               } else {
+                  file copy -force ${pattern_file_path}  ${repository_path}/${block_name}
+               }; # End of IF;
+               catch {exec chmod -f 777 -R ${repository_path}/${block_name}/};
+            }; # End of IF;
+
+}; # End of PROC;
+####################################################################################
+
+
+
+
+####################################################################################
+# Setting 10% activity factor to: INPUT non-Clock IOBufs
+####################################################################################
+if { $AF_value2 == "0.1" || $AF_value2 == "0.10" } {
+     catch {file delete -force IObuff_spread_10.tcl}
+
+     #JGF#set list2  [get_cells -hier *IencIOBuf*]
+     #JGF#set list2_pins [get_pins -quiet -of_objects $list2 -filter "direction == out && is_clock == false"]
+     set list2_pins [get_non_clock_ports]
+
+
+     # Static simulation
+     ######################
+     if { [string match  {*static_run*} [pwd]] } {
+         set_switching_activity -activity 0.1 -pin [list $list2_pins]
+     }
+
+     # Dynamic simulation
+     ######################
+     if { [string match  {*dynamic_run*} [pwd]] || [string match  {*dflow_run_dir*} [pwd]] } {
+
+         # for power_calc
+         set_switching_activity -activity 0.1 -pin [list $list2_pins]
+
+         # for dynamic toggle_rate
+         echo "   (PSI-INFO): Applying 10% activity factors to IencIOBuf, see all commands and inst names in IObuff_spread_10.tcl"
+         foreach pin $list2_pins {
+             set is_toggle [expr {round(rand()*10)}]
+                 set inst [file dirname $pin]
+                 set mypin [file tail $pin]
+             if { $is_toggle == 0 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_10.tcl
+             } elseif { $is_toggle == 1 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_10.tcl
+             } elseif { $is_toggle == 2 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_10.tcl
+             } elseif { $is_toggle == 3 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_10.tcl
+             } elseif { $is_toggle == 4 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_10.tcl
+             } elseif { $is_toggle == 5 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_10.tcl
+             } elseif { $is_toggle == 6 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_10.tcl
+             } elseif { $is_toggle == 7 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_10.tcl
+             } elseif { $is_toggle == 8 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - - - - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_10.tcl
+             } else {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_10.tcl
+             }
+
+         }
+         if [file exists IObuff_spread_10.tcl] {
+            if { $source_repository_pattern_file == true && [file exists $pattern_repository/[get_db current_design .name]/IObuff_spread_10.tcl] } {
+               echo "   (PSI-INFO): Sourcing repository file: $pattern_repository/[get_db current_design .name]/IObuff_spread_10.tcl..."
+               source $pattern_repository/[get_db current_design .name]/IObuff_spread_10.tcl
+            } else {
+               source IObuff_spread_10.tcl
+            }; # End of IF;
+            move_pattern_to_repository    IObuff_spread_10.tcl [get_db current_design .name]  $pattern_repository only_one
+         } else {
+            echo "   (PSI-INFO): File: IObuff_spread_10.tcl  NOT found...continuing."
+         }; # End of IF;
+     }
+
+####################################################################################
+# Setting 20% activity factor to: INPUT non-Clock IOBufs
+####################################################################################
+} elseif { $AF_value2 == "0.2" || $AF_value2 == "0.20" } {
+     catch {file delete -force IObuff_spread_20.tcl}
+
+     #JGF#set list2  [get_cells -hier *IencIOBuf*]
+     #JGF#set list2_pins [get_pins -quiet -of_objects $list2 -filter "direction == out && is_clock == false"]
+     set list2_pins [get_non_clock_ports]
+
+     # Static simulation
+     ######################
+     if { [string match  {*static_run*} [pwd]] } {
+         set_switching_activity -activity 0.2 -pin [list $list2_pins]
+     }
+
+     # Dynamic simulation
+     ######################
+     if { [string match  {*dynamic_run*} [pwd]] || [string match  {*dflow_run_dir*} [pwd]] } {
+
+         # for power_calc
+         set_switching_activity -activity 0.2 -pin [list $list2_pins]
+
+         # for dynamic toggle_rate
+         echo "   (PSI-INFO): Applying 20% activity factors to IencIOBuf, see all commands and inst names in IObuff_spread_20.tcl"
+         foreach pin $list2_pins {
+             set is_toggle [expr {round(rand()*25)}]
+                 set inst [file dirname $pin]
+                 set mypin [file tail $pin]
+             if { $is_toggle == 0 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - - - r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 1 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - - - - - r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 2 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - - - - - - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 3 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f - - - - - - - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 4 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 5 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f - - - - - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 6 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f r f - - - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 7 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f r f - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 8 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f r f - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 9 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 10 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - r f r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 11 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - r f r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 12 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - - - r f r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 13 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - - - - - r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 14 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - - - - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 15 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 16 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 17 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - r f - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 18 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f - - r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 19 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f - - r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 20 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - r f - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 21 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 22 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } elseif { $is_toggle == 23 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - - - - - - - - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             } else {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - - - - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_20.tcl
+             }
+
+         }
+         if [file exists IObuff_spread_20.tcl] {
+            if { $source_repository_pattern_file == true && [file exists $pattern_repository/[get_db current_design .name]/IObuff_spread_20.tcl] } {
+               echo "   (PSI-INFO): Sourcing repository file: $pattern_repository/[get_db current_design .name]/IObuff_spread_20.tcl..."
+               source $pattern_repository/[get_db current_design .name]/IObuff_spread_20.tcl
+            } else {
+               source IObuff_spread_20.tcl
+            }; # End of IF;
+            move_pattern_to_repository    IObuff_spread_20.tcl [get_db current_design .name]  $pattern_repository only_one
+         } else {
+            echo "   (PSI-INFO): File: IObuff_spread_20.tcl  NOT found...continuing."
+         }; # End of IF;
+     }
+####################################################################################
+# Setting 25% activity factor to: INPUT non-Clock IOBufs
+####################################################################################
+} elseif { $AF_value2 == "0.25" || $AF_value2 == "0.25" } {
+     catch {file delete -force IObuff_spread_25.tcl}
+
+     #JGF#set list2  [get_cells -hier *IencIOBuf*]
+     #JGF#set list2_pins [get_pins -quiet -of_objects $list2 -filter "direction == out && is_clock == false"]
+     set list2_pins [get_non_clock_ports]
+
+     # Static simulation
+     ######################
+     if { [string match  {*static_run*} [pwd]] } {
+         set_switching_activity -activity 0.25 -pin [list $list2_pins]
+     }
+
+     # Dynamic simulation
+     ######################
+     if { [string match  {*dynamic_run*} [pwd]] || [string match  {*dflow_run_dir*} [pwd]] } {
+
+         # for power_calc
+         set_switching_activity -activity 0.25 -pin [list $list2_pins]
+
+         # for dynamic toggle_rate
+         echo "   (PSI-INFO): Applying 25% activity factors to IencIOBuf, see all commands and inst names in IObuff_spread_25.tcl"
+         foreach pin $list2_pins {
+             set is_toggle [expr {round(rand()*24)}]
+                 set inst [file dirname $pin]
+                 set mypin [file tail $pin]
+             if { $is_toggle == 0 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 1 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 2 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - - - - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 3 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 4 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 5 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f r f - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 6 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 7 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 8 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 9 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - r f r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 10 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 11 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 12 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 13 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 14 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 15 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 16 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 17 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 18 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 19 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 20 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 21 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f - - - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } elseif { $is_toggle == 22 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             } else {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_25.tcl
+             }
+
+         }
+         if [file exists IObuff_spread_25.tcl] {
+            source IObuff_spread_25.tcl
+         } else {
+            echo "   (PSI-INFO): File: IObuff_spread_25.tcl  NOT found...continuing."
+         }; # End of IF;
+     }
+####################################################################################
+# Setting 30% activity factor to: INPUT non-Clock IOBufs
+####################################################################################
+} elseif { $AF_value2 == "0.3" || $AF_value2 == "0.30" } {
+     catch {file delete -force IObuff_spread_30.tcl}
+
+     #JGF#set list2  [get_cells -hier *IencIOBuf*]
+     #JGF#set list2_pins [get_pins -quiet -of_objects $list2 -filter "direction == out && is_clock == false"]
+     set list2_pins [get_non_clock_ports]
+
+     # Static simulation
+     ######################
+     if { [string match  {*static_run*} [pwd]] } {
+         set_switching_activity -activity 0.3 -pin [list $list2_pins]
+     }
+
+     # Dynamic simulation
+     ######################
+     if { [string match  {*dynamic_run*} [pwd]] || [string match  {*dflow_run_dir*} [pwd]] } {
+
+         # for power_calc
+         set_switching_activity -activity 0.3 -pin [list $list2_pins]
+
+         # for dynamic toggle_rate
+         echo "   (PSI-INFO): Applying 30% activity factors to IencIOBuf, see all commands and inst names in IObuff_spread_30.tcl"
+         foreach pin $list2_pins {
+             set is_toggle [expr {round(rand()*31)}]
+                 set inst [file dirname $pin]
+                 set mypin [file tail $pin]
+             if { $is_toggle == 0 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f - - - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 1 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f r f r f - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 2 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f r f r f - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 3 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f r f r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 4 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f r f r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 5 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - r f r f r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 6 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - r f r f r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 7 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - - - r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 8 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - - - - - - - - - r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 9 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f - - - - - - - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 10 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - r f - - - - r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 11 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - r f - - - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 12 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - - - r f - - - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 13 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f - - - - r f - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 14 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - r f - - - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 15 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - - - r f - - - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 16 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - - - - - r f - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 17 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - r f - - - - - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 18 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - r f - - - - - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 19 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - - - r f - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 20 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - r f - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 21 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f - - r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 22 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - r f - - r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 23 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f - - r f - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 24 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f - - r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 25 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - r f - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 26 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - - - - - r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 27 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - - - - - - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 28 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - - - - - - - - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } elseif { $is_toggle == 29 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f - - - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             } else {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - r f - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_30.tcl
+             }
+
+         }
+         if [file exists IObuff_spread_30.tcl] {
+            if { $source_repository_pattern_file == true && [file exists $pattern_repository/[get_db current_design .name]/IObuff_spread_30.tcl] } {
+               echo "   (PSI-INFO): Sourcing repository file: $pattern_repository/[get_db current_design .name]/IObuff_spread_30.tcl..."
+               source $pattern_repository/[get_db current_design .name]/IObuff_spread_30.tcl
+            } else {
+               source IObuff_spread_30.tcl
+            }; # End of IF;
+            move_pattern_to_repository    IObuff_spread_30.tcl [get_db current_design .name]  $pattern_repository only_one
+         } else {
+            echo "   (PSI-INFO): File: IObuff_spread_30.tcl  NOT found...continuing."
+         }; # End of IF;
+     }
+####################################################################################
+# Setting 40% activity factor to: INPUT non-Clock IOBufs
+####################################################################################
+} elseif { $AF_value2 == "0.4" || $AF_value2 == "0.40" } {
+     catch {file delete -force IObuff_spread_40.tcl}
+
+     #JGF#set list2  [get_cells -hier *IencIOBuf*]
+     #JGF#set list2_pins [get_pins -quiet -of_objects $list2 -filter "direction == out && is_clock == false"]
+     set list2_pins [get_non_clock_ports]
+
+     # Static simulation
+     ######################
+     if { [string match  {*static_run*} [pwd]] } {
+         set_switching_activity -activity 0.4 -pin [list $list2_pins]
+     }
+
+     # Dynamic simulation
+     ######################
+     if { [string match  {*dynamic_run*} [pwd]] || [string match  {*dflow_run_dir*} [pwd]] } {
+
+         # for power_calc
+         set_switching_activity -activity 0.4 -pin [list $list2_pins]
+
+         # for dynamic toggle_rate
+         echo "   (PSI-INFO): Applying 40% activity factors to IencIOBuf, see all commands and inst names in IObuff_spread_40.tcl"
+         foreach pin $list2_pins {
+             set is_toggle [expr {round(rand()*25)}]
+                 set inst [file dirname $pin]
+                 set mypin [file tail $pin]
+             if { $is_toggle == 0 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f - - - - - - r f r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 1 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f r f - - - - - - r f r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 2 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f r r - - - - - - r f r r - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 3 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f r f - - - - - - r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 4 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - r f r f - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 5 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f r f - - - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 6 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f r f r f r f - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 7 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f r f r f r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 8 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f r f r f r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 9 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f r f r f r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 10 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - r f r f r f r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 11 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - - - r f r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 12 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - - - - - - - r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 13 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f - - - - - - - - - - - - r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 14 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f - - - - - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 15 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - r f - - r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 16 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f - - r f - - r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 17 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f - - r f - - r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 18 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f - - r f - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 19 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - r f - - r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 20 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - - - - - r f - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 21 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - - - - - r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 22 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f - - - - - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } elseif { $is_toggle == 23 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - r f - - - - - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             } else {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f - - r f - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_40.tcl
+             }
+
+         }
+         if [file exists IObuff_spread_40.tcl] {
+            if { $source_repository_pattern_file == true && [file exists $pattern_repository/[get_db current_design .name]/IObuff_spread_40.tcl] } {
+               echo "   (PSI-INFO): Sourcing repository file: $pattern_repository/[get_db current_design .name]/IObuff_spread_40.tcl..."
+               source $pattern_repository/[get_db current_design .name]/IObuff_spread_40.tcl
+            } else {
+               source IObuff_spread_40.tcl
+            }; # End of IF;
+            move_pattern_to_repository    IObuff_spread_40.tcl [get_db current_design .name]  $pattern_repository only_one
+         } else {
+            echo "   (PSI-INFO): File: IObuff_spread_40.tcl  NOT found...continuing."
+         }; # End of IF;
+     }
+####################################################################################
+# Setting 50% activity factor to: INPUT non-Clock IOBufs
+####################################################################################
+} elseif { $AF_value2 == "0.5" || $AF_value2 == "0.50" } {
+     catch {file delete -force IObuff_spread_50.tcl}
+
+     #JGF#set list2  [get_cells -hier *IencIOBuf*]
+     #JGF#set list2_pins [get_pins -quiet -of_objects $list2 -filter "direction == out && is_clock == false"]
+     set list2_pins [get_non_clock_ports]
+
+     # Static simulation
+     ######################
+     if { [string match  {*static_run*} [pwd]] } {
+         set_switching_activity -activity 0.5 -pin [list $list2_pins]
+     }
+
+     # Dynamic simulation
+     ######################
+     if { [string match  {*dynamic_run*} [pwd]] || [string match  {*dflow_run_dir*} [pwd]] } {
+
+         # for power_calc
+         set_switching_activity -activity 0.5 -pin [list $list2_pins]
+
+         # for dynamic toggle_rate
+         echo "   (PSI-INFO): Applying 50% activity factors to IencIOBuf, see all commands and inst names in IObuff_spread_50.tcl"
+         foreach pin $list2_pins {
+             set is_toggle [expr {round(rand()*12)}]
+                 set inst [file dirname $pin]
+                 set mypin [file tail $pin]
+             if { $is_toggle == 0 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - r f - - r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } elseif { $is_toggle == 1 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f - - r f - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } elseif { $is_toggle == 2 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f r f r f - - - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } elseif { $is_toggle == 3 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f r f r f r f r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } elseif { $is_toggle == 4 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f r f r f r f r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } elseif { $is_toggle == 5 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f r f r f r f r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } elseif { $is_toggle == 6 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f r f r f r f r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } elseif { $is_toggle == 7 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - - - r f r f r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } elseif { $is_toggle == 8 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - - - - - r f r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } elseif { $is_toggle == 9 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f - - - - - - - - - - r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } elseif { $is_toggle == 10 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f - - - - - - - - - - r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             } else {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f r f - - - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_50.tcl
+             }
+
+         }
+         if [file exists IObuff_spread_50.tcl] {
+            if { $source_repository_pattern_file == true && [file exists $pattern_repository/[get_db current_design .name]/IObuff_spread_50.tcl] } {
+               echo "   (PSI-INFO): Sourcing repository file: $pattern_repository/[get_db current_design .name]/IObuff_spread_50.tcl..."
+               source $pattern_repository/[get_db current_design .name]/IObuff_spread_50.tcl
+            } else {
+               source IObuff_spread_50.tcl
+            }; # End of IF;
+            move_pattern_to_repository    IObuff_spread_50.tcl [get_db current_design .name]  $pattern_repository only_one
+         } else {
+            echo "   (PSI-INFO): File: IObuff_spread_50.tcl  NOT found...continuing."
+         }; # End of IF;
+     }
+####################################################################################
+# Setting 60% activity factor to: INPUT non-Clock IOBufs
+####################################################################################
+} elseif { $AF_value2 == "0.6" || $AF_value2 == "0.60" } {
+     catch {file delete -force IObuff_spread_60.tcl}
+
+     #JGF#set list2  [get_cells -hier *IencIOBuf*]
+     #JGF#set list2_pins [get_pins -quiet -of_objects $list2 -filter "direction == out && is_clock == false"]
+     set list2_pins [get_non_clock_ports]
+
+     # Static simulation
+     ######################
+
+     if { [string match  {*static_run*} [pwd]] } {
+         set_switching_activity -activity 0.6 -pin [list $list2_pins]
+     }
+
+     # Dynamic simulation
+     ######################
+     if { [string match  {*dynamic_run*} [pwd]] || [string match  {*dflow_run_dir*} [pwd]] } {
+
+         # for power_calc
+         set_switching_activity -activity 0.6 -pin [list $list2_pins]
+
+         # for dynamic toggle_rate
+         echo "   (PSI-INFO): Applying 60% activity factors to IencIOBuf, see all commands and inst names in IObuff_spread_60.tcl"
+         foreach pin $list2_pins {
+             set is_toggle [expr {round(rand()*24)}]
+                 set inst [file dirname $pin]
+                 set mypin [file tail $pin]
+             if { $is_toggle == 0 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f r f r f r f - - - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 1 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f r f r f r f r f r f - - - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 2 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f r f r f r f r f r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 3 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - r f r f r f r f r f r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 4 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - - - - - r f r f r f r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 5 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - - - - - r f r f r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 6 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f - - - - - - - - r f r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 7 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f - - - - - - - - r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 8 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f r f - - - - - - - - r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 9 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f r f r f - - - - - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 10 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - r f - - r f - - r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 11 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f - - r f - - r f - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 12 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f - - r f - - r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 13 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f r f r f - - r f - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 14 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f r f r f - - r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 15 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f r f r f - - r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 16 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - r f r f r f - - r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 17 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f - - r f r f r f - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 18 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - r f - - r f - - r f r f r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 19 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f - - r f - - r f - - r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 20 } {
+                     echo "set_power -dynamic_switch_pattern { r f r f r f - - - - r f r f r f - - - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 21 } {
+                     echo "set_power -dynamic_switch_pattern { - - r f r f r f - - - - r f r f r f - - } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 22 } {
+                     echo "set_power -dynamic_switch_pattern { - - - - r f r f r f - - - - r f r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } elseif { $is_toggle == 23 } {
+                     echo "set_power -dynamic_switch_pattern { r f - - - - r f r f r f - - - - r f r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             } else {
+                     echo "set_power -dynamic_switch_pattern { r f r f - - - - r f r f r f - - - - r f } -instance $inst -pin $mypin" -repeat >> IObuff_spread_60.tcl
+             }
+
+         }
+         if [file exists IObuff_spread_60.tcl] {
+            if { $source_repository_pattern_file == true && [file exists $pattern_repository/[get_db current_design .name]/IObuff_spread_60.tcl] } {
+               echo "   (PSI-INFO): Sourcing repository file: $pattern_repository/[get_db current_design .name]/IObuff_spread_60.tcl..."
+               source $pattern_repository/[get_db current_design .name]/IObuff_spread_60.tcl
+            } else {
+               source IObuff_spread_60.tcl
+            }; # End of IF;
+            move_pattern_to_repository    IObuff_spread_60.tcl [get_db current_design .name]  $pattern_repository only_one
+         } else {
+            echo "   (PSI-INFO): File: IObuff_spread_60.tcl  NOT found...continuing."
+         }; # End of IF;
+     }
+
+####################################################################################
+#     AF not FOUND
+####################################################################################
+} else {
+    echo "ERROR: no AF set for $AF_value2"
+}
