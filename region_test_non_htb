@@ -1,0 +1,83 @@
+
+
+# get list of occ output muxes
+set test_logic_output_muxes  [get_db insts -if {.name == *tessent*_clock_mux}]
+
+set rlm [get_db designs .name]
+
+foreach mux $test_logic_output_muxes {
+    # detect slow clock input port
+    gui_deselect -all
+    select_obj $mux
+    set inst_name [get_db selected .name]
+    set slow_clock_net [mortar::get_pin_net -pin_name $inst_name/I0]
+    set input_port [all_fanin -startpoints_only -to $slow_clock_net]
+    gui_deselect -all
+    select_obj $input_port
+    set port_name [get_db selected .name]
+    set px   [get_db selected .location.x]
+    set py   [get_db selected .location.y]
+    set side [get_db selected .side]
+    mortar::echo "Placing clk mux $mux --- Loc: $px $py  Port: $port_name"
+    mortar::move_gate -name $inst_name -x_coord $px -y_coord $py -snap -orient R0 -status_softfixed
+    mortar::echo "Legalizing mux placements ..."
+    place_detail -inst $inst_name
+    mortar::move_gate -name $inst_name -status_fixed
+}
+
+########## test logic to be placed near test ports  #########
+
+set testlogic1  [get_db insts -if {.name == *mbist_tessent_sib_sti_inst*}]
+set testlogic2  [get_db insts -if {.name == *edtocc_tessent_sib_edt_inst*}]
+set testlogic3  [get_db insts -if {.name == *edtocc_tessent_edt_c1_tdr_inst*}]
+set testlogic4  [get_db insts -if {.name == *mbist_tessent_tdr_sri_ctrl_inst*}]
+set testlogic5  [get_db insts -if {.name == *mbist_tessent_sib_sri_inst*}]
+
+set testlogic  [concat $testlogic1 $testlogic2 $testlogic3 $testlogic4 $testlogic5]
+set area 0
+foreach c $testlogic {
+  set area [expr $area + [get_db $c .area]]
+}
+
+set edge_offset 0.100
+set 50pct [expr sqrt($area*2)]
+# east/north/south/west side
+if [regexp ^(e) $side] {
+  puts ""
+  puts "### HND:: Creating region at \{[format "%10.3f %10.3f %10.3f %10.3f" [expr $px - $50pct * 2] [expr $py - $50pct] [expr $px - $edge_offset] [expr $py + $50pct]] \} for test logic at $port_name pin  \{[format "%10.3f %10.3f" $px $py]\}"
+  puts ""
+  gui_deselect -all
+  delete_obj [get_db groups ${rlm}*testlogic_region*]
+  create_group -name   ${rlm}_testlogic_region
+  update_group         -add -name ${rlm}_testlogic_region -objs [ get_db $testlogic .name]
+  create_region       -name ${rlm}_testlogic_region -area [expr $px - $50pct * 2] [expr $py - $50pct ]  [expr $px - $edge_offset]  [expr $py + $50pct]
+} elseif [regexp ^(n) $side] {
+  puts ""
+  puts "### HND:: Creating region at \{[format "%10.3f %10.3f %10.3f %10.3f" [expr $px - $50pct] [expr $py - $50pct * 2] [expr $px + $50pct] [expr $py - $edge_offset]] \} for test logic at $port_name pin  \{[format "%10.3f %10.3f" $px $py]\}"
+  puts ""
+  gui_deselect -all
+  delete_obj [get_db groups ${rlm}*testlogic_region*]
+  create_group -name   ${rlm}_testlogic_region
+  update_group         -add -name ${rlm}_testlogic_region -objs [ get_db $testlogic .name]
+    create_region       -name ${rlm}_testlogic_region -area [expr $px - $50pct] [expr $py - $50pct * 2 ] [expr $px + $50pct] [expr $py - $edge_offset]
+} elseif [regexp ^(s) $side] {
+  puts ""
+  puts "### HND:: Creating region at \{[format "%10.3f %10.3f %10.3f %10.3f" [expr $px - $50pct] [expr $py + $edge_offset] [expr $px + $50pct] [expr $py + $50pct * 2 ] \} for test logic at $port_name pin  \{[format "%10.3f %10.3f" $px $py]\}"
+  puts ""
+  gui_deselect -all
+  delete_obj [get_db groups ${rlm}*testlogic_region*]
+  create_group -name   ${rlm}_testlogic_region
+  update_group         -add -name ${rlm}_testlogic_region -objs [ get_db $testlogic .name]
+    create_region       -name ${rlm}_testlogic_region -area [expr $px - $50pct] [expr $py + $edge_offset] [expr $px + $50pct] [expr $py + $50pct * 2 ]
+} else {
+  puts ""
+  puts "### HND:: Creating region at \{[format "%10.3f %10.3f %10.3f %10.3f" [expr $px + $edge_offset] [expr $py - $50pct] [expr $px + $50pct] [expr $py + $50pct * 2] \} for test logic at $port_name pin  \{[format "%10.3f %10.3f" $px $py]\}"
+  puts ""
+  gui_deselect -all
+  delete_obj [get_db groups ${rlm}*testlogic_region*]
+  create_group -name   ${rlm}_testlogic_region
+  update_group         -add -name ${rlm}_testlogic_region -objs [ get_db $testlogic .name]
+  create_region       -name ${rlm}_testlogic_region -area [expr $px + $edge_offset] [expr $py - $50pct] [expr $px + $50pct] [expr $py + $50pct * 2]
+}
+gui_deselect -all
+
