@@ -1,0 +1,108 @@
+proc ::mortar::report_boundary_latency { args } {
+  variable ns_info
+
+  set fp [open "[mVar DESIGN].boundary_latency.report" w]
+
+  set opt_max_delay      300
+  set opt_data    0
+  set opt_clock   0
+  set opt_both    1
+  set opt_inputs  0
+  set opt_outputs 0
+  set opt_inouts  0
+  set opt_coll   ""
+  set opt_sdc     0
+
+  set too_long 0
+  set max_data 0
+  set max_port ""
+
+  ::mortar::parse_args $args {
+    { "max_delay"      opt_max_delay     integer   }
+    { "data"           opt_data          boolean   }
+    { "clock"          opt_clock         boolean   }
+    { "both"           opt_both          boolean   }
+    { "coll"           opt_coll          string    }
+    { "max_delay_sdc"  opt_sdc           boolean   }
+    { "inputs"         opt_inputs        boolean   }
+    { "outputs"        opt_outputs       boolean   }
+    { "inouts"         opt_inouts        boolean   }
+  } {
+
+    if { $opt_sdc } {
+      set sdc [open "[mVar DESIGN].boundary_latency.sdc" w]
+    }
+    if { $opt_outputs && $opt_clock } {
+      mortar::echo -error -text "Cannot specify -outputs and -clock, unable to determine clock outputs"
+      return
+    }
+    if { $opt_data && !$opt_clock } { set opt_both 0 }
+    if { !$opt_data && $opt_clock } { set opt_both 0 }
+    if { $opt_data && $opt_clock  } { set opt_both 1 }; # unnecessary since default is 1
+    if { $opt_both } { set opt_clock 1; set opt_data 1 }
+    if { $opt_inputs && !$opt_outputs } { set opt_inouts 0 }
+    if { !$opt_inputs && $opt_outputs } { set opt_inouts 0 }
+    if { $opt_inputs && $opt_outputs }  { set opt_inouts 1 }
+    if { $opt_inouts } { set opt_inputs 1; set opt_outputs 1 }
+    if { !$opt_inputs && !$opt_outputs } { set opt_outputs 1 }
+
+    if { $opt_coll eq "" } { 
+      if { $opt_outputs } {
+        set opt_coll [all_outputs]
+        #puts "Adding all_outputs"
+      }
+      if { $opt_inputs } {
+        if { $opt_both } {
+          #puts "Adding all_inputs"
+          append_to_collection opt_coll [all_inputs]
+        } elseif { !$opt_clock } {
+          append_to_collection opt_coll [all_inputs -no_clocks]
+          #puts "Adding all_inputs -no_clocks"
+        } elseif { !$opt_data } {
+          append_to_collection opt_coll [remove_from_collection [all_inputs] [all_inputs -no_clocks]]
+          #puts "Adding just clock inputs"
+        } else {
+          # shouldn't get here
+        }
+      }
+    }
+    #set opt_coll [get_ports tpb_axi_m_rd_*__araddr[*]]; # override collection to test
+    mortar::echo -text "Reporting on [sizeof_collection $opt_coll] ports"
+    foreach_in_collection port $opt_coll {
+      set dir [::get_property $port direction]
+      if { $dir eq "in" } {
+        if { $opt_clock && !$opt_data } {
+          set data_delay [::get_property [report_timing -collection -from $port -unconstrained] path_delay]
+        } else {
+          set data_delay [::get_property [report_timing -collection -from $port] path_delay]
+        }
+        if { $opt_sdc } {
+          set in_delay [::get_property [report_timing -collection -from $port] check_delay]
+          foreach f [get_object_name [all_fanout -from [get_ports $port] -startpoints_only]] { 
+            puts $sdc "set_max_delay [expr $in_delay + $opt_max_delay] -from [get_object_name $port] -to $f"
+          }
+        }
+      } else {
+        set data_delay [::get_property [report_timing -collection -to $port] path_delay]
+        if { $opt_sdc } {
+          set out_delay [::get_property [report_timing -collection -to $port] check_delay]
+          foreach f [get_object_name [all_fanin -to [get_ports $port] -startpoints_only]] { 
+            puts $sdc "set_max_delay [expr $out_delay + $opt_max_delay] -from $f -to [get_object_name $port]"
+          }
+        }
+      }
+      if { $data_delay > $opt_max_delay } {
+        puts $fp "[get_object_name $port] $data_delay"
+        incr too_long
+        if {$data_delay > $max_data} { set max_data $data_delay; set max_port [get_object_name $port] }
+      }
+
+    }
+    mortar::echo -text "$too_long out of [sizeof_collection $opt_coll] ports has reg2po delay greater than $opt_max_delay"
+    mortar::echo -text "Largest delay is $max_data on $max_port"
+  }
+  close $fp
+  if { $opt_sdc } {
+    close $sdc
+  }
+}
