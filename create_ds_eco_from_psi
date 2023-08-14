@@ -1,0 +1,107 @@
+proc create_ds_eco_padding_from_psi {file} {
+    set viol_insts [get_fail_insts_from_psi $file]
+    create_ds_pad_eco $viol_insts
+}
+
+proc create_ds_eco_padding_from_insts_list {insts} {
+    set viol_insts [get_db insts $insts]
+    create_ds_pad_eco $viol_insts
+}
+
+proc get_fail_insts_from_psi {file} {
+    set viol_insts [list]
+    set fh [open "$file" r]
+    set data [read $fh]
+    close $fh
+    set data_line [split $data "\n"]
+    
+    foreach line $data_line {
+    if [regexp "^set inst_name" $line] {
+        set name [lindex $line 2]
+        regsub -all {;} $name {} name
+        lappend viol_insts $name
+    }
+    }
+    
+    set viol_insts_obj [get_db insts $viol_insts]
+    
+    return $viol_insts_obj
+}
+       
+proc create_ds_pad_eco {insts_obj} {
+    set viol_insts_box [get_db $insts_obj .bbox]
+    set viol_insts_box_expanded [get_computed_shapes $viol_insts_box SIZEX 3.4 SIZEY 1.5]
+    set all_inst [get_obj_in_area -obj_type inst -areas $viol_insts_box_expanded]
+    set all_inst_std [get_db $all_inst -if {.is_memory==false && .is_physical == false}]
+    set clock_insts [get_object_name [get_clock_network_objects -clocks * -type {cell}]]
+    set data_insts [get_object_name [remove_from_collection [get_cells $all_inst_std] [get_cells $clock_insts]]]
+    set inst_to_pad [list]
+    set all_inst_to_eco [list]
+    set inst_to_ds_pad [list]
+    foreach i $data_insts {
+    set bc [get_db [get_db insts $i] .base_cell.name]
+    set size ""
+    if [regexp {D(\d+)BWP} $bc] {
+        #puts "$i >> $bc"
+        regexp {D(\d+)BWP} $bc all size
+        if {$size == 10} {
+        lappend inst_to_pad $i
+        lappend all_inst_to_eco $i
+        } elseif {$size > 10} {
+        lappend all_inst_to_eco $i
+        lappend inst_to_ds_pad $i
+        }
+    }
+    }
+    
+    set fh [open "dyn_ds_pad_eco.tcl" w]
+
+    foreach i $inst_to_ds_pad {
+    set bc [get_db [get_db insts $i] .base_cell.name]
+    set new "undef"
+    regexp {D(\d+)BWP} $bc all size
+    regsub {D(\d+)BWP} $bc {D10BWP} new10
+    
+    regsub {D(\d+)BWP} $bc {D8BWP} new8
+    regsub {D(\d+)BWP} $bc {D12BWP} new12
+
+    if {[llength [get_db base_cells -if {.name==$new12}]] == 1} {
+        set new $new12
+    }
+    if {[llength [get_db base_cells -if {.name==$new8}]] == 1} {
+        set new $new8
+    }
+    if {[llength [get_db base_cells -if {.name==$new10}]] == 1} {
+        set new $new10
+    }
+    if {$new eq "undef"} {
+        puts $fh "#Couldn't downsize $i ($bc)  as no size 10, 8 or 12 found"
+    } else {
+        puts $fh "eco_update_cell -insts $i -cells $new ; #Org: $bc"
+    }
+    #puts $fh "set_inst_padding -inst $i -left_side 3 -right_side 3 -top_side 1"
+    }
+    foreach i $inst_to_pad {
+    #puts $fh "set_inst_padding -inst $i -left_side 3 -right_side 3 -top_side 1"
+    }
+    close $fh
+    deselect_obj -all
+    select_obj [get_db insts $all_inst_to_eco]
+} 
+
+
+proc fail_boxes {inst_objs} {
+  set viol_insts_box [get_db $inst_objs .overlap_rects]
+  #set viol_insts_box_expanded [get_computed_shapes $viol_insts_box SIZEX 3.4 SIZEY 1.5]
+
+  set_layer_preference GUI_COLOR -color cyan -stipple cross
+
+  #set merged_boxes [get_computed_shapes [get_computed_shapes $viol_insts_box SIZE 5 SIZE -5] SIZE 2]
+  set merged_boxes [get_computed_shapes $viol_insts_box SIZE 3 SIZE -3]
+
+  delete_obj [get_db gui_rects]
+  foreach mb $merged_boxes {
+    create_gui_shape -layer GUI_COLOR -rect $mb
+  }
+  return $merged_boxes
+}
