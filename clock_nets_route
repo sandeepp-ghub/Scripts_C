@@ -1,0 +1,12 @@
+set clock_nets [get_db nets -if {.is_clock}]
+puts "There are [llength $clock_nets] clock nets"
+set wlen_data ""
+foreach net $clock_nets {
+  set lst [get_db $net .wires.length]
+  set wlen [tcl::mathop::+ {*}$lst]
+  set bot    [get_db $net .bottom_preferred_layer.name]
+  set top    [get_db $net .top_preferred_layer.name]
+  set shield [get_db $net .shield_nets.name]
+  lappend wlen_data [list $wlen [list $bot $top $shield] [get_db $net .name] $lst]
+}
+mortar::write_list_to_file [lsort -real -decreasing -index 0 $wlen_data] f.rpt
