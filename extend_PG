@@ -1,0 +1,43 @@
+
+
+set axi_inst [get_db insts tpb_interconnect_axi_domain]
+
+set axi_rects [get_db $axi_inst .overlap_rects]
+set axi_m14_obs_ls [get_db $axi_inst .base_cell.obs_layer_shapes. -if {.layer.name == M14}]
+set axi_m14_obs_local_rects [get_db $axi_m14_obs_ls .shapes.rect]
+set axi_m14_obs_global_rects [get_transform_shapes -inst $axi_inst -local_pt $axi_m14_obs_local_rects]
+
+set m14_contract [get_computed_shapes $axi_rects ANDNOT $axi_m14_obs_global_rects]
+#delete_obj [get_db gui_rects]
+#foreach r $m14_contract {
+  #create_gui_shape -layer 100 -rect $r
+#}
+
+set axi_bbox [get_computed_shapes $axi_rects BBOX]
+set axi_urx [lindex {*}$axi_bbox 2]
+#set axi_edges {*}[get_edge [get_computed_shapes -output polygon $axi_rects]]
+#set e_edge [lindex $axi_edges end]
+
+set search_area [get_computed_shapes $m14_contract SIZEX 2]
+set pg_wires [get_obj_in_area -layer M14 -obj_type special_wire -areas $search_area]
+
+set pg_wire_llx [get_db -uniq $pg_wires .rect.ll.x]
+
+#set wire_spc [expr $pg_wire_llx - $axi_urx]
+set wire_spc [expr 0]
+
+lassign {*}$m14_contract c_llx c_lly c_urx c_ury
+
+set wire_new_llx [expr $c_llx + $wire_spc]
+set offset [expr $wire_new_llx - $pg_wire_llx]
+
+
+set_db selected $pg_wires
+set_db edit_wire_create_crossover_vias false
+edit_resize_routes -no_connection -direction x -offset $offset -side low
+
+deselect_obj -all
+
+::set_multi_cpu_usage -keep_license true
+
+#cayman::check_edge_spacing -place_eco
