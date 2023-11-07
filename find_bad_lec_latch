@@ -1,0 +1,33 @@
+
+
+set fp_list [list \
+  HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_4__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/WDATA_SLC_wreq_fifo/fifo_valid_x_scr/dout_reg_1_ \
+]
+
+foreach fp $fp_list {
+  puts $fp
+
+  set inst_obj [get_db insts $fp]
+
+  if { ! [llength $inst_obj] } {
+    puts "NO inst $fp!"
+    continue
+  }
+
+  set d_pin [get_db $inst_obj .pins -if {.base_name == "D"}]
+
+  if { ! [llength $d_pin] } {
+    puts "NO pin $fp/D!"
+    continue
+  }
+
+  set fi [get_db [all_fanin -start -to $d_pin]]
+
+  set en_pin_fi [get_db $fi -if {.base_name == "EN"}]
+
+  foreach en_pin $en_pin_fi {
+    puts "  $en_pin"
+  }
+
+
+}
