@@ -1,0 +1,194 @@
+
+source /proj/cayman/wa/seth/scripts/utils.tcl
+
+proc manhattan_avg {coord0 coord1} {
+  lassign {*}[convert_um_to_dbu $coord0] x0 y0
+  lassign {*}[convert_um_to_dbu $coord1] x1 y1
+
+  set x_avg [expr ($x1 + $x0) / 2]
+  set y_avg [expr ($y1 + $y0) / 2]
+
+
+  return [convert_dbu_to_um [list $x_avg $y_avg]]
+}
+
+proc get_pin_edge {sram_obj pin_name} {
+  set sram_inst_name [get_db $sram_obj .name]
+  set sram_pin_name "$sram_inst_name/$pin_name"
+
+  set sram_rect [get_db $sram_obj .overlap_rects]
+
+  set pin_obj [get_db pins $sram_pin_name]
+
+  set pin_layer_dir [get_db $pin_obj .base_pin.physical_pins.layer_shapes.layer.direction]
+  set local_pin_rect [get_db $pin_obj .base_pin.physical_pins.layer_shapes.shapes.rect]
+
+  set pin_dx [get_rect $local_pin_rect -dx]
+
+  set pin_rect {*}[get_transform_shapes -inst $sram_inst_name -local_pt $local_pin_rect]
+
+  set move_r [get_computed_shapes $sram_rect MOVE [list $pin_dx 0]]
+  set move_l [get_computed_shapes $sram_rect MOVE [list -$pin_dx 0]]
+
+  llength [get_computed_shapes $move_r AND $pin_rect]
+  llength [get_computed_shapes $move_l AND $pin_rect]
+
+
+}
+
+proc add_clk_mux {sram_obj clk_pin_name tclk_pin_name idx} {
+  set sram_inst_name [get_db $sram_obj .name]
+  set sram_parent_name [get_db $sram_obj .parent.name]
+  set sram_ck_pin [get_db $sram_obj .pins -if {.base_name == $clk_pin_name}]
+  if { $sram_ck_pin == "" } {
+    puts "ERROR: PIN $sram_inst_name/$clk_pin_name does NOT exist!"
+    return
+  }
+  set sram_ck_net [get_db $sram_ck_pin .net]
+
+  set sram_ck_net_name [get_db $sram_ck_net .name]
+
+  set sram_ck_driver [get_db $sram_ck_net .drivers]
+
+  #place mux between sram/clk leaf driver and sram_clk
+  set ck_drv_loc [get_db $sram_ck_driver .location]
+  set ck_pin_loc [get_db $sram_ck_pin .location]
+
+  #set mux_loc [manhattan_avg $ck_drv_loc $ck_pin_loc]
+  set mux_loc $ck_pin_loc
+  set mux_base_name "DFT_ECO_SCN_CAPT_CK_MUX_${idx}"
+  set mux_full_name "${sram_parent_name}/$mux_base_name"
+
+  if { [llength [get_db insts $mux_full_name]] } {
+    puts ""
+    puts "ERROR: $mux_full_name already exists!!!"
+    puts ""
+    return
+  }
+
+  set ck_mux "CKMUX2D4BWP210H6P51CNODULVT"
+
+  create_inst -base_cell $ck_mux -place_status placed -location $mux_loc -name $mux_base_name -parent $sram_parent_name
+
+  set ck_mux_obj [get_db insts $mux_full_name]
+
+  if { ![llength $ck_mux_obj] } {
+    puts "ERROR: Failed to make $mux_full_name !!!"
+    continue
+  }
+
+  set ck_mux_inst_name [get_db $ck_mux_obj .name]
+  #set ck_mux_i0 [get_db [get_db $ck_mux_obj .pins -if {.base_name == "I0"}] .name]
+  #set ck_mux_i1 [get_db [get_db $ck_mux_obj .pins -if {.base_name == "I1"}] .name]
+  #set ck_mux_s [get_db [get_db $ck_mux_obj .pins -if {.base_name == "S"}] .name]
+  #set ck_mux_z [get_db [get_db $ck_mux_obj .pins -if {.base_name == "Z"}] .name]
+
+  #get sram tck pin
+  set sram_tck_pin [get_db $sram_obj .pins -if {.base_name == $tclk_pin_name}]
+  set sram_tck_net [get_db $sram_tck_pin .net]
+  set sram_tck_net_name [get_db $sram_tck_net .name]
+  set sram_tck_pin_loc [get_db $sram_tck_pin .location]
+
+  #get sram tcken pin
+  set sram_dftclken_pin [get_db $sram_obj .pins -if {.base_name == "DFTCLKEN"}]
+  set sram_dftclken_net [get_db $sram_dftclken_pin .net]
+  set sram_dftclken_net_name [get_db $sram_dftclken_net .name]
+  set sram_dftclken_pin_loc [get_db $sram_dftclken_pin .location]
+
+  #Now do all the reconnections
+
+  #connect CLK to I0
+  disconnect_pin -inst $sram_inst_name -net $sram_ck_net_name -pin $clk_pin_name
+  connect_pin -inst $ck_mux_inst_name -net $sram_ck_net_name -pin I0
+
+  #Create a new net that connects the Z pin of the mux to the CLK pin of the SRAM
+  set eco_net_name "${sram_parent_name}/CLK_NET_DFT_ECO_SCN_CAPT_CK_MUX_${idx}"
+  create_net -name $eco_net_name
+  if { ![llength $eco_net_name] } {
+    puts "ERROR: Failed to make ${eco_net_name} !!!"
+    continue
+  }
+  connect_pin -inst $ck_mux_inst_name -net $eco_net_name -pin Z
+  connect_pin -inst $sram_inst_name -net $eco_net_name -pin $clk_pin_name
+
+  #Connect TCLK to the I1 input
+  connect_pin -inst $ck_mux_inst_name -net $sram_tck_net_name -pin I1
+
+  #Connect DFTCLKEN to the S input
+  connect_pin -inst $ck_mux_inst_name -net $sram_dftclken_net_name -pin S
+
+  puts "  $clk_pin_name ... SUCCESS"
+
+}
+
+#Create SRAM list across entire chip
+set cayman_mlist_file "/mrvl2g/aw5_xtl_cayman/cayman/cayman/DE3/memlist.DE3.uniq"
+set mlist [f2l $cayman_mlist_file]
+set mlist_re [join $mlist "|"]
+if { [string match "*|" $mlist_re] } {
+  set mlist_re [string trimright $mlist_re "|"]
+}
+set mlist_re "(${mlist_re})"
+
+#Get all base class blocks
+set all_blocks [get_db insts -if {.base_cell.base_class == block}]
+set all_srams [get_db $all_blocks -expr { [regexp $mlist_re $obj(.base_cell.base_name)] }]
+set num_srams [llength $all_srams]
+
+
+puts ""
+
+set i 0
+foreach sram_obj $all_srams {
+  set sram_inst_name [get_db $sram_obj .name]
+  puts "Working on $sram_inst_name ..."
+
+  set sram_base_cell_name [get_db $sram_obj .base_cell.base_name]
+
+#  if { [regexp {sa..ls0g4.1p} $sram_base_cell_name] } {
+#    add_clk_mux $sram_obj "CLK" "TCLK" $i
+#  } elseif { [regexp {sa..ls0g4.2p} $sram_base_cell_name] } {
+#    add_clk_mux $sram_obj "CLKA" "TCLKA" $i
+#    incr i
+#    puts ""
+#    add_clk_mux $sram_obj "CLKB" "TCLKB" $i
+#  } else {
+#    puts "ERROR: Unrecognized SRAM type: $sram_base_cell_name"
+#    continue
+#  }
+
+  if { [llength [get_db pins $sram_inst_name/CLK]] } {
+    add_clk_mux $sram_obj "CLK" "TCLK" $i
+  } elseif { [llength [get_db pins $sram_inst_name/CLKA]] } {
+    add_clk_mux $sram_obj "CLKA" "TCLKA" $i
+    incr i
+    puts ""
+    add_clk_mux $sram_obj "CLKB" "TCLKB" $i
+  } else {
+    puts "ERROR: Unrecognized SRAM type: $sram_base_cell_name"
+    continue
+  }
+
+  incr i
+  puts ""
+}
+
+set all_ck_muxes [get_db insts -if {.base_name == "DFT_ECO_SCN_CAPT_CK_MUX_*"}]
+
+set num_ck_muxes [llength $all_ck_muxes]
+
+#if { $num_srams != $num_ck_muxes } {
+  #puts "ERROR:  Number of ck muxes DOES NOT match number of srams"
+#}
+
+puts ""
+puts "Running place_eco to legalize $num_ck_muxes clock muxes ..."
+puts ""
+
+#::cayman::remove_postfill
+#place_detail -inst [get_db $all_ck_muxes .name]
+
+set_db $all_ck_muxes .place_status soft_fixed
+place_eco
+set_db $all_ck_muxes .place_status fixed
+
