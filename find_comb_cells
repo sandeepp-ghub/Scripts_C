@@ -1,0 +1,87 @@
+
+#zgrep -E '\shbm_xbar_wrapper_1\s' /mrvl2g/cayman_extvol09/cayman/cayman/wa_009/jpike/impl/cayman_top.1.0A/track.Jan22_DE3_postDFT_top_all_bbm/tempuscui.signoff.sta/TTR2.maxpaths.cayman_top.signoff.sta.cayman_top.setup/TTR2_out/report_tmg.merged_bucket.late.hxw1__to__ch_vl_bot.txt.gz \
+#| awk '{print $13}' | grep -v axi_clk | sed -e 's/hbm_xbar_wrapper_1\///' > bad_apb_ports.tcl
+#
+#zgrep -E '\shbm_xbar_wrapper_1\s' /mrvl2g/cayman_extvol09/cayman/cayman/wa_009/jpike/impl/cayman_top.1.0A/track.Jan22_DE3_postDFT_top_all_bbm/tempuscui.signoff.sta/TTR2.maxpaths.cayman_top.signoff.sta.cayman_top.setup/TTR2_out/report_tmg.merged_bucket.late.hxw1__to__ring_pll.txt.gz \
+#| awk '{print $13}' | grep -v axi_clk | sed -e 's/hbm_xbar_wrapper_1\///' >> bad_apb_ports.tcl
+
+#base_cell:DELCD1BWP210H6P51CNODULVTLL 45 85
+#base_cell:DELBD1BWP210H6P51CNODULVTLL 25 45
+#base_cell:DELAD1BWP210H6P51CNODULVTLL 15 25
+
+
+source /proj/cayman/wa/seth/impl/hbm_xbar_wrapper_1.1.0A/track.timing.hxw1_lockups.Jan24_0950/tempuscui.signoff.sta/bad_apb_ports.tcl
+
+set x_thresh 800
+
+set inst_mv [dict create]
+
+set cnt 1
+foreach bad_port $bad_apb_ports {
+  puts "$cnt of 80 ..."
+  set fi_cp_pins [get_db [all_fanin -start -to $bad_port]]
+  #puts "  [llength $fi_cp_pins] fanins"
+
+  foreach cp_pin $fi_cp_pins {
+    #puts "set tpaths \[report_timing -view func_setup_ssgnp0p675v0c_cworstCCwT0c -unconstrained -late -collection -from $cp_pin -to $bad_port -nworst 100\]"
+    set tpaths [report_timing -view func_setup_ssgnp0p675v0c_cworstCCwT0c -unconstrained -late -collection -from $cp_pin -to $bad_port -nworst 100]
+    puts "    [sizeof_collection $tpaths] timing_paths"
+    puts "    report_timing -view func_setup_ssgnp0p675v0c_cworstCCwT0c -unconstrained -late -from $cp_pin -to $bad_port"
+    foreach_in_collection tpath $tpaths {
+      set start_loc {*}[get_db $tpath .launching_point.location]
+      set end_loc {*}[get_db $tpath .capturing_point.location]
+
+
+      set tpins [get_db $tpath .timing_points.pin]
+      foreach tpin $tpins {
+        if { [get_db $tpin .obj_type] != "pin" } { continue }
+        set tinst [get_db $tpin .inst]
+        set pin_loc {*}[get_db $tpin .location]
+        lassign $pin_loc pin_x pin_y
+        if { $pin_x >= $x_thresh } {
+          puts "$tinst : $pin_x"
+          if { ! [dict exists $inst_mv $tinst] } {
+            dict set inst_mv $tinst [list $start_loc $end_loc]
+          } else {
+            set exist_list [dict get $inst_mv $tinst]
+            lappend exist_list $start_loc $end_loc
+            dict set inst_mv $tinst $exist_list
+          }
+        }
+      }
+    }
+  }
+  incr cnt
+}
+
+
+set of [open "apb_inst_move_eco.tcl" w]
+
+puts $of "set_db eco_honor_dont_touch false"
+puts $of "set_db eco_honor_dont_use false"
+puts $of "set_db eco_honor_fixed_status false"
+puts $of "set_db eco_refine_place false"
+puts $of "set_db eco_update_timing false"
+puts $of "set_db eco_batch_mode true"
+puts $of ""
+
+
+dict for {inst_obj point_list} $inst_mv {
+  set inst_name [get_db $inst_obj .name]
+  set cen_loc [::mortar::get_centroid -points $point_list]
+  set mv_x [expr double([format "%0.2f" [lindex $cen_loc 0]]) ]
+  set mv_y [expr double([format "%0.2f" [lindex $cen_loc 1]]) ]
+  set move_loc [list $mv_x $mv_y]
+
+  puts $of "eco_update_cell -inst $inst_name -location \{$move_loc\}"
+  puts $of ""
+
+}
+
+puts $of ""
+puts $of "set_db eco_batch_mode false"
+puts $of "set_db eco_honor_dont_touch true"
+puts $of "set_db eco_honor_dont_use true"
+puts $of "set_db eco_honor_fixed_status true"
+close $of
+
