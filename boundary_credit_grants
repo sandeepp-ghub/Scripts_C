@@ -1,0 +1,45 @@
+set fo_ports [get_db ports \
+  xb_credit_ret[*] \
+  xb_ready[*] \
+]
+
+#set max_port_y [expr max([join [get_db $fo_ports .location.y] ","])]
+#set min_port_y [expr min([join [get_db $fo_ports .location.y] ","])]
+
+
+delete_obj [get_db gui_rects]
+foreach fo_port $fo_ports {
+  set port_name [get_db $fo_port .base_name]
+  regsub -all {(\[|\])} $port_name "_" bound_pfx
+  set bound_name "${bound_pfx}BOUND"
+
+  set port_y_loc [get_db $fo_port .location.y]
+  set region [list \
+    [expr 0] \
+    [expr $port_y_loc - 20] \
+    [expr 20] \
+    [expr $port_y_loc + 20] \
+  ]
+  set region [get_computed_shapes [get_db designs .boundary.bbox] AND $region]
+
+  set fo_coll [all_fanout -from $fo_port]
+  set fo_insts [get_db -uniq [get_db $fo_coll -if {.obj_type == pin}] .inst]
+
+  if { [llength $fo_insts] } {
+    foreach inst $fo_insts {
+      if { $inst == "" } { continue }
+      set group [get_db $inst .group.name]
+      if { $group == "cellsRegion0" } {
+        update_group -name $group -delete -obj $inst
+      }
+    }
+  }
+
+  puts "Creating region $bound_name ... "
+  create_group -type region -rects $region -name $bound_name
+  update_group -name $bound_name -add -obj [get_db $fo_insts]
+
+
+  create_gui_shape -layer 100 -rect $region
+}
+
