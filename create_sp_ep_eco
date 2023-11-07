@@ -1,0 +1,139 @@
+#!/proj/mkit/pkgs/minfra/tclkit/kit8.6.11/tclsh
+
+#source /proj/cayman/wa/seth/scripts/create_latch_hold_eco.v2.tcl
+
+#set rpt=/mrvl2g/cayman_extvol09/cayman/cayman/wa_009/jpike/impl/cayman_top.1.0A/track.Feb27_DE3_postDFT_top_all_bbm/tempuscui.signoff.sta/TTR2.maxpaths.cayman_top.signoff.sta.cayman_top.hold/TTR2_out/report_tmg.merged_bucket.early.ch_vl_bot__to__peb_top.txt.gz
+#exec zgrep "Startpoint:\| Endpoint:\| Slack:" $rpt | paste - - - > sp_ep.rpt
+#zgrep -E '\s+channel_vl_bot\s+' $rpt | grep -v 'channel_vl_bot/clk_axi' | awk '{print $13}' > eps.rpt
+#cat sp_ep.rpt | awk '{print $3}' > sp_ep.tcl
+#cat eps.rpt >> sp_ep.tcl
+
+#zgrep "Startpoint:\| Endpoint:\| Slack:" /mrvl2g/cayman_extvol07/cayman/cayman/wa_007/jsj/impl/channel_vl_bot.1.0A/track.DE3_postdft_channel_vl_bot_PortUpdate_490clk_push_TCK_exp_Jan10_UD_Seth_eco31/tempuscui.signoff.sta/func_hold_ssgnp0p675v125c_cbestCCb125c.001.2023-02-14-01:18:47/report/channel_vl_bot.rptTmg.pba.early.gz | paste - - - | grep -v "\/SI" | grep -v reset_extend > sp_ep_slack.rpt
+
+#Hold
+#                            Bucket      WNS         TNS   Viol  Paths
+#               fabric1__to__tpb_01   -432.0  -1373668.8  17252  17252
+#               fabric0__to__tpb_00   -425.3  -1263886.8  16991  16992
+#               fabric1__to__tpb_11   -483.8   -829832.9  15220  15220
+#               fabric0__to__tpb_10   -477.6   -735218.1  14704  14704
+
+set sp_ep_fname "/proj/cayman/wa/seth/eco/channel_vl_bot.20230315.latch_sp_ep.tcl"
+
+#set rpt_root_dir "/mrvl2g/cayman_extvol09/cayman/cayman/wa_009/jpike/impl/cayman_top.1.0A/track.Feb28_DE3_postDFT_top_fabric_inter_bbm/tempuscui.signoff.sta/TTR2.maxpaths.cayman_top.signoff.sta.cayman_top.hold/TTR2_out"
+#
+#set rpt_base_names [list \
+  #"report_tmg.merged_bucket.early.fabric1__to__tpb_01.txt.gz" \
+  #"report_tmg.merged_bucket.early.fabric1__to__tpb_11.txt.gz" \
+#]
+set rpt_base_names "/mrvl2g/cayman_extvol09/cayman/cayman/wa_009/jpike/impl/cayman_top.1.0A/track.Mar15_DE3_postDFT_top_hbm_xbar_vlbotUpdate/tempuscui.signoff.sta/TTR2.maxpaths.cayman_top.signoff.sta.cayman_top.hold/TTR2_out/report_tmg.merged_bucket.early.ch_vl_bot__to__hxw1.txt.gz"
+
+set module_name "channel_vl_bot"
+
+set sps [list]
+set eps [list]
+
+foreach full_rpt_name $rpt_base_names {
+  #set full_rpt_name "${rpt_root_dir}/${rpt_base_name}"
+
+
+  puts "Reading $full_rpt_name ..."
+  set f [open "|zcat $full_rpt_name"]
+  set data [read $f]
+  close $f
+  puts "Done"
+  puts ""
+
+
+  puts "Splitting lines ..."
+  set lines [split $data \n]
+  set tot_lines [llength $lines]
+  puts ""
+
+  set sp_name ""
+  set ep_name ""
+  set slack 0
+
+  set skip_path 0
+
+  set i 0
+  foreach line $lines {
+    if { ! [expr $i % 1000] } { puts "$i of $tot_lines ..." }
+    incr i
+
+    set fields [regexp -inline -all -- {\S+} $line]
+
+    set field_name [lindex $fields 0]
+
+    if { $field_name == "Startpoint:" } {
+      set sp_name  [lindex $fields 2]
+      if { [regexp {eco_timing_neg_level_latch} $sp_name] } {
+        set skip_path 1
+      } elseif { $skip_path } {
+        set skip_path 0
+      }
+      continue
+    }
+    if { $skip_path } {
+      continue
+    }
+    if { $field_name == "Slack:=" } {
+      set slack  [lindex $fields 1]
+      continue
+    }
+
+    if { [llength $fields] > 11 } {
+      if { [lindex $fields 11] == $module_name } {
+        set ep_name [lindex $fields 12]
+        if { $ep_name == "channel_vl_bot/clk_axi" || $ep_name == "channel_vl_bot/clk_axi_out_vl_bot_0"} {
+          continue
+        }
+        #puts "SETH sp_name: $sp_name"
+        #puts "SETH ep_name: $ep_name"
+        #puts "SETH slack: $slack"
+        #puts ""
+        lappend sps $sp_name
+        lappend eps $ep_name
+        if { $slack > -75 } {
+          break
+        }
+        continue
+      }
+    }
+    #if {$i > 1000} {break}
+  }
+}
+
+set spf [open $sp_ep_fname w]
+set fabric_top_hier "channel_vl_bot\/"
+
+puts $spf "set sps \[list \\"
+foreach full_sp_name $sps {
+  set sp_name $full_sp_name
+  regsub $fabric_top_hier $full_sp_name {} sp_name
+  puts $spf "  pin:$sp_name \\"
+}
+puts $spf "\]"
+puts $spf ""
+
+puts $spf "set eps \[list \\"
+foreach full_ep_name $eps {
+  set ep_name $full_ep_name
+  regsub $fabric_top_hier $full_ep_name {} ep_name
+  puts $spf "  port:$ep_name \\"
+}
+puts $spf "\]"
+
+close $spf
+
+puts ""
+puts "Created $sp_ep_fname"
+puts ""
+
+
+#source $sp_ep_fname
+
+#set eco_full_rpt_name "fabric__to__tbp_interconnect.20230307.create_latch.tcl"
+
+#::df::create_lu_latch_eco -eco_file $eco_full_rpt_name -endpoints $eps -startpoints $sps
+
+#::mortar::source $eco_full_rpt_name
