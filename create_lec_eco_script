@@ -1,0 +1,54 @@
+
+proc create_eco_script {non_corr_support} {
+  regsub -all {\/U\$1} $non_corr_support {} bad_flop
+  set flop_obj [get_db insts $bad_flop]
+
+  set q_pins [get_db $flop_obj .pins -expr { [regexp {Q.*} $obj(.base_name)] }]
+
+  set f_l_fn "print_latch_connectivity.tcl"
+  set fn [open $f_l_fn w]
+
+  puts $fn "set l_conn \[dict create \\"
+
+  foreach q_pin $q_pins {
+    set net_obj [get_db $q_pin .net]
+    #set all_fo [get_db [all_fanout -end -from $q_pin]]
+    #set fo_insts [get_db $all_fo .inst]
+    #set fo_latches [get_db $fo_insts -if {.is_latch == true}]
+    set fo_latches [get_db [get_db $net_obj .loads.inst] -if {.is_latch == true}]
+    if { $fo_latches > 1 } {
+      puts "  $q_pin --> \\"
+      foreach fo_latch $fo_latches {
+        puts "    $fo_latch"
+        puts $fn "  $fo_latch $q_pin \\"
+      }
+    }
+  }
+  puts ""
+
+  puts $fn "\]"
+  puts $fn ""
+  puts $fn "dict for {latch_inst q_pin} \$l_conn {"
+  puts $fn "  set good_q_load_latch \[get_db \[get_db \$q_pin .net.loads.inst\] -if {.is_latch == true}\]"
+  puts $fn "  if { \$latch_inst != \$good_q_load_latch} {"
+  puts $fn "    set bad_latch \[get_db \$latch_inst .name\]"
+  puts $fn "    puts \"\""
+  puts $fn "    puts \"set bad_latch \$bad_latch\""
+  puts $fn "    set latch_d_pin \$bad_latch/D"
+  puts $fn "    set latch_drivers \[get_db pin:\$latch_d_pin .net.drivers\]"
+  puts $fn "    set good_flop \[get_db \$latch_drivers .inst.name\]"
+  puts $fn "    puts \"set good_flop \$good_flop\""
+  puts $fn "    puts \"reconn_bad_latch \\\$bad_latch \\\$good_flop\""
+  puts $fn "    puts \"\""
+  puts $fn "  }"
+  puts $fn "}"
+
+  close $fn
+
+  puts ""
+  puts "source [pwd]/$f_l_fn"
+  puts ""
+}
+
+
+
