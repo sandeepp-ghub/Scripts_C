@@ -1,0 +1,79 @@
+set ant_cell "ANTENNABWP210H6P51CNODLVTLL"
+set pin_cross_area 0.0004
+set buf_patt "*_bufL_*"
+set cld_patt "*_buf_*_group_*"
+  
+#xbar_hbm_group_32 :- 
+#/proj/cayman/extvols/wa_005/mbasegowdana/impl/hbm_xbar_wrapper_1.1.0A/track.ECO_3-pv_flush4/pv.signoff.ant/antena/antratio/pushdown/marker_rdb/xbar_hbm_group_32_pushed_VIA13.rdb
+#/proj/cayman/extvols/wa_005/mbasegowdana/impl/hbm_xbar_wrapper_1.1.0A/track.ECO_3-pv_flush4/pv.signoff.ant/antena/antratio/pushdown/marker_rdb/xbar_hbm_group_32_pushed_VIA12.rdb
+
+
+
+
+set ant_mrkrs [get_db markers -expr { [regexp {^A.R} $obj(.user_type)] }]
+
+set tot_mrkrs [llength $ant_mrkrs]
+
+set inp_pin_loc [dict create]
+
+foreach mrkr $ant_mrkrs {
+  set mbox [get_db $mrkr .bbox]
+  set io_buf_inst [get_obj_in_area -obj_type inst -areas $mbox]
+
+  if { [llength $io_buf_inst] != 1 } {
+    continue
+  }
+
+  set io_buf_name [get_db $io_buf_inst .name]
+
+  if { ![regexp {encIOBuf} $io_buf_name] } {
+    continue
+  }
+
+  set inp_port [get_db [get_db $io_buf_inst .pins.net.drivers] -if {.obj_type == port}]
+
+  set out_port [get_db [get_db $io_buf_inst .pins.net.loads] -if {.obj_type == port}]
+
+  if { [llength $inp_port] } {
+    #puts "IN $io_buf_inst $inp_port"
+    set mrkr_cen [get_rect -center $mbox]
+    if { ! [dict exists $inp_pin_loc "$io_buf_inst/I"] } {
+      dict set inp_pin_loc "$io_buf_name/I" $mrkr_cen
+    }
+  }
+  if { [llength $out_port] } {
+    puts "ERROR! Only input ports expected"
+    puts "OUT $io_buf_inst $out_port"
+  }
+
+}
+
+set tot_diodes [dict size $inp_pin_loc]
+
+puts ""
+puts "Adding $tot_diodes ..."
+puts ""
+
+set eco_fname "raw_diode_addition.eco_inv"
+set of [open $eco_fname w]
+
+dict for {pin_name coord} $inp_pin_loc {
+  lassign [split $pin_name "/"] instName termName
+
+  puts $of "create_diode -diode_cell $ant_cell -pin {$instName $termName} -location {$coord} -prefix \"ant_pushdown_0302\""
+
+}
+
+close $of
+
+puts "Created $eco_fname ..."
+#create_diode -diode_cell ANTENNABWP210H6P51CNODLVTLL -pin {dn5_rdata_5_IencIOBuf I} -location {2.499 495.967} -prefix "ant_pushdown_0302"
+#
+#Usage: create_diode [-help] -diode_cell <cellName> -pin {instName termName} [-prefix <prefixName>] [-location {locX locY} [-orient <orient>]]
+#
+#-help                     # Prints out the command usage
+#-diode_cell <cellName>    # Specifies the name of the diode cell master. (string, required)
+#-location {locX locY}     # Specifies the location of the lower left corner of the diode. (string, optional)
+#-orient <orient>          # Specifies orientation of the placed diode. (string, optional)
+#-pin {instName termName}  # Specifies the pin associated with the diode. (string, required)
+#-prefix <prefixName>      # Specifies the prefix name of the diode cell instances. (string, optional)
