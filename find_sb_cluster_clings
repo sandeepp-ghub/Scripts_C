@@ -1,0 +1,96 @@
+
+source /proj/cayman/wa/seth/tools.tcl
+source /proj/cayman/wa/seth/scripts/tmg_tools.tcl
+source /proj/cayman/wa/seth/scripts/utils.tcl
+
+
+
+proc get_wire_delay {tpath inst_regexp thresh} {
+  set timing_points [get_db $tpath .timing_points]
+
+  set ret [list]
+  #set in_arr 0
+  foreach tpoint $timing_points {
+    set tpin [get_db $tpoint .pin]
+    set name [get_db $tpin .name]
+    if { [regexp $inst_regexp $name] } {
+      set dir [get_db $tpin .direction]
+      if {$dir == "in"} {
+        set dly [get_db $tpoint .delay]
+        if { $dly > $thresh } {
+          lappend ret [list $name $dly]
+        }
+      }
+    }
+  }
+  return $ret
+}
+
+
+set tpbsb_inst_mod [dict create \
+  "tpb_sb\/partition_cluster_0__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_0__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster_with_arb_and_rfifo" \
+  "tpb_sb\/partition_cluster_0__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_1__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster_with_arb_and_rfifo" \
+  "tpb_sb\/partition_cluster_1__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_0__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_1__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_1__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_2__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_0__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_2__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_1__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_3__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_0__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_3__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_1__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_4__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_0__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster_with_arb" \
+  "tpb_sb\/partition_cluster_4__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_1__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster_with_arb" \
+  "tpb_sb\/partition_cluster_5__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_0__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_5__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_1__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_6__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_0__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_6__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_1__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_7__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_0__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/partition_cluster_7__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_1__genblk1_tpb_sb_partition_sub_cluster\/" "tpb_sb_partition_sub_cluster" \
+  "tpb_sb\/tpb_sb_pool_act_pipeline\/" "tpb_sb_pool_act_pipeline" \
+  "u_rts_pd_wrap" "rts_pd_wrap" \
+]
+
+set sub_cluster_re "tpb_sb\/partition_cluster_\[123567\]__genblk3_tpb_sb_partition_cluster\/partition_sub_cluster_0__genblk1_tpb_sb_partition_sub_cluster\/"
+
+set garbage_tpaths [report_timing -late -collection -nworst 100000 -max_paths 100000 -max_slack -200]
+set tot_paths [sizeof_collection $garbage_tpaths]
+
+set ofname "tpb_sb_cluster_bad_insts.tcl"
+set of [open $ofname w]
+
+set bad_insts [dict create]
+
+set cnt 1
+foreach_in_collection gtpath $garbage_tpaths {
+  if { ! [expr $cnt % 100] } { puts "Processing $cnt of $tot_paths ..." }
+
+  set wire_del [get_wire_delay $gtpath $sub_cluster_re 100]
+  if { [llength $wire_del] } {
+    foreach winfo $wire_del {
+      lassign $winfo pin_name inp_wire_del
+
+      regsub $sub_cluster_re $pin_name {} inst_base_name
+
+      if { ! [dict exists $bad_insts $inst_base_name] } {
+        dict set bad_insts $inst_base_name $inp_wire_del
+      } else {
+        set old_d [dict get $bad_insts $inst_base_name]
+        if { $inp_wire_del > $old_d } {
+          dict set bad_insts $inst_base_name $inp_wire_del
+        }
+      }
+    }
+  }
+
+  incr cnt
+}
+
+
+puts $of "set bad_insts \[dict create \\"
+dict for {pin_name inp_wire_del} $bad_insts {
+  puts $of "  $pin_name $inp_wire_del \\"
+}
+puts $of "\]"
+close $of
+
+puts ""
+puts "Created $ofname"
+
