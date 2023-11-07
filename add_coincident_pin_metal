@@ -1,0 +1,87 @@
+
+source /proj/cayman/wa/seth/tools.tcl
+source /proj/cayman/wa/seth/scripts/utils.tcl
+
+proc get_pin_rect { pin_obj } {
+  set inst_obj [get_db $pin_obj .inst]
+  set local_rect [get_db $pin_obj .base_pin.physical_pins.layer_shapes.shapes.rect]
+
+  set global_rect [get_transform_shapes -inst $inst_obj -local_pt $local_rect]
+
+  #create_gui_shape -layer 100 -rect $global_rect
+  return $global_rect
+}
+
+proc get_wire_sp { rect } {
+  lassign [get_rect $rect -center] c_x c_y
+  lassign {*}$rect llx lly urx ury
+
+  return [list $llx $c_y]
+}
+
+proc get_wire_ep { rect } {
+  lassign [get_rect $rect -center] c_x c_y
+  lassign {*}$rect llx lly urx ury
+
+  return [list $urx $c_y]
+}
+
+set pin_file /mrvl2g/cayman_extvol03/cayman/cayman/wa_003/ankushs/impl/xbar_top_32_1.1.0A/XBT1_ECO_FIles/eco51_fixes/floating_pins.rpt
+
+set pin_objs [get_db pins [f2l $pin_file]]
+
+#Create the dummy wires if needed
+#foreach pin_obj $pin_objs {
+#  set pin_name [get_db $pin_obj .name]
+#  regsub -all {\/} $pin_name {_} pin_under 
+#
+#  set dum_net "dummy_net_$pin_under"
+#  create_net -name $dum_net
+#
+#  set pin_base [get_db $pin_obj .base_name]
+#  set pin_inst [get_db $pin_obj .inst.name]
+#
+#  connect_pin -inst $pin_inst -pin $pin_base -net $dum_net
+#
+#}
+
+set_db edit_wire_layer_min M6
+set_db edit_wire_layer_max M12
+
+foreach pin_obj $pin_objs {
+  set layer [get_db $pin_obj .layer.name]
+  set pin_rect [get_pin_rect $pin_obj]
+
+  set net_name [get_db $pin_obj .net.name]
+
+  set exist_wires [get_db [get_db nets $net_name] .wires]
+  if { [llength $exist_wires] } {
+    delete_obj $exist_wires
+  }
+
+  set rt_idx [get_db [get_db layers $layer] .route_index]
+
+  set_route_attributes -nets $net_name -top_preferred_routing_layer $rt_idx -bottom_preferred_routing_layer $rt_idx
+
+  set_db edit_wire_layer_horizontal $layer
+  set_db edit_wire_layer_vertical $layer
+
+  set_db edit_wire_create_crossover_vias false
+  set_db edit_wire_snap false
+
+
+  deselect_obj -all
+
+  set_db selected [get_db nets $net_name]
+  set_db edit_wire_nets $net_name
+
+  set wire_sp [get_wire_sp $pin_rect]
+  set wire_ep [get_wire_ep $pin_rect]
+
+  edit_add_route_point $wire_sp
+  edit_end_route_point $wire_ep
+
+  set_db edit_wire_nets {}
+  deselect_obj -all
+
+}
