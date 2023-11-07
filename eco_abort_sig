@@ -1,0 +1,79 @@
+
+
+#original path time port->xbar_top_32: 9095.6
+#new path time port->xbar_top_32: 3337.3
+#report_timing -late -from abort_scan_dump_mode_1_in -to HBM_XBAR_WRAPPER/HBM_XBAR/abort_scan_dump_mode
+
+#original path time to xbar: 12940.6
+#new path time to xbar: 4950.3
+report_timing -late -from abort_sram_write_protect_1_in -to HBM_XBAR_WRAPPER/HBM_XBAR/abort_sram_write_protect
+
+#set abort_scan_path [report_timing -late -from abort_scan_dump_mode_1_in -to HBM_XBAR_WRAPPER/HBM_XBAR/abort_scan_dump_mode -collection]
+#set stop_pin "abort_scan_dump_mode_IencIOBuf"
+
+set abort_sram_path [report_timing -late -from abort_sram_write_protect_1_in -to HBM_XBAR_WRAPPER/HBM_XBAR/abort_sram_write_protect -collection]
+set stop_pin "abort_sram_write_protect_IencIOBuf"
+
+
+set i 0
+set start_arr 0
+set stop_arr 0
+#set tpoints [get_db $abort_scan_path .timing_points]
+set tpoints [get_db $abort_sram_path .timing_points]
+
+set inst_bcells [dict create]
+
+foreach tpoint $tpoints {
+
+  set tpin [get_db $tpoint .pin]
+  set arrival [get_db $tpoint .arrival]
+
+  set in_pin [get_db $tpin -if {.direction == in}]
+  set out_pin [get_db $tpin -if {.direction == out}]
+
+  if { $i == 0 } {
+    set start_arr $arrival
+  }
+
+
+  if { [llength $in_pin] } {
+    if { [regexp $stop_pin [get_db $in_pin .name]] } {
+      set stop_arr $arrival
+      break
+    }
+    puts "$in_pin $arrival"
+  }
+  if { [llength $out_pin] } {
+    puts "$out_pin $arrival"
+    set inst [get_db $out_pin .inst]
+    set inst_name [get_db $inst .name]
+
+    set bc [get_db $inst .base_cell.base_name]
+    dict set inst_bcells $inst_name $bc
+  }
+  incr i
+}
+
+puts "path time to xbar: [expr $stop_arr - $start_arr]"
+
+set of [open "update_abort_rptrs_eco.tcl" w]
+puts $of "set_db eco_refine_place false"
+puts $of "set_db eco_update_timing false"
+puts $of "set_db eco_batch_mode true"
+
+dict for {in bc} $inst_bcells {
+
+  regsub {(INV|BUFF)D(\d\d*)(BWP210H6P51CNOD)(U*(L|S)VTL*L*)} $bc {\1D10\3ULVT} new_bc
+  puts "$bc -> $new_bc -> $inst"
+  if { ! [llength [get_db base_cells $new_bc]] } {
+    puts "  ERROR: $new_bc does NOT exist!"
+  } else {
+    puts $of "eco_update_cell -insts $in -cells $new_bc"
+  }
+}
+
+
+puts $of "set_db eco_batch_mode false"
+
+close $of
+
