@@ -1,0 +1,38 @@
+
+set setup_tpaths [report_timing -late -collection -nworst 10000000 -max_paths 10000000 -max_slack -40]
+set num_paths [sizeof_collection $setup_tpaths]
+
+puts "Found $num_paths total failing setup paths"
+
+set rem_buf_list [list]
+set match_str "FE_eco"
+
+set i 1
+foreach_in_collection tpath $setup_tpaths {
+  if { ! [expr $i % 100] } { puts "Processing $i of $num_paths ..." }
+  #set tpoints [get_db $tpath .timing_points]
+  set tinsts [get_db -uniq $tpath .timing_points.pin.inst]
+  set bufs_to_rem [get_db [get_db $tinsts -expr { [regexp $match_str $obj(.name)] }] .name]
+  lappend rem_buf_list {*}$bufs_to_rem
+
+  incr i
+  #if {$i > 100000} { break}
+}
+
+
+set eco_fname "rem_hold_buf.[eval exec {date "+%y%m%d"}].eco_inv"
+write_eco $eco_fname -format innovus
+
+set uniq_rem_bufs [get_db [get_db -uniq insts $rem_buf_list] .name]
+
+set fh [open $eco_fname a]
+puts $fh "set bufs_to_del \[list \\"
+foreach rem_buf $uniq_rem_bufs {
+  puts $fh "  $rem_buf \\"
+}
+puts $fh "\]"
+puts $fh "eco_delete_repeater -insts \$bufs_to_del"
+close $fh
+
+puts "Created $eco_fname ..."
+puts ""
