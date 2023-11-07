@@ -1,0 +1,264 @@
+
+#ll -rtd /proj/cayman/wa/spletch/impl/xbar_top_32_1.1.0A/*/pv.signoff.ant/ant_AL005T/xbar_top_32_1/DRC.rep
+#/proj/cayman/wa/spletch/impl/xbar_top_32_1.1.0A/*/pv.signoff.ant/ant_AL005T/xbar_top_32_1/DRC_REP.drc
+#
+
+proc get_jump_cut {rect net_name} {
+  set xt 23.256
+  set yt 26.88
+
+  set xtd [convert_um_to_dbu $xt]
+  set ytd [convert_um_to_dbu $yt]
+
+  set jumper_dy [expr $yt / 8.]
+  set jumper_halfy [expr $jumper_dy / 2.]
+
+  set net_obj [get_db nets $net_name]
+
+  set wires [get_db $net_obj .wires]
+  set m15_wires [get_db $wires -if {.layer.name == M15}]
+  set m15_wire_rects [get_db $m15_wires .rect]
+
+  set ovlp_rects [get_computed_shapes $rect AND $m15_wire_rects]
+  lassign {*}$ovlp_rects w_llx w_lly w_urx w_ury
+
+  set m15_center [get_rect -center $ovlp_rects]
+  lassign $m15_center unsnap_x unsnap_y
+
+  set unsnap_y_dbu [convert_um_to_dbu $unsnap_y]
+
+  #puts "set tile_lly_dbu \[expr $unsnap_y_dbu / $ytd\]"
+  set tile_lly_dbu [expr ($unsnap_y_dbu / $ytd) * $ytd]
+  set tile_ury_dbu [expr $tile_lly_dbu + $ytd]
+
+  set jumper_center_y_dbu [expr ($tile_lly_dbu + $tile_ury_dbu) / 2]
+
+  set jumper_center_y [convert_dbu_to_um $jumper_center_y_dbu]
+
+  set j_lly [expr $jumper_center_y - $jumper_halfy]
+  set j_ury [expr $jumper_center_y + $jumper_halfy]
+
+  set j_rect [list $w_llx $j_lly $w_urx $j_ury]
+  #puts "SETH jumper_rect: $j_rect"
+
+  create_gui_shape -layer 100 -rect $j_rect
+  return $j_rect
+}
+
+proc add_jumper {jump_shape net_name} {
+  global JUMP_VIA_DEF
+
+  lassign {*}$jump_shape js_llx js_lly js_urx js_ury
+
+  set wire_width [get_rect $jump_shape -dx]
+  set wire_center [get_rect $jump_shape -center]
+  lassign $wire_center w_cen_x w_cen_y
+
+  set dbu_width [convert_um_to_dbu $wire_width]
+
+  set w1 0.414
+  set s1 0.396
+  set h_en 0.018
+
+  set num_x_cuts [expr int(floor(($wire_width - 2 * $h_en + $s1) / ($w1 + $s1)))]
+
+  if { ! [dict exists $JUMP_VIA_DEF $dbu_width] } {
+    create_via_definition \
+    -via_rule VIAGEN1516 \
+    -row_column [list 1 $num_x_cuts] \
+    -name JUMP_VIA_${dbu_width}
+
+    dict set JUMP_VIA_DEF $dbu_width via_def:JUMP_VIA_${dbu_width}
+  }
+
+  set jump_vd [dict get $JUMP_VIA_DEF $dbu_width]
+  set jump_vd_name [get_db $jump_vd .name]
+
+  set vd_bot_rects [get_db $jump_vd .bottom_rects]
+  set vd_top_rects [get_db $jump_vd .top_rects]
+
+  set vd_w [get_rect $vd_bot_rects -dx]
+  set vd_h [get_rect $vd_top_rects -dy]
+
+  set vd_hw [expr $vd_h / 2.]
+
+  deselect_obj -all
+  select_routes -obj_type {wire} -nets $net_name
+
+  set_db edit_wire_nets $net_name
+
+  set_db edit_wire_snap false
+  set_db edit_wire_drc_on false
+  set_db edit_wire_snap_end_to manufacturing_grid
+  set_db edit_wire_snap_objects_to_track {}
+  set_db edit_wire_snap_to {}
+  set_db edit_wire_snap_trim_metal_to_trim_grid false
+  set_db edit_wire_cut_wire_overlap {}
+
+
+  edit_cut_route -box $jump_shape -selected
+  set grow_wire_piece [get_obj_in_area -obj_type {wire} -layer M15 -areas $jump_shape -enclosed_only]
+
+  set_db selected $grow_wire_piece
+  edit_update_route_layer -layer_horizontal M16 -layer_vertical M16
+  #delete_obj $del_wire_piece
+  edit_resize_routes -direction y -offset $vd_h -side high -keep_center_line 1 -no_connection
+
+  #set_db edit_wire_layer_horizontal {M16}
+  #set_db edit_wire_layer_vertical {M16}
+
+  #set_db edit_wire_width_vertical $wire_width
+  #set_db edit_wire_rule {Default}
+
+
+  #set_db edit_wire_via_snap_to_intersection false
+  #set_db edit_wire_via_auto_snap false
+  #set_db edit_wire_create_crossover_vias false
+  
+
+
+  set_db edit_wire_via_cut_layer {VIA15}
+  set_db edit_wire_via_type regular
+  set_db edit_wire_via_create_by {viacell}
+  #update_route_rule -name clock_m1m4_1x_m5m10_2x_m11m16_5x -add_via $jump_vd_name
+  #set_db edit_wire_via_override_spec {{clock_m1m4_1x_m5m10_2x_m11m16_5x $jump_vd_name}}
+  set_db edit_wire_via_cell_name $jump_vd_name
+
+  set v_cen_l [list $w_cen_x [expr $js_lly - $vd_hw]]
+  set v_cen_u [list $w_cen_x [expr $js_ury + $vd_hw]]
+
+  puts "net: $net_name --> edit_create_via $v_cen_l"
+  edit_create_via $v_cen_l
+  puts "net: $net_name --> edit_create_via $v_cen_u"
+  edit_create_via $v_cen_u
+
+  set new_vias [get_obj_in_area -obj_type {via} -layer {VIA15} -areas $jump_shape]
+  set_db selected $new_vias
+  edit_update_via -net $net_name -selected -to $jump_vd_name
+
+  set_db edit_wire_nets {}
+  deselect_obj -all
+
+}
+
+set xt 23.256
+set yt 26.88
+
+set xtd [convert_um_to_dbu $xt]
+set ytd [convert_um_to_dbu $yt]
+
+
+set ant_mrkrs [get_db markers -if { .user_type == A.R.6__A.R.6.1__A.R.8:M15 }]
+
+set num_mrkrs [llength $ant_mrkrs]
+
+
+set seen [dict create]
+
+delete_obj [get_db gui_rects]
+
+foreach mrkr $ant_mrkrs {
+  set mbox [get_db $mrkr .bbox]
+  set buf_inst [get_obj_in_area -obj_type inst -areas $mbox]
+
+  if { [llength $buf_inst] != 1 } { continue }
+
+  set buf_name [get_db $buf_inst .name]
+
+  set bc [get_db $buf_inst .base_cell.base_name]
+
+  if { [dict exists $seen $buf_name] } { continue }
+  if { [regexp {ANT} $bc] } { continue }
+
+  dict set seen $buf_name 1
+
+  puts "$buf_name"
+
+  set inp_pins [get_db $buf_inst .pins -if {.direction == "in"}]
+
+  if { [llength $inp_pins] != 1 } { continue }
+
+
+  set buf_loc {*}[get_db $buf_inst .location]
+  lassign $buf_loc buf_loc_x buf_loc_y
+
+  set ant_net [get_db $inp_pins .net]
+  if { ! [llength $ant_net] } {
+    puts "ARROW! No net connected to $inp_pins!"
+    break
+  }
+  set net_name [get_db $ant_net .name]
+
+  set wires [get_db $ant_net .wires]
+  set m15_wires [get_db $wires -if {.layer.name == M15}]
+
+  set m15_wire_rects [get_db $m15_wires .rect]
+
+  if { ! [llength $m15_wire_rects] } {
+    puts "ARROW! No M15 wire shapes found for $net_name"
+    continue
+  }
+
+  set net_drv [get_db $ant_net .drivers]
+
+  set drv_loc {*}[get_db $net_drv .location]
+  lassign $drv_loc drv_loc_x drv_loc_y
+
+  set search_dx 0
+  set search_dy 0
+
+  set x_net_diff [expr $buf_loc_x - $drv_loc_x]
+  set y_net_diff [expr $buf_loc_y - $drv_loc_y]
+
+  if { $x_net_diff > 0 } {
+    set search_dx [expr -1 * $xt]
+  } else {
+    set search_dx [expr 1 * $xt]
+  }
+
+  if { $y_net_diff > 0 } {
+    set search_dy [expr -1 * $yt]
+  } else {
+    set search_dy [expr 1 * $yt]
+  }
+
+  set buf_rect [get_db $buf_inst .overlap_rects]
+  lassign {*}$buf_rect buf_llx buf_lly buf_urx buf_ury
+
+  set search_rect [list \
+    [expr $buf_llx - $search_dx] \
+    [expr $buf_lly + $search_dy] \
+    [expr $buf_urx + $search_dx] \
+    [expr $buf_ury + 2*$search_dy] \
+  ]
+
+  set wire_insct [get_computed_shapes $search_rect AND $m15_wire_rects]
+
+  if { ![llength $wire_insct] } {
+    puts "ARROW! No M15 wires found for :"
+    puts " ss \[get_db inst:$buf_name\]"
+    puts " create_gui_shape -layer 100 -rect {$search_rect}"
+    puts ""
+    continue
+  }
+
+  #create_gui_shape -layer 100 -rect $wire_insct
+  set jump_bbox [get_jump_cut $wire_insct $net_name]
+  create_gui_shape -layer 100 -rect $jump_bbox
+
+  add_jumper $jump_bbox $net_name
+
+
+
+  #if { ![regexp {encIOBuf} $io_buf_name] } {
+    #continue
+  #}
+
+  #set inp_port [get_db [get_db $buf_inst .pins.net.drivers] -if {.obj_type == port}]
+
+  #set out_port [get_db [get_db $buf_inst .pins.net.loads] -if {.obj_type == port}]
+
+
+}
+
+
