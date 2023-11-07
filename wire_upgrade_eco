@@ -1,0 +1,51 @@
+
+set eco_fname "/proj/cayman/wa/seth/eco/chn_vl_bot.upgrade_routes.[eval exec {date "+%y%m%d"}].tcl"
+
+set max_paths [report_timing -collection -late -retime path_slew_propagation -max_slack 0 -nworst 10000 -max_paths 10000]
+set tot_tpaths [sizeof_collection $max_paths]
+
+set thresh 40
+
+set ef [open $eco_fname w]
+
+set seen [dict create]
+
+set i 1
+foreach_in_collection tpath $max_paths {
+  if { ! [expr $i % 100] } { puts "Processing $i of $tot_tpaths ..." }
+  incr i
+
+  set tpoints [get_db $tpath .timing_points]
+
+  foreach tpoint $tpoints {
+    set pin_obj [get_db $tpoint .pin]
+    set dir [get_db $pin_obj .direction]
+
+    if { $dir != "in" } { continue }
+
+    set delay [get_db $tpoint .delay]
+
+    set clocks [get_db $pin_obj .clocks]
+
+    if { [llength $clocks] } { continue }
+
+    if { $delay < $thresh } { continue }
+
+    set net [get_db $pin_obj .net.name]
+
+    if { [dict exists $seen $net] } {  continue }
+
+    dict set seen $net 1
+
+    puts $ef "#NET : $net"
+    puts $ef "#DLY : $delay"
+    puts $ef "delete_routes -obj_type {wire via} -net $net"
+    puts $ef "set_route_attributes -nets $net -bottom_preferred_routing_layer \[get_db layer:M11 .route_index\]"
+    puts $ef ""
+  }
+}
+
+
+close $ef
+puts "Created $eco_fname ..."
+
