@@ -1,0 +1,17 @@
+#!/bin/csh
+
+set rpt="/mrvl2g/cayman_extvol06/cayman/cayman/wa_006/dgilbert/impl/hbm_xbar_wrapper_0.1.0A/track.timing.HXW0_context_all.03272023.dft/tempuscui.signoff.sta/TTR2.hbm_xbar_wrapper_0.001.2023-03-27-16:50:25/TTR2_out/Cap_Slew/max_transition/buckets/all/cap_slew.max_transition.merged_bucket.all.txt.gz"
+
+zcat ${rpt} | grep -v Pin_Name | awk '{print $1}' | sed -r -e 's/(fab|hbm)_group_./\1_group_*/' > trans_fails
+set num_fails=`cat trans_fails | wc -l`
+echo "Total NON-UNIQUE fails: ${num_fails}"
+
+sort -u trans_fails > trans_fails_unq
+set num_fails=`cat trans_fails_unq | wc -l`
+
+cat trans_fails_unq | grep -v '\/SE' | grep -v '\/RESET' | grep -v DIODE > trans_fails_no_se
+set num_fails_no_se=`cat trans_fails_no_se |  wc -l`
+
+echo "Total unique fails: ${num_fails}"
+echo "Total unique fails excluding SE: ${num_fails_no_se}"
+
