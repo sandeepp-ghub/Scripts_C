@@ -1,0 +1,179 @@
+
+#source /mrvl2g/cayman_extvol06/cayman/cayman/wa_006/dabhatia/impl/scripts/cell_downsize_procs.tcl
+source /proj/cayman/wa/seth/scripts/cell_downsize_procs.tcl
+
+proc downsize_insts {insts {hier_list {}}} {
+
+  set comb [list INV BUFF BUFFSKF BUFFSKR INVSKF INVSKR ND2 MUX2]
+  set clk [list CKN CKB CKMUX2 CKLNQ CKAN2]
+  set all [list INV BUFF BUFFSKF BUFFSKR INVSKF INVSKR ND2 MUX2 CKN CKB CKMUX2 CKLNQ CKAN2]
+ 
+  set ofile downsize_eco.tcl 
+  set efile downsize_notdone.rpt
+  set dfile "data_insts.tcl"
+  set ckfile "ck_insts.tcl" 
+
+  if { [file exists $ofile] } { 
+    file delete $ofile 
+  } 
+  if { [file exists $efile] } { 
+    file delete $efile 
+  }   
+  #if { [file exists $ckfile] } { 
+    #file delete $ckfile 
+  #}   
+  if { [file exists $dfile] } { 
+    file delete $dfile 
+  }   
+
+  set fpo [open $ofile "w"] 
+  set fpe [open $efile "w"]
+  set fpc [open $ckfile "w"] 
+  set fpd [open $dfile "w"]
+
+  puts $fpe "Inst TAG"
+
+  puts $fpo "set_db eco_batch_mode false"
+  puts $fpo "set_db eco_refine_place false"
+  puts $fpo "set_db eco_update_timing false"
+  puts $fpo "set_db eco_check_logical_equivalence true"
+  puts $fpo "set_db eco_honor_fixed_status false"
+  puts $fpo "set_db eco_honor_dont_touch false"
+  puts $fpo "set_db eco_honor_dont_use false"
+  puts $fpo "set_db eco_batch_mode true"
+
+  puts $fpc "set ck_insts \[list \\"
+  puts $fpd "set data_insts \[list \\"
+
+  set tot [llength $insts]
+  set cnt 0
+  foreach line $insts {
+
+    set full_inst_name_list $line
+    if { [llength $hier_list] } {
+      set full_inst_name_list [lmap a $hier_list {string cat $a "/" $line}]
+      #set line $full_inst_name_list
+    }
+
+    if { ![expr $cnt % 100] } { puts "Processing $cnt of $tot ..." }
+    incr cnt
+
+    #puts "SETH line: $line"
+    set pin_coll [get_pins -quiet -of $full_inst_name_list -filter "direction==out"]
+    if { ! [sizeof_collection $pin_coll] } { 
+      puts $fpe "$line NO_OP_PIN"
+      continue
+    }
+    set opin [get_object_name $pin_coll]
+    #if { [llength $opin] != 1 } { 
+      #puts $fpe "$line MULTIPLE_OP_PIN"
+      #continue
+    #}
+
+    #puts "SETH full_inst_name_list : $full_inst_name_list"
+    set org_base [get_db -uniq [get_db insts $full_inst_name_list] .base_cell.name]      
+    #puts "SETH org_base : $org_base "
+
+    if { ! [regexp {([A-Za-z0-9]+)D([0-9]+)BWP210H6P51CNOD([A-Za-z]+)} $org_base match func drive vt] } {
+      puts "$org_base INVALID_CELL_TYPE"
+      puts $fpe "$org_base INVALID_CELL_TYPE"
+      continue
+    }
+    if {$drive == 1} {
+      puts $fpe "$line D1_DRIVE"
+      continue
+    }
+    set net_cap [get_db [get_db pins $opin] .net.capacitance_max]
+    if {$net_cap == "" } {
+      puts $fpe "$line NO_NET_CAP"
+      continue
+    }
+    if { [llength $net_cap] > 1 } {
+      set net_cap [expr max([eval {join $net_cap ","}])]
+    }
+    #set net_ccap [get_db [get_db pins $opin] .net.coupling_capacitance_max]
+    #if {$net_ccap == ""} {
+      #puts $fpe "$line NO_COUPLING_CAP"
+      #continue
+    #}
+    #set net_load [expr $net_cap + $net_ccap]
+    set net_load $net_cap
+    #puts $line
+
+    if {[regexp {^CKND([0-9]+)BWP} $org_base]} {
+      set fam ckn 
+    } elseif {[regexp {^CKBD([0-9]+)BWP} $org_base]} { 
+      set fam ckb
+    } elseif {[regexp {^CKLNQD([0-9]+)BWP} $org_base]} { 
+      set fam cklnq 
+    } elseif {[regexp {^CKAN2D([0-9]+)BWP} $org_base]} {
+      set fam ckan2
+    } elseif {[regexp {^BUFFD([0-9]+)BWP} $org_base]} {
+      set fam buff
+    } elseif {[regexp {^BUFFSKRD([0-9]+)BWP} $org_base]} {
+      set fam buffskr
+    } elseif {[regexp {^BUFFSKFD([0-9]+)BWP} $org_base]} {
+      set fam buffskf
+    } elseif {[regexp {^CKMUX2D([0-9]+)BWP} $org_base]} {
+      set fam ckmux2
+    } elseif {[regexp {^INVD([0-9]+)BWP} $org_base]} {
+      set fam inv
+    } elseif {[regexp {^INVSKRD([0-9]+)BWP} $org_base]} {
+      set fam invskr
+    } elseif {[regexp {^INVSKFD([0-9]+)BWP} $org_base]} {
+      set fam invskf
+    } elseif {[regexp {^ND2D([0-9]+)BWP} $org_base]} {
+      set fam nd2
+    } elseif {[regexp {^MUX2D([0-9]+)BWP} $org_base]} {
+      set fam mux2
+    } else {
+      set fam ""
+    }
+
+    if {$fam != ""} {
+      set new_base [downsize_cell $fam $net_load $org_base]   
+    } else {
+      puts $fpo "# $line cannot be sized as $org_base cell family does not exist in script to size"
+      puts $fpo ""
+      continue
+    }
+
+    regexp {(\d+)BWP} $org_base match org_drv
+    regexp {(\d+)BWP} $new_base match new_drv
+
+    if {$new_drv > $org_drv} {
+      set new_base $org_base
+    } 
+
+    if {$new_base == $org_base} { 
+      puts $fpo "#Inst: $line Load:$net_load Org:$org_base New:$new_base TAG:NO_ECO_POSSIBLE"
+      puts $fpo ""
+    } else {
+      puts $fpo "#Inst: $line Load:$net_load Org:$org_base New:$new_base TAG:ECO_POSSIBLE"
+      puts $fpo "eco_update_cell -insts $line -cells $new_base"
+
+      if { [regexp {^CK} $new_base] } {
+        puts $fpc "  $line \\"
+      } else {
+        puts $fpd "  $line \\"
+      }
+      puts $fpo ""
+    }
+  }
+
+  puts $fpc "\]"
+  puts $fpd "\]"
+
+  puts $fpo "set_db eco_batch_mode false"
+  close $fpo
+  close $fpe
+  close $fpc
+  close $fpd
+  #puts ""
+  #puts "Created [pwd]/$ckfile"
+  #puts "Created [pwd]/$dfile"
+  #puts ""
+  #puts "ECO File: [pwd]/$ofile"
+  #puts ""
+}
+
