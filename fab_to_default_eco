@@ -1,0 +1,104 @@
+
+source /proj/cayman/wa/seth/tools.tcl
+
+set xbt_hier "HBM_XBAR_WRAPPER/HBM_XBAR"
+set xbt_hinst [get_db hinsts $xbt_hier]
+
+set xbt_in_pins [get_db [get_db $xbt_hinst .hports] -if {.direction == "in"}]
+
+set fab_in_pins [get_db [get_db $xbt_in_pins -expr { [regexp {^fab} $obj(.base_name)] }] .name]
+
+set num_fab_in_pins [llength $fab_in_pins]
+
+puts "Running: report_timing -late -collection -through \$fab_in_pins -nworst 100000 -max_paths 100000 -max_slack 0 -retime path_slew_propagation"
+set max_tpaths [report_timing -late -collection -through $fab_in_pins -nworst 100000 -max_paths 100000 -max_slack 0 -retime path_slew_propagation]
+
+set num_tpaths [sizeof_collection $max_tpaths]
+
+puts "Found $num_tpaths failing paths ..."
+
+set eco_fname "/proj/cayman/wa/seth/eco/hxw0.fab_to_default.eco.20230305.tcl"
+set of [open $eco_fname w]
+
+puts $of "set_db eco_batch_mode false"
+puts $of "set_db eco_refine_place false"
+puts $of "set_db eco_update_timing false"
+puts $of "set_db eco_check_logical_equivalence true"
+puts $of "set_db eco_honor_fixed_status false"
+puts $of "set_db eco_honor_dont_touch false"
+puts $of "set_db eco_honor_dont_use false"
+puts $of "set_db eco_batch_mode true"
+
+
+set seen [dict create]
+
+set i 1
+foreach_in_collection tpath $max_tpaths {
+  if { ![expr $i % 100] } { puts "Processing $i of $num_tpaths ..."}
+  incr i
+
+  set tpoints [get_db $tpath .timing_points]
+
+  set insts [get_db -uniq $tpoints .pin.inst]
+
+  #pl $insts
+
+  set fab_idx [lsearch -regexp $insts $xbt_hier]
+  set drv_idx [expr $fab_idx - 1]
+  #puts "SETH fab_idx: $fab_idx"
+
+  set drv_inst [lindex $insts $drv_idx]
+  set drv_inst_name [get_db $drv_inst .name]
+  set drv_base_cell [get_db $drv_inst .base_cell.base_name]
+
+  if { [dict exists $seen $drv_inst_name] } {
+    continue
+  } else {
+    dict set seen $drv_inst_name 1
+  }
+
+  set out_pin_obj [get_db [get_db $drv_inst .pins] -if {.direction == out}]
+  set drv_net [get_db $out_pin_obj .net.name]
+
+  if { [regexp {^AO22D\d+BWP.*$} $drv_base_cell] } {
+    set drv_pin_name [get_db $out_pin_obj .name]
+
+    puts $of "set loc \[get_db $drv_inst .location\]"
+    puts $of "eco_add_repeater -cells BUFFD20BWP210H6P51CNODELVT -pins $drv_pin_name -location \$loc"
+  } else {
+
+    lassign [regexp -inline {^.*D(\d+)BWP.*CNOD(U*E*(LVT|SVT)L*L*)$} $drv_base_cell] match drv vt trash
+
+    set new_drv 20
+    if { $new_drv > $drv } {
+      set old_bwp "D${drv}BWP"
+      set new_bwp "D${new_drv}BWP"
+
+      regsub $old_bwp $drv_base_cell $new_bwp new_drv_base_cell
+
+
+      if { [llength [get_db base_cells $new_drv_base_cell]] } {
+        puts $of "eco_update_cell -insts $drv_inst_name -cells $new_drv_base_cell"
+      } else {
+        puts $of "#ERROR $new_drv_base_cell DOES NOT EXIST"
+        puts $of "#      $drv_base_cell : $drv_inst_name"
+        puts "ERROR $new_drv_base_cell DOES NOT EXIST"
+        puts "ERROR $drv_base_cell : $drv_inst_name"
+      }
+    } else {
+      puts $of "#ERROR $drv_inst is already DRV 20 or more! Not upsizing."
+    }
+  }
+
+  puts $of "delete_routes -obj_type {wire via} -net $drv_net"
+  puts $of "set_route_attributes -nets $drv_net -bottom_preferred_routing_layer \[get_db layer:M11 .route_index\]"
+  puts $of ""
+
+  #if { $i >= 1 } { break }
+}
+
+puts $of "set_db eco_batch_mode false"
+close $of
+
+puts ""
+puts "Created $eco_fname ..."
