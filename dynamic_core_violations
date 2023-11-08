@@ -1,0 +1,24 @@
+set cell_list {U2107 U2153 FE_OFC205_n1988}
+set pins_of_cells [get_db [get_db insts $cell_list] .pins.name]
+set fp [open output.txt w]
+foreach pin $pins_of_cells {
+    set timing_paths [report_timing -through $pin -collection]
+	foreach_in_collection tpaths $timing_paths {
+        set slack [get_property $tpaths slack]
+        if {$slack > 0} {
+            set timing_points [get_property $tpaths timing_points]
+            set pins [get_property $timing_points pin]
+            set cells_col [get_cells -of_objects [get_pins $pins]]
+            set cells [get_object_name $cells_col]
+            set base_cells [get_property $cells_col ref_lib_cell_name]
+            foreach cell $cells base_cell $base_cells {
+                puts $fp "Cell Name: $cell \
+                \nBase_Cell_Name: $base_cell \
+		 #\nUpsize_Command: eco_update_cell -insts $cell -up_size \
+		 \nDownsize_Command: eco_update_cell -insts $cell -down_size"
+                puts $fp ""
+            }
+        }
+    }   
+}
+close $fp
