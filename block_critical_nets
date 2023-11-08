@@ -1,0 +1,58 @@
+proc sizeUp {layer track blkgname} {
+    set j [dbGet ${layer}.layer.num]
+    set i [expr $j - 1]
+    set k [expr $j + 1]
+    set w [dbGet ${layer}.layer.minWidth]
+    set dir [dbGet ${layer}.layer.direction]
+    if {[string match -nocase "horizontal" $dir]} {
+        set pitch [dbGet ${layer}.layer.pitchY]
+        set size SIZEY
+    } else {
+        set pitch [dbGet ${layer}.layer.pitchX]
+        set size SIZEX
+    }
+    set box [dbGet ${layer}.box]
+    set inc [expr [expr $pitch*$track] - [expr $w/2]]
+    create_route_blockage  -rects [dbShape -output rect $box $size $inc] -layers "$j" -name $blkgname
+    if {$j == 1} {
+        create_route_blockage  -rects $box -layers "$k" -name $blkgname
+    } else {
+        create_route_blockage  -rects $box -layers "$i $k" -name $blkgname
+    }
+}
+
+proc createBlockage_Criticalnets {critNets_file protect_clk track blkgname} {
+    report_resource -start report_time
+
+    set data_nets {}
+    set fp [open "$critNets_file" r]
+    set file_data [read $fp]
+    set data [split $file_data "\n"]
+    foreach line $data {
+        lappend data_nets $line
+    }
+
+    if {$protect_clk} {
+        set clk_nets [dbget [dbget  -p top.nets.isCTSClock 1].name]
+        lappend data_nets {*}$clk_nets
+    }
+
+    report_resource -end report_time
+
+    report_resource -start blockage_signal
+    if {$data_nets != -1} {
+                foreach net_info $data_nets {
+                        set net [lindex $net_info 0]
+                        deselectAll
+                        foreach sh [dbget [dbGet top.nets.name $net -p1].wires] {
+                                if { "$sh"==0x0} { continue }
+                                sizeUp $sh $track $blkgname
+                        }
+                }
+        }
+
+report_resource -end blockage_signal
+
+    deselectAll
+}
+
