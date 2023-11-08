@@ -1,0 +1,75 @@
+
+source /proj/cayman/wa/seth/eco/sp_latch_ep_pin.tcl
+
+
+set up_reps [dict create]
+
+set cnt 1
+foreach sp_ep $sp_latch_ep_pin {
+
+  if { ! [expr $cnt % 100] } {
+    puts "$cnt of [llength $sp_latch_ep_pin] ... "
+  }
+
+  lassign $sp_ep sp ep
+
+  set tpaths [report_timing -late -from $sp -through $ep -collection ]
+
+  set prev_inst ""
+  set prev_bc_name ""
+  foreach_in_collection tpath $tpaths {
+    set prev_inst ""
+    set prev_bc_name ""
+    set points [get_db $tpath .timing_points]
+    foreach point $points {
+      set pin [get_db $point .pin]
+
+      if { [get_db $pin .direction] != "out" } { continue }
+      #puts "$pin"
+
+      set curr_inst [get_db $pin .inst]
+      set curr_inst_name [get_db $curr_inst .name]
+
+      set bc_name [get_db $curr_inst .base_cell.base_name]
+
+      #No more parsing if you hit the grandchild
+      if { [regexp {encIOBuf} $curr_inst_name] } {
+        dict set up_reps $prev_inst $prev_bc_name
+        break
+        #puts "  -->  $curr_inst_name"
+      }
+      set prev_inst $curr_inst_name
+      set prev_bc_name $bc_name
+      #puts $hname
+
+    }
+  }
+  incr cnt
+}
+
+set fh [open /proj/cayman/wa_005/seth/eco/hxw0.20230201.upsize_driver_to_xbt_fab_pins.tcl w]
+puts $fh "set_db eco_batch_mode false"
+puts $fh "set_db eco_refine_place false"
+puts $fh "set_db eco_update_timing false"
+puts $fh "set_db eco_check_logical_equivalence true"
+puts $fh "set_db eco_honor_fixed_status false"
+puts $fh "set_db eco_honor_dont_touch false"
+puts $fh "set_db eco_honor_dont_use false"
+puts $fh "set_db eco_batch_mode true"
+
+dict for {inst_name bc_name} $up_reps {
+  #regsub {(BUFF|INV|BUFFSKR)D\d\d*(BWP210H6P51CNOD)[ULS]VTLL*} $bc_name {\1D12\2ULVT} fast_repeater
+  if { [regsub {(INV|BUFF|BUFFSKR)D\d+(BWP.*CNOD)[ULS]L*VTL*} $bc_name {\1D12\2ULVT} fast_repeater] } {
+    if { ! [llength [get_db base_cells $fast_repeater]] } {
+      puts "ERROR $bc_name -> $fast_repeater DOES NOT EXIST!!"
+      close $fh
+      break
+    }
+    puts $fh "eco_update_cell -insts $inst_name -cells $fast_repeater"
+  }
+}
+puts $fh "set_db eco_batch_mode false"
+
+close $fh
+
+
