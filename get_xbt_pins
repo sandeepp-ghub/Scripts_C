@@ -1,0 +1,27 @@
+
+
+set xbt_inst [get_db insts HBM_XBAR_WRAPPER/HBM_XBAR]
+
+set xbt_rect [get_db $xbt_inst .overlap_rects]
+
+lassign {*}$xbt_rect xbt_llx xbt_lly xbt_urx xbt_ury
+
+set all_xbt_pins [get_db $xbt_inst .pins]
+
+set left_max_x [expr $xbt_llx + 0.5]
+set right_min_x [expr $xbt_urx - 0.5]
+
+set xbt_left_pins [get_db $all_xbt_pins -if {.location.x >= $xbt_llx && .location.x < $left_max_x }]
+set xbt_right_pins [get_db $all_xbt_pins -if {.location.x <= $xbt_urx && .location.x > $right_min_x }]
+
+set xbt_left_in_pins [get_db $xbt_left_pins -if {.direction == in}]
+set xbt_right_in_pins [get_db $xbt_right_pins -if {.direction == in}]
+
+
+puts "LEFT: [llength $xbt_left_in_pins]"
+puts "RIGHT: [llength $xbt_right_in_pins]"
+
+source /proj/cayman/wa/seth/scripts/utils.tcl
+
+l2f xbt_left_in_pins.txt [get_db $xbt_left_in_pins .name]
+l2f xbt_right_in_pins.txt [get_db $xbt_right_in_pins .name]
