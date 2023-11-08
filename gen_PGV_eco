@@ -1,0 +1,45 @@
+#set ifile "/mrvl2g/cayman_extvol06/cayman/cayman/wa_006/dabhatia/impl/hbm_xbar_wrapper_1.1.0A/track.timing.Feb28_1830/tempuscui.signoff.sta/CKBD4D6_list"
+#set ofile "/mrvl2g/cayman_extvol06/cayman/cayman/wa_006/dabhatia/impl/hbm_xbar_wrapper_1.1.0A/track.timing.Feb28_1830/tempuscui.signoff.sta/CKBD4D6_list_eco.tcl"
+
+set ifile "/mrvl2g/cayman_extvol06/cayman/cayman/wa_006/dabhatia/impl/hbm_xbar_wrapper_0.1.0A/track.timing.Feb28_1822/tempuscui.signoff.sta/CKBD4D6_list"
+set ofile "/mrvl2g/cayman_extvol06/cayman/cayman/wa_006/dabhatia/impl/hbm_xbar_wrapper_0.1.0A/track.timing.Feb28_1822/tempuscui.signoff.sta/CKBD4D6_list_eco.tcl"
+
+
+if { [file exists $ofile] } {
+  file delete $ofile
+}
+
+set fp [open $ifile "r"]
+set fpo [open $ofile "w"]
+
+#  CKBD2BWP210H6P51CNODULVT 15fF 
+#  CKBD4BWP210H6P51CNODULVT 29fF
+#  CKBD6BWP210H6P51CNODULVT 43fF
+
+while {[gets $fp line] >= 0} {
+  set opin [get_object_name [get_pins -of $line -filter "direction==out"]]
+  set net_cap [get_db [get_db pins $opin] .net.capacitance_max]
+  set net_ccap [get_db [get_db pins $opin] .net.coupling_capacitance_max]
+  set net_load [expr $net_cap + $net_ccap]
+  set org_base [get_db [get_db insts $line] .base_cell.name]
+  if {$net_load <= 15} {
+    set new_base CKBD2BWP210H6P51CNODULVT
+  } elseif {$net_load > 15 && $net_load <=29} {
+    set new_base DCCKBD4BWP210H6P51CNODULVT
+  } elseif {$net_load > 29 && $net_load <=43} {
+     set new_base DCCKBD6BWP210H6P51CNODULVT
+  } else {
+     set new_base $org_base
+  }
+  if {$new_base == $org_base} { 
+    puts $fpo "#Inst: $line Load:$net_load Org:$org_base New:$new_base TAG:NO_ECO_POSSIBLE"
+    puts $fpo ""
+  } else {
+    puts $fpo "#Inst: $line Load:$net_load Org:$org_base New:$new_base TAG:ECO_POSSIBLE"
+    puts $fpo "eco_update_cell -insts $line -cells $new_base"
+    puts $fpo ""
+  }
+}
+
+close $fp
+close $fpo
