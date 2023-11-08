@@ -1,0 +1,498 @@
+#!/proj/tools01/pkgs/perl_common/V006/bin/ipbu_perl
+#
+use Getopt::Long;
+
+my @stages = ("pre.fp","pre.place","cts","post.route","post.opt") ;
+printf "\n \n \n" ;
+my $line = '|'.('='x260)."|\n";
+print $line;
+print "Utilisation Summary \n" ;
+print $line;
+my $fmt  = "| %-15s  |  %-19s|  %-19s | %-19s | %-10s| %-10s| %-19s | %-17s | %-18s | %-19s | %-18s | %-17s |\n";
+
+
+printf $fmt,"stage","macro_area","std_cell_area","Tap and Boundary cell area","Total Util"," Standard cell Util","LVT","ELVT","ULVT","LVTLL","ULVTLL","Total_inst" ;
+
+print $line;
+
+##total_util
+my $design ="" ;
+my $design_file = "invcui.pre.fp/dataout/HANDOFF" ;
+if ( -e $design_file) {
+    
+    open(FH, '<', $design_file ) or die $!;
+    while(<FH>){
+            if ($_ =~ /set DESIGN/) {
+                @bbox = split(" ",$_) ;
+                $design = $bbox[2] ;
+            }
+    }
+    $design  =~ s/{//;
+    $design  =~ s/}//;
+    
+    close(FH);
+}
+my $file = "invcui.pre.fp/dataout/$design.invcui.pre.fp.pre:pg.def_fp_fp.gz";
+
+if ( -e $file ) {
+    system ("zcat $file | head -40 > temp_block_sum ")  ;
+    open(FH, '<', temp_block_sum ) or die $!;
+while(<FH>){
+    if ($_ =~ /DESIGN FE_CORE_BOX_LL_X/) {
+                @bbox = split(" ",$_) ;
+                $llx  = $bbox[3] ;
+            }
+    if ($_ =~ /DESIGN FE_CORE_BOX_UR_X/) {
+               @bbox = split(" ",$_) ;
+               $urx  = $bbox[3] ;
+            }
+    if ($_ =~ /DESIGN FE_CORE_BOX_LL_Y/) {
+                @bbox = split(" ",$_) ;
+                $lly  = $bbox[3] ;
+            }
+    if ($_ =~ /DESIGN FE_CORE_BOX_UR_Y/) {
+                @bbox = split(" ",$_) ;
+                $ury  = $bbox[3] ;
+            }
+}
+
+ close(FH);
+}
+$core_x =  $urx - $llx  ;
+$core_y =  $ury  -  $lly ;
+
+$core_area = $core_x * $core_y ;
+
+
+###
+foreach $stage (@stages) {
+    my $net_flag = 0 ;
+    my $lvt_count =0 ;
+    my $elvt_count =0 ;
+    my $ulvt_count =0 ;
+    my $lvtll_count =0 ;
+    my $ulvtll_count =0 ;
+    
+#printf $stage ;
+    my $file = "invcui.$stage/report/invcui.$stage.summary.rpt.gz";
+#printf "$file \n" ;
+    if ( -e $file ) {
+        system ("zcat $file > temp ")  ;
+        open(FH, '<', temp ) or die $!;
+        while(<FH>){
+            if ($_ =~ /Standard Cells in Netlist/) {
+                    $net_flag = 1 ;
+                   }
+            if ($net_flag == 1 ) {
+                    if ($_ =~ /BWP210H6P51CNOD/ and $_ !~ /BOUNDARY/ and $_ !~ /TAPCELL/ and $_ !~ /CAP/ and $_ !~ /FILL/ ) {
+                        @cell = split(" ",$_);
+                        if ($cell[0] =~ ULVTLL) {
+                                
+                             $ulvtll_count = $ulvtll_count + $cell [1] ;
+
+                        } elsif ($cell[0] =~ LVTLL) {
+
+                            $lvtll_count = $lvtll_count + $cell [1] ;
+                            
+                        } elsif ($cell[0] =~ ELVT) {
+
+                            $elvt_count = $elvt_count + $cell [1] ;
+                        
+                        } elsif ($cell[0] =~ ULVT) {
+
+                            $ulvt_count = $ulvt_count + $cell [1] ;
+
+                        } elsif ($cell[0] =~ LVT) {
+
+                            $lvt_count = $lvt_count + $cell [1] ;
+
+                        } else {
+
+                            printf "no vt type found" ;
+                        }
+                        
+                         
+                    }
+                    if ($_ =~ /Pads:/) {
+                        $net_flag = 0 ; 
+                    }
+            
+                    }
+        }
+
+$total_inst = $lvt_count +  $elvt_count + $ulvt_count + $lvtll_count + $ulvtll_count ;
+$lvt_percent = ($lvt_count/$total_inst) * 100 ;
+$elvt_percent = ($elvt_count/$total_inst) * 100 ;
+$ulvt_percent = ($ulvt_count/$total_inst) * 100;
+$lvtll_percent = ($lvtll_count/$total_inst) * 100 ;
+$ulvtll_percent = ($ulvtll_count/$total_inst) *100 ;
+$lvt_percent = sprintf ("%.2f", $lvt_percent) ;
+$elvt_percent = sprintf("%.2f", $elvt_percent) ;
+$ulvt_percent = sprintf("%.2f", $ulvt_percent) ;
+$lvtll_percent = sprintf("%.2f", $lvtll_percent) ;
+$ulvtll_percent = sprintf("%.2f", $ulvtll_percent) ;
+
+close(FH);
+}   
+    
+my $net_flag = 0 ;
+my $area_flag = 0 ;
+my $std_flag = 0 ;
+my $net_std_flag = 0 ;
+my $area_std_flag = 0 ;
+my $std_cell_flag = 0 ;
+$macro_area = 0 ;
+$std_area = 0 ;
+$bndry_area = 0 ;
+    
+my $file = "invcui.$stage/report/invcui.$stage.summary.rpt.gz";
+if ( -e $file ) {
+    system ("zcat $file > temp ")  ;
+    open(FH, '<', temp ) or die $!;
+    while(<FH>){
+        if ($area_flag ==1 && $net_flag ==1 ) {
+            if ($_ =~ /Std Cells:/) {
+                $std_flag = 1 ;
+            }
+            if ($std_flag == 0) {
+                @macro = split(" ",$_);
+                $macro_area = $macro_area + $macro[2] ;
+                #printf "$macro_area \n";
+            }
+            }
+        if ($_ =~ /Macro Cells in Netlist/) {
+                $net_flag = 1 ;
+               }
+        if ($net_flag == 1 ) {
+                 
+                if ($_ =~ /Area/) {
+                    $area_flag = 1 ; 
+                }
+        
+        }
+         if ($area_std_flag ==1 && $net_std_flag ==1 ) {
+            if ($_ =~ /Pads:/) {
+                $std_cell_flag = 1 ;
+            }
+            if ($std_cell_flag == 0) {
+                if ($stage eq "post.opt") {
+                    if ($_ !~ /BOUNDARY/ && $_ !~ /TAPCELL/ && $_ !~ /CAP/ && $_ !~ /FILL/) {
+                        @std = split(" ",$_);
+                        $std_area = $std_area + $std[2] ;
+                       }
+                     
+                     } else {
+                    if ($_ !~ /BOUNDARY/ && $_ !~ /TAPCELL/ && $_ !~ /CAP/) {
+                         @std = split(" ",$_);
+                        $std_area = $std_area + $std[2] ;
+                    }
+                   
+                }
+            if ($_ =~ /BOUNDARY/ || $_ =~ /TAPCELL/ ) {
+                         @std = split(" ",$_);
+                        $bndry_area = $bndry_area + $std[2] ;
+                    }
+                   
+            }
+            }
+        if ($_ =~ /Standard Cells in Netlist/) {
+                $net_std_flag = 1 ;
+               }
+        if ($net_std_flag == 1 ) {
+                 
+                if ($_ =~ /Area/) {
+                    $area_std_flag = 1 ; 
+                }
+        
+        }
+    }
+
+
+    close(FH);
+    $total_area = $macro_area + $std_area + $bndry_area ;
+    $core_util = $total_area /$core_area * 100;
+    $core_util = sprintf("%.2f%", $core_util) ;
+
+##standard cell util
+my $file = "invcui.$stage/report/invcui.$stage.time_design.summary.gz" ;
+if ( -e $file ) {
+    system ("zcat $file  > temp_block_sum ")  ;
+    open(FH, '<', temp_block_sum ) or die $!;
+    while(<FH>){
+             if ($_ =~ /Density/) {
+                @stds = split(" ",$_);
+                $std_util = $stds[1] ;
+                #printf "$density \n" ;
+               }
+            }
+}
+
+ close(FH);
+
+
+ ##   
+
+
+    my $gmt  = "| %-15s  |%-21s|%-21s| %-28s| %-10s| %-19s| %-10s(%-4s%)  | %-10s(%-4s%) | %-10s(%-5s%) | %-10s (%-5s%) | %-10s (%-4s%) | %-10s (100%) |\n";
+    printf $gmt,$stage,$macro_area,$std_area,$bndry_area,$core_util,$std_util,$lvt_count,$lvt_percent,$elvt_count,$elvt_percent,$ulvt_count,$ulvt_percent,$lvtll_count,$lvtll_percent,$ulvtll_count,$ulvtll_percent,$total_inst ;
+
+    }
+}
+
+print $line ;
+print "Timing summary \n";
+print $line ;
+my $fmt  = "| %-15s  | %-15s| %-15s|%-15s|\n";
+printf $fmt,"Stage","WNS","TNS","Violating paths" ;
+print $line ;
+
+foreach $stage (@stages) {
+
+    my $wns = 0 ;  
+    my $tns = 0 ;
+    my $vp_count = 0 ;
+#printf $stage ;
+    my $file = "invcui.$stage/report/invcui.$stage.time_design.summary.gz";
+#printf "$file \n" ;
+    $flag = 0 ;
+    if ( -e $file ) {
+        system ("zcat $file > temp ")  ;
+        open(FH, '<', temp ) or die $!;
+        while(<FH>){
+            chomp($_) ;
+            if ($_ =~ /Setup mode/) {
+                    #printf $_ ;
+                    @cell = split(/\|/,$_);
+                    $flag =1 ;
+                    
+                   }
+            @cell_new = grep { $_ ne '' } @cell ;
+
+            if ($flag ==1 ) { 
+                if ($_ =~ /WNS/) {
+                        #printf $_ ;
+                        @cell_wns = split(/\|/,$_);
+                        
+                       }
+                @cell_wns_new = grep { $_ ne '' } @cell_wns;
+                if ($_ =~ /TNS/) {
+                        #printf $_ ;
+                        @cell_tns = split(/\|/,$_);
+                        
+                       }
+                @cell_tns_new = grep { $_ ne '' } @cell_tns ;
+                if ($_ =~ /Violating/) {
+                        #printf $_ ;
+                        @cell_vp = split(/\|/,$_);
+                        $flag = 0 ;
+                       }
+                 @cell_vp_new = grep { $_ ne '' } @cell_vp ;
+              }
+            }
+        $count = 0 ;
+        foreach (@cell_new) {
+                if ($_ !~ /INPUTS/ && $_ !~ /OUTPUTS/ && $_ !~ /all/ && $_ !~ /COMB_PATHS/ && $_ !~ /Setup mode/ ) {
+                    if ($cell_wns_new[$count] == "N/A") { $cell_wns_new[$count] = 0}
+                    if ($cell_vp_new[$count] == "N/A") { $cell_vp_new[$count] = 0}
+                    if ($cell_tns_new[$count] == "N/A") { $cell_tns_new[$count] = 0}
+                    if ($cell_wns_new[$count] < $wns) { $wns = $cell_wns_new[$count]} ;
+                    $tns = $tns +  $cell_tns_new[$count] ;
+                   # printf "$cell_vp_new[$count] \n" ;
+                    $vp_count = $vp_count + $cell_vp_new[$count] ;
+                    #printf " $_ :  $cell_wns_new[$count]  : $cell_tns_new[$count] \n" ;
+                }
+                $count = $count + 1 ;
+             }
+        
+
+        close(FH);
+        printf $fmt,$stage,$wns,$tns,$vp_count ;
+    }
+    
+}
+#printf "\n \n \n " ;
+
+print $line;
+ 
+my @stages = ("pre.place","cts") ; 
+foreach $stage (@stages) {
+    my $file = "invcui.$stage/report/invcui.$stage.time_design.summary.gz"; 
+     if ( -e $file ) {
+        system ("zcat $file > temp ")  ;
+        open(FH, '<', temp ) or die $!;
+        while(<FH>) {
+            if ($_ =~ /Overflow/) {
+                 @overflow = split(" ",$_);
+                 printf "$stage : Overflow : $overflow[2] H and $overflow[5] V \n" ;
+            }
+            
+        }
+       }
+} 
+
+print $line;
+
+%clock_sink_list={};
+%clock_id_list={};
+%clock_skew_list={} ;
+$clock_sink_list= 0 ;
+$clock_id_list= 0 ;
+$clock_skew_list = 0 ;
+
+$file = "invcui.cts/report/invcui.cts.clocks.rpt.gz" ;
+if ( -e $file ) {
+    system ("zcat $file > temp_sum ")  ;
+    open REPORT, "<temp_sum" or die "ERROR: Unable to open $file\n";
+    my $flag = 0 ;
+      while ($line = <REPORT>)  {
+        if ($flag == 1) {
+            
+            chomp ($line);
+            @clock_period = split(" ",$line) ;
+            $flag = 0 ;
+            $clocks_per{$clock_name[0]}=  $clock_period[0] ;
+        }
+        if ($line =~ /max1_setup/) { 
+                
+                chomp ($line);
+                @clock_name = split(" ",$line ) ;
+                $flag = 1 ;
+                push @clk_list, $clock_name[0];
+                
+                @source = "" ;
+                for my $i (1 .. $#clock_name) {
+                    #printf "$clock_name[$i]\n";
+                    if ($clock_name[$i]=~ /max1_setup/) {
+                        last ;
+                    } else {
+                    push @source, $clock_name[$i];
+                    }
+
+                 }
+                @source = grep { $_ ne '' } @source; 
+                $clocks_source{$clock_name[0]}= join (" , ",@source) ;
+          }
+        
+        
+    }
+     
+   close(REPORT);
+  }
+$file = "invcui.cts/report/invcui.cts.cts.clock_skew_groups.rpt.gz" ;
+if ( -e $file ) {
+    system ("zcat $file > temp_sum ")  ;
+    open REPORT, "<temp_sum" or die "ERROR: Unable to open $file\n";
+    while ($line = <REPORT>) {
+         if ($line=~ /Skew Group Summary/) {
+             last ;
+         } else {
+             if ($line=~ /max1_setup/ ) {
+                 chomp ($line);
+                 @clock_sink = split(" ",$line) ;
+                  for my $i (0 .. $#clk_list) {
+                    if ($clock_sink[0] =~ /$clk_list[$i]/){
+                            $clock_sink_list{$clk_list[$i]} = $clock_sink[2] ;
+                            
+                  }   
+                  
+                }
+            }
+
+         }
+    }
+    close(REPORT);
+}
+
+$file = "invcui.cts/report/invcui.cts.cts.clock_skew_groups.rpt.gz" ;
+if ( -e $file ) {
+    system ("zcat $file > temp_sum ")  ;
+    open REPORT, "<temp_sum" or die "ERROR: Unable to open $file\n";
+    $late_flag = 0 ;
+    while ($line = <REPORT>) {
+        if ($line =~ /ssgnp0p675vm40c_cworstCCwTm40_setup:setup.late/) { $late_flag = 1 } ;
+        #printf $line ;
+        if ($late_flag == 1 ) {
+            #printf $line ;
+            if ($line =~ /early/) {last } ;
+            if ($line =~ /max1_setup/ ) {
+                chomp ($line);
+                @clock_id = split(" ",$line) ;
+                for my $i (0 .. $#clock_id) {
+                    foreach (@clk_list) {
+                        if ($clock_id[$i] =~ /$_/) {
+                                $clock_id_list{$_} = $clock_id[$i+3] ;
+                                $clock_skew_list{$_} = $clock_id[$i+8] ; 
+                                
+                        }
+                    }
+                }
+            }
+
+        }
+                
+    }
+    close(REPORT);
+}
+my $line = '|'.('='x170)."|\n";
+print $line;
+my $fmt  = "| %-30s  | %-19s| %-38s| %-23s | %-17s | %-18s |\n";
+printf $fmt,"Clock","Clock_period"," Clock_sources","Sinks","ID","Skew" ;
+print $line;
+my $gmt  = "| %-30s  | %-19s| %-38s| %-23s  | %-17s | %-18s |\n";
+for my $i (0 .. $#clk_list) {
+       printf $gmt ,$clk_list[$i], $clocks_per{$clk_list[$i]}, $clocks_source{$clk_list[$i]}, $clock_sink_list{$clk_list[$i]}, $clock_id_list{$clk_list[$i]}, $clock_skew_list{$clk_list[$i]}  ;
+   }
+print $line;
+
+
+
+my $mline = '|'.('='x50)."|\n";
+printf $mline ;
+my $fmt  = "| %-25s  | %-20s|\n";
+printf $fmt,"stage","runtime" ;
+printf $mline ;
+
+
+my @stages = ("dc.syn","invcui.pre.fp","invcui.pre.place","invcui.cts","invcui.post.route","invcui.post.opt") ;
+foreach $stage (@stages) {
+    $file = "$stage/report/$stage.proc_time.log" ;
+    if ( -e $file) {
+        open REPORT, "<$file" or die $!;
+        while ($line = <REPORT>)  {
+            if ($line =~/write_grid_token/) {
+                @ts = split(" ",$line) ;
+                printf $fmt,$stage,$ts[5] ;
+                #printf "$ts[5] \n" ;
+            }
+        }
+
+        close(REPORT);
+    }
+}
+printf $mline ;
+my $mline = '|'.('='x50)."|\n";
+printf $mline ;
+my $fmt  = "| %-25s  | %-20s|\n";
+printf $fmt,"stage","DRC" ;
+printf $mline ;
+
+
+
+my @stages = ("invcui.post.route","invcui.post.opt") ;
+foreach $stage (@stages) {
+    $file = "$stage/report/$stage.route.drc.rpt.gz" ;
+    if ( -e $file) {
+        system ("zcat $file  > temp_block_sum ") ;
+        open(REPORT, '<', temp_block_sum ) or die $!;
+        while ($line = <REPORT>)  {
+            if ($line =~/Total DRC violations/) {
+                @drc = split(" ",$line) ;
+                printf $fmt,$stage,$drc[3] ;
+                #printf "$line" ;
+            }
+        }
+
+        close(REPORT);
+    }
+}
+printf $mline ;
