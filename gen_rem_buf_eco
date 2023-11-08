@@ -1,0 +1,37 @@
+
+source no_latch_sp_ep.tcl
+
+set del_reps [dict create]
+
+foreach sp_ep $no_latch_sp_ep {
+  lassign $sp_ep sp ep
+
+  #set sp HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_0__hbm_xbar_clk_rd_regslice/AXI_SLICE_LOGIC_0__genblk1_rd_if_axi3_regslice/ARREQ_SLC_arreq_fifo/fifo_valid_x_scr/dout_reg_1_/CP
+  #set ep HBM_XBAR_WRAPPER/HBM_XBAR/hbm_rd0_arready
+  #set tpath $tpaths
+
+
+  set tpaths [report_timing -early -from $sp -through $ep -collection -nworst 1000 -max_paths 1000]
+  foreach_in_collection tpath $tpaths {
+    set points [get_db $tpath .timing_points]
+    foreach point $points {
+      set hname [get_db $point .hierarchical_name]
+
+      #No more parsing if you hit the grandchild
+      if { [regexp {encIOBuf} $hname] } { continue }
+      #puts $hname
+
+      if { [regexp {FE_eco} $hname] } {
+        set buf_inst [get_db $point .pin.inst.name]
+        dict set del_reps $buf_inst 1
+      }
+    }
+  }
+}
+
+set fh [open del_hold_buf_eco.tcl w]
+foreach inst_name [dict keys $del_reps] {
+  puts $fh "eco_delete_repeater -insts $inst_name"
+}
+
+close $fh
