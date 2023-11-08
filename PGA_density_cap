@@ -1,0 +1,31 @@
+set xa {68.611 78.241 43.333 32.473}
+set ya {58.3795 37.315 42.13 38.9675}
+
+set xp {10.5105 8.706 3.2175 5.932 4.498 4.0785 6.0145}
+set yp {3.6095 2.821 10.7255 32.367 2.376 6.9035 3.4615}
+
+
+set avgareas {{296.17400 189.16450 364.78500 247.54400} {371.40550 292.68300 449.64650 329.99800} {61.87300 286.06250 105.20600 328.19250} {343.69000 443.29200 376.16300 482.25950}}
+
+set peakareas {{363.90850 579.08550 374.41900 582.69500} {382.38800 579.88100 391.09400 582.70200} {334.97500 509.75400 338.19250 520.47950} {1.64250 276.80800 7.57450 309.17500} {345.12500 428.03550 349.62300 430.41150} {2.12550 2.16450 6.20400 9.06800} {43.39900 222.97300 49.41350 226.43450}}
+set c 0
+
+#overlap_only
+#enclosed_only
+foreach a $avgareas {
+    redirect {foreach n [get_object_name [get_nets [get_obj_in_area -areas $a -obj_type net -enclosed_only]]] {
+        report_net_parasitics $n -rc_corner cworstCCwTm40
+    }} > ../netcap$c.rc
+    set c [expr $c + 1]
+}
+
+set i 0
+while {$i < $c} {
+    set total [exec grep "Total Cap" ../netcap$i.rc | awk {{sumT+=$4}END{print sumT}}]
+    set netnum [exec grep -c "Total Cap" ../netcap$i.rc]
+    set i [expr $i + 1]
+    puts "$total\t$netnum"
+}
+
+rm ../netcap*.rc
+
