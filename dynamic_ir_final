@@ -1,0 +1,289 @@
+namespace import tepam::procedure
+
+set ::in_port []
+set ::out_port []
+
+
+
+procedure port_metal_layer {
+   -short_description
+      "gets ports connected to the cells given in the list and dumps out M2 & M3 layer ports"
+   -args {
+      {-cell_list -type file -description "takes cell list" -mandatory}
+      {-file_tag -type string -description "tags the file with the given name" -mandatory}
+   }
+} {
+   set now $file_tag
+   file mkdir ./dynamic_eco
+   set fp [open ./dynamic_eco/port_list$now.rpt w]
+
+   set formatStr {%-50s%-80s%-50s%-15s%-15s%-15s%-15s}
+   puts $fp [format $formatStr "Ports" "Cells" "Base Cell" "Metal Layer" "Direction" "Num Loads" "Cap"]
+   puts $fp [format $formatStr "-----" "-----" "---------" "-----------" "---------" "---------" "---"]
+
+   set filename $cell_list
+   set f [open $filename]
+
+   while {[gets $f cell] >= 0} {
+      #have to set the pin as Z if the iso buffer is output buffer since the pin connected to the port will be Z
+      #similar for input buffer
+      if {[string match *IencIOBuf* $cell]} {
+         set pin [get_db [get_db insts $cell] .pins.name */Z]
+         set cell_name $cell
+         set base_cell_name [get_db [get_db insts $cell] .base_cell.name]
+         set port_name_out [get_db [get_db ports [get_object_name [all_fanout -endpoints_only  -from $pin]]] .name]
+         set port_name_in [get_db [get_db ports [get_object_name [all_fanin -startpoints_only  -to $pin]]] .name]
+         set net_name [get_db pin:$pin .net.name]
+         set num_loads [get_db net:$net_name .num_loads]
+
+         if {$port_name_in eq ""} {
+            set port_name $port_name_out
+         }
+         if {$port_name_out eq ""} {
+            set port_name $port_name_in
+         }  
+
+         set port_layer [get_db [get_db ports $port_name] .layer.name]
+         set port_direction [get_db [get_db ports $port_name] .direction]
+         set pincap [get_property [get_nets $net_name] pin_capacitance_max]
+         set netcap [get_property [get_nets $net_name] wire_capacitance_max]
+         set cap [expr {$pincap + $netcap}]
+         #if {($port_layer == "M2"|| $port_layer == "M3")} {
+         puts $fp [format $formatStr $port_name $cell_name $base_cell_name $port_layer $port_direction $num_loads $cap]
+         #}
+      }
+   }
+   puts "The port layer report is here -> ./dynamic_eco/port_list$now.rpt"
+   close $fp
+}
+
+procedure split_cells {
+   -short_description
+      "splits the buffs to the given buffs"
+   -args {
+      {-cell_list -type file -description "takes cell list" -mandatory}
+      {-buff -type string -default "BUFFD4BWP210H6P51CNODLVTLL" -description "takes buff base cell name to split the existing buffers" -optional}
+      {-buff_tag -type string -description "tags the added buffers with the given name" -mandatory}
+      {-file_tag -type string -description "tags the file with the given name" -mandatory}
+   }
+} {
+   set now $file_tag
+   file mkdir ./dynamic_eco
+   set fp [open ./dynamic_eco/split_cells$now.eco w]
+   set fp2 [open ./dynamic_eco/swap_cells$now.eco w]
+
+   set filename $cell_list
+   set f [open $filename]
+
+   set honor [get_db eco_honor_dont_touch]
+   puts $fp "set_db eco_batch_mode true"
+   puts $fp2 "set_db eco_batch_mode true"
+   puts $fp "set_db eco_honor_dont_touch false"
+   puts $fp2 "set_db eco_honor_dont_touch false"
+
+   while {[gets $f cell] >= 0} {
+      if {[string match *IencIOBuf* $cell]} {
+
+         set pin [get_db [get_db insts $cell] .pins.name */Z]
+         set cell [string trim $cell]
+         set base_cell_name [get_db [get_db insts $cell] .base_cell.name]
+         set port_name_out [get_db [get_db ports [get_object_name [all_fanout -endpoints_only  -from $pin]]] .name]
+         set port_name_in [get_db [get_db ports [get_object_name [all_fanin -startpoints_only  -to $pin]]] .name]
+
+         if {$port_name_in eq ""} {
+            set port_name $port_name_out
+         }
+         if {$port_name_out eq ""} {
+            set port_name $port_name_in
+         }  
+         
+         set port_direction [get_db [get_db ports $port_name] .direction]
+         if {$port_direction eq "in"} {
+
+            set pin_name [get_db inst:$cell .pins.name */Z]
+            set net_name [get_db pin:$pin_name .net.name]
+            set input_net_name [get_db [get_db inst:$cell .pins */I] .net.name]
+
+            set num_loads [get_db net:$net_name .num_loads]
+            set buff_loads [get_db net:$net_name .loads.inst.name]
+
+            set x [expr $num_loads/2]
+            if {$x >= 1} {
+               set buff_loads [lrange $buff_loads $x end]
+               set flag 1
+            } else {
+               set flag 0
+            }
+            if {$flag == 1} {
+               set new_inst_name ${cell}_${buff_tag}
+               set new_net_name ${net_name}_net_${buff_tag}
+               puts $fp "create_inst -base_cell $buff -name $new_inst_name"
+               set location [get_db inst:$cell .location]         
+
+               puts $fp "create_net -name $new_net_name"
+
+               puts $fp "place_inst $new_inst_name $location -placed"
+               set output_pin_of_new_inst [get_db [get_db [get_db inst:$cell] .pins -if {.direction == out}] .base_name]
+               set input_pin_of_new_inst [get_db [get_db [get_db inst:$cell] .pins -if {.direction == in}] .base_name]
+               set load_pin_list [list]
+
+               foreach inst $buff_loads {
+                  lappend load_pin_list [get_db inst:$inst .pins -if {.net.name == $net_name}]
+               }
+               puts $fp "connect_pin -net $new_net_name  -inst $new_inst_name  -pin $output_pin_of_new_inst"
+               puts $fp "connect_pin -net $input_net_name -inst $new_inst_name -pin $input_pin_of_new_inst"
+
+               foreach pin $load_pin_list {
+                  set load_inst_name [get_db $pin .inst.name]
+                  set load_pin_base_name [get_db $pin .base_name]
+                  puts $fp "disconnect_pin -inst $load_inst_name -pin $load_pin_base_name"
+                  puts $fp "connect_pin -net $new_net_name -inst $load_inst_name -pin $load_pin_base_name"
+               }
+               puts $fp "eco_update_cell -inst $cell -cells $buff"
+	       puts $fp2 "eco_update_cell -inst $cell -cells $buff"
+               puts $fp ""
+            } else {
+               puts $fp "eco_update_cell -inst $cell -cells $buff"
+               puts $fp2 "eco_update_cell -inst $cell -cells $buff"
+               puts $fp ""
+            }
+         } else {
+               set pin_name [get_db inst:$cell .pins.name */Z]
+               set net_name [get_db pin:$pin_name .net.name]
+               puts $fp "eco_add_repeater -cells $buff -net $net_name -relative_distance_to_sink 0 -name ${cell}_${buff_tag}"
+               puts $fp "eco_update_cell -inst $cell -cells $buff"
+               puts $fp2 "eco_update_cell -inst $cell -cells $buff"
+            }
+      }
+   }
+
+   puts $fp "set_db eco_honor_dont_touch $honor"
+   puts $fp2 "set_db eco_honor_dont_touch $honor"
+
+   puts $fp "set_db eco_batch_mode false"
+   puts $fp2 "set_db eco_batch_mode false"
+
+   puts $fp "place_detail -eco true"
+   puts $fp2 "place_detail -eco true"
+
+   close $fp
+   close $fp2
+   puts "Eco file for splitting buffers can be found here -> ./dynamic_eco/split_cells$now.eco"
+   puts "Eco file for swapping buffers can be found here -> ./dynamic_eco/swap_cells$now.eco"
+}
+
+procedure decap_addition {
+   -short_description
+      "adds decap to 4 sides of a cell"
+   -args {
+      {-cell_list -type file -description "takes cell list" -mandatory}
+      {-sides -type integer -description "2 or 4 sides" -mandatory}
+   }
+} {
+    cayman::remove_postfill
+    #::inv::route::delete_spare_and_fill_cells
+    set fp [open $cell_list r]
+
+    set lines  [read -nonewline $fp]
+    close $fp;
+
+    set decap_cell DCAP8XPBWP210H6P51CNODSVT
+    #set decap_cell DCAP4XPBWP210H6P51CNODLVT
+
+    foreach line $lines {
+        gui_highlight inst:$line -index 1
+
+    }
+
+    
+    foreach line $lines {
+        if {$sides == 4} {
+            if {[get_db [get_db insts $line] .base_cell.class] != "block"} {
+                if {[get_db inst:$line .orient] == "r0"} {
+                   set_inst_padding -inst $line -left_side 4 -right_side 4 -top_side 1 -bottom_side 1
+                }
+                if {[get_db inst:$line .orient] == "r180"} {
+                   set_inst_padding -inst $line -left_side 4 -right_side 4 -top_side 1 -bottom_side 1
+                }
+                if {[get_db inst:$line .orient] == "mx"} {
+                   set_inst_padding -inst $line -left_side 4 -right_side 4 -top_side 1 -bottom_side 1
+                }
+                if {[get_db inst:$line .orient] == "my"} {
+                   set_inst_padding -inst $line -left_side 4 -right_side 4 -top_side 1 -bottom_side 1
+                }
+            }
+        } else  {
+            if {[get_db [get_db insts $line] .base_cell.class] != "block"} {
+                    if {[get_db inst:$line .orient] == "r0"} {
+                       set_inst_padding -inst $line -left_side 4 -right_side 4
+                    }
+                    if {[get_db inst:$line .orient] == "r180"} {
+                       set_inst_padding -inst $line -left_side 4 -right_side 4
+                    }
+                    if {[get_db inst:$line .orient] == "mx"} {
+                       set_inst_padding -inst $line -left_side 4 -right_side 4
+                    }
+                    if {[get_db inst:$line .orient] == "my"} {
+                       set_inst_padding -inst $line -left_side 4 -right_side 4
+                    }
+            }
+        }
+    }
+
+    set honor [get_db place_detail_honor_inst_pad]
+    set_db place_detail_honor_inst_pad true
+    place_detail
+
+
+    foreach line $lines {
+       set data1 PGV_FAIL_TARGET_DECAP_1${line}
+       set data2 PGV_FAIL_TARGET_DECAP_2${line}
+       set data3 PGV_FAIL_TARGET_DECAP_3${line}
+       set data4 PGV_FAIL_TARGET_DECAP_4${line}
+       set x1 [get_db inst:$line .bbox.ll.x]
+       set y1 [get_db inst:$line .bbox.ll.y]
+       set x2 [get_db inst:$line .bbox.ur.x]
+
+       set decap_width 0.204
+       set decap_height 0.210
+       if {[get_db inst:$line .orient] == "r0" || [get_db inst:$line .orient] == "mx"} {
+            create_inst -physical -base_cell $decap_cell -name $data1 -location "[expr $x1 - $decap_width] $y1" -place_status fixed
+            create_inst -physical -base_cell $decap_cell -name $data2 -location "[expr $x2] $y1" -place_status fixed
+            if {$sides == 4} {
+                create_inst -physical -base_cell $decap_cell -name $data3 -location "[expr $x1] [expr $y1 + $decap_height]" -place_status fixed
+                create_inst -physical -base_cell $decap_cell -name $data4 -location "[expr $x1] [expr $y1 - $decap_height]" -place_status fixed
+            }
+       }
+       if {[get_db inst:$line .orient] == "r180" || [get_db inst:$line .orient] == "my"} {
+            create_inst -physical -base_cell $decap_cell -name $data1 -location "[expr $x2] $y1" -place_status fixed
+            create_inst -physical -base_cell $decap_cell -name $data2 -location "[expr $x1 - $decap_width] $y1" -place_status fixed
+            if {$sides == 4} {
+                create_inst -physical -base_cell $decap_cell -name $data3 -location "[expr $x1] [expr $y1 + $decap_height]" -place_status fixed
+                create_inst -physical -base_cell $decap_cell -name $data4 -location "[expr $x1] [expr $y1 - $decap_height]" -place_status fixed
+            }
+
+       }
+    }
+
+    set_db place_detail_honor_inst_pad $honor
+
+    set dcap_insts [get_db insts PGV_FAIL_TARGET_DECAP_*]
+    set max_dist 15.0
+    puts "Legalizing [llength $dcap_insts] DCAP insts"
+    set_db place_detail_eco_max_distance $max_dist
+    place_detail -inst [get_db $dcap_insts .name]
+    reset_db place_detail_eco_max_distance
+    set_db $dcap_insts .place_status soft_fixed
+      
+    cayman::add_postfill
+}
+
+
+proc initiate { file } {
+   port_metal_layer -cell_list $file
+   split_cells -cell_list $file
+   decap_addition -cell_list $file -sides -$side
+}
+
+
+
