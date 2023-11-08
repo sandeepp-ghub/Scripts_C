@@ -1,0 +1,401 @@
+#8846:   HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_28__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_ ( IN SI ) ( OUT Q )
+#8848:   HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_28__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_ ( IN SI ) ( OUT Q )
+#8851:   HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_28__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/rst_cnt_reg/CDN_MBIT_dout_reg_0__MB_dout_reg_2_ ( IN SI ) ( OUT Q2 ) ( BITS 2 )
+#
+#8877:   HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_29__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_ ( IN SI ) ( OUT Q )
+#8879:   HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_29__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/rst_cnt_reg/CDN_MBIT_dout_reg_0__MB_dout_reg_2_ ( IN SI ) ( OUT Q2 ) ( BITS 2 )
+#8880:   HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_29__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_ ( IN SI ) ( OUT Q )
+#
+#418705:   HBM_XBAR_WRAPPER/apb_amzn_chain_in_slice/PAPB_SLICE_LOGIC_3__u_rstext_multicycle/rst_cnt_reg/CDN_MBIT_dout_reg_1__MB_dout_reg_2_ ( IN SI ) ( OUT Q2 ) ( BITS 2 )
+#418710:   HBM_XBAR_WRAPPER/apb_amzn_chain_in_slice/PAPB_SLICE_LOGIC_3__u_rstext_multicycle/reset_extend_n_d_reg/dout_reg_0_ ( IN SI ) ( OUT Q )
+#418712:   HBM_XBAR_WRAPPER/apb_amzn_chain_in_slice/PAPB_SLICE_LOGIC_3__u_rstext_multicycle/rst_cnt_reg/dout_reg_0_ ( IN SI ) ( OUT Q )
+#
+#420185:   HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_0__RST_EXTD_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_ ( IN SI ) ( OUT Q )
+#420187:   HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_0__RST_EXTD_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_ ( IN SI ) ( OUT Q )
+#420188:   HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_1__RST_EXTD_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_ ( IN SI ) ( OUT Q )
+#420192:   HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_1__RST_EXTD_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_ ( IN SI ) ( OUT Q )
+#
+#494077:   HBM_XBAR_WRAPPER/u_hbm_fis_cn_wrapper/FIS_NTS_GEN_24__u_fis_nts/u_nts_slv_slice_rst_extender/reset_extend_n_d_reg/dout_reg_0_ ( IN SI ) ( OUT Q )
+#494079:   HBM_XBAR_WRAPPER/u_hbm_fis_cn_wrapper/FIS_NTS_GEN_24__u_fis_nts/u_nts_slv_slice_rst_extender/rst_cnt_reg/dout_reg_2_ ( IN SI ) ( OUT Q )
+#494081:   HBM_XBAR_WRAPPER/u_hbm_fis_cn_wrapper/FIS_NTS_GEN_24__u_fis_nts/u_nts_slv_slice_rst_extender/rst_cnt_reg/CDN_MBIT_dout_reg_0__MB_dout_reg_1_ ( IN SI ) ( OUT Q2 ) ( BITS 2 )
+
+source /proj/cayman/wa/seth/tools.tcl
+source /proj/cayman/wa/seth/scripts/create_latch_hold_eco.v2.tcl
+
+set non_scan_insts [dict create \
+  "HBM_XBAR_WRAPPER/apb_amzn_chain_in_slice/PAPB_SLICE_LOGIC_3__u_rstext_multicycle/rst_cnt_reg/CDN_MBIT_dout_reg_1__MB_dout_reg_2_" 0 \
+  "HBM_XBAR_WRAPPER/apb_amzn_chain_in_slice/PAPB_SLICE_LOGIC_3__u_rstext_multicycle/rst_cnt_reg/dout_reg_0_" 0 \
+  "HBM_XBAR_WRAPPER/apb_amzn_chain_in_slice/PAPB_SLICE_LOGIC_3__u_rstext_multicycle/reset_extend_n_d_reg/dout_reg_0_" 0 \
+  "HBM_XBAR_WRAPPER/u_hbm_fis_cn_wrapper/FIS_NTS_GEN_24__u_fis_nts/u_nts_slv_slice_rst_extender/rst_cnt_reg/CDN_MBIT_dout_reg_0__MB_dout_reg_1_" 0 \
+  "HBM_XBAR_WRAPPER/u_hbm_fis_cn_wrapper/FIS_NTS_GEN_24__u_fis_nts/u_nts_slv_slice_rst_extender/rst_cnt_reg/dout_reg_2_" 0 \
+  "HBM_XBAR_WRAPPER/u_hbm_fis_cn_wrapper/FIS_NTS_GEN_24__u_fis_nts/u_nts_slv_slice_rst_extender/reset_extend_n_d_reg/dout_reg_0_" 0 \
+  "HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_0__RST_EXTD_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_" 0 \
+  "HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_0__RST_EXTD_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_" 0 \
+  "HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_1__RST_EXTD_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_" 0 \
+  "HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_1__RST_EXTD_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_" 0 \
+  "HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_28__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/rst_cnt_reg/CDN_MBIT_dout_reg_0__MB_dout_reg_2_" 0 \
+  "HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_28__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_" 0 \
+  "HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_28__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_" 0 \
+  "HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_29__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/rst_cnt_reg/CDN_MBIT_dout_reg_0__MB_dout_reg_2_" 0 \
+  "HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_29__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_" 0 \
+  "HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_29__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_" 0 \
+]
+
+#pl [get_db insts [dict keys $non_scan_insts]]
+
+puts ""
+puts ""
+
+proc trace_fwd { inst_name } {
+  
+  set inst_obj [get_db insts $inst_name]
+  set outp [get_db $inst_obj .pins -if {.direction == out}]
+  set fop [get_db [all_fanout -end -from $outp] -if {.base_name == "SI"}]
+
+  set cnt 0
+
+  while { [llength $fop] } {
+    set si_p_name [get_db $fop .name]
+    puts "$si_p_name"
+    if { [llength $fop] != 1 } {
+      puts " -> multi-fanout <-"
+      pl $fop
+      return
+    }
+
+    if { $cnt > 2000} {
+      puts " -> Count Break! <-"
+      break
+    }
+
+    set inst_obj [get_db $fop .inst]
+    set outp [get_db $inst_obj .pins -if {.direction == out}]
+    set fop [get_db [all_fanout -end -from $outp] -if {.base_name == "SI"}]
+
+    incr cnt
+  }
+}
+
+proc trace_scan { inst_name } {
+
+  global non_scan_insts
+  global flop_cnt
+
+  gui_clear_highlight -all
+
+  set seen [dict create]
+
+  set inst_obj [get_db insts $inst_name]
+  set si_pin_obj [get_db $inst_obj .pins -if {.base_name == "SI"}]
+  set si_pin_name [get_db $si_pin_obj .name]
+
+  set si_inst_name [get_db $inst_obj .name]
+  dict set non_scan_insts $si_inst_name 1
+
+  set start_si_pin $si_pin_name
+  set prv_si_pin $si_pin_name
+
+  dict set seen $si_pin_name 1
+  incr flop_cnt
+
+  puts "$si_pin_name"
+
+  if { ! [llength $si_pin_obj] } {
+    puts "ARROW! No SI pin on $inst_name"
+    return
+  }
+
+  set fi [get_db [get_db [all_fanin -start -to $si_pin_obj]] -if {.base_name != "EN"}]
+
+  set cnt 0
+  while { [llength $fi] } {
+    if { [llength $fi] > 1 } {
+      puts " -> Multidrive ->"
+      foreach drv_name [get_db $fi .name] {
+        puts "  $drv_name"
+      }
+      break
+    }
+    if { $cnt > 2000} {
+      puts " -> Count Break! <-"
+      break
+    }
+    set inst_obj [get_db $fi .inst]
+    gui_highlight -color yellow -pattern cross $inst_obj
+    set si_pin_obj [get_db $inst_obj .pins -if {.base_name == "SI"}]
+    set si_pin_name [get_db $si_pin_obj .name]
+
+    set si_inst_name [get_db $inst_obj .name]
+    dict set non_scan_insts $si_inst_name 1
+
+    if { [dict exists $seen $si_pin_name] } {
+      puts ""
+      puts " -> Seen Break! <- $si_pin_name cnt=$cnt"
+      set start_inst [get_db [get_db pins $start_si_pin] .inst]
+      set end_inst [get_db [get_db pins $prv_si_pin] .inst]
+
+      gui_highlight -color green -pattern cross $start_inst
+      gui_highlight -color red -pattern cross $end_inst
+
+      #return [list $start_si_pin $prv_si_pin]
+      return [list $start_inst $end_inst]
+    } else {
+      dict set seen $si_pin_name 1
+      incr flop_cnt
+    }
+
+    regsub -all {\/} $si_pin_name {\/} si_brk_name
+    puts "$si_brk_name"
+
+
+    set fi [get_db [get_db [all_fanin -start -to $si_pin_obj]] -if {.base_name != "EN"}]
+    set prv_si_pin $si_pin_name
+
+    incr cnt
+  }
+}
+
+proc has_si {args} {
+  set si_fanout [get_db [all_fanout -end -from $args] -if {.base_name == "SI"}]
+  if { [llength $si_fanout] == 1} {
+    return 1
+  } else {
+    return 0
+  }
+}
+
+proc splice_chain { loop_start splice_start eco_fname} {
+  set ef [open $eco_fname a]
+  puts $ef ""
+
+  set loop_end [get_db [all_fanout -end -from $loop_start] -if {.base_name == "SI"}]
+  if { [llength $loop_end] != 1 } {
+    puts "No SI fanout from $loop_start"
+    return
+  }
+
+  set splice_end [get_db [all_fanout -end -from $splice_start] -if {.base_name == "SI"}]
+  if { [llength $splice_end] != 1 } {
+    puts "No SI fanout from $splice_start"
+    return
+  }
+
+  #Splice Start -> Loop End
+  set splice_start_obj [get_db pins $splice_start]
+  set splice_start_net [get_db $splice_start_obj .net.name]
+
+  set loop_start_load_pins [get_db [get_db pins $loop_start] .net.load_pins]
+  set loop_end_pin_obj [lmap {a} $loop_start_load_pins { expr { [has_si $a] ? $a : [continue] }}]
+  set loop_end_inst [get_db $loop_end_pin_obj .inst.name]
+  set loop_end_base_pin [get_db $loop_end_pin_obj .base_name]
+
+  puts $ef "#Splice Start -> Loop End"
+  puts $ef "connect_pin -inst $loop_end_inst -pin $loop_end_base_pin -net $splice_start_net"
+
+  #Loop Start -> Splice End
+  set loop_start_obj [get_db pins $loop_start]
+  set loop_start_net [get_db $loop_start_obj .net.name]
+  set splice_start_load_pins [get_db [get_db pins $splice_start] .net.load_pins]
+
+  set splice_end_pin_obj [lmap {a} $splice_start_load_pins { expr { [has_si $a] ? $a : [continue] }}]
+  set splice_end_inst [get_db $splice_end_pin_obj .inst.name]
+  set splice_end_base_pin [get_db $splice_end_pin_obj .base_name]
+
+  puts $ef "#Loop Start -> Splice End"
+  puts $ef "connect_pin -inst $splice_end_inst -pin $splice_end_base_pin -net $loop_start_net"
+
+  puts $ef ""
+  close $ef
+  return
+}
+
+set eco_fname "/proj/cayman/wa/seth/eco/hbm_xbar_wrapper_1/hxw1.rewire_scan_chain.20230603.tcl"
+if { [file exists $eco_fname] } {
+  file delete $eco_fname
+}
+
+set flop_cnt 0
+##################################
+
+lassign [trace_scan HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_28__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/reset_sync/RESET_FLOP_RSYNC_CELL_2_data_sync_cell] start_inst end_inst
+puts ""
+puts "Loop Start: [get_db $start_inst .name]"
+#puts "Loop End  : [get_db $end_inst .name]"
+puts ""
+
+puts "Still not scanned:"
+puts ""
+dict for {inst_name is_scan} $non_scan_insts {
+  if { !$is_scan } {
+    puts "  $inst_name"
+  }
+}
+puts ""
+
+set_db selected [list $start_inst $end_inst]
+
+set loop_start HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_28__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/reset_sync/RESET_FLOP_RSYNC_CELL_2_data_sync_cell/Q
+set splice_start HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_29__hbm_xbar_clk_wr_regslice/AXI_SLICE_LOGIC_0__genblk1_wr_if_axi3_regslice/AWREQ_SLC_awreq_fifo/FIFO_ENTRY_PACK_1__fifo_entry/CDN_MBIT_dout_reg_59__MB_dout_reg_15__MB_dout_reg_44__MB_dout_reg_14_/Q4
+
+splice_chain $loop_start $splice_start $eco_fname
+
+
+
+
+##################################
+
+
+lassign [trace_scan HBM_XBAR_WRAPPER/apb_amzn_chain_in_slice/PAPB_SLICE_LOGIC_3__u_rstext_multicycle/rst_cnt_reg/CDN_MBIT_dout_reg_1__MB_dout_reg_2_] start_inst end_inst
+puts ""
+puts "Loop Start: [get_db $start_inst .name]"
+#puts "Loop End  : [get_db $end_inst .name]"
+puts ""
+
+puts "Still not scanned:"
+puts ""
+dict for {inst_name is_scan} $non_scan_insts {
+  if { !$is_scan } {
+    puts "  $inst_name"
+  }
+}
+puts ""
+
+set_db selected [list $start_inst $end_inst]
+
+set loop_start HBM_XBAR_WRAPPER/apb_amzn_chain_in_slice/PAPB_SLICE_LOGIC_3__u_rstext_multicycle/rst_cnt_reg/CDN_MBIT_dout_reg_1__MB_dout_reg_2_/Q2
+set splice_start HBM_XBAR_WRAPPER/apb_hbm_xbar_chain_out_slice/APB_SLICE_LOGIC_6__genblk1_apb_slice_wrap/ap_apb_slice/psel_env_reg/dout_reg_0_/Q
+
+splice_chain $loop_start $splice_start $eco_fname
+
+
+##################################
+
+
+lassign [trace_scan HBM_XBAR_WRAPPER/u_hbm_fis_cn_wrapper/FIS_NTS_GEN_24__u_fis_nts/u_nts_slv_slice_rst_extender/rst_cnt_reg/CDN_MBIT_dout_reg_0__MB_dout_reg_1_] start_inst end_inst
+puts ""
+puts "Loop Start: [get_db $start_inst .name]"
+#puts "Loop End  : [get_db $end_inst .name]"
+puts ""
+
+puts "Still not scanned:"
+puts ""
+dict for {inst_name is_scan} $non_scan_insts {
+  if { !$is_scan } {
+    puts "  $inst_name"
+  }
+}
+puts ""
+
+set_db selected [list $start_inst $end_inst]
+
+set loop_start HBM_XBAR_WRAPPER/u_hbm_fis_cn_wrapper/FIS_NTS_GEN_24__u_fis_nts/u_nts_slv_slice_rst_extender/rst_cnt_reg/CDN_MBIT_dout_reg_0__MB_dout_reg_1_/Q2
+set splice_start HBM_XBAR_WRAPPER/HBM_ADDR_TRNSL/ADDR_TRNSL_MUX_PER_CH_28__prog_reg_stg/flop_1__u_din_q/CDN_MBIT_dout_reg_1070__MB_dout_reg_1000__MB_dout_reg_530__MB_dout_reg_533_/Q4
+
+splice_chain $loop_start $splice_start $eco_fname
+
+
+##################################
+
+
+#This are all orphans - this is a back trace
+#HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_0__RST_EXTD_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_/SI
+#HBM_XBAR_WRAPPER\/xbar_top_32_csr_out_stg\/flop_0__u_din_q\/dout_reg_6_\/SI
+#HBM_XBAR_WRAPPER\/xbar_top_32_csr_out_stg\/flop_0__RST_EXTD_MULTICYCLE_NSR\/reset_extend_n_d_reg\/dout_reg_0_\/SI
+#HBM_XBAR_WRAPPER\/xbar_top_32_csr_out_stg\/flop_1__u_din_q\/dout_reg_10_\/SI
+#HBM_XBAR_WRAPPER\/XBAR_IN_OVERRIDE_ADDR_8__hbm_xbar_clk_in_wr_regslice\/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice\/AWREQ_SLC_awreq_fifo\/FIFO_ENTRY_PACK_1__fifo_entry\/dout_reg_7_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_28_bit_select_reg_4_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_6_bit_select_reg_0_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_29_bit_select_1_reg_2_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/ctrl_addr_transl_map_addr_bit_cfg_4_bit_select_1_reg_1_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_28_bit_select_reg_5_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/ctrl_addr_transl_map_addr_bit_cfg_4_bit_select_1_reg_0_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_6_bit_select_reg_1_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_28_bit_select_reg_3_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_4_bit_select_reg_2_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_4_bit_select_reg_3_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_4_bit_select_reg_1_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_5_bit_select_1_reg_2_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_5_bit_select_1_reg_1_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_4_bit_select_reg_4_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_4_bit_select_reg_0_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_4_force0_reg\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_4_force1_reg\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_4_bit_select_reg_5_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_20_force1_reg\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_20_bit_select_reg_2_\/SI
+#HBM_XBAR_WRAPPER\/hbm_xbar_reg_access\/hbm_xbar_cfg_reg_block\/data_addr_transl_map_addr_bit_cfg_29_bit_select_reg_3_\/SI
+#HBM_XBAR_WRAPPER\/XBAR_IN_OVERRIDE_ADDR_9__hbm_xbar_clk_in_wr_regslice\/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice\/BRESP_SLC_bresp_fifo\/FIFO_DEEPER_fifo_push_ptr_scr\/dout_reg_1_\/SI
+#HBM_XBAR_WRAPPER\/XBAR_IN_OVERRIDE_ADDR_8__hbm_xbar_clk_in_wr_regslice\/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice\/WDATA_SLC_wreq_fifo\/POP_FIFO_DEPTH_GT1_fifo_pop_ptr_scr\/dout_reg_1_\/SI
+#HBM_XBAR_WRAPPER\/XBAR_IN_OVERRIDE_ADDR_9__hbm_xbar_clk_in_wr_regslice\/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice\/BRESP_SLC_bresp_fifo\/FIFO_DEEPER_fifo_push_ptr_scr\/dout_reg_0_\/SI
+#HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_9__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/BRESP_SLC_bresp_fifo/FIFO_DEEPER_fifo_push_ptr_scr/dout_reg_0_/SI
+
+#who drives this SI:
+#HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_9__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/BRESP_SLC_bresp_fifo/FIFO_DEEPER_fifo_push_ptr_scr/dout_reg_0_
+
+#this flop can drive an SI pin it current does not drive one
+#HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_9__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/AWREQ_SLC_awreq_fifo/POP_FIFO_DEPTH_GT1_fifo_pop_ptr_scr/dout_reg_0_
+
+#HBM_XBAR_WRAPPER\/XBAR_IN_OVERRIDE_ADDR_9__hbm_xbar_clk_in_wr_regslice\/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice\/AWREQ_SLC_awreq_fifo\/POP_FIFO_DEPTH_GT1_fifo_pop_ptr_scr\/dout_reg_0_
+
+
+
+
+#This is the original connection:
+#   HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_8__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/WDATA_SLC_wreq_fifo/POP_FIFO_DEPTH_GT1_fifo_pop_ptr_scr/dout_reg_1_ ( IN SI ) ( OUT Q )
+#   HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_9__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/BRESP_SLC_bresp_fifo/FIFO_DEEPER_fifo_push_ptr_scr/dout_reg_1_ ( IN SI ) ( OUT Q )
+
+#This is the GOOD SI
+#HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_9__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/BRESP_SLC_bresp_fifo/FIFO_DEEPER_fifo_push_ptr_scr/dout_reg_1_
+#This is the BAD SI
+#HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_8__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/AWREQ_SLC_awreq_fifo/POP_FIFO_DEPTH_GT1_fifo_pop_ptr_scr/dout_reg_0_
+
+#make this flop
+set drv_flop HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_9__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/AWREQ_SLC_awreq_fifo/POP_FIFO_DEPTH_GT1_fifo_pop_ptr_scr/dout_reg_0_
+#drive this one
+set ld_flop HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_8__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/AWREQ_SLC_awreq_fifo/POP_FIFO_DEPTH_GT1_fifo_pop_ptr_scr/dout_reg_0_
+gui_clear_highlight -all
+
+set drv_flop_inst [get_db insts $drv_flop]
+set ld_flop_inst [get_db insts $ld_flop]
+
+
+gui_highlight -color green -pattern cross $drv_flop_inst
+gui_highlight -color red -pattern cross $ld_flop_inst
+
+set_db selected [list $drv_flop_inst $ld_flop_inst]
+
+set drv_q_net [get_db [get_db $drv_flop_inst .pins -if {.direction ==  "out"}] .net.name]
+set ef [open $eco_fname a]
+puts ""
+puts $ef "connect_pin -inst HBM_XBAR_WRAPPER/XBAR_IN_OVERRIDE_ADDR_8__hbm_xbar_clk_in_wr_regslice/AXI_SLICE_LOGIC_1__genblk1_wr_if_axi3_regslice/invcui_postcts_postcts_setupoptFE_OCPC154523_net_HoldFix_fab_wr8_wvalid_3 -pin I -net $drv_q_net"
+puts ""
+close $ef
+
+##################################
+
+
+puts ""
+puts "Num Flops Added to Chains: $flop_cnt"
+puts ""
+puts "Created $eco_fname ..."
+
+
+
+#set drv_inst HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_29__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_
+#set drv_pin [get_db [get_db insts $drv_inst] .pins -if {.base_name == "Q"}]
+#set drv_net [get_db $drv_pin .net.name]
+
+#connect_pin -inst HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_28__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/reset_sync/RESET_FLOP_RSYNC_CELL_2_data_sync_cell -pin SI -net $drv_net
+
+#set loop_start HBM_XBAR_WRAPPER/XBAR_OUT_OVERRIDE_ADDR_28__AXI_RST_EXTD_OVERRIDE_OUT_CH_MULTICYCLE_NSR/reset_sync/RESET_FLOP_RSYNC_CELL_2_data_sync_cell
+
+
+#grep 'D5-' /proj/cayman/extvols/wa_002/manishb/post_dft/hbm_xbar_wrapper_1_060523/drc_all_fails.out  | grep reset
+#//  Warning: /HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_0__RST_EXTD_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_ (35266532) is a non-scan flip-flop identified as INIT-X. (D5-266665)
+#//  Warning: /HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_1__RST_EXTD_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_ (35266558) is a non-scan flip-flop identified as INIT-X. (D5-26666
+
+#//  Warning: /HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_0__RST_EXTD_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_ (35266531) is a non-scan flip-flop identified as INIT-X. (D5-266664)
+#//  Warning: /HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_0__RST_EXTD_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_ (35266532) is a non-scan flip-flop identified as INIT-X. (D5-266665)
+#//  Warning: /HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_1__RST_EXTD_MULTICYCLE_NSR/rst_cnt_reg/dout_reg_1_ (35266557) is a non-scan flip-flop identified as INIT-X. (D5-266668)
+#//  Warning: /HBM_XBAR_WRAPPER/xbar_top_32_csr_out_stg/flop_1__RST_EXTD_MULTICYCLE_NSR/reset_extend_n_d_reg/dout_reg_0_ (35266558) is a non-scan flip-flop identified as INIT-X. (D5-266669)
+
