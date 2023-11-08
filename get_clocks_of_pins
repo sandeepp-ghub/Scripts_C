@@ -1,0 +1,12 @@
+set h_clk_pins [list \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_3/clk_axi \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_3/clk_axi_ext \
+  HBM_XBAR_WRAPPER/HBM_XBAR/axi_top/fab_group_3/clk_fast \
+]
+
+foreach h_clk_pin $h_clk_pins {
+  set clock_obj [get_attribute [get_pins $h_clk_pin] clocks]
+  set clock_name [get_object_name $clock_obj]
+  puts "$h_clk_pin -> $clock_name"
+}
+
