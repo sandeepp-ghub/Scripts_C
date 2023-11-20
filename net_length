@@ -1,0 +1,10 @@
+
+set fp [open "net_length.rpt" w ]
+foreach net [  get_db [get_db pins $pins ] .net.name] {
+       set tlen 0 
+        foreach l [ get_db  [get_db nets $net ] .wires.rect.length ] { 
+            set tlen [ expr $tlen + $l ] 
+        } 
+    puts $fp "$net $tlen"
+}
+close $fp
