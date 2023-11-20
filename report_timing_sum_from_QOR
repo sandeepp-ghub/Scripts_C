@@ -1,0 +1,80 @@
+
+
+#report_qor
+#report_qor > for_BIP_timing_summary.rpt
+
+set fip "./for_BIP_timing_summary.rpt"
+set fip "/mrvl2g/dc5purecl01_s_t106a0_wa_003/t106a0/t106a0/wa_003/vdesai2/impl/mio.PNR1/track.from_np/mio.qor"
+set fin [open $fip r] 
+
+set InternalWNS 0
+set InternalTNS 0
+set InternalNVP 0
+set InterfaceWNS 0
+set InterfaceTNS 0
+set InterfaceNVP 0
+
+while { [gets  $fin line] >= 0 } {
+        #puts $line
+        if { [regexp " Scenario " $line ] } {
+            set scen [lindex $line 1]
+            gets $fin grp_line
+            set grp [lindex $grp_line 3]
+            gets $fin dummy
+            while { [gets  $fin line] >= 0 } {
+                if { [regexp "\-\-\-\-\-\-" $line] } {
+                    break
+                }
+                if { [regexp "Critical Path Slack:" $line]  } {
+                    set wns [lindex $line 3]
+                }
+                if { [regexp "Total Negative Slack:" $line]  } {
+                    set tns [lindex $line 3]
+                }
+                if { [regexp "No. of Violating Paths:" $line]  } {
+                    set fep [lindex $line 4]
+                }
+            }
+            #puts "$scen\t$grp\t $wns \t $tns \t $fep"
+            dict set DATA  $scen $grp [ list $wns $tns $fep ]
+        }
+}
+close $fin
+
+foreach scen  [dict keys $DATA ] {
+    if { [regexp "max" $scen] } {
+         set all [dict get $DATA $scen]
+         foreach grp [dict keys $all] {
+             set values [dict get $all $grp]
+             puts "$grp $values"
+             set wns [lindex $values 0]
+             set tns [lindex $values 1]
+             set fep [lindex $values 2]
+             if { [regexp "_INPUTS" $grp ] || [regexp "_OUTPUTS" $grp ] || [regexp "COMB_PATHS" $grp ]} {
+                 if { $wns < $InterfaceWNS } {
+                        set InterfaceWNS $wns
+                 }
+                 set InterfaceTNS [expr $InterfaceTNS + $tns ] 
+                 set InterfaceNVP [expr $InterfaceNVP + $fep ] 
+             } else {
+                 if { $wns < $InternalWNS } {
+                        set InternalWNS $wns
+                 }
+                 set InternalTNS [expr $InternalTNS + $tns ] 
+                 set InternalNVP [expr $InternalNVP + $fep ] 
+             }
+         }
+    }
+}
+    #set fo [open ${rpt_dir}/$file_prefix.BIP_timing_summary.rpt w]
+
+    puts  [format "%16s\t%10s\t%10s\t%10s" Group WNS TNS FEP]
+    puts  [format "%16s\t%10.3f\t%10.3fs\t%10f" maxInternal $InternalWNS $InternalTNS $InternalNVP]
+    puts  [format "%16s\t%10.3f\t%10.3fs\t%10f" maxInterface $InterfaceWNS $InterfaceTNS $InterfaceNVP]
+
+    #puts $fo [format "%16s\t%10s\t%10s\t%10s" Group WNS TNS FEP]
+    #puts $fo [format "%16s\t%10.3f\t%10.3fs\t%10d" maxInternal $InternalWNS $InternalTNS $InternalNVP]
+    #puts $fo [format "%16s\t%10.3f\t%10.3fs\t%10d" maxInterface $InterfaceWNS $InterfaceTNS $InterfaceNVP]
+    
+    #close $fo
+#sh rm ./for_BIP_timing_summary.rpt
