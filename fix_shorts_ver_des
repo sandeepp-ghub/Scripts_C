@@ -1,0 +1,23 @@
+delete_drc_markers 
+check_drc -limit 1000000  
+get_db current_design .markers -if {.subtype == Metal_Short } -foreach {
+
+                   set box  [ get_computed_shapes [get_db $object .bbox] SIZE 0 ]
+           set layer_name [get_db $object .layer.name]
+        deselect_obj -all
+                   select_obj [ get_obj_in_area -areas $box -obj_type wire -layer $layer_name]
+           set net_name [get_db [get_db selected .net -if {.name != *CTS*}] .name]
+        deselect_obj -all
+        if {$net_name != ""} {
+        foreach final_net $net_name {
+        if {[ get_db [get_db nets $final_net] .route_rule ]  != "" } {
+        puts $final_net
+        delete_routes -net "net:$final_net"
+        set_route_attributes -nets $final_net -route_rule default
+        }
+        }
+        }
+}
+
+
+
