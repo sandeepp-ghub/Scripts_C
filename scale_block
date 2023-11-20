@@ -1,0 +1,20 @@
+
+
+set x 612.3540
+set y 554.4000
+
+set ar [ expr 612.3540 / 554.4000 ]
+
+set area [ expr 612.3540 * 554.4000 ]
+
+set scale_fac 0.5
+
+set new_area [ expr $area * $scale_fac ]
+
+set new_y [ expr { sqrt ( $new_area / $ar ) } ]
+set new_x [expr $new_y * $ar ]
+
+
+
+puts "X : $new_x"
+puts "Y : $new_y"
