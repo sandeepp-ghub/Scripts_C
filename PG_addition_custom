@@ -1,0 +1,61 @@
+
+
+
+
+
+proc get_bbox_from_rects {rects} {
+      set llx [ list ]
+      set lly [ list ]
+      set urx [ list ]
+      set ury [ list ]
+      #if {$pg} {
+      #  set lshapes [ get_db [ get_db inst:$inst .pg_pins -if {.base_name==$pin } ] .pg_base_pin.physical_pins.layer_shapes.shapes ]
+      #} else {
+      #  set lshapes [ get_db [ get_db inst:$inst .pins -if {.base_name==$pin } ] .base_pin.physical_pins.layer_shapes.shapes ]
+      #}
+      foreach rect $rects {
+            lappend llx [ lindex $rect 0 ]
+            lappend lly [ lindex $rect 1 ]
+            lappend urx [ lindex $rect 2 ]
+            lappend ury [ lindex $rect 3 ]
+      }
+      set ll_x  [ lindex [ lsort -real $llx ] 0 ]
+      set ll_y  [ lindex [ lsort -real $lly ] 0 ]
+      set ur_x [ lindex [ lsort -real -decreasing $urx ] 0 ]
+      set ur_y [ lindex [ lsort -real -decreasing $ury ] 0 ]
+      return "$ll_x $ll_y $ur_x $ur_y"
+}
+
+foreach efuse [ get_db [ get_db insts -if {.base_cell.name==*TEF05*}  ] .name ] {
+    set rects [  get_transform_shapes -inst $efuse -local_pt [ get_db [ get_db inst:$efuse .pg_pins -if  {.base_name==VQPS} ] .pg_base_pin.physical_pins.layer_shapes.shapes.rect ] ]
+    set bbox [ get_bbox_from_rects $rects ]
+    set net [ get_db pg_pin:$efuse/VQPS .net.name ]
+    set_db add_stripes_stacked_via_bottom_layer M7
+    set_db add_stripes_stacked_via_top_layer M8
+    puts "add_stripes -nets $net -area $bbox -width 0.71 -layer M8  -set_to_set_distance 6 -direction horizontal  -start_offset 2 -stop_offset 2"
+    add_stripes -nets $net -area $bbox -width 0.71 -layer M8  -set_to_set_distance 6 -direction horizontal  -start_offset 2 -stop_offset 2
+}
+foreach vqps_sw [ get_db [ get_db insts -if {.base_cell.name==*VQPS*}  ] .name ] {
+    set rects [  get_transform_shapes -inst $vqps_sw -local_pt [ get_db [ get_db inst:$vqps_sw .pins -if  {.base_name==VQPS} ] .base_pin.physical_pins.layer_shapes.shapes.rect ] ]
+    set bbox [ get_bbox_from_rects $rects ]
+    set net [ get_db pin:$vqps_sw/VQPS .net.name ]
+    set_db add_stripes_stacked_via_bottom_layer M7
+    set_db add_stripes_stacked_via_top_layer M8
+    puts "add_stripes -nets $net -area $bbox -width 0.34 -layer M8  -set_to_set_distance 6 -direction horizontal  -start_offset 2 -stop_offset 2"
+    add_stripes -nets $net -area $bbox -width 0.71 -layer M8  -set_to_set_distance 6 -direction horizontal  -start_offset 2 -stop_offset 2
+}
+
+
+foreach efuse [ get_db [ get_db insts -if {.base_cell.name==*TEF05*}  ] .name ] {
+    set net [ get_db pg_pin:$efuse/VQPS .net.name ]
+    set rects [ get_db net:$net .special_wires.rect ] 
+    set bbox [get_bbox_from_rects $rects ]
+    set_db add_stripes_stacked_via_bottom_layer M8
+    set_db add_stripes_stacked_via_top_layer M9
+    add_stripes -nets $net -area $bbox -width 0.71 -layer M9  -set_to_set_distance 6 -direction vertical  -start_offset 2 -stop_offset 2
+}
+
+
+#foreach r [ get_transform_shapes -inst $efuse -local_pt [ get_db [ get_db inst:$efuse .pins -if  {.base_name==VQPS} ] .base_pin.physical_pins.layer_shapes.shapes.rect ] ] { 
+#    create_shape -layer M7 -net cpc_bcm_wrap_bcm_otp_top_otx3_bcm_top_otx3_bcm_accel_top_0_bcm_trupuf_top_i_trupuf_U_OTP_vqps -rect $r -shape stripe 
+#}
