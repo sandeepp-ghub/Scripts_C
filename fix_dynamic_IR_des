@@ -1,0 +1,115 @@
+
+
+
+puts "Info: start fixing dynamic IR on blow instances.."
+deselect_obj -all
+
+foreach inst $effective_dynamic_ir_inst_vdd_sys {
+    puts "\t$inst"
+}
+
+set swires [ get_obj_in_area -areas [ get_computed_shapes [get_db [get_db insts $effective_dynamic_ir_inst_vdd_sys ] .bbox] SIZEX 0.615 ] -obj_type special_wire -layers M1 ]
+
+set power_net [get_db designs .power_domains.primary_power_net.name]
+set gnd_net   [get_db designs .power_domains.primary_ground_net.name]
+set xoff 0.068
+
+set_db edit_wire_drc_on false
+
+
+foreach swire $swires {
+    set net [get_db  [get_db $swire ] .net.name]
+    set bbox [get_db  [get_db $swire ] .polygon.bbox ]
+    set wire_dy [ expr [ get_db  [get_db $swire ] .polygon.bbox.dy  ] + 0.002 ]
+    if { $wire_dy < 0.726 } {
+            set move [expr $wire_dy + 0.290 ]
+            foreach {llx lly urx ury}  [ lindex $bbox 0 ] {}
+            set upbox [get_computed_shapes $bbox MOVE "0 $move"  ] 
+            set downbox [get_computed_shapes $bbox MOVE "0 -$move"  ] 
+            if { [llength [  get_db [ get_obj_in_area -areas $upbox -obj_type special_wire -layers M1 ]  -if {.net.name == $net}  ] ] > 0  } {
+                deselect_obj -all
+                select_obj [  get_db $swire ]
+                edit_resize_routes -no_connection  -direction y -side high -offset 0.290
+                deselect_obj -all
+            } elseif { [llength [  get_db [ get_obj_in_area -areas $downbox -obj_type special_wire -layers M1 ]  -if {.net.name == $net}  ] ] > 0 } {
+                deselect_obj -all
+                select_obj [  get_db $swire ]
+                edit_resize_routes -no_connection  -direction y -side low -offset -0.290
+                deselect_obj -all
+            } else {
+                puts "No wire found at above/down of  $bbox"
+            }
+    } else {
+        if { $gnd_net eq $net } {
+            set new_net $power_net
+            set yoff -0.210
+        } elseif { $power_net eq $net } {
+            set new_net $gnd_net
+            set yoff 0.210
+        } else {
+            set new_net "NULL"
+            puts "Some how got other net: $net. Ignoring for copy"
+        }
+
+        if { $new_net ne "NULL"} {
+            set svias [ get_obj_in_area -areas  $bbox -obj_type special_via -layers {VIA0 VIA1} ]
+            set m2_search_bbox  [ lindex [ get_computed_shapes $bbox MOVE "0 $yoff" ] 0 ]
+            foreach {llx lly urx ury} $m2_search_bbox {}
+            set urx [expr $urx + 0.74]
+
+            set m2_swires [get_db  [ get_db [ get_db [ get_obj_in_area -areas [list $llx $lly $urx $ury] -obj_type special_wire -layers M2 ] ] -if {.net.name == $new_net} ] -if {.polygon.bbox.length <= 0.272} ]
+            set objs [ concat $swire $svias ]
+
+             deselect_obj -all
+             select_obj $objs
+             edit_copy -net $new_net $xoff $yoff
+             deselect_obj -all
+             if { [ llength $m2_swires ] > 0 } {
+             deselect_obj -all
+             select_obj $m2_swires
+             edit_resize_routes -no_connection  -direction x -side low -offset -0.544
+             deselect_obj -all
+             }
+        }
+    }
+}
+
+set_db edit_wire_drc_on true
+
+puts "Info: end fixing dynamic IR"
+
+puts "Deleting M0/M1/M2 over memories/marcos... "
+
+proc delete_power_from_bbox { layers bbox nets } {
+    deselect_obj -all
+    foreach net $nets {
+        select_obj [get_db  [get_obj_in_area -layers $layers -areas $bbox -obj_type special_wire ] -if {.net.name == $net}   ]
+    }
+    edit_cut_route -selected -box $bbox
+    deselect_obj -all
+    foreach net $nets {
+        select_obj [get_db  [get_obj_in_area -layers $layers -areas $bbox -obj_type special_wire -enclosed_only ] -if {.net.name == $net}   ]
+    }
+
+    delete_selected_from_floorplan
+    deselect_obj -all
+
+    foreach net $nets {
+        foreach l $layers {
+        regsub "^M" $l "VIA" via
+        select_obj [get_db  [get_obj_in_area -layers $via  -areas $bbox -obj_type special_via ] -if {.net.name == $net}   ]
+        }
+    }
+
+    delete_selected_from_floorplan
+    deselect_obj -all
+}
+
+foreach bbox [ get_db [ get_db insts -if { .base_cell.class == block } ] .bbox ] {
+    set bboxy [get_computed_shapes $bbox SIZEY 0.05 ]
+    set bboxxy [get_computed_shapes $bboxy SIZEX 0.05 ]
+    delete_power_from_bbox "M0 M1 M2" $bboxxy "$power_net $gnd_net"
+}
+puts "Deleted M0/M1/M2 over memories/marcos... "
+
+
