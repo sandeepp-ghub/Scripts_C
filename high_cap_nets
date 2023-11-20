@@ -1,0 +1,35 @@
+
+set fp [open "/proj/t106a0/wa/vdesai2/to_pnr/high_cap_nets_0302.rpt" w ]
+
+foreach block [ list cpc dro_macro_uptom4_280_wrapper efuse gibm iocx_ch_x0 iocx_ch_x1 iocx_ch_y0 iocx_ch_y1 iocx_dss_lv_shim jtg mio mrml pad_iocx rmf roc_ocla tsc ] {
+    set inst [  get_object_name [get_cells -filter "ref_name==$block" ] ]
+    current_instance $inst
+    puts $fp "Block : $block"
+    puts $fp [format "%-100s %-100s %8s" Net Driver Cap]
+    puts $fp "---------------------------------------------------------------------------------------------------------------------------------"
+    foreach_in_collection n [ get_nets -quiet -hierarchical -filter "ba_capacitance_max>0.05" ] { 
+        set driver [ get_object_name [ get_attribute $n leaf_drivers] ] 
+        set net [get_object_name $n ] 
+        set cap [ get_attribute $n ba_capacitance_max] 
+        if { ![regexp "mrvl_buf" $driver ]} {
+        puts $fp [format "%-100s %-100s %.6f " $net $driver $cap ] 
+        }
+    }
+    current_instance
+    puts $fp "\n\n"
+}
+    puts $fp "iocx"
+    puts $fp [format "%-100s %-100s %8s" Net Driver Cap]
+    puts $fp "---------------------------------------------------------------------------------------------------------------------------------"
+    foreach_in_collection n [ get_nets -quiet -filter "ba_capacitance_max>0.05" ] {
+        set driver [ get_object_name [ get_attribute $n leaf_drivers] ]
+        set net [get_object_name $n ]
+        set cap [ get_attribute $n ba_capacitance_max]
+        if { ![regexp "mrvl_buf" $driver ]} {
+        puts $fp [format "%-100s %-100s %.6f " $net $driver $cap ]
+        }
+    }
+    current_instance
+    puts $fp "\n\n"
+ 
+close $fp
