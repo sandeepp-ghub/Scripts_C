@@ -1,0 +1,297 @@
+
+
+
+   #  get_db skew_groups  xpsio0_clk/func:max1_setup_ssgnp0p675vm40c -foreach {
+   #  set skgrp_name $obj(.name)
+   #  puts " Removing sinks from $skgrp_name "
+   #  set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+   #  update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+   #  set ports [ list pad__blk_pi_gpio[16] pad__blk_pi_gpio[17] pad__blk_pi_gpio[18] pad__blk_pi_gpio[19] pad__blk_pi_gpio[20] pad__blk_pi_gpio[21] pad__blk_pi_gpio[22] pad__blk_pi_gpio[23] pad__blk_pi_gpio[25] ]
+   #  update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+   # }
+
+
+   #  get_db skew_groups  xpsi1_clk/func:max1_setup_ssgnp0p675vm40c -foreach {
+   #  set skgrp_name $obj(.name)
+   #  puts " Removing sinks from $skgrp_name "
+   #  set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+   #  update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+   #  set ports [ list pad__blk_pi_gpio[30] pad__blk_pi_gpio[31] pad__blk_pi_gpio[32] pad__blk_pi_gpio[33] pad__blk_pi_gpio[34] pad__blk_pi_gpio[35] pad__blk_pi_gpio[36] pad__blk_pi_gpio[37] pad__blk_pi_gpio[39] ]
+   #  update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+   # }
+
+
+   #  get_db skew_groups  emmc_c_clk/func:max1_setup_ssgnp0p675vm40c -foreach {
+   #  set skgrp_name $obj(.name)
+   #  puts " Removing sinks from $skgrp_name "
+   #  set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+   #  update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+   #  set ports [ list pad__blk_pi_emmc_dat[0] pad__blk_pi_emmc_dat[1] pad__blk_pi_emmc_dat[2] pad__blk_pi_emmc_dat[3] pad__blk_pi_emmc_dat[4] pad__blk_pi_emmc_dat[5] pad__blk_pi_emmc_dat[6] pad__blk_pi_emmc_dat[7] pad__blk_pi_emmc_dqs  ]
+   #  update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+   # }
+
+
+
+     get_db skew_groups  xspi0_po_clk/func:max1_setup_ssgnp0p675vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list gpio_grp1_gpiox16_pads_pad_gpio11/DO gpio_grp2_gpiox16_pads_pad_gpio8/DO gpio_grp2_gpiox16_pads_pad_gpio9/DO gpio_grp2_gpiox16_pads_pad_gpio0/DO gpio_grp2_gpiox16_pads_pad_gpio1/DO gpio_grp2_gpiox16_pads_pad_gpio2/DO gpio_grp2_gpiox16_pads_pad_gpio3/DO gpio_grp1_gpiox16_pads_pad_gpio8/DO gpio_grp1_gpiox16_pads_pad_gpio9/DO  ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+#30/03
+#     get_db skew_groups  xspi0_po_ctrl_clk/func:max1_setup_ssgnp0p675vm40c -foreach {
+#     set skgrp_name $obj(.name)
+#     puts " Removing sinks from $skgrp_name "
+#     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+#     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+#     set ports [ list gpio_grp1_gpiox16_pads_pad_gpio10/DO gpio_grp1_gpiox16_pads_pad_gpio0/DO gpio_grp1_gpiox16_pads_pad_gpio1/DO gpio_grp1_gpiox16_pads_pad_gpio2/DO gpio_grp1_gpiox16_pads_pad_gpio3/DO ]
+#     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+#    }
+
+     get_db skew_groups xspi0_pe_clk/func:max1_setup_ssgnp0p675vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp2_gpiox16_pads_pad_gpio8/DO_EN gpio_grp2_gpiox16_pads_pad_gpio9/DO_EN gpio_grp2_gpiox16_pads_pad_gpio0/DO_EN gpio_grp2_gpiox16_pads_pad_gpio1/DO_EN gpio_grp2_gpiox16_pads_pad_gpio2/DO_EN gpio_grp2_gpiox16_pads_pad_gpio3/DO_EN gpio_grp1_gpiox16_pads_pad_gpio8/DO_EN gpio_grp1_gpiox16_pads_pad_gpio9/DO_EN  ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups xspi1_po_clk/func:max1_setup_ssgnp0p675vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp1_gpiox16_pads_pad_gpio15/DO gpio_grp2_gpiox16_pads_pad_gpio12/DO gpio_grp2_gpiox16_pads_pad_gpio13/DO gpio_grp2_gpiox16_pads_pad_gpio4/DO gpio_grp2_gpiox16_pads_pad_gpio5/DO gpio_grp2_gpiox16_pads_pad_gpio6/DO gpio_grp2_gpiox16_pads_pad_gpio7/DO gpio_grp1_gpiox16_pads_pad_gpio12/DO gpio_grp1_gpiox16_pads_pad_gpio13/DO ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups xspi1_pe_clk/func:max1_setup_ssgnp0p675vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp2_gpiox16_pads_pad_gpio12/DO_EN gpio_grp2_gpiox16_pads_pad_gpio13/DO_EN gpio_grp2_gpiox16_pads_pad_gpio4/DO_EN gpio_grp2_gpiox16_pads_pad_gpio5/DO_EN gpio_grp2_gpiox16_pads_pad_gpio6/DO_EN gpio_grp2_gpiox16_pads_pad_gpio7/DO_EN gpio_grp1_gpiox16_pads_pad_gpio12/DO_EN gpio_grp1_gpiox16_pads_pad_gpio13/DO_EN ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+
+
+     get_db skew_groups po_emmc_clk/func:max1_setup_ssgnp0p675vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp0_gpiox16_pads_pad_gpio4/DO gpio_grp0_gpiox16_pads_pad_gpio5/DO gpio_grp0_gpiox16_pads_pad_gpio6/DO gpio_grp0_gpiox16_pads_pad_gpio7/DO gpio_grp0_gpiox16_pads_pad_gpio8/DO gpio_grp0_gpiox16_pads_pad_gpio9/DO gpio_grp0_gpiox16_pads_pad_gpio10/DO gpio_grp0_gpiox16_pads_pad_gpio11/DO ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups pe_emmc_clk/func:max1_setup_ssgnp0p675vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp0_gpiox16_pads_pad_gpio4/DO_EN gpio_grp0_gpiox16_pads_pad_gpio5/DO_EN gpio_grp0_gpiox16_pads_pad_gpio6/DO_EN gpio_grp0_gpiox16_pads_pad_gpio7/DO_EN gpio_grp0_gpiox16_pads_pad_gpio8/DO_EN gpio_grp0_gpiox16_pads_pad_gpio9/DO_EN gpio_grp0_gpiox16_pads_pad_gpio10/DO_EN gpio_grp0_gpiox16_pads_pad_gpio11/DO_EN ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+    
+     get_db skew_groups  xspi0_po_clk/func:max3_setup_ssgnp0p765vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list gpio_grp1_gpiox16_pads_pad_gpio11/DO gpio_grp2_gpiox16_pads_pad_gpio8/DO gpio_grp2_gpiox16_pads_pad_gpio9/DO gpio_grp2_gpiox16_pads_pad_gpio0/DO gpio_grp2_gpiox16_pads_pad_gpio1/DO gpio_grp2_gpiox16_pads_pad_gpio2/DO gpio_grp2_gpiox16_pads_pad_gpio3/DO gpio_grp1_gpiox16_pads_pad_gpio8/DO gpio_grp1_gpiox16_pads_pad_gpio9/DO  ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+#30/03
+#     get_db skew_groups  xspi0_po_ctrl_clk/func:max3_setup_ssgnp0p765vm40c -foreach {
+#     set skgrp_name $obj(.name)
+#     puts " Removing sinks from $skgrp_name "
+#     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+#     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+#     set ports [ list gpio_grp1_gpiox16_pads_pad_gpio10/DO gpio_grp1_gpiox16_pads_pad_gpio0/DO gpio_grp1_gpiox16_pads_pad_gpio1/DO gpio_grp1_gpiox16_pads_pad_gpio2/DO gpio_grp1_gpiox16_pads_pad_gpio3/DO ]
+#     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+#    }
+
+     get_db skew_groups xspi0_pe_clk/func:max3_setup_ssgnp0p765vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp2_gpiox16_pads_pad_gpio8/DO_EN gpio_grp2_gpiox16_pads_pad_gpio9/DO_EN gpio_grp2_gpiox16_pads_pad_gpio0/DO_EN gpio_grp2_gpiox16_pads_pad_gpio1/DO_EN gpio_grp2_gpiox16_pads_pad_gpio2/DO_EN gpio_grp2_gpiox16_pads_pad_gpio3/DO_EN gpio_grp1_gpiox16_pads_pad_gpio8/DO_EN gpio_grp1_gpiox16_pads_pad_gpio9/DO_EN  ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups xspi1_po_clk/func:max3_setup_ssgnp0p765vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp1_gpiox16_pads_pad_gpio15/DO gpio_grp2_gpiox16_pads_pad_gpio12/DO gpio_grp2_gpiox16_pads_pad_gpio13/DO gpio_grp2_gpiox16_pads_pad_gpio4/DO gpio_grp2_gpiox16_pads_pad_gpio5/DO gpio_grp2_gpiox16_pads_pad_gpio6/DO gpio_grp2_gpiox16_pads_pad_gpio7/DO gpio_grp1_gpiox16_pads_pad_gpio12/DO gpio_grp1_gpiox16_pads_pad_gpio13/DO ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups xspi1_pe_clk/func:max3_setup_ssgnp0p765vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp2_gpiox16_pads_pad_gpio12/DO_EN gpio_grp2_gpiox16_pads_pad_gpio13/DO_EN gpio_grp2_gpiox16_pads_pad_gpio4/DO_EN gpio_grp2_gpiox16_pads_pad_gpio5/DO_EN gpio_grp2_gpiox16_pads_pad_gpio6/DO_EN gpio_grp2_gpiox16_pads_pad_gpio7/DO_EN gpio_grp1_gpiox16_pads_pad_gpio12/DO_EN gpio_grp1_gpiox16_pads_pad_gpio13/DO_EN ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+
+
+     get_db skew_groups po_emmc_clk/func:max3_setup_ssgnp0p765vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp0_gpiox16_pads_pad_gpio4/DO gpio_grp0_gpiox16_pads_pad_gpio5/DO gpio_grp0_gpiox16_pads_pad_gpio6/DO gpio_grp0_gpiox16_pads_pad_gpio7/DO gpio_grp0_gpiox16_pads_pad_gpio8/DO gpio_grp0_gpiox16_pads_pad_gpio9/DO gpio_grp0_gpiox16_pads_pad_gpio10/DO gpio_grp0_gpiox16_pads_pad_gpio11/DO ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups pe_emmc_clk/func:max3_setup_ssgnp0p765vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp0_gpiox16_pads_pad_gpio4/DO_EN gpio_grp0_gpiox16_pads_pad_gpio5/DO_EN gpio_grp0_gpiox16_pads_pad_gpio6/DO_EN gpio_grp0_gpiox16_pads_pad_gpio7/DO_EN gpio_grp0_gpiox16_pads_pad_gpio8/DO_EN gpio_grp0_gpiox16_pads_pad_gpio9/DO_EN gpio_grp0_gpiox16_pads_pad_gpio10/DO_EN gpio_grp0_gpiox16_pads_pad_gpio11/DO_EN ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+  get_db skew_groups  xspi0_po_clk/func:min2_hold_ffgnp0p935vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list gpio_grp1_gpiox16_pads_pad_gpio11/DO gpio_grp2_gpiox16_pads_pad_gpio8/DO gpio_grp2_gpiox16_pads_pad_gpio9/DO gpio_grp2_gpiox16_pads_pad_gpio0/DO gpio_grp2_gpiox16_pads_pad_gpio1/DO gpio_grp2_gpiox16_pads_pad_gpio2/DO gpio_grp2_gpiox16_pads_pad_gpio3/DO gpio_grp1_gpiox16_pads_pad_gpio8/DO gpio_grp1_gpiox16_pads_pad_gpio9/DO  ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+#30/03
+#     get_db skew_groups  xspi0_po_ctrl_clk/func:min2_hold_ffgnp0p935vm40c -foreach {
+#     set skgrp_name $obj(.name)
+#     puts " Removing sinks from $skgrp_name "
+#     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+#     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+#     set ports [ list gpio_grp1_gpiox16_pads_pad_gpio10/DO gpio_grp1_gpiox16_pads_pad_gpio0/DO gpio_grp1_gpiox16_pads_pad_gpio1/DO gpio_grp1_gpiox16_pads_pad_gpio2/DO gpio_grp1_gpiox16_pads_pad_gpio3/DO ]
+#     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+#    }
+
+     get_db skew_groups xspi0_pe_clk/func:min2_hold_ffgnp0p935vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp2_gpiox16_pads_pad_gpio8/DO_EN gpio_grp2_gpiox16_pads_pad_gpio9/DO_EN gpio_grp2_gpiox16_pads_pad_gpio0/DO_EN gpio_grp2_gpiox16_pads_pad_gpio1/DO_EN gpio_grp2_gpiox16_pads_pad_gpio2/DO_EN gpio_grp2_gpiox16_pads_pad_gpio3/DO_EN gpio_grp1_gpiox16_pads_pad_gpio8/DO_EN gpio_grp1_gpiox16_pads_pad_gpio9/DO_EN  ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups xspi1_po_clk/func:min2_hold_ffgnp0p935vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp1_gpiox16_pads_pad_gpio15/DO gpio_grp2_gpiox16_pads_pad_gpio12/DO gpio_grp2_gpiox16_pads_pad_gpio13/DO gpio_grp2_gpiox16_pads_pad_gpio4/DO gpio_grp2_gpiox16_pads_pad_gpio5/DO gpio_grp2_gpiox16_pads_pad_gpio6/DO gpio_grp2_gpiox16_pads_pad_gpio7/DO gpio_grp1_gpiox16_pads_pad_gpio12/DO gpio_grp1_gpiox16_pads_pad_gpio13/DO ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups xspi1_pe_clk/func:min2_hold_ffgnp0p935vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp2_gpiox16_pads_pad_gpio12/DO_EN gpio_grp2_gpiox16_pads_pad_gpio13/DO_EN gpio_grp2_gpiox16_pads_pad_gpio4/DO_EN gpio_grp2_gpiox16_pads_pad_gpio5/DO_EN gpio_grp2_gpiox16_pads_pad_gpio6/DO_EN gpio_grp2_gpiox16_pads_pad_gpio7/DO_EN gpio_grp1_gpiox16_pads_pad_gpio12/DO_EN gpio_grp1_gpiox16_pads_pad_gpio13/DO_EN ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+
+
+     get_db skew_groups po_emmc_clk/func:min2_hold_ffgnp0p935vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp0_gpiox16_pads_pad_gpio4/DO gpio_grp0_gpiox16_pads_pad_gpio5/DO gpio_grp0_gpiox16_pads_pad_gpio6/DO gpio_grp0_gpiox16_pads_pad_gpio7/DO gpio_grp0_gpiox16_pads_pad_gpio8/DO gpio_grp0_gpiox16_pads_pad_gpio9/DO gpio_grp0_gpiox16_pads_pad_gpio10/DO gpio_grp0_gpiox16_pads_pad_gpio11/DO ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups pe_emmc_clk/func:min2_hold_ffgnp0p935vm40c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp0_gpiox16_pads_pad_gpio4/DO_EN gpio_grp0_gpiox16_pads_pad_gpio5/DO_EN gpio_grp0_gpiox16_pads_pad_gpio6/DO_EN gpio_grp0_gpiox16_pads_pad_gpio7/DO_EN gpio_grp0_gpiox16_pads_pad_gpio8/DO_EN gpio_grp0_gpiox16_pads_pad_gpio9/DO_EN gpio_grp0_gpiox16_pads_pad_gpio10/DO_EN gpio_grp0_gpiox16_pads_pad_gpio11/DO_EN ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+
+
+    
+     get_db skew_groups  xspi0_po_clk/func:max6_setup_tt0p75v85c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list gpio_grp1_gpiox16_pads_pad_gpio11/DO gpio_grp2_gpiox16_pads_pad_gpio8/DO gpio_grp2_gpiox16_pads_pad_gpio9/DO gpio_grp2_gpiox16_pads_pad_gpio0/DO gpio_grp2_gpiox16_pads_pad_gpio1/DO gpio_grp2_gpiox16_pads_pad_gpio2/DO gpio_grp2_gpiox16_pads_pad_gpio3/DO gpio_grp1_gpiox16_pads_pad_gpio8/DO gpio_grp1_gpiox16_pads_pad_gpio9/DO  ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+#30/03
+#     get_db skew_groups  xspi0_po_ctrl_clk/func:max6_setup_tt0p75v85c -foreach {
+#     set skgrp_name $obj(.name)
+#     puts " Removing sinks from $skgrp_name "
+#     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+#     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+#     set ports [ list gpio_grp1_gpiox16_pads_pad_gpio10/DO gpio_grp1_gpiox16_pads_pad_gpio0/DO gpio_grp1_gpiox16_pads_pad_gpio1/DO gpio_grp1_gpiox16_pads_pad_gpio2/DO gpio_grp1_gpiox16_pads_pad_gpio3/DO ]
+#     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+#    }
+
+     get_db skew_groups xspi0_pe_clk/func:max6_setup_tt0p75v85c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp2_gpiox16_pads_pad_gpio8/DO_EN gpio_grp2_gpiox16_pads_pad_gpio9/DO_EN gpio_grp2_gpiox16_pads_pad_gpio0/DO_EN gpio_grp2_gpiox16_pads_pad_gpio1/DO_EN gpio_grp2_gpiox16_pads_pad_gpio2/DO_EN gpio_grp2_gpiox16_pads_pad_gpio3/DO_EN gpio_grp1_gpiox16_pads_pad_gpio8/DO_EN gpio_grp1_gpiox16_pads_pad_gpio9/DO_EN  ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups xspi1_po_clk/func:max6_setup_tt0p75v85c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp1_gpiox16_pads_pad_gpio15/DO gpio_grp2_gpiox16_pads_pad_gpio12/DO gpio_grp2_gpiox16_pads_pad_gpio13/DO gpio_grp2_gpiox16_pads_pad_gpio4/DO gpio_grp2_gpiox16_pads_pad_gpio5/DO gpio_grp2_gpiox16_pads_pad_gpio6/DO gpio_grp2_gpiox16_pads_pad_gpio7/DO gpio_grp1_gpiox16_pads_pad_gpio12/DO gpio_grp1_gpiox16_pads_pad_gpio13/DO ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups xspi1_pe_clk/func:max6_setup_tt0p75v85c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp2_gpiox16_pads_pad_gpio12/DO_EN gpio_grp2_gpiox16_pads_pad_gpio13/DO_EN gpio_grp2_gpiox16_pads_pad_gpio4/DO_EN gpio_grp2_gpiox16_pads_pad_gpio5/DO_EN gpio_grp2_gpiox16_pads_pad_gpio6/DO_EN gpio_grp2_gpiox16_pads_pad_gpio7/DO_EN gpio_grp1_gpiox16_pads_pad_gpio12/DO_EN gpio_grp1_gpiox16_pads_pad_gpio13/DO_EN ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+
+
+     get_db skew_groups po_emmc_clk/func:max6_setup_tt0p75v85c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp0_gpiox16_pads_pad_gpio4/DO gpio_grp0_gpiox16_pads_pad_gpio5/DO gpio_grp0_gpiox16_pads_pad_gpio6/DO gpio_grp0_gpiox16_pads_pad_gpio7/DO gpio_grp0_gpiox16_pads_pad_gpio8/DO gpio_grp0_gpiox16_pads_pad_gpio9/DO gpio_grp0_gpiox16_pads_pad_gpio10/DO gpio_grp0_gpiox16_pads_pad_gpio11/DO ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
+
+     get_db skew_groups pe_emmc_clk/func:max6_setup_tt0p75v85c -foreach {
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ]
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+     set ports [ list  gpio_grp0_gpiox16_pads_pad_gpio4/DO_EN gpio_grp0_gpiox16_pads_pad_gpio5/DO_EN gpio_grp0_gpiox16_pads_pad_gpio6/DO_EN gpio_grp0_gpiox16_pads_pad_gpio7/DO_EN gpio_grp0_gpiox16_pads_pad_gpio8/DO_EN gpio_grp0_gpiox16_pads_pad_gpio9/DO_EN gpio_grp0_gpiox16_pads_pad_gpio10/DO_EN gpio_grp0_gpiox16_pads_pad_gpio11/DO_EN ]
+     update_skew_group -skew_group $skgrp_name -add_sinks $ports 
+    }
