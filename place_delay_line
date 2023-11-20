@@ -1,0 +1,127 @@
+
+dict set dl_loc emmc_wrap/emmc_top/cdns_combo_dll_phy master     "5 210" 
+dict set dl_loc emmc_wrap/emmc_top/cdns_combo_dll_phy rd_dqs     "5 290"
+dict set dl_loc emmc_wrap/emmc_top/cdns_combo_dll_phy rd_dqs_cmd "35 290"
+dict set dl_loc emmc_wrap/emmc_top/cdns_combo_dll_phy clk_wr     "5 240"
+dict set dl_loc emmc_wrap/emmc_top/cdns_combo_dll_phy clk_wr_dqs "35 240"
+
+dict set dl_loc U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy  master    "95 210"
+dict set dl_loc U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy rd_dqs     "65 290"
+dict set dl_loc U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy rd_dqs_cmd "95 290"
+dict set dl_loc U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy clk_wr     "65 240"
+dict set dl_loc U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy clk_wr_dqs "95 240"
+
+dict set dl_loc U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy  master "65 370"
+dict set dl_loc U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy rd_dqs "5 410"
+dict set dl_loc U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy rd_dqs_cmd "5 370"
+dict set dl_loc U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy clk_wr "35 367"
+dict set dl_loc U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy clk_wr_dqs "35 403"
+
+
+proc place_delay_line {dl orig} {
+    set i 0
+    set dl_start 1 
+    set x [lindex $orig 0]
+    set y [lindex $orig 1]
+    while { $dl_start } {
+        set hinst  [ get_db [ get_db hinsts ${dl}/delay_${i} ] .name ]
+        if  { [llength $hinst] > 0 } {
+            foreach inst   [ get_db [get_db insts ${dl}/delay_${i}/*  ] .name  ] {
+                if { [regexp "in1_del_buf" $inst] } { 
+                    place_inst $inst "$x $y" mx -soft_fixed
+                } elseif { [regexp "p0/hic_dnt_nand2" $inst] } { 
+                    set p0_x [expr $x + 0.204 ]
+                    place_inst $inst "$p0_x $y" r180 -soft_fixed
+                } elseif { [regexp "r1/hic_dnt_nand2" $inst] } {
+                    set r1_x [expr $x + 0.612 ]
+                    place_inst $inst "$r1_x $y" r180 -soft_fixed
+                } elseif { [regexp "r2/hic_dnt_nand2" $inst] } {
+                    set r2_x [expr $x + 1.02 ]
+                    place_inst $inst "$r2_x $y" mx -soft_fixed
+                } elseif { [regexp "p1/hic_dnt_nor2" $inst] } {
+                    set p1_x [expr $x + 0.204 ]
+                    set y_up [expr $y + 0.210 ]
+                    place_inst $inst "$p1_x $y_up" r0 -soft_fixed
+                } elseif { [regexp "p2/hic_dnt_or" $inst] } {
+                    set p2_x [expr $x + 0.612 ]
+                    place_inst $inst "$p2_x $y_up" r0 -soft_fixed
+                } elseif { [regexp "ret_del_buf" $inst] } {
+                    set r2_b_x [expr $x + 1.122 ]
+                    place_inst $inst "$r2_b_x $y_up" r0 -soft_fixed
+                } else {
+                    puts "Unexpected inst $inst"
+                }
+                
+            }
+        } else {
+            set dl_start 0
+        }
+        if { ($i >= 0 && $i <= 60) || ($i > 130 && $i <= 190 )  } {
+            set y [expr $y +  0.42 ]
+        } elseif { ($i > 60 && $i <= 65) || ($i > 125 && $i <= 130) || ($i > 190 && $i <= 195 ) } {
+            set x [expr $x + 1.377]
+        } elseif { ($i > 65 && $i <= 125 ) || ($i > 195 && $i <= 255) } {
+            set y [expr $y -  0.42 ]
+        } else {
+            puts "Unexpected delay count $i"
+        }
+        incr i
+    }
+}
+
+## Major 5 delay lines
+
+foreach ip [ dict keys $dl_loc ] {
+        puts "ip : $ip  "
+    foreach delay_line [list master rd_dqs rd_dqs_cmd clk_wr clk_wr_dqs ] {
+        puts "\tdll : $delay_line "
+        set dl "${ip}/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_${delay_line}"
+        set orig [ dict get  [dict get $dl_loc $ip ]  $delay_line ] 
+        puts "$dl $orig"
+        place_delay_line $dl $orig 
+    }
+}
+
+## io_datacell_6_adder_slv/dll_adder_delay_line with clk_wr 
+foreach ip [ dict keys $dl_loc ] {
+        puts "ip : $ip"
+        set start [ dict get  [dict get $dl_loc $ip ]  clk_wr ] 
+        set x [lindex $start 0]
+        set y [lindex $start 1]
+        set y [expr $y + 29 ]
+            set dl "${ip}/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_cmdcell_adder_slv/dll_adder_delay_line"
+            place_delay_line $dl "$x $y"
+        for {set j 0} {$j < 8} {incr j} {
+            set x [ expr $x +  2.5 ]
+            set dl "${ip}/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_${j}_adder_slv/dll_adder_delay_line"
+            place_delay_line $dl "$x $y"
+        }
+}
+
+##  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_datablk/clkdqs_2_adder_slv/dll_adder_delay_line with rd_dqs
+
+foreach ip [ dict keys $dl_loc ] {
+        puts "ip : $ip"
+        set start [ dict get  [dict get $dl_loc $ip ]  rd_dqs ] 
+        set x [lindex $start 0]
+        set y [lindex $start 1]
+        set y [expr $y - 10 ]
+        for {set j 0} {$j < 8} {incr j} {
+            set x [ expr $x +  2.5 ]
+            set dl "${ip}/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_datablk/clkdqs_${j}_adder_slv/dll_adder_delay_line"
+            place_delay_line $dl "$x $y"
+        }
+}
+
+## /Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line with rd_dqs_cmd
+foreach ip [ dict keys $dl_loc ] {
+        puts "ip : $ip"
+        set start [ dict get  [dict get $dl_loc $ip ]  rd_dqs_cmd ] 
+        set x [lindex $start 0]
+        set y [lindex $start 1]
+        set y [expr $y - 10 ]
+            set dl "${ip}/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line"
+            place_delay_line $dl "$x $y"
+}
+
+
