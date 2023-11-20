@@ -1,0 +1,6 @@
+
+
+set vio_reg_pins  [get_pins -of [all_registers -include_icg ] -filter "direction==in && is_clock_pin==false && max_slack<0" ]
+if { [ sizeof_collection $vio_reg_pins ]  != 0 } {
+    set vio_reg2reg_paths [ get_timing_paths -from [all_registers -clock_pins ] -to $vio_reg_pins ]
+}
