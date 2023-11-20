@@ -1,0 +1,103 @@
+
+set reports_dir [::common::get::report]
+set file_prefix "$::SESSION(session)"
+
+
+set fp [open $reports_dir/$file_prefix.BIP_timimg_summary.rpt w]
+
+set_db ui_precision_timing 5
+
+set InternalWNS 0
+set InternalTNS 0
+set InternalNVP 0
+
+set InterfaceWNS 0
+set InterfaceTNS 0
+set InterfaceNVP 0
+set max_path 10000000
+
+if {  $::SESSION(session) == "invcui.cts" || [string match "invcui.post*" $::SESSION(session)] } {
+    set minInternalWNS 0
+    set minInternalTNS 0
+    set minInternalNVP 0
+
+    set minInterfaceWNS 0
+    set minInterfaceTNS 0
+    set minInterfaceNVP 0
+}
+
+#set max_path  [ llength [ get_db  [ get_db  [ get_db insts -if {.is_sequential==true}  ] .pins -if {.is_clock==0 && .direction==in} ] .name ] ]
+#set vio_paths [  get_db [ report_timing -to [ get_db  [ get_db  [ get_db insts -if {.is_sequential==true}  ] .pins -if {.is_clock==0 && .direction==in} ] .name ] -collection -max_paths $max_path ] -if {.slack < 0  } ]
+set vio_paths_i2r [  get_db [ report_timing -from [all_inputs ] -to [all_registers ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+set vio_paths_r2r [  get_db [ report_timing -from [all_registers ] -to [all_registers ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+set vio_paths_r2o [  get_db [ report_timing -from [all_registers ] -to [all_outputs ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+set vio_paths_i2o [  get_db [ report_timing -from [all_inputs ] -to [all_outputs ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+
+if {  $::SESSION(session) == "invcui.cts" || [string match "invcui.post*" $::SESSION(session)] } {
+    set min_vio_paths_i2r [  get_db [ report_timing -early -from [all_inputs ] -to [all_registers ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+    set min_vio_paths_r2r [  get_db [ report_timing -early -from [all_registers ] -to [all_registers ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+    set min_vio_paths_r2o [  get_db [ report_timing -early -from [all_registers ] -to [all_outputs ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+    set min_vio_paths_i2o [  get_db [ report_timing -early -from [all_inputs ] -to [all_outputs ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+    foreach p $min_vio_paths_r2r {
+
+        set slack [ get_db $p .slack ]
+    
+        set minInternalTNS [expr $minInternalTNS + $slack]
+        incr minInternalNVP
+        if { $slack < $minInternalWNS } {
+            set minInternalWNS $slack
+        }
+    }    
+
+    foreach p [concat $min_vio_paths_i2r $min_vio_paths_r2o $min_vio_paths_i2o] { 
+
+        set slack [ get_db $p .slack ]
+
+        set minInterfaceTNS [expr $minInterfaceTNS + $slack]
+        incr minInterfaceNVP
+        if { $slack < $minInterfaceWNS } {
+            set minInterfaceWNS $slack
+        }
+    }
+}
+
+foreach p $vio_paths_r2r {
+
+    set slack [ get_db $p .slack ]
+    
+    set InternalTNS [expr $InternalTNS + $slack]
+    incr InternalNVP
+    if { $slack < $InternalWNS } {
+      set InternalWNS $slack
+    }
+}
+
+foreach p [concat $vio_paths_i2r $vio_paths_r2o $vio_paths_i2o] { 
+
+     set slack [ get_db $p .slack ]
+
+     set InterfaceTNS [expr $InterfaceTNS + $slack]
+     incr InterfaceNVP
+     if { $slack < $InterfaceWNS } {
+       set InterfaceWNS $slack
+     }
+}
+
+puts [format "%16s\t%10s\t%10s\t%10s" Group WNS TNS FEP]
+puts [format "%16s\t%10.3f\t%10.3fs\t%10d" maxInternal $InternalWNS $InternalTNS $InternalNVP]
+puts [format "%16s\t%10.3f\t%10.3fs\t%10d" maxInterface $InterfaceWNS $InterfaceTNS $InterfaceNVP]
+
+puts $fp [format "%16s\t%10s\t%10s\t%10s" Group WNS TNS FEP]
+puts $fp [format "%16s\t%10.3f\t%10.3fs\t%10d" maxInternal $InternalWNS $InternalTNS $InternalNVP]
+puts $fp [format "%16s\t%10.3f\t%10.3fs\t%10d" maxInterface $InterfaceWNS $InterfaceTNS $InterfaceNVP]
+
+if {  $::SESSION(session) == "invcui.cts" || [string match "invcui.post*" $::SESSION(session)] } {
+    puts [format "%16s\t%10.3f\t%10.3fs\t%10d" minInternal $minInternalWNS $minInternalTNS $minInternalNVP]
+    puts [format "%16s\t%10.3f\t%10.3fs\t%10d" minInterface $minInterfaceWNS $minInterfaceTNS $minInterfaceNVP]
+
+    puts $fp [format "%16s\t%10.3f\t%10.3fs\t%10d" minInternal $minInternalWNS $minInternalTNS $minInternalNVP]
+    puts $fp [format "%16s\t%10.3f\t%10.3fs\t%10d" minInterface $minInterfaceWNS $minInterfaceTNS $minInterfaceNVP]
+}
+set_db ui_precision_timing 3
+close $fp
+set_db timing_enable_simultaneous_setup_hold_mode false
