@@ -1,0 +1,9 @@
+#read_def /proj/t106a0/extvols/wa_003/vvenugopalan/impl/def_iocx/updated_ports.def
+#set inst_obj [get_db insts comphy]
+#eco_delete_repeater -insts  U5148
+#
+set port efuse_prog_int
+delete_obj [get_db port_shapes -if {.port.name == $port }]
+foreach rect [  get_db [ get_db net:vqps .special_wires -if { .layer.name == M14 } ] .rect ]  {
+      create_physical_pin -name $port -layer M14 -allow_outside_boundary -rect $rect
+}
