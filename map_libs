@@ -1,0 +1,42 @@
+
+#set path "/proj/tools01/wa/shuaa/TRUENT1AFL_1R_00128X032M04K1S1/rev2.0.0_00/synopsys/micron"
+set paths [ list \
+/proj/t106a0/IP/tsmc5ffp_7LM_M1_1Mx_1Mxb_1Mxe_1Mya_1Myb_1My_AP280/VQPS_POWER_SWITCH/rev1.0.0_00/synopsys/micron \
+/proj/tools01/wa/shuaa/TRUENT1AFL_1R_00128X032M04K1S1/rev2.0.0_00/synopsys/micron \
+/proj/tools01/wa/shuaa/ANA_RNG_TOP/rev1.0.0_03/synopsys/micron \
+]
+
+global DB
+foreach path $paths {
+    foreach f [ glob -nocomplain  -tail -directory $path *.db ] {
+        if { [ regexp "_\(ssgnp\)_\(\[0-9\]p\[0-9\]+v\)_\(\[m0-9\]+c\)_" $f foo p v t ] || [ regexp "_\(ffgnp\)_\(\[0-9\]p\[0-9\]+v\)_\(\[m0-9\]+c\)_" $f foo p v t ] || [ regexp "_\(tt\)_\(\[0-9\]p\[0-9\]+v\)_\(\[m0-9\]+c\)_" $f foo p v t ] } {
+            regsub   "0v$" $v "v" v 
+            set pvt "${p}${v}${t}"
+            if { [ info exists DB($pvt) ] } {
+                lappend DB($pvt) "${path}/${f}"
+                puts "$pvt ==> ${path}/$f "
+            } 
+        } else {
+            puts "skipping file $f"
+        }
+    }
+
+}
+set paths [ list \
+/proj/libs/access_link/mem+efuse/tsmc05p/tsmc/efuse/tef05p256x32hd18_phrm/090a/synopsys/nldm/mrvl \
+/proj/libs/access_link/mem+efuse/tsmc05p/tsmc/efuse/tef05p64x32hd18_phrm/090a/synopsys/nldm/mrvl \
+]
+foreach path $paths  {
+    foreach f [ glob -nocomplain -tail -directory $path *.db ] {
+        if { [ regexp "_\(ssgnp\)\(\[0-9\]p\[0-9\]+v\)\(\[0-9\]p\[0-9\]+v\)\(\[m0-9\]+c\)" $f foo p v1 v2 t ] || [ regexp "_\(ffgnp\)\(\[0-9\]p\[0-9\]+v\)\(\[0-9\]p\[0-9\]+v\)\(\[m0-9\]+c\)" $f foo p v1 v2 t ] || [ regexp "_\(tt\)\(\[0-9\]p\[0-9\]+v\)\(\[0-9\]p\[0-9\]+v\)\(\[m0-9\]+c\)" $f foo p v1 v2 t ]  } {
+            regsub   "0v$" $v1 "v" v1 
+            set pvt "${p}${v1}${t}"
+            if { [ info exists DB($pvt) ] } {
+                lappend DB($pvt) "${path}/${f}"
+                puts "$pvt ==> ${path}/$f "
+            } 
+        } else {
+            puts "skipping file $f"
+        }
+    }
+}
