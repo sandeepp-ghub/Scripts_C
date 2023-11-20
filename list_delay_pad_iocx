@@ -1,0 +1,244 @@
+source /proj/t106a0/wa/vdesai2/emmc/sta/scripts/tool/segment_timing.tcl
+
+set xspi0 [list gpio[25] gpio[16] gpio[17] gpio[18] gpio[19] gpio[20] gpio[21] gpio[22] gpio[23] ]
+set xspi1 [list gpio[39] gpio[30] gpio[31] gpio[32] gpio[33] gpio[34] gpio[35] gpio[36] gpio[37] ]
+set emmc [list emmc_dqs emmc_dat[0] emmc_dat[1] emmc_dat[2] emmc_dat[3] emmc_dat[4] emmc_dat[5] emmc_dat[6] emmc_dat[7] ]
+set fo [open "pad_iocx_delay.rpt" w ]
+
+puts $fo "DI to MIO side port.\n"
+set temp_list [list ]
+set start 16
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DI" ]]
+    set ep "pad__blk_pi_gpio[$i]"
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    lappend temp_list $rise
+    lappend temp_list $fall
+    puts $fo "XSPI0 DATA : $sp\t$ep\t$rise\t$fall"
+}
+
+set l1 [lsort -n $temp_list ]
+set min [lindex $l1 0]
+set max [lindex $l1 end]
+set skew [expr $max -$min ]
+puts $fo "\n"
+puts $fo "\t\tMIN : $min\t\tMAX : $max\t\tSKEW : $skew "
+
+puts $fo "\n"
+    set sp [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[25] ] ] -leaf ] ]  -filter "lib_pin_name==DI" ]]
+    set ep "pad__blk_pi_gpio[25]"
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    puts $fo "XSPI0 DQS : $sp\t$ep\t$rise\t$fall"
+
+puts $fo "\n"
+puts $fo "\n"
+
+set temp_list [list ]
+set start 30
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DI" ]]
+    set ep "pad__blk_pi_gpio[$i]"
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    lappend temp_list $rise
+    lappend temp_list $fall
+    puts $fo "XSPI1 DATA : $sp\t$ep\t$rise\t$fall"
+}
+set l1 [lsort -n $temp_list ]
+set min [lindex $l1 0]
+set max [lindex $l1 end]
+set skew [expr $max -$min ]
+puts $fo "\n"
+puts $fo "\t\tMIN : $min\t\tMAX : $max\t\tSKEW : $skew "
+
+puts $fo "\n"
+    set sp [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[39] ] ] -leaf ] ]  -filter "lib_pin_name==DI" ]]
+    set ep "pad__blk_pi_gpio[39]"
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    puts $fo "XSPI1 DQS : $sp\t$ep\t$rise\t$fall"
+
+puts $fo "\n"
+puts $fo "\n"
+
+set temp_list [list ]
+set start 0
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports emmc_dat[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DI" ]]
+    set ep "pad__blk_pi_emmc_dat[$i]"
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    lappend temp_list $rise
+    lappend temp_list $fall
+    puts $fo "EMMC DATA : $sp\t$ep\t$rise\t$fall"
+}
+
+set l1 [lsort -n $temp_list ]
+set min [lindex $l1 0]
+set max [lindex $l1 end]
+set skew [expr $max -$min ]
+puts $fo "\n"
+puts $fo "\t\tMIN : $min\t\tMAX : $max\t\tSKEW : $skew "
+
+puts $fo "\n"
+
+    set sp [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports emmc_dqs ] ] -leaf ] ]  -filter "lib_pin_name==DI" ]]
+    set ep "pad__blk_pi_emmc_dqs"
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    puts $fo "EMMC DQS : $sp\t$ep\t$rise\t$fall"
+
+puts $fo "\n"
+puts $fo "\n"
+
+puts $fo "MIO side port to DO.\n"
+
+set temp_list [list ]
+set start 16
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_po_gpio[$i]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO" ]]
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    lappend temp_list $rise
+    lappend temp_list $fall
+    puts $fo "XSPI0 DATA : $sp\t$ep\t$rise\t$fall"
+}
+
+set l1 [lsort -n $temp_list ]
+set min [lindex $l1 0]
+set max [lindex $l1 end]
+set skew [expr $max -$min ]
+puts $fo "\n"
+puts $fo "\t\tMIN : $min\t\tMAX : $max\t\tSKEW : $skew "
+
+puts $fo "\n"
+    set sp "blk__pad_po_gpio[25]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[25] ] ] -leaf ] ]  -filter "lib_pin_name==DO" ]]
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    puts $fo "XSPI0 DQS : $sp\t$ep\t$rise\t$fall"
+
+puts $fo "\n"
+puts $fo "\n"
+
+set temp_list [list ]
+set start 30
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_po_gpio[$i]" 
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO" ]]
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    lappend temp_list $rise
+    lappend temp_list $fall
+    puts $fo "XSPI1 DATA : $sp\t$ep\t$rise\t$fall"
+}
+
+set l1 [lsort -n $temp_list ]
+set min [lindex $l1 0]
+set max [lindex $l1 end]
+set skew [expr $max -$min ]
+puts $fo "\n"
+puts $fo "\t\tMIN : $min\t\tMAX : $max\t\tSKEW : $skew "
+puts $fo "\n"
+    set sp "blk__pad_po_gpio[39]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[39] ] ] -leaf ] ]  -filter "lib_pin_name==DO" ]]
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    puts $fo "XSPI1 DQS : $sp\t$ep\t$rise\t$fall"
+
+puts $fo "\n"
+puts $fo "\n"
+
+set temp_list [list ]
+set start 0
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_po_emmc_dat[$i]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports emmc_dat[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO" ]]
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    lappend temp_list $rise
+    lappend temp_list $fall
+    puts $fo "EMMC DATA : $sp\t$ep\t$rise\t$fall"
+}
+
+set l1 [lsort -n $temp_list ]
+set min [lindex $l1 0]
+set max [lindex $l1 end]
+set skew [expr $max -$min ]
+puts $fo "\n"
+puts $fo "\t\tMIN : $min\t\tMAX : $max\t\tSKEW : $skew "
+
+puts $fo "\n"
+    set sp "blk__pad_po_emmc_clk"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports emmc_clk ] ] -leaf ] ]  -filter "lib_pin_name==DO" ]]
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    puts $fo "EMMC DQS : $sp\t$ep\t$rise\t$fall"
+
+puts $fo "\n"
+puts $fo "\n"
+
+puts $fo "\n\nMIO sideport to DO_EN"
+set temp_list [list ]
+set start 16
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_pe_gpio[$i]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO_EN" ]]
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    lappend temp_list $rise
+    lappend temp_list $fall
+    puts $fo "XSPI0 DATA EN : $sp\t$ep\t$rise\t$fall"
+}
+
+set l1 [lsort -n $temp_list ]
+set min [lindex $l1 0]
+set max [lindex $l1 end]
+set skew [expr $max -$min ]
+puts $fo "\n"
+puts $fo "\t\tMIN : $min\t\tMAX : $max\t\tSKEW : $skew "
+puts $fo "\n"
+
+set temp_list [list ]
+set start 30
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_pe_gpio[$i]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO_EN" ]]
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    lappend temp_list $rise
+    lappend temp_list $fall
+    puts $fo "XSPI1 DATA EN : $sp\t$ep\t$rise\t$fall"
+}
+
+set l1 [lsort -n $temp_list ]
+set min [lindex $l1 0]
+set max [lindex $l1 end]
+set skew [expr $max -$min ]
+puts $fo "\n"
+puts $fo "\t\tMIN : $min\t\tMAX : $max\t\tSKEW : $skew "
+puts $fo "\n"
+
+set temp_list [list ]
+set start 0
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_pe_emmc_dat[$i]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports emmc_dat[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO_EN" ]]
+    set fall [ segment_fall_to_from_timing -from $sp -to $ep ]
+    set rise [ segment_rise_to_from_timing -from $sp -to $ep ]
+    lappend temp_list $rise
+    lappend temp_list $fall
+    puts $fo "EMMC DATA EN: $sp\t$ep\t$rise\t$fall"
+}
+
+set l1 [lsort -n $temp_list ]
+set min [lindex $l1 0]
+set max [lindex $l1 end]
+set skew [expr $max -$min ]
+puts $fo "\n"
+puts $fo "\t\tMIN : $min\t\tMAX : $max\t\tSKEW : $skew "
+
+close $fo
