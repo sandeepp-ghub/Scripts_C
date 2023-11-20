@@ -1,0 +1,140 @@
+
+
+alias ds "deselect_obj -all"
+alias so "select_obj"
+proc sio {pos} {
+   select_obj [ get_db ports $pos ] 
+}
+proc si {ins} {
+   select_obj [ get_db insts $ins ] 
+}
+
+set col_id 1
+proc sfout {} {
+    global vd_colors
+    global col_id   
+    set pins [ get_db [  get_db [ get_db selected -if { .obj_type == inst } ] .pins -if { .direction == out }  ] .name ]
+    set pins [ concat $pins  [ get_db  [ get_db selected -if { .obj_type == pin } ] .name ] ]
+    set pins [ concat $pins  [ get_db  [ get_db selected -if { .obj_type == port && .direction == in } ] .name ] ]
+    deselect_obj -all 
+    set out  [ get_db [ all_fanout -endpoints_only -trace_through all -from $pins  ] -if { .name != */SI } ] 
+    set insts  [ get_db [ get_db $out -if { .obj_type == pin } ] .inst.name ]
+    set ports   [ get_db $out -if { .obj_type == port } ] 
+
+    select_obj [concat $insts $ports]
+    gui_highlight -index $col_id [concat $insts $ports]
+    incr col_id 10
+    if { $col_id > 64 } {
+        set col_id 1
+    }
+}
+proc sfin {} {
+    global vd_colors
+    global col_id   
+    set pins [ get_db [  get_db [ get_db selected -if { .obj_type == inst } ] .pins -if { .direction == in && .is_clock == false && .name != */SI && .name != "*/SE" && .name != "*/CD" }  ] .name ]
+    set pins [ concat $pins  [ get_db  [ get_db selected -if { .obj_type == pin } ] .name ] ]
+    set pins [ concat $pins  [ get_db  [ get_db selected -if { .obj_type == port && .direction == out } ] .name ] ]
+    deselect_obj -all 
+    set out  [ get_db [ all_fanin -startpoints_only -trace_through all -to $pins  ]  ] 
+    set insts  [ get_db [ get_db $out -if { .obj_type == pin } ] .inst.name ]
+    set ports   [ get_db $out -if { .obj_type == port } ] 
+
+    select_obj [concat $insts $ports]
+    gui_highlight -index $col_id [concat $insts $ports]
+    incr col_id 10
+    if { $col_id > 64 } {
+        set col_id 1
+    }
+}
+
+proc slist {} {
+        get_db selected -foreach {
+                puts "$obj(.name)"
+        }
+}
+
+proc all_sfout {} {
+    global vd_colors
+    global col_id   
+    set currnt_list [ list ]
+    set next_list [ list ]
+    foreach obj [ get_db selected ] {
+        set objtype [ get_db $obj .obj_type ]
+        switch $objtype {
+            inst {
+                set instpins [ get_db [ get_db $obj  .pins -if {.direction == out } ] .name ]
+                set currnt_list [ concat $currnt_list $instpins ]
+            }
+            pin {
+                set pins [get_db $obj .name]
+                set currnt_list [ concat $currnt_list $pins ]
+            }
+            port {
+                set ports [ get_db $obj .name ]
+                set dir [ get_db $obj .direction ]
+                if { $dir == in } {
+                set currnt_list [ concat $currnt_list $ports ]
+                } else {
+                    puts "$ports is output port."
+                }
+            }   
+            default {
+                puts "Please select inst,pin or port."
+            }
+        }
+    }
+    gui_highlight -index $col_id [get_db selected .name]
+    deselect_obj -all
+    set next_list [ get_db [  all_fanout -endpoints_only -trace_through all  -from $currnt_list ] .name ]
+    set to_highlight [list ]
+    set to_select [ list ]
+    foreach nobj $next_list {
+        set npin [get_pins -q $nobj]
+        set nport [get_pins -q $nobj]
+        if { $npin == "" } {
+            lappend to_highlight $nobj
+            puts "$nport"
+        } else {
+            set bname [ get_db $npin .base_name ]
+            if { $bname == "SI" } {
+                #skip
+            } elseif {$bname == "D" } {
+                set ninst [ get_db $npin .inst.name ]
+                lappend to_highlight "${ninst}/Q"
+                lappend to_select "${ninst}/Q"
+            } else {
+                set ninst [ get_db $npin .inst.name ]
+                regexp {(\d)} $bname intbit
+                lappend to_highlight "${ninst}/Q${intbit}"
+                lappend to_select "${ninst}/Q${intbit}"
+            }
+        }
+    }
+    gui_highlight -index $col_id $to_highlight
+    select_obj $to_select
+
+}
+
+proc pin_distance {p1 p2} {
+    if { [ sizeof_collection [ get_pins -quiet $p1 ] ] > 0 } {
+        set p1loc [get_db pin:$p1 .location]
+    } elseif { [ sizeof_collection [ get_ports -quiet $p1 ] ] > 0 } {
+        set p1loc [get_db port:$p1 .location]
+    } else {
+        puts "Please provide pin or port as 1st argument"
+    }
+    if { [ sizeof_collection [ get_pins -quiet $p2 ] ] > 0 } {
+        set p2loc [get_db pin:$p2 .location]
+    } elseif { [ sizeof_collection [ get_ports -quiet $p2 ] ] > 0 } {
+        set p2loc [get_db port:$p2 .location]
+    } else {
+        puts "Please provide pin or port as 2nd argument"
+    }
+    set x1 [ lindex [lindex $p1loc 0 ] 0]
+    set y1 [ lindex [lindex $p1loc 0 ] 1]
+    set x2 [ lindex [lindex $p2loc 0 ] 0]
+    set y2 [ lindex [lindex $p2loc 0 ] 1]
+    set dist [ expr [expr abs ($x2 -$x1)] + [ expr abs ($y2-$y1)] ]
+    return $dist
+}
+
