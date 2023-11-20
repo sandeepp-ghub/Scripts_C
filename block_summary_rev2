@@ -1,0 +1,551 @@
+#!/proj/tools01/pkgs/perl_common/V006/bin/ipbu_perl
+
+use Getopt::Long;
+
+my %options;
+
+GetOptions (
+    \%options, 
+    'eco_dir=s',
+    'top_dir=s',
+    ) or die();
+
+my $eco_dir = $options{'eco_dir'} ;
+my $top_dir = $options{'top_dir'} ;
+
+$mydir = `pwd`;
+@dir = split("/",$mydir);
+$block = $dir[-2] ;
+$project = $dir[-6] ;
+$block =~ s/.PNR\d+//;
+$block =~ s/.\d+.\d+$//;
+$generate_ecofiles = 0 ;
+if ( defined($eco_dir) && $eco_dir !~ m//) {
+     $generate_ecofiles = 1 ;
+    `mkdir -p $eco_dir`;
+    open (FO,'>',"${eco_dir}/summary");
+}
+
+print "BLOCK : $block\n";
+if ( $generate_ecofiles ) {
+print FO "BLOCK : $block\n";
+}
+@func_scen = ("func_max1" , "func_max10" , "func_max12" , "func_max13" , "func_max3" , "func_max4" , "func_max9" , "func_min1" , "func_min11" , "func_min12" , "func_min13" , "func_min15" , "func_min2" , "func_min5" , "func_min6" , "func_min9");
+@shift_scen = ("scan_shift_max1" , "scan_shift_max10" , "scan_shift_max12" , "scan_shift_max13" , "scan_shift_max3" , "scan_shift_max4" , "scan_shift_max9" , "scan_shift_min1" , "scan_shift_min11" , "scan_shift_min12" , "scan_shift_min13" , "scan_shift_min15" , "scan_shift_min2" , "scan_shift_min5" , "scan_shift_min6" , "scan_shift_min9");
+@atspeed_scen = ("scan_atspeed_max1" , "scan_atspeed_max10" , "scan_atspeed_max12" , "scan_atspeed_max13" , "scan_atspeed_max3" , "scan_atspeed_max4" , "scan_atspeed_max9" , "scan_atspeed_min1" , "scan_atspeed_min11" , "scan_atspeed_min12" , "scan_atspeed_min13" , "scan_atspeed_min15" , "scan_atspeed_min2" , "scan_atspeed_min5" , "scan_atspeed_min6" , "scan_atspeed_min9");
+@stuck_at_scen = ("scan_stuckat_max1" , "scan_stuckat_max10" , "scan_stuckat_max12" , "scan_stuckat_max13" , "scan_stuckat_max3" , "scan_stuckat_max4" , "scan_stuckat_max9" , "scan_stuckat_min1" , "scan_stuckat_min11" , "scan_stuckat_min12" , "scan_stuckat_min13" , "scan_stuckat_min15" , "scan_stuckat_min2" , "scan_stuckat_min5" , "scan_stuckat_min6" , "scan_stuckat_min9");
+@atspeed_scen_intest = ("scan_atspeed_intest_max1" , "scan_atspeed_intest_max10" , "scan_atspeed_intest_max12" , "scan_atspeed_intest_max13" , "scan_atspeed_intest_max3" , "scan_atspeed_intest_max4" , "scan_atspeed_intest_max9" , "scan_atspeed_intest_min1" , "scan_atspeed_intest_min11" , "scan_atspeed_intest_min12" , "scan_atspeed_intest_min13" , "scan_atspeed_intest_min15" , "scan_atspeed_intest_min2" , "scan_atspeed_intest_min5" , "scan_atspeed_intest_min6" , "scan_atspeed_intest_min9");
+@atspeed_scen_extest = ("scan_atspeed_extest_max1" , "scan_atspeed_extest_max10" , "scan_atspeed_extest_max12" , "scan_atspeed_extest_max13" , "scan_atspeed_extest_max3" , "scan_atspeed_extest_max4" , "scan_atspeed_extest_max9" , "scan_atspeed_extest_min1" , "scan_atspeed_extest_min11" , "scan_atspeed_extest_min12" , "scan_atspeed_extest_min13" , "scan_atspeed_extest_min15" , "scan_atspeed_extest_min2" , "scan_atspeed_extest_min5" , "scan_atspeed_extest_min6" , "scan_atspeed_extest_min9");
+@stuck_at_scen_intest = ("scan_stuckat_intest_max1" , "scan_stuckat_intest_max10" , "scan_stuckat_intest_max12" , "scan_stuckat_intest_max13" , "scan_stuckat_intest_max3" , "scan_stuckat_intest_max4" , "scan_stuckat_intest_max9" , "scan_stuckat_intest_min1" , "scan_stuckat_intest_min11" , "scan_stuckat_intest_min12" , "scan_stuckat_intest_min13" , "scan_stuckat_intest_min15" , "scan_stuckat_intest_min2" , "scan_stuckat_intest_min5" , "scan_stuckat_intest_min6" , "scan_stuckat_intest_min9");
+@stuck_at_scen_extest = ("scan_stuckat_extest_max1" , "scan_stuckat_extest_max10" , "scan_stuckat_extest_max12" , "scan_stuckat_extest_max13" , "scan_stuckat_extest_max3" , "scan_stuckat_extest_max4" , "scan_stuckat_extest_max9" , "scan_stuckat_extest_min1" , "scan_stuckat_extest_min11" , "scan_stuckat_extest_min12" , "scan_stuckat_extest_min13" , "scan_stuckat_extest_min15" , "scan_stuckat_extest_min2" , "scan_stuckat_extest_min5" , "scan_stuckat_extest_min6" , "scan_stuckat_extest_min9");
+#@scenarios = ("func_max1", "func_max3", "scan_atspeed_max1" , "scan_atspeed_max1", "scan_shift_min1" ,"func_min1" ,"func_min2", "func_min6" );
+@scenarios = "" ;
+#push @scenarios, @func_scen ;
+#push @scenarios, @shift_scen ;
+#push @scenarios, @atspeed_scen ;
+#push @scenarios, @stuck_at_scen ;
+#push @scenarios, @atspeed_scen_intest ;
+#push @scenarios, @atspeed_scen_extest ;
+#push @scenarios, @stuck_at_scen_intest ;
+#push @scenarios, @stuck_at_scen_extest ;
+@scenarios = "";
+@modes = ("func","scan_shift","scan_atspeed","scan_stuckat");
+foreach $mode (@modes) {
+    foreach $del ("max","min") {
+        foreach $num (1..16) {
+            if ( $mode =~ /scan_stuckat/ || $mode =~ /scan_atspeed/ ) {
+                push @scenarios, "${mode}_${del}${num}";
+                foreach $test ("extest","intest") {
+                    push @scenarios, "${mode}_${test}_${del}${num}" ;
+                    foreach $com ("cmp","byp") {
+                        push @scenarios, "${mode}_${test}_${com}_${del}${num}" ;
+                    }
+                }
+            } else {
+                push @scenarios, "${mode}_${del}${num}";
+            }
+        }
+   }
+}
+
+    @dirs = @ARGV ;
+foreach $top_dir (@dirs) {
+    if ( -d $top_dir ) {
+    print "\nPartiton timing from : $top_dir\n\n";
+    printf "%42s                             | %14s \n",ITERNAL,INTERFACE;
+    printf "-------------------------------------------------------------------------------------------------------------------------------------------------------\n";
+    printf "%-30s| %14s %14s %10s | %14s %14s %10s | %10s %10s %10s %10s \n",Scenario,WNS,TNS,FEP,WNS,TNS,FEP,Max_Trans,Max_Cap,Min_period,Min_pulse_width;
+    printf "-------------------------------------------------------------------------------------------------------------------------------------------------------\n";
+    if ( $generate_ecofiles ) {
+    print FO "\nPartiton timing from : $top_dir\n\n";
+    printf  FO "%42s                             | %14s \n",ITERNAL,INTERFACE;
+    printf  FO "-------------------------------------------------------------------------------------------------------------------------------------------------------\n";
+    printf  FO "%-30s| %14s %14s %10s | %14s %14s %10s | %10s %10s %10s %10s \n",Scenario,WNS,TNS,FEP,WNS,TNS,FEP,Max_Trans,Max_Cap,Min_period,Min_pulse_width;
+    printf  FO "-------------------------------------------------------------------------------------------------------------------------------------------------------\n";
+    }
+        foreach (@scenarios) {
+            $scen = $_ ;
+            $file = "${top_dir}/reports/split_rpt/${scen}/hierarchical_full/SUMMARY.gz" ;
+            $trans = "${top_dir}/reports/split_rpt/${scen}/trans_constraint/SUMMARY.trans.gz" ;
+            $cap = "${top_dir}/reports/split_rpt/${scen}/cap_constraint/SUMMARY.cap.gz" ;
+            $min_period = "${top_dir}/reports/split_rpt/${scen}/period_constraint/SUMMARY.period.gz" ;
+            $pulse_width = "${top_dir}/reports/split_rpt/${scen}/pulse_constraint/SUMMARY.pulse.gz" ;
+            if ( -e $file ) {
+                $data = `zcat $file | grep "${block}-internal" `;
+                $dataf = `zcat $file | grep "${block}-interface" `;
+                chomp($data);
+                chomp($dataf);
+                @pall = split(" ",$data);
+                @pallf = split(" ",$dataf);
+                $tns = $pall[1] ;    
+                $wns = $pall[2] ;    
+                $fep = $pall[3] ;    
+                $tnsf = $pallf[1] ;    
+                $wnsf = $pallf[2] ;    
+                $fepf = $pallf[3] ;    
+            } else {
+                $tns = "NA";
+                $wns = "NA";
+                $fep = "NA";
+                $tnsf = "NA";
+                $wnsf = "NA";
+                $fepf = "NA";
+            }
+            @cons = ("trans","cap","period","pulse");
+            foreach (@cons) {
+                $c = $_ ;
+                $cfile = "${top_dir}/reports/split_rpt/${scen}/${c}_constraint/SUMMARY.${c}.gz";
+                if ( -e $cfile ) {
+                    $cnt = `zcat $cfile | grep "${block}" | awk '{print \$4}'`;
+                    chomp($cnt);
+                } else {
+                    $cnt = "NA";
+                }
+                   push @result,$cnt; 
+            }
+            if ( -e $file ) {
+                printf "%-30s| %14s %14s %10s | %14s %14s %10s | %10s %10s %10s %10s\n",$scen,$wns,$tns,$fep,$wnsf,$tnsf,$fepf,$result[0],$result[1],$result[2],$result[3];
+                if ( $generate_ecofiles ) {
+                printf FO "%-30s| %14s %14s %10s | %14s %14s %10s | %10s %10s %10s %10s\n",$scen,$wns,$tns,$fep,$wnsf,$tnsf,$fepf,$result[0],$result[1],$result[2],$result[3];
+                }
+                undef @result  ;
+            }
+        }
+    } else {
+            print "Directory $top_dir does not exists."
+    }
+print "\n\n";
+if ( $generate_ecofiles ) {
+    print FO "\n\n";
+}
+}
+printf "%-18s %14s %14s %10s %10s %10s %10s %10s %10s\n",Scenario,WNS,TNS,FEP,Max_Trans,Max_Cap,Min_period,Min_pulse_width,Unannotated_para;
+if ( $generate_ecofiles ) {
+printf FO "%-18s %14s %14s %10s %10s %10s %10s %10s %10s\n",Scenario,WNS,TNS,FEP,Max_Trans,Max_Cap,Min_period,Min_pulse_width,Unannotated_para;
+}
+foreach (@scenarios) {
+    $scen = $_ ;
+    $file =  "pt.signoff/timing_rundir/reports/${block}_${scen}_qor.csv";
+    $trans = "pt.signoff/timing_rundir/reports/${scen}_max_tran_report_constraint.rpt.gz";
+    $cap = "pt.signoff/timing_rundir/reports/${scen}_max_cap_report_constraint.rpt.gz" ;
+    $min_period = "pt.signoff/timing_rundir/reports/${scen}_min_period_failures_not_waived.txt";
+    $pulse_width = "pt.signoff/timing_rundir/reports/${scen}_min_pulse_width_failures_not_waived.txt";
+    $para = "pt.signoff/timing_rundir/reports/report_annotated_parasitics_${scen}.rpt" ;
+
+    if ( -e $file ) {
+    #print "$file\n" ;
+    $r2r_wns = 0 ;
+    $r2r_tns = 0 ;
+    $r2r_fep = 0 ;
+    open(IN, '<', "$file");
+        $header = <IN>;
+        while (<IN>) {
+            $line = $_ ;
+            @all = split(",",$line);
+            if ( $all[5] < $r2r_wns ) {
+                $r2r_wns = $all[5]
+            }
+            $r2r_tns += $all[6];
+            $r2r_fep += $all[7] ;
+        }
+    close(IN);
+    } else {
+    $r2r_wns = NA ;
+    $r2r_tns = NA ;
+    $r2r_fep = NA ;
+    }
+
+    if (-e $trans ) {
+        $trans_count = `zcat $trans | grep -c VIOLATED`;
+        chop($trans_count);
+    } else {
+        $trans_count = NA ;
+    }
+
+    if (-e $cap) {
+        $cap_count = `zcat $cap | grep -c VIOLATED`;
+        chop($cap_count);
+    } else {
+        $cap_count = NA ;
+    }
+
+    if (-e $min_period ) {
+        $min_period_count = `cat $min_period | grep -c VIOLATED`;
+        chop($min_period_count);
+    } else {
+        $min_period_count = NA ;
+    }
+
+    if (-e $pulse_width ) {
+        $pulse_width_count = `cat $pulse_width | grep -c VIOLATED`;
+        chop($pulse_width_count);
+    } else {
+        $pulse_width_count = NA ;
+    }
+
+    if (-e $para ) {
+      #  $para_count = system ( qq{ zcat $para | grep "Pin to pin nets" | awk {BEGIN {i=0} {i = $i+ $(NF-1)} END {print i} } });
+      $para_count = `cat $para | grep "Pin to pin nets" | awk 'BEGIN {i=0} {i = \$i+ \$(NF-1)} END {print i} '`;
+      chop($para_count);
+    } else {
+        $para_count = NA ;
+    }
+        #printf "%-18s %10.4f %10.4f %10d\n",$scen,$r2r_wns,$r2r_tns,$r2r_fep;
+        #print "$scen,$r2r_wns,$r2r_tns,$r2r_fep,$trans_count,$cap_count,$min_period_count,$pulse_width_count,$para_count\n"
+    if ( -e $file ) {
+        printf "%-18s %14s %14s %10s %10s %10s %10s %10s %10s\n",$scen,$r2r_wns,$r2r_tns,$r2r_fep,$trans_count,$cap_count,$min_period_count,$pulse_width_count,$para_count;
+        if ( $generate_ecofiles ) {
+        printf FO "%-18s %14s %14s %10s %10s %10s %10s %10s %10s\n",$scen,$r2r_wns,$r2r_tns,$r2r_fep,$trans_count,$cap_count,$min_period_count,$pulse_width_count,$para_count;
+        }
+    }
+}
+    $pt_eco_file = "pt.signoff.eco/pt_eco_rundir/eco_split/${block}.icc2eco";
+    if ( $generate_ecofiles && -e $pt_eco_file ) {
+        `cp $pt_eco_file $eco_dir/`;
+    }
+## physical signoff
+    if ( -e "pgv.signoff.static/static_run/adsRail/${block}_105C_avg_1/Reports/design.main.rpt" ) { 
+    $pgnet = `cat pgv.signoff.static/static_run/adsRail/${block}_105C_avg_1/Reports/design.main.rpt | grep "Net Name" | awk '{print \$3}' | xargs ` ;
+    @pgnets = split(" ",$pgnet);
+    }
+  
+    if ( -e "pgv.signoff.dynamic/dynamic_run/adsRail/${block}_105C_dynamic_1/Reports/design.main.rpt" ) { 
+    $pgnet = `cat pgv.signoff.dynamic/dynamic_run/adsRail/${block}_105C_dynamic_1/Reports/design.main.rpt | grep "Net Name" | awk '{print \$3}' | xargs ` ;
+    @pgnets = split(" ",$pgnet);
+    }
+    #$sigem = "pgv.signoff.signalEM/signalem_run/${block}/adsSem/rms.rpt" ;
+    $sigem = "pgv.signoff.signalEM/signalem_run/adsSem/avg_rms_peak.rpt" ;
+    foreach $pgn (@pgnets) {
+    $ir{$pgn} = "pgv.signoff.static/static_run/adsRail/${block}_105C_avg_1/Reports/${pgn}/${pgn}.main.rpt";
+    $ir_dyn{$pgn} = "pgv.signoff.dynamic/dynamic_run/adsRail/${block}_105C_dynamic_1/Reports/${pgn}/${pgn}.main.rpt" ;
+    $ir_inst{$pgn} = "pgv.signoff.static/static_run/adsRail/${block}_105C_avg_1/Reports/${pgn}/${pgn}.iv";
+    $ir_dyn_inst{$pgn} = "pgv.signoff.dynamic/dynamic_run/adsRail/${block}_105C_dynamic_1/Reports/${pgn}/${pgn}.iv" ;
+    $rlrp{$pgn} = "pgv.signoff.static/static_run/adsRail/${block}_105C_avg_1/Reports/${pgn}/${pgn}.rlrp_inst";
+    if ( $pgn !~ /gnd/) {
+        $eff_dyn_ir_inst{$pgn} = "pgv.signoff.dynamic/dynamic_run/adsRail/${block}_105C_dynamic_1/Reports/${pgn}_gnd.worst.iv" ;
+    }
+
+    }
+    $drc  = "pv.signoff.drc/report/pv.signoff.drc.sum";
+    $ant  = "pv.signoff.ant/report/pv.signoff.ant.sum";
+    $lvsn  = "pv.signoff.lvsn/report/lvsn.sum";
+    $lvsqsum  = "pv.signoff.lvsq/report/pv.signoff.lvsq.sum";
+    $lvsq  = "pv.signoff.lvsq/lvs/lvs.rep";
+    $erc  = "pv.signoff.lvsq/report/pv.signoff.erc.sum";
+
+    if ( -e $erc ) {
+        #$erc_r = `cat $erc |grep "TOTAL ERC RuleCheck Results Generated:"| awk '{print \$7}'`;
+        $erc_r = `cat $erc | grep "Total  sum" |awk '{print \$3}'`;
+
+        chomp($erc_r);
+        $erc_r =~ s/\(// ;
+        $erc_r =~ s/\)// ;
+        if ( $generate_ecofiles && $erc_r > 0 ) {
+            `cp pv.signoff.lvsq/lvs/${project}/lvs_LV005SQ_v1.15_lvs/${block}/ERC_RES.db $eco_dir/ `;
+            `cp pv.signoff.lvsq/lvs/erc.nowv $eco_dir/ `;
+        }
+    } else {
+        $erc_r = NA ;
+    }
+    
+    $fm = "fm.invcui.r2g/report/fm.invcui.r2g.status.rpt";
+
+    if ( -e $fm ) {
+        $fmresult = `grep "^Verification" $fm | tail -1 | awk '{print \$2}'`;
+        chomp($fmresult);
+        if ( $generate_ecofiles && $fmresult =~ "FAILED" ) {
+        `cp fm.invcui.r2g/report/fm.invcui.r2g.failing_points.rpt ${eco_dir}/`;
+        }
+    } else {
+        $fmresult = NA ;
+    }
+
+    if ( -e $lvsn) {
+        $lvsn_c = `cat $lvsn | grep "#     CORRECT     #" |wc -l`;
+        chop($lvsn_c);
+        if ( $lvsn_c == 1 ) {
+            $lvsn_r = PASS ;
+        }else {
+            $lvsn_r = FAIL ;
+        }
+    } else {
+        $lvsn_r = NA ;
+    }
+
+    if ( -e $lvsq && -e $lvsqsum) {
+        $lvsq_c = `cat $lvsqsum | grep "#     CORRECT     #" |wc -l`;
+        chop($lvsq_c);
+        if ( $lvsq_c >= 1 ) {
+            $lvsq_r = PASS ;
+        } else {
+            $lvsq_r = FAIL ;
+        }
+        if ( $generate_ecofiles && $lvsq_r =~ "FAIL" ) {
+            `cp pv.signoff.lvsq/lvs/lvs.rep ${eco_dir}/ `;
+            if ( -e "pv.signoff.lvsq/lvs/lvs.rep.shorts" ) {
+            `cp pv.signoff.lvsq/lvs/lvs.rep.shorts ${eco_dir}/ ` ;
+            }
+        }
+    } else {
+        $lvsq_r = NA ;
+    }
+
+    if ( -e $drc) {
+        $drc_c = `cat $drc | grep "Total  sum" |awk '{print \$3}'`;
+        chop($drc_c);
+        $drc_c =~ s/\(//;
+        $drc_c =~ s/\)//;
+        if ( $generate_ecofiles && $drc_c > 0 ) {
+            `cp pv.signoff.drc/report/pv.signoff.drc.ascii ${eco_dir}/ `;
+            `cp pv.signoff.drc/drc/drc.nowv ${eco_dir}/ `;
+        }
+    } else {
+        $drc_c = NA ;
+    }
+
+    if ( -e $ant) {
+        $ant_c = `cat $ant | grep "Total  sum" |awk '{print \$3}'`;
+        chop($ant_c);
+        $ant_c =~ s/\(//;
+        $ant_c =~ s/\)//;
+        if ( $generate_ecofiles && $ant_c > 0 ) {
+            `cp pv.signoff.ant/report/pv.signoff.ant.ascii ${eco_dir}/ `;
+        }
+    } else {
+        $ant_c = NA ;
+    }
+
+
+    print "\nPV :\n";
+    printf "\t%-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n",DRC,ANT,LVSN,LVSQ,ERC,FM;
+    printf "\t%-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n",$drc_c,$ant_c,$lvsn_r,$lvsq_r,$erc_r,$fmresult;
+
+    if ( $generate_ecofiles ) {
+    print FO "\nPV :\n";
+    printf FO "\t%-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n",DRC,ANT,LVSN,LVSQ,ERC,FM;
+    printf FO "\t%-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n",$drc_c,$ant_c,$lvsn_r,$lvsq_r,$erc_r,$fmresult;
+    }
+
+    if ( -e $sigem ) {
+        $sigEm = `cat $sigem |  grep " AC Limit violations" |awk '{print \$4}'`;
+        chop($sigEm);
+        if ( $generate_ecofiles && $sigEm > 0 ) {
+           # `/mrvl/cavmhomes/vdesai2/scripts/get_sigem.pl pgv.signoff.signalEM/signalem_run/adsSem/rms.rpt > ${eco_dir}/sigem.tcl`;
+           # `/mrvl/cavmhomes/vdesai2/scripts/get_sigem.pl pgv.signoff.signalEM/signalem_run/adsSem/peak.rpt >> ${eco_dir}/sigem.tcl`;
+           # `/mrvl/cavmhomes/vdesai2/scripts/get_sigem.pl pgv.signoff.signalEM/signalem_run/adsSem/avg.rpt >> ${eco_dir}/sigem.tcl`;
+            `/mrvl/cavmhomes/vdesai2/scripts/get_sigem.pl $sigem  >> ${eco_dir}/sigem.tcl`;
+        }
+    } else {
+        $sigEm = NA ;
+    }
+    print "\nPGV : \n";
+    print "\tSIG_EM : $sigEm\n\n";
+    $ir_res_name = sprintf("%-20s %-10s %-10s %-16s %-16s","PG_NET","PG_EM","IR","Rmin","Rmax");
+    print "\t$ir_res_name\n";
+    print "\t------------------------------------------------------------------------------\n";
+    if ($generate_ecofiles) {
+    print FO "\nPGV : \n";
+    print FO "\tSIG_EM : $sigEm\n\n";
+    $ir_res_name = sprintf("%-20s %-10s %-10s %-16s %-16s","PG_NET","PG_EM","IR","Rmin","Rmax");
+    print FO "\t$ir_res_name\n";
+    print FO "\t------------------------------------------------------------------------------\n";
+    }
+    $ir_res = "";
+    foreach $pgn (keys %ir) {
+    if (-e $ir{$pgn} ) {
+       $IR{$pgn} = ` cat $ir{$pgn} | grep -A6 "IR DROP ANALYSIS" | grep "Number of Violations" | awk '{print \$NF}'`;
+       $EM{$pgn} = ` cat $ir{$pgn} | grep -A4 "CURRENT DENSITY ANALYSIS" | grep "Number of Violations" | awk '{print \$NF}'`;
+       $rmin{$pgn} = ` cat $ir{$pgn} | grep -A2 "EFFECTIVE RESISTANCE ANALYSIS" | grep Reff | awk '{print \$5}'`;
+       $rmax{$pgn} = ` cat $ir{$pgn} | grep -A2 "EFFECTIVE RESISTANCE ANALYSIS" | grep Reff |awk '{print \$7}'`;
+       $THR{$pgn} = ` cat $ir{$pgn} | grep -A5 "POWER NET" | grep Threshold |awk '{print \$2}'`;
+       $rmin{$pgn} =~ s/,//;
+       $rmax{$pgn} =~ s/,//;
+
+       chomp($rmin{$pgn});
+       chomp($rmax{$pgn});
+       chop($IR{$pgn});
+       chop($EM{$pgn});
+       chop($THR{$pgn});
+            if ( $generate_ecofiles && !(-e "${eco_dir}/pgv_static_ir_insts.tcl") && $IR{$pgn} > 0 ) {
+            `echo "set pgv_static_ir_insts [ list " > $eco_dir/pgv_static_ir_insts.tcl`;
+            }   
+            if ( $generate_ecofiles && !(-e "${eco_dir}/pgv_rlrp_insts_${pgn}.tcl") && $rmax{$pgn} >= 500 ) {
+            `echo "set pgv_rlrp_insts_${pgn} [ list " > $eco_dir/pgv_rlrp_insts_${pgn}.tcl`;
+            }   
+        if ( $generate_ecofiles && $IR{$pgn} > 0 ) {
+            if ( $pgn =~ m/gnd/) {
+             `cat $ir_inst{$pgn} | grep "^-" | awk '{ if (\$3>0.1) print \$2}' >> ${eco_dir}/pgv_static_ir_insts.tcl`;
+            } else {
+             `cat $ir_inst{$pgn} | grep "^-" | awk '{ if (\$3<0.74) print \$2}' >> ${eco_dir}/pgv_static_ir_insts.tcl`;
+            }
+        }
+        if ( $generate_ecofiles && $rmax{$pgn} >= 500 ) {
+            `cat $rlrp{$pgn} | grep "^-" | awk '{ if (\$3>500) print \$2}' >> ${eco_dir}/pgv_rlrp_insts_${pgn}.tcl `;
+        }
+    } else {
+        $IR{$pgn} = NA;
+        $EM{$pgn} = NA;
+        $rmin{$pgn} = NA ;
+        $rmax{$pgn} = NA ;
+    }
+        #$ir_res_name = sprintf("%s %-20s %-20s %-24s %-24s",$ir_res_name,"${pgn}_IR","${pgn}_EM","${pgn}_Rmin","${pgn}_Rmax");
+        $ir_res = sprintf("%-20s %-10s %-10s %-16s %-16s",${pgn},$EM{$pgn},$IR{$pgn},$rmin{$pgn},$rmax{$pgn});
+        print "\t$ir_res\n";
+        if ($generate_ecofiles) {
+        $ir_res = sprintf("%-20s %-10s %-10s %-16s %-16s",${pgn},$EM{$pgn},$IR{$pgn},$rmin{$pgn},$rmax{$pgn});
+        print FO "\t$ir_res\n";
+        }
+    }
+
+    if ( $generate_ecofiles && -e "${eco_dir}/pgv_static_ir_insts.tcl" ) {
+            `echo "]" >> $eco_dir/pgv_static_ir_insts.tcl` ;
+    }
+
+    foreach $pgn (keys %ir ) {
+        if ( $generate_ecofiles && -e "${eco_dir}/pgv_rlrp_insts_${pgn}.tcl" ) {
+                `echo "]" >> $eco_dir/pgv_rlrp_insts_${pgn}.tcl` ;
+        }
+    }
+
+    print "\nPGV Dynamic : \n";
+    $ir_res_name_dyn = sprintf("%-20s %-10s %-10s %-10s","PG_NET","PG_EM","DYN_IR","EFF_DYN_IR");
+    print "\t$ir_res_name_dyn\n";
+    print "\t----------------------------------------------------\n";
+  if ($generate_ecofiles) {
+    print FO "\nPGV Dynamic : \n";
+    $ir_res_name_dyn = sprintf("%-20s %-10s %-10s %-10s","PG_NET","PG_EM","DYN_IR","EFF_DYN_IR");
+    print FO "\t$ir_res_name_dyn\n";
+    print FO "\t----------------------------------------------------\n";
+  }
+    $ir_res_name_dyn = ""; 
+    $ir_res_dyn = "";
+    foreach $pgn (keys %ir_dyn) {
+    if (-e $ir_dyn{$pgn} ) {
+       $IR_dyn{$pgn} = ` cat $ir_dyn{$pgn} | grep -A10 "IR DROP ANALYSIS" | grep "Number of Violations" | awk '{print \$NF}'`;
+       $EM_dyn{$pgn} = ` cat $ir_dyn{$pgn} | grep -A4 "CURRENT DENSITY ANALYSIS" | grep "Number of Violations" | awk '{print \$NF}'`;
+       #$rmin{$pgn} = ` cat $ir{$pgn} | grep -A2 "EFFECTIVE RESISTANCE ANALYSIS" | grep Reff | awk '{print \$5}'`;
+       #$rmax{$pgn} = ` cat $ir{$pgn} | grep -A2 "EFFECTIVE RESISTANCE ANALYSIS" | grep Reff |awk '{print \$7}'`;
+       #$rmin{$pgn} =~ s/,//;
+       #$rmax{$pgn} =~ s/,//;
+       #chomp($rmin{$pgn});
+       #chomp($rmax{$pgn});
+       chop($IR_dyn{$pgn});
+       chop($EM_dyn{$pgn});
+            if ( $generate_ecofiles && !(-e "${eco_dir}/pgv_dynamic_ir_insts.tcl") && $IR_dyn{$pgn} >= 0 ) {
+            `echo "set pgv_dynamic_ir_insts [ list " > $eco_dir/pgv_dynamic_ir_insts.tcl`;
+            }   
+        if ( $IR_dyn{$pgn} >= 0 ) {
+            if ( $pgn =~ m/gnd/) {
+                if ( $generate_ecofiles ) {
+                     `cat $ir_dyn_inst{$pgn} | grep "^-" | awk '{ if (\$4>0.075) print \$2}' >> ${eco_dir}/pgv_dynamic_ir_insts.tcl`;
+                }
+              $IR_dyn{$pgn} = `cat $ir_dyn_inst{$pgn} | grep "^-" | awk '{ if (\$4>0.075) print \$2}' |wc -l`;
+            } else {
+                if ( $generate_ecofiles ) {
+                    `cat $ir_dyn_inst{$pgn} | grep "^-" | awk '{ if (\$3<0.75) print \$2}' >> ${eco_dir}/pgv_dynamic_ir_insts.tcl`;
+                }
+             $IR_dyn{$pgn} = `cat $ir_dyn_inst{$pgn} | grep "^-" | awk '{ if (\$3<0.75) print \$2}' | wc -l`;
+            }
+        }
+       chop($IR_dyn{$pgn});
+    } else {
+        $IR_dyn{$pgn} = NA;
+        $EM_dyn{$pgn} = NA;
+       # $rmin{$pgn} = NA ;
+       # $rmax{$pgn} = NA ;
+    }
+   #     $ir_res_name_dyn = sprintf("%s %-20s %-20s",$ir_res_name_dyn,"${pgn}_IR","${pgn}_EM");
+    #    $ir_res_dyn = sprintf("%-20s %-10s %-10s %-10s",${pgn},$EM_dyn{$pgn},$IR_dyn{$pgn});
+    }
+    if ( $generate_ecofiles && -e "${eco_dir}/pgv_dynamic_ir_insts.tcl" ) {
+            `echo "]" >> $eco_dir/pgv_dynamic_ir_insts.tcl` ;
+    }
+    
+    @pgns = keys %eff_dyn_ir_inst ; 
+    push @pgns, "gnd";
+    foreach $pgn (@pgns) {
+    if (-e $eff_dyn_ir_inst{$pgn}) {
+        $eff_ir{$pgn} = `cat $eff_dyn_ir_inst{$pgn} | grep "^-" | awk '{if (\$3<0.742) print \$2" "\$6}' | wc -l `;
+        chomp($eff_ir{$pgn});
+    } else {
+        $eff_ir{$pgn} = "NA";
+    }
+
+    if ($generate_ecofiles && $eff_ir{$pgn} > 0 ) {
+        `echo "set effective_dynamic_ir_inst_${pgn} [ list " > $eco_dir/effective_dynamic_ir_inst_${pgn}.tcl`;
+         `cat $eff_dyn_ir_inst{$pgn} | grep "^-" | awk '{if (\$3<0.742) print \$2" "}' >> $eco_dir/effective_dynamic_ir_inst_${pgn}.tcl `;
+         `echo "]" >> $eco_dir/effective_dynamic_ir_inst_${pgn}.tcl ` ;
+    }
+    
+    #$ir_res_name_dyn = sprintf("%s %-20s",$ir_res_name_dyn,"EFF_DYN_IR_${pgn}");
+      #  $ir_res_dyn = sprintf("%s %-20s ",$ir_res_dyn,$eff_ir{$pgn});
+        $ir_res_dyn = sprintf("%-20s %-10s %-10s %-10s",${pgn},$EM_dyn{$pgn},$IR_dyn{$pgn},$eff_ir{$pgn});
+        print "\t$ir_res_dyn\n";
+        if ($generate_ecofiles) {
+            print FO "\t$ir_res_dyn\n";
+        }
+    }
+  #  if (-e $ir_vdd) {
+  #     $IR_vdd = ` cat $ir_vdd | grep -A6 "IR DROP ANALYSIS" | grep "Number of Violations" | awk '{print \$NF}'`;
+  #     $EM_vdd = ` cat $ir_vdd | grep -A4 "CURRENT DENSITY ANALYSIS" | grep "Number of Violations" | awk '{print \$NF}'`;
+  #     $rmin_vdd = ` cat $ir_vdd | grep -A2 "EFFECTIVE RESISTANCE ANALYSIS" | grep Reff |awk '{print \$5}'`;
+  #     $rmax_vdd = ` cat $ir_vdd | grep -A2 "EFFECTIVE RESISTANCE ANALYSIS" | grep Reff |awk '{print \$7}'`;
+  #     $rmin_vdd =~ s/,//;
+  #     $rmax_vdd =~ s/,//;
+  #     chomp($rmin_vdd);
+  #     chomp($rmax_vdd);
+  #     #print "VDD : $rmin_vdd , $rmax_vdd\n";
+  #     chomp($IR_vdd);
+  #     chomp($EM_vdd);
+  #  } else {
+  #      $IR_vdd = NA;
+  #      $EM_vdd = NA;
+  #      $rmin_vdd = NA ;
+  #      $rmax_vdd = NA ;
+  #  }
+
+
+
+   # print "\nPGV : \n";
+   # printf "\t%-10s $ir_res_name\n",SIG_EM;
+   # printf "\t%-10s $ir_res\n",$sigEm;
+    
+#    print "\nPGV Dynamic : \n";
+#    printf "\t%-10s $ir_res_name_dyn\n";
+#    printf "\t%-10s $ir_res_dyn\n";
+#
+    if ( $generate_ecofiles ) {
+  #  print FO "\nPGV : \n";
+  #  printf FO "\t%-10s $ir_res_name\n",SIG_EM;
+  #  printf FO "\t%-10s $ir_res\n",$sigEm;
+  #  
+  #  print FO "\nPGV Dynamic : \n";
+  #  printf FO "\t%-10s $ir_res_name_dyn\n";
+  #  printf FO "\t%-10s $ir_res_dyn\n";
+    close(FO);
+    }
+    #printf "\t%-10s %-10s %-10s %-14s %-14s %-10s %-10s %-14s %-14s\n",SIG_EM,VDD_IR,VDD_EM,VDD_Rmin,VDD_Rmax,GND_IR,GND_EM,GND_Rmin,GND_Rmax;
+    #printf "\t%-10s %-10s %-10s %-14s %-14s %-10s %-10s %-14s %-14s\n",$sigEm,$IR_vdd,$EM_vdd,$rmin_vdd,$rmax_vdd,$IR_gnd,$EM_gnd,$rmin_gnd,$rmax_gnd;
+
+    #printf "\t%-10s %-10s %-10s %-10s %-10s\n",SIG_EM,VDD_IR,VDD_EM,GND_IR,GND_EM;
+    #printf "\t%-10s %-10s %-10s %-10s %-10s\n",$sigEm,$IR_vdd,$EM_vdd,$IR_gnd,$EM_gnd;
