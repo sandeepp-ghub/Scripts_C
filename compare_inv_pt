@@ -1,0 +1,11 @@
+
+
+set tracks = `cat /mrvl2g/dc5purecl01_s_t106a0_wa_003/t106a0/t106a0/wa_003/vdesai2/impl/mrml.PNR1/track.local_rtl_updte/_t | xargs`
+
+foreach t ($tracks) 
+    set pt = `cat ${t}/pt.signoff/timing_rundir_*/reports/*_max1_qor.csv | grep sclk, | sed -ne 's/,/ /gp' | awk '{print $3}'`
+    if ( $pt != "" ) then
+        set inv = `zcat ${t}/invcui.post.opt/report/*.invcui.post.opt.post:opt.summary.gz | grep -A4 "Setup mode" | grep -v "\-\-\-" | cut -d \| -f 4-100 | sed -ne 's/|/ /gp' | awk '{ for (i=1; i<=NF; i++) RtoC[i]= (RtoC[i]? RtoC[i] FS $i: $i) } END{ for (i in RtoC) print RtoC[i] }'  | grep reg2reg  | awk '{print $2}'`
+        echo "$inv $pt "
+     endif
+end
