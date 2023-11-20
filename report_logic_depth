@@ -1,0 +1,44 @@
+proc report_logic_depth {timing_path} {
+    set total_logic_depth [get_property $timing_path num_cell_arcs]
+    set bufinv 0
+    foreach_in_collection tp [get_property [get_property $timing_path timing_points] pin] {
+        if { [get_property $tp object_type]=="pin" && [sizeof_collection [filter_collection [get_cells -of_object $tp] "is_buffer==true||is_inverter==true"]]} { incr bufinv }}
+    return [expr   $total_logic_depth - [ expr $bufinv/2 ] ]
+}
+set r2r 0
+set r2o 0
+set i2r 0
+set r2r_dp 0
+set r2o_dp 0
+set i2r_dp 0
+set paths [ get_db [ report_timing -max_paths 10000000 -from [ all_registers ] -to [ all_registers ] -collection ] ]
+foreach p $paths {
+    incr r2r
+    set dp [ report_logic_depth $p ] 
+    if { $dp > $r2r_dp } {
+        set r2r_dp $dp
+    }
+}
+
+set paths [ get_db [ report_timing -max_paths 10000000 -from [ all_registers ] -to [ all_outputs ] -collection ] ]
+
+foreach p $paths {
+    incr r2o
+    set dp [ report_logic_depth $p ] 
+    if { $dp > $r2o_dp } {
+        set r2o_dp $dp
+    }
+}
+
+set paths [ get_db [ report_timing -max_paths 10000000 -from [ all_inputs ] -to [ all_registers ] -collection ] ]
+
+foreach p $paths {
+    incr i2r
+    set dp [ report_logic_depth $p ] 
+    if { $dp > $i2r_dp } {
+        set i2r_dp $dp
+    }
+}
+puts "Total r2r : $r2r  Max $r2r_dp"
+puts "Total r2o : $r2o  Max $r2o_dp"
+puts "Total i2r : $i2r  Max $i2r_dp"
