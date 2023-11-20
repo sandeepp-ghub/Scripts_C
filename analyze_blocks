@@ -1,0 +1,60 @@
+
+
+set blk1 roc_ch_w1
+set blk2 roc_ch_w2
+proc _analysze_blocks {blk1 blk2} {
+    global INTERBLOCK
+    set fp [open "${blk1}_${blk2}.rpt" w]
+    set inst1 [ get_db [ get_db insts -if {.base_cell.name == $blk1 }] .name ]
+    set inst2 [ get_db [ get_db insts -if {.base_cell.name == $blk2 }] .name ]
+
+## blk1 to blk2
+    foreach p2 [ get_db [ get_db [ all_fanout -endpoints_only  -from [ get_db pins $inst1/* -if {.direction==out} ]  ] -if { [ regexp "$inst2/*" .name ] } ] .name ] {
+        foreach p1 [ get_db [ get_db [ all_fanin -startpoints_only -to $p2 ] -if { [ regexp "$inst1/*" .name ] } ] .name ] {
+            set b1pin [ regsub "$inst1/" $p1 "" ]            
+            set b2pin [ regsub "$inst2/" $p2 "" ]
+            if { [  dict exists [ dict get $INTERBLOCK $blk1 ] $b1pin ] } {
+                set d1 [  dict get [ dict get $INTERBLOCK $blk1 ] $b1pin ]
+            } else {
+                puts "Pin $b1pin does not found in block $blk1"
+            }
+            if {  [  dict exists [ dict get $INTERBLOCK $blk2 ] $b2pin ] } {
+                set d2 [  dict get [ dict get $INTERBLOCK $blk2 ] $b2pin ]
+            } else {
+                puts "Pin $b2pin does not found in block $blk2"
+            }
+            set msg ""
+            if { $d1 == 0 } {
+                set msg "$p1 is not connected" 
+            }
+            if { $d2 == 0 } {
+                set msg  [ concat $msg "$p2 is not connected" ]
+            }
+
+            set total [expr $d1 + $d2]
+            puts $fp "$p1 ==> $p2\t$total $msg"
+        }
+    }
+## blk2 to $blk1
+    foreach p1 [ get_db [ get_db [ all_fanout -endpoints_only  -from [ get_db pins $inst2/* -if {.direction==out} ]  ] -if { [ regexp "$inst1/*" .name ] } ] .name ] {
+        foreach p2 [ get_db [ get_db [ all_fanin -startpoints_only -to $p1 ] -if { [ regexp "$inst2/*" .name ] } ] .name ] {
+            set b1pin [ regsub "$inst1/" $p1 "" ]            
+            set b2pin [ regsub "$inst2/" $p2 "" ]
+            set d1 [  dict get [ dict get $INTERBLOCK $blk1 ] $b1pin ]
+            set d2 [  dict get [ dict get $INTERBLOCK $blk2 ] $b2pin ]
+            set msg ""
+            if { $d1 == 0 } {
+                set msg "$p1 is not connected" 
+            }
+            if { $d2 == 0 } {
+                set msg  [ concat $msg "$p2 is not connected" ]
+            }
+
+            set total [expr $d1 + $d2]
+            puts $fp "$p2 ==> $p1\t$total $msg"
+        }
+    }
+
+close $fp
+}
+#_analysze_blocks $blk1 $blk2 
