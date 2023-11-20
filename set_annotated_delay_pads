@@ -1,0 +1,11 @@
+
+
+
+foreach_in_collection pin [get_pins */PAD -hierarchical ]  { 
+    set net [ get_object_name [get_nets -of $pin   ]  ]
+    # set_annotated_delay 0 -net -from [get_object_name $pin ] -to [ get_object_name $net ]
+     set_load 0 [get_nets -quiet $net]
+     set_res 0 [get_nets -quiet $net]
+             
+}
+
