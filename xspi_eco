@@ -1,0 +1,63 @@
+
+set_db eco_honor_dont_use false
+set xspi0_drive "U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_clk_wr/delay_0/r2/hic_dnt_nand2/ZN"
+
+for {set i 0 } { $i < 8} {incr i} {
+    set pin "U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_${i}_adder_slv/dll_adder_delay_line/delay_0/r1/hic_dnt_nand2/A1"
+    set inst [ get_db [get_db pins $pin] .inst.name ]
+    set net [ get_db  [get_db pins $pin] .net.name ] 
+    puts "disconnect_pin -net $net inst $inst -pin A1"
+    disconnect_pin -net $net -inst $inst -pin A1
+}
+
+
+ eco_update_cell -insts  U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_clk_wr/delay_0/CTS_ccl_buf_16895 -cells DCCKBD14BWP210H6P51CNODULVT
+
+set net [ get_db [ get_db pins U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_clk_wr/delay_0/CTS_ccl_buf_16895/Z ] .net.name ]
+
+
+for {set i 0 } { $i < 8} {incr i} {
+    set pin "U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_${i}_adder_slv/dll_adder_delay_line/delay_0/r1/hic_dnt_nand2/A1"
+    set inst [ get_db [get_db pins $pin] .inst.name ]
+    puts " connect_pin -net $net -inst $inst -pin A1"
+     connect_pin -net $net -inst $inst -pin A1
+}
+
+
+####### xspi1
+
+set xspi1_drive "U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_clk_wr/delay_0/r2/hic_dnt_nand2/ZN"
+for {set i 0 } { $i < 8} {incr i} {
+    set pin "U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_${i}_adder_slv/dll_adder_delay_line/delay_0/r1/hic_dnt_nand2/A1"
+    set inst [ get_db [get_db pins $pin] .inst.name ]
+    set net [ get_db  [get_db pins $pin] .net.name ] 
+    puts "disconnect_pin -net $net -inst $inst -pin A1"
+    disconnect_pin -net $net -inst $inst -pin A1
+}
+
+ eco_update_cell -insts U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_clk_wr/delay_0/CTS_ccl_buf_14724 -cells DCCKBD14BWP210H6P51CNODULVT
+
+set net [ get_db [ get_db pins U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_clk_wr/delay_0/CTS_ccl_buf_14724/Z ] .net.name ]
+
+set_route_attributes -nets $net -bottom_preferred_routing_layer 14 -top_preferred_routing_layer 15 -route_rule 2w2s_ndr -weight 10
+
+ foreach i [ list 0 1 5 7 ] {
+     set pin "U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_${i}_adder_slv/dll_adder_delay_line/delay_0/r1/hic_dnt_nand2/A1"
+    set inst [ get_db [get_db pins $pin] .inst.name ]
+     puts "connect_pin -net $net -inst $inst  -pin A1"
+     connect_pin -net $net -inst $inst  -pin A1
+ }
+
+ create_inst -name  xspi1_drive_cell_0 -base_cell DCCKBD14BWP210H6P51CNODULVT -location {89 354} -place_status placed
+ create_net -name xspi1_drive_net_0 
+ set_route_attributes -nets xspi1_drive_net_0 -bottom_preferred_routing_layer 14 -top_preferred_routing_layer 15 -route_rule 2w2s_ndr -weight 10
+
+  connect_pin -net xspi1_drive_net_0 -inst  xspi1_drive_cell_0 -pin Z 
+  connect_pin -net $net -inst xspi1_drive_cell_0 -pin I
+
+ foreach i [ list 2 3 4 6  ] {
+     set pin "U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_${i}_adder_slv/dll_adder_delay_line/delay_0/r1/hic_dnt_nand2/A1"
+    set inst [ get_db [get_db pins $pin] .inst.name ]
+     puts "connect_pin -net xspi1_drive_net_0 -inst $inst -pin A1"
+     connect_pin -net xspi1_drive_net_0  -inst $inst -pin A1
+ }
