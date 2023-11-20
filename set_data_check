@@ -1,0 +1,54 @@
+set fo [open "set_data_to_data_check_pad_iocx.tcl" w]
+
+set start 16
+for { set i $start}  {$i < [expr $start + 8 ]} {incr i} {
+set relative_pin "pad__blk_pi_gpio[$i]"
+set r2 [  get_db [get_db [get_db  [get_db ports gpio[$i] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO} ] .name ]
+set r3 [  get_db [get_db [get_db  [get_db ports gpio[$i] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO_EN} ] .name ]
+    for { set j $start} { $j < [expr $start + 8]} {incr j} {
+        set data_pin "pad__blk_pi_gpio[$j]"
+        set d2 [  get_db [get_db [get_db  [get_db ports gpio[$j] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO} ] .name ]
+        set d3 [  get_db [get_db [get_db  [get_db ports gpio[$j] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO_EN} ] .name ]
+        if { $i != $j } {
+        puts  $fo "set_data_check 0 -from $relative_pin -to $data_pin"
+        puts  $fo "set_data_check 0 -from $r2 -to $d2"
+        puts  $fo "set_data_check 0 -from $r3 -to $d3"
+        }
+    }
+}
+
+set start 30
+for { set i $start}  {$i < [expr $start + 8 ]} {incr i} {
+set relative_pin "pad__blk_pi_gpio[$i]"
+set r2 [  get_db [get_db [get_db  [get_db ports gpio[$i] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO} ] .name ]
+set r3 [  get_db [get_db [get_db  [get_db ports gpio[$i] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO_EN} ] .name ]
+    for { set j $start} { $j < [expr $start + 8]} {incr j} {
+        set data_pin "pad__blk_pi_gpio[$j]"
+        set d2 [  get_db [get_db [get_db  [get_db ports gpio[$j] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO} ] .name ]
+        set d3 [  get_db [get_db [get_db  [get_db ports gpio[$j] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO_EN} ] .name ]
+        if { $i != $j } {
+        puts  $fo "set_data_check 0 -from $relative_pin -to $data_pin"
+        puts  $fo "set_data_check 0 -from $r2 -to $d2"
+        puts  $fo "set_data_check 0 -from $r3 -to $d3"
+        }
+    }
+}
+
+set start 0
+for { set i $start}  {$i < [expr $start + 8 ]} {incr i} {
+set relative_pin "pad__blk_pi_emmc_dat[$i]"
+set r2 [  get_db [get_db [get_db  [get_db ports emmc_dat[$i] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO} ] .name ]
+set r3 [  get_db [get_db [get_db  [get_db ports emmc_dat[$i] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO_EN} ] .name ]
+    for { set j $start} { $j < [expr $start + 8]} {incr j} {
+        set data_pin "pad__blk_pi_emmc_dat[$j]"
+        set d2 [  get_db [get_db [get_db  [get_db ports emmc_dat[$j] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO} ] .name ]
+        set d3 [  get_db [get_db [get_db  [get_db ports emmc_dat[$j] ]  .net.loads -if {.name ==  */PAD } ] .inst.pins -if {.name == */DO_EN} ] .name ]
+        if { $i != $j } {
+        puts  $fo "set_data_check 0 -from $relative_pin -to $data_pin"
+        puts  $fo "set_data_check 0 -from $r2 -to $d2"
+        puts  $fo "set_data_check 0 -from $r3 -to $d3"
+        }
+    }
+}
+
+close $fo
