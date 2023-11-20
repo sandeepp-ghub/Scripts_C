@@ -1,0 +1,12 @@
+
+set fo [open "undriven_net.rpt" w]
+foreach net  [ get_object_name [ get_nets -quiet -of  [get_pins -hierarchical -filter "direction==in" -leaf  ] ] ] {
+    set driver [ get_object_name [ get_pins -quiet -of [ get_nets $net ] -leaf -filter "direction==out"  ] ]
+    if  { [llength $driver] == 0} {
+        puts $fo $net
+    } else {
+        #puts $fo "$net $driver"
+    }
+}
+
+close $fo
