@@ -1,0 +1,87 @@
+
+
+set mf 3
+set max_paths 5000
+set hold_paths  [get_timing_paths -attributes {endpoint slack} -delay_type min -slack_lesser_than 0 -max_paths $max_paths ] 
+set setup_max_paths [sizeof_collection $hold_paths]
+set setup_paths [get_timing_paths -attributes {endpoint slack} -to [ get_object_name [ get_attribute $hold_paths endpoint ] ] -max_paths $setup_max_paths -delay_type max -slack_lesser_than 100 ]
+
+if { [info exists path_margin_list ]  } {unset path_margin_list}
+if { [info exists vd_setup_array ]  } {unset vd_setup_array}
+if { [info exists vd_hold_array ]  } {unset vd_hold_array}
+if { [info exists vd_new_setup_array ]  } {unset vd_new_setup_array}
+
+foreach_in_collection path $setup_paths {
+    set ep [ get_object_name [get_attribute $path endpoint] ]
+    set sslack   [get_attribute $path slack]
+    set vd_setup_array($ep) $sslack
+}
+
+
+foreach_in_collection path $hold_paths {
+    set ep [ get_object_name [get_attribute $path endpoint] ]
+    set hslack   [get_attribute $path slack]
+    set vd_hold_array($ep) $hslack
+}
+
+
+foreach ep [ array names vd_hold_array ] {
+    set hslack $vd_hold_array($ep)
+    set sslack $vd_setup_array($ep)
+
+    set margin [expr -1 * $mf * $hslack]
+    if { $sslack < $margin} {
+       # if { $sslack < 0} {
+       #     set smargin  $margin 
+       # } else {
+       #     set smargin [ expr $margin + $sslack ]
+       # }
+            lappend  path_margin_list "$ep $margin"
+    } 
+}
+
+set_distributed_variables {path_margin_list}
+set to_setup_list [list ]
+remote_execute {
+    foreach pair $path_margin_list {
+        set ep [ lindex $pair 0 ]
+        lappend to_setup_list $ep
+        set margin [ lindex $pair 1 ]
+        set_path_margin -setup -to $ep $margin
+    }
+}
+eval $cn_setup_code
+remote_execute {
+    foreach pair $path_margin_list {
+        set ep [ lindex $pair 0 ]
+        set margin [ lindex $pair 1 ]
+        set_path_margin -reset_path -to $ep 0  
+    }
+}
+
+set new_setup_paths [get_timing_paths -attributes {endpoint slack} -to [ get_object_name [ get_attribute $hold_paths endpoint ] ] -max_paths $setup_max_paths -delay_type max -slack_lesser_than 1 ]
+foreach_in_collection path $new_setup_paths {
+    set ep [ get_object_name [get_attribute $path endpoint] ]
+    set nsslack   [get_attribute $path slack]
+    set vd_new_setup_array($ep) $nsslack
+}
+
+foreach pair $path_margin_list {
+     set ep [ lindex $pair 0 ]
+     set hslack $vd_hold_array($ep)
+     set sslack $vd_setup_array($ep)
+     set nsslack $vd_new_setup_array($ep)
+     puts "$ep $hslack $sslack $nsslack"
+}
+
+#foreach_in_collection path $hold_paths { 
+#        set ep [ get_object_name [get_attribute $path endpoint] ]  
+#        set setup_path [get_timing_paths -attributes {endpoint slack} -delay_type max -to $ep]
+#        set sslack [get_attribute $setup_path slack]
+#        set hslack [get_attribute $path slack] 
+#        set margin [expr -1 * $mf * $hslack]
+#        if { $sslack < $margin} {
+#            set smargin [ expr $margin - $sslack ]
+#            set path_margin_list($ep) $smargin
+#        } 
+#}
