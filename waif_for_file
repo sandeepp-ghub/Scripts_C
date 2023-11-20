@@ -1,0 +1,16 @@
+
+set id =  $1
+set job = 1
+while ( $job )
+
+    if ( -f $id ) then
+        echo "Done"
+        set job = 0
+    else
+       echo "Waiting for file $id"
+       sleep 15m
+    endif
+
+end
+
+sleep 60
