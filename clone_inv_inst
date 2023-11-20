@@ -1,0 +1,19 @@
+
+
+set inst U_mio_scan_clkgen/pnr_clkdrc_icg_sclk_noscan/icg/u_cmicg
+set loc [get_db inst:$inst .location]
+set base_cell [get_db inst:$inst .base_cell.name]
+
+create_inst -base_cell $base_cell -location $loc -name ${inst}_vd_clone
+
+foreach pin [ get_db  [get_db insts $inst ] .pins.name ] {
+    set dir [get_db pin:$pin .direction]
+    if { $dir == "in"} {
+    set base_name [get_db pin:$pin .base_name]
+    set net [get_db pin:$pin .net.name]
+    connect_pin -inst ${inst}_vd_clone  -pin $base_name -net $net
+    } else {
+        puts "Pin $pin left unconncted"
+    }
+
+}
