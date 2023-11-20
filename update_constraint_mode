@@ -1,0 +1,6 @@
+
+foreach constraint_mode [ get_db constraint_modes -if {.is_active == true} ] {
+        set constraint_files [get_db $constraint_mode .sdc_files ]
+        set name [get_db $constraint_mode .name]
+            update_constraint_mode -name $name -sdc_files $constraint_files
+}
