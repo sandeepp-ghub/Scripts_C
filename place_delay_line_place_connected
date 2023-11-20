@@ -1,0 +1,56 @@
+
+set dhinsts {
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_datablk/clkdqs_0_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_datablk/clkdqs_1_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_datablk/clkdqs_2_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_datablk/clkdqs_3_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_datablk/clkdqs_4_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_datablk/clkdqs_5_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_datablk/clkdqs_6_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dfi_read_datablk/clkdqs_7_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_clk_wr
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_clk_wr_dqs
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_master
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_rd_dqs
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_delay_line_rd_dqs_cmd
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll/dll_phase_detect
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_cmdcell_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_cmdcell_adder_slv/dll_adder_phase_detect/dll_phase_detect
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_0_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_0_adder_slv/dll_adder_phase_detect/dll_phase_detect
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_1_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_1_adder_slv/dll_adder_phase_detect/dll_phase_detect
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_2_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_2_adder_slv/dll_adder_phase_detect/dll_phase_detect
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_3_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_3_adder_slv/dll_adder_phase_detect/dll_phase_detect
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_4_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_4_adder_slv/dll_adder_phase_detect/dll_phase_detect
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_5_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_5_adder_slv/dll_adder_phase_detect/dll_phase_detect
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_6_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_6_adder_slv/dll_adder_phase_detect/dll_phase_detect
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_7_adder_slv/dll_adder_delay_line
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_datacell_7_adder_slv/dll_adder_phase_detect/dll_phase_detect
+     */Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/io_dqs_oe/dll_phase_detect
+}
+
+
+ set fp [ open test w ]
+ foreach dhinst $dhinsts {
+     set insts [ get_db insts ${dhinst}/* ]
+     foreach inst $insts {
+         if { ![ get_db $inst .is_sequential ] && ![ regexp "delay_0/r2" $inst ]  } {
+             #puts $fp $inst
+             place_connected -attractor [get_db $inst .name]   -level 1 
+             set_db [get_db [  get_db $inst .pins. -if { .direction == out } ] .net] .weight 9999
+             set_db [get_db [  get_db $inst .pins. -if { .direction == out } ] .net] .dont_touch true
+             puts $fp "set_db [  get_db $inst .pins. -if { .direction == out } ] .net.name] .weight 9999"
+         }
+     }
+ }
+
+
+ close $fp
+
