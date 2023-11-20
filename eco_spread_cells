@@ -1,0 +1,26 @@
+
+
+set bbox {591.438 81.999 612.571 162.6875}
+
+set_db place_detail_honor_inst_pad true
+
+set inst_to_pad [get_db  [get_db  [get_obj_in_area -obj_type inst -areas $bbox  ] -if {.is_sequential == false } ]  .name  ]
+set padded_inst [list ]
+
+for {set i 0 } {$i < [llength $inst_to_pad ]} {incr i 3} { 
+        set inst [lindex $inst_to_pad $i] 
+        set_inst_padding -top_side 1  -left_side 2 -inst $inst 
+        lappend padded_inst $inst
+}
+
+
+foreach net [ get_db  [get_db insts $padded_inst ]  .pins.net.name ] {
+    if { ![regexp "CTS" $net ] } {
+        delete_routes -net $net
+    }
+}
+place_detail -area $bbox
+route_eco
+
+
+
