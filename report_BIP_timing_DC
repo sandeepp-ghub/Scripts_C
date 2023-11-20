@@ -1,0 +1,104 @@
+procedure ::dc::common::report_BIP_timing_dc {
+    -description "Reports internal and external timing paths for BIP"
+    -args {
+        {-rpt_dir \
+             -type string \
+             -description "Directory to write report to"
+        }
+    }
+} {
+    if { [info exists rpt_dir] && ![file isdirectory $rpt_dir] } { 
+        puts "Warning: $rpt_dir is not a directory! Using default ./report"
+        set rpt_dir [::common::get::report]
+    }
+ 
+    set file_prefix "$::SESSION(session)"
+    set InternalWNS 0
+    set InternalTNS 0
+    set InternalNVP 0
+    set InterfaceWNS 0
+    set InterfaceTNS 0
+    set InterfaceNVP 0
+    set max_path 10000000
+
+    set vio_reg_pins [ get_pins   [get_pins -of [all_registers -include_icg ] -filter "direction==in" ]  -filter "max_slack<0" ] 
+    puts "DEBUG :  [ sizeof_collection $vio_reg_pins ]  pins "
+    if { [ sizeof_collection $vio_reg_pins ]  != 0 } {
+    
+    # get_timing_paths -from [all_registers ] -to [all_registers] is taking large run time. 
+    # So first taking violating end points and then seperating them for i2r and r2r 
+    # https://jira.cavium.com/browse/IPBUBF-2084
+
+
+   # set vio_paths_i2r [get_timing_paths \
+   #                        -to [get_pins -of_objects [all_registers -include_icg] \
+   #                                 -filter "direction==in && is_clock_pin==false"] \
+   #                        -from [all_inputs_but_clocks] \
+   #                        -max_paths $max_path -slack_lesser_than 0]
+   # 
+   # set vio_paths_r2r [get_timing_paths \
+   #                        -to [get_pins -of_objects [all_registers -include_icg] \
+                                    -filter "direction==in && is_clock_pin==false"] \
+                           -from [get_pins -of_objects [all_registers] \
+                                      -filter "direction==in && is_clock_pin==true" ] \
+                           -max_paths $max_path -slack_lesser_than 0]
+
+    set max_path [ sizeof_collection $vio_reg_pins ]
+    set vio_paths_i2r [get_timing_paths \
+                           -to [get_pins $vio_reg_pins ] \
+                           -from [ all_inputs_but_clocks ] \
+                           -max_paths $max_path \
+                           -slack_lesser_than 0]
+    puts "DEBUG : [sizeof_collection $vio_paths_i2r] in2reg paths "
+    set vio_paths_r2r [ get_timing_paths \
+                           -max_paths $max_path \
+                           -from [all_registers -clock_pins ] \
+                           -to  [ get_pins $vio_reg_pins ] \
+                           -slack_lesser_than 0]
+
+    puts "DEBUG : [sizeof_collection $vio_paths_r2r] reg2reg paths "
+    } else {
+            set vio_paths_r2r ""
+            set vio_paths_i2r ""
+    }
+    set vio_paths_r2o [get_timing_paths \
+                           -to [all_outputs] \
+                           -from [get_pins -of_objects [all_registers] \
+                                      -filter "direction==in && is_clock_pin==true"] \
+                           -max_paths $max_path -slack_lesser_than 0]
+
+    set vio_paths_i2o [get_timing_paths \
+                           -to [all_outputs] \
+                           -from [all_inputs] \
+                           -max_paths $max_path -slack_lesser_than 0]
+   
+    foreach_in_collection p $vio_paths_r2r {        
+        set slack [get_attribute $p slack]
+        set InternalTNS [expr $InternalTNS + $slack]
+        incr InternalNVP
+        if { $slack < $InternalWNS } {
+            set InternalWNS $slack
+        }
+    }
+    
+    foreach col [concat $vio_paths_i2r $vio_paths_r2o $vio_paths_i2o] { 
+        foreach_in_collection p $col {
+            set slack [get_attribute $p slack]
+            set InterfaceTNS [expr $InterfaceTNS + $slack]
+            incr InterfaceNVP
+            if { $slack < $InterfaceWNS } {
+                set InterfaceWNS $slack
+            }
+        }
+    }
+    set fp [open ${rpt_dir}/$file_prefix.BIP_timing_summary.rpt w]
+    puts  [format "%16s\t%10s\t%10s\t%10s" Group WNS TNS FEP]
+    puts  [format "%16s\t%10.3f\t%10.3fs\t%10d" maxInternal $InternalWNS $InternalTNS $InternalNVP]
+    puts  [format "%16s\t%10.3f\t%10.3fs\t%10d" maxInterface $InterfaceWNS $InterfaceTNS $InterfaceNVP]
+    
+    puts $fp [format "%16s\t%10s\t%10s\t%10s" Group WNS TNS FEP]
+    puts $fp [format "%16s\t%10.3f\t%10.3fs\t%10d" maxInternal $InternalWNS $InternalTNS $InternalNVP]
+    puts $fp [format "%16s\t%10.3f\t%10.3fs\t%10d" maxInterface $InterfaceWNS $InterfaceTNS $InterfaceNVP]
+    
+    close $fp
+}
