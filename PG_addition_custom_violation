@@ -1,0 +1,188 @@
+
+
+
+#eco_delete_repeater -insts  U5148
+#eco_delete_repeater -insts [ get_db [ get_db [all_fanout  -from vqps -only_cells ] -if { .base_cell.name != *VQPS* } ] .name  ]
+#delete_route_blockages -name defL*
+
+proc delete_over_efuse {} {
+    foreach efuse [ get_db [ get_db insts -if {.base_cell.name==*TEF05*}  ] .name ] {
+        delete_routes -net VDD -area [ get_computed_shapes [get_db inst:$efuse .bbox] SIZE 2]
+        delete_routes -net VSS -area [ get_computed_shapes [get_db inst:$efuse .bbox] SIZE 2]
+    }
+    foreach vqps_sw [ get_db [ get_db insts -if {.base_cell.name==*VQPS*}  ] .name ] {
+        delete_routes -net VDD -area [ get_computed_shapes [get_db inst:$vqps_sw .bbox] SIZE 2]
+        delete_routes -net VSS -area [ get_computed_shapes [get_db inst:$vqps_sw .bbox] SIZE 2]
+    }
+        delete_routes -net cpc_bcm_wrap_bcm_otp_top_otx3_bcm_top_otx3_bcm_accel_top_0_bcm_trupuf_top_i_trupuf_U_OTP_vqps
+        delete_routes -net cpc_bcm_wrap_bcm_otp_top_otx3_otp_ngen_fuseblock_otx3_TEF05P256X32HD18_PHRM_wrp_VQPS
+        delete_routes -net vqps
+}
+
+proc get_bbox_from_rects {rects} {
+      set llx [ list ]
+      set lly [ list ]
+      set urx [ list ]
+      set ury [ list ]
+      #if {$pg} {
+      #  set lshapes [ get_db [ get_db inst:$inst .pg_pins -if {.base_name==$pin } ] .pg_base_pin.physical_pins.layer_shapes.shapes ]
+      #} else {
+      #  set lshapes [ get_db [ get_db inst:$inst .pins -if {.base_name==$pin } ] .base_pin.physical_pins.layer_shapes.shapes ]
+      #}
+      foreach rect $rects {
+            lappend llx [ lindex $rect 0 ]
+            lappend lly [ lindex $rect 1 ]
+            lappend urx [ lindex $rect 2 ]
+            lappend ury [ lindex $rect 3 ]
+      }
+      set ll_x  [ lindex [ lsort -real $llx ] 0 ]
+      set ll_y  [ lindex [ lsort -real $lly ] 0 ]
+      set ur_x [ lindex [ lsort -real -decreasing $urx ] 0 ]
+      set ur_y [ lindex [ lsort -real -decreasing $ury ] 0 ]
+      return "$ll_x $ll_y $ur_x $ur_y"
+}
+
+proc get_dx_of_rect {rect} {
+    return [expr [lindex $rect 2] - [lindex $rect 0] ]
+}
+
+proc get_dy_of_rect {rect} {
+    return [expr [lindex $rect 3] - [lindex $rect 1] ]
+}
+
+proc snap_start_to_track { rect1 layer } {
+    set rect [ regsub -all "\[{}\]" $rect1 ""]
+    set direction [ get_db layer:$layer .direction ]
+
+    if { $direction == "horizontal" } {
+        set ref [ lindex $rect 1 ]
+        set track_start [ get_db [ get_db [ get_db track_patterns -if { .layers.name == $layer } ] -if { .direction == y } ] .start ]
+        set pitch [ get_db layer:$layer .pitch_y]
+    } else {
+        set ref [ lindex $rect 0 ]
+        set track_start [ get_db [ get_db [ get_db track_patterns -if { .layers.name == $layer } ] -if { .direction == x } ] .start ]
+        set pitch [ get_db layer:$layer .pitch_x]
+    }
+    set sp 0
+    while { $sp < $ref } {
+        set sp [ expr $sp + $pitch ] 
+    }
+    return [ expr $sp + $track_start ]
+}
+
+#foreach efuse [ get_db [ get_db insts -if {.base_cell.name==*TEF05*}  ] .name ] {
+#    set rects [list ]
+#    set vqps_sw [ get_db pg_pin:$efuse/VQPS .net.drivers.inst.name ]
+#    lappend rects [ regsub -all "\[{}\]" [ get_computed_shapes [ get_db inst:$efuse .bbox ] SIZEX 2 ] "" ]
+#    lappend rects [ regsub -all "\[{}\]" [ get_computed_shapes [ get_db inst:$vqps_sw .bbox ] SIZEX 2 ] "" ]
+#    set bbox [ get_bbox_from_rects $rects ]
+#    delete_routes -net VDD -area $bbox
+#    delete_routes -net VSS -area $bbox
+#}
+
+dict set PG_WIDTH M8 0.040
+dict set PG_WIDTH M9 0.038
+dict set PG_WIDTH M10 0.080
+dict set PG_WIDTH M11 0.200
+dict set PG_WIDTH M12 0.212
+dict set PG_WIDTH M13 0.378
+dict set PG_WIDTH M14 0.451
+dict set PG_WIDTH M15 2.352
+
+dict set VIA_DEF M7M8 VIAGEN78_RECT_H_1
+dict set VIA_DEF M8M9 VIA89_1cut_BW40_UW38
+dict set VIA_DEF M9M10 VIA910_1cut_BW38_UW40
+dict set VIA_DEF M10M11 VIAGEN1011_1
+dict set VIA_DEF M11M12 VIA1112_PGrid
+dict set VIA_DEF M12M13 VIA1213_PGrid
+dict set VIA_DEF M13M14 VIA1314_PGrid
+
+
+
+foreach vqps_sw [ get_db [get_db insts -if {.base_cell.name == *VQPS*} ] .name ] {
+    puts "Working for inst $vqps_sw"
+    set vqps_net [ get_db pin:$vqps_sw/VQPS .net.name ]
+    set net [ get_db pin:$vqps_sw/VIO .net.name ]
+    set pin_mid [ list ]
+    set vio_pin_rect [ get_transform_shapes -inst $vqps_sw -local_pt [  get_db [ get_db inst:$vqps_sw .pins -if { .base_name == VIO } ] .base_pin.physical_pins.layer_shapes.shapes.rect ] ]
+    foreach rect $vio_pin_rect {
+        set llx [ lindex $rect 0 ]
+        set urx [ lindex $rect 2 ]
+        lappend pin_mid [ expr [ expr $llx + $urx ] / 2 ]
+    }
+    if { [info exists VIA_LOC ] }  {
+    unset VIA_LOC
+    }
+    dict set VIA_LOC M7 $pin_mid
+    set area [get_db inst:$vqps_sw .bbox ]
+    foreach layer [list M8 M9 M10 M11 M12 M13 M14] {
+        set cur_loc [ list ]
+        puts "Working on layer : $layer"
+        set width [ dict get $PG_WIDTH $layer ]
+        set spacing [ get_db layer:$layer .min_spacing ]
+        regexp "M\(\[0-9\]+\)" $layer foo lnum
+        set bl "M[expr $lnum - 1 ]"
+        set direction [ get_db layer:$layer .direction ]
+        set vdd_rects [get_computed_shapes $area AND [ get_db [get_db net:vdd_sys .special_wires -if { .layer.name  == $layer } ] .rect ] -output rect ]
+        set vss_rects [get_computed_shapes $area AND [ get_db [get_db net:VSS .special_wires -if { .layer.name  == $layer } ] .rect ] -output rect ]
+        #set vqps_rects [get_computed_shapes $area AND [ get_db [get_db net:$vqps_net .special_wires -if { .layer.name  == $layer } ] .rect ] -output rect ]
+        #set all_r [ concat $vdd_rects $vss_rects $vqps_rects ]
+        set all_r [ concat $vdd_rects $vss_rects ]
+        if { $layer == "M8"} {
+        set min_req [ expr 6 * $width ]
+        } else {
+        set min_req [ expr [expr 2 * $spacing ] + $width ]
+        }
+        set to_create_vio [ get_computed_shapes $area ANDNOT $all_r ]
+        foreach rect $to_create_vio {
+            if { $direction == "horizontal" } {
+                set dy [get_dy_of_rect $rect ] 
+                if { $dy > $min_req } {
+                    set y [ expr [ expr $dy / 2 ] + [lindex $rect 1] ]
+                    set x1 [ lindex $rect 0]
+                    set x2 [ lindex $rect 2]
+                    create_shape -net $net -width $width -layer $layer -path_segment "$x1 $y $x2 $y" -shape stripe
+                    lappend cur_loc $y
+                    #dict append VIA_LOC $layer $y
+                    foreach loc [dict get $VIA_LOC $bl ] {
+                         create_via -net $net -shape stripe -via_def [ dict get $VIA_DEF ${bl}${layer} ] -location "$loc $y"
+                    }
+                }
+            } else {
+                set dx [get_dx_of_rect $rect ]
+                if { $dx > $min_req } {
+                    set x [ expr [ expr $dx / 2 ] + [lindex $rect 0] ]
+                    set y1 [ lindex $rect 1]
+                    set y2 [ lindex $rect 3]
+                    create_shape -net $net -width $width -layer $layer -path_segment "$x $y1 $x $y2" -shape stripe
+                    lappend cur_loc $x
+                    #dict append VIA_LOC $layer $x
+                    foreach loc [dict get $VIA_LOC $bl ] {
+                         create_via -net $net -shape stripe -via_def [ dict get $VIA_DEF ${bl}${layer} ] -location "$x $loc"
+                    }
+                }
+            }
+        }
+        dict set VIA_LOC $layer $cur_loc
+    }
+}
+
+#foreach vqps_sw [ get_db [ get_db insts -if {.base_cell.name==*VQPS*}  ] .name ] {
+#    set rects [  get_transform_shapes -inst $vqps_sw -local_pt [ get_db [ get_db inst:$vqps_sw .pins -if  {.base_name==VQPS} ] .base_pin.physical_pins.layer_shapes.shapes.rect ] ]
+#    set bbox [ get_bbox_from_rects $rects ]
+#    set net [ get_db pin:$vqps_sw/VQPS .net.name ]
+#    set_db add_stripes_stacked_via_bottom_layer M7
+#    set_db add_stripes_stacked_via_top_layer M8
+#    puts "add_stripes -nets $net -area $bbox -width 0.34 -layer M8  -set_to_set_distance 6 -direction horizontal  -start_offset 2 -stop_offset 2"
+#    add_stripes -nets $net -area $bbox -width 0.71 -layer M8  -set_to_set_distance 6 -direction horizontal  -start_offset 2 -stop_offset 2
+#}
+
+#
+#foreach efuse [ get_db [ get_db insts -if {.base_cell.name==*TEF05*}  ] .name ] {
+#    set net [ get_db pg_pin:$efuse/VQPS .net.name ]
+#    set rects [ get_db net:$net .special_wires.rect ] 
+#    set bbox [get_bbox_from_rects $rects ]
+#    set_db add_stripes_stacked_via_bottom_layer M8
+#    set_db add_stripes_stacked_via_top_layer M9
+#    add_stripes -nets $net -area $bbox -width 0.71 -layer M9  -set_to_set_distance 6 -direction vertical  -start_offset 2 -stop_offset 2
+#}
