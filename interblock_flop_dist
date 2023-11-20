@@ -1,0 +1,55 @@
+
+proc _pin_distance {p1 p2} {
+    if { [ sizeof_collection [ get_pins -quiet $p1 ] ] > 0 } {
+        set p1loc [get_db pin:$p1 .location]
+    } elseif { [ sizeof_collection [ get_ports -quiet $p1 ] ] > 0 } {
+        set p1loc [get_db port:$p1 .location]
+    } else {
+        puts "Please provide pin or port as 1st argument"
+    }
+    if { [ sizeof_collection [ get_pins -quiet $p2 ] ] > 0 } {
+        set p2loc [get_db pin:$p2 .location]
+    } elseif { [ sizeof_collection [ get_ports -quiet $p2 ] ] > 0 } {
+        set p2loc [get_db port:$p2 .location]
+    } else {
+        puts "Please provide pin or port as 2nd argument"
+    }
+    set x1 [ lindex [lindex $p1loc 0 ] 0]
+    set y1 [ lindex [lindex $p1loc 0 ] 1]
+    set x2 [ lindex [lindex $p2loc 0 ] 0]
+    set y2 [ lindex [lindex $p2loc 0 ] 1]
+    set dist [ expr [expr abs ($x2 -$x1)] + [ expr abs ($y2-$y1)] ]
+    return $dist
+}
+set fp [open "${DESIGN}_port_data.tcl" w]
+foreach p [ get_db [  get_db ports -if {.is_clock_used_as_clock == false} ] .name ] {
+       set max_dist 0 
+       set dir [ get_db port:$p .direction]
+       if { [ regexp in $dir] } {
+            set fout [ all_fanout -endpoints_only -from $p ] 
+            set pins [ get_db [get_db $fout -if {.obj_type == pin}] .name ] 
+            set port [ get_db [get_db $fout -if {.obj_type == port}] .name ]
+       } elseif { [ regexp  out $dir ] }  {
+            set fin [ all_fanin -startpoints_only -to $p ] 
+            set pins [ get_db [get_db $fin -if {.obj_type == pin}] .name ] 
+            set port [ get_db [get_db $fin -if {.obj_type == port}] .name ]
+       } else {
+            puts "Unknown direction for port $p"
+            set pins ""
+       }
+       if { [llength $pins] > 0 || [llength $port ] > 0  } {
+           foreach pin $pins {
+                set dist [_pin_distance $p $pin] 
+                if { $max_dist < $dist } {
+                    set max_dist $dist
+                }
+           }
+       #puts $fp "set ${DESIGN}_port_data($p) $max_dist"
+            puts $fp "dict set INTERBLOCK $DESIGN $p $max_dist"
+       } else {
+            puts "Unconnected port : $p"
+            puts $fp "dict set INTERBLOCK $DESIGN $p 0"
+       }
+}
+
+close $fp
