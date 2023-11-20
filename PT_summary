@@ -1,0 +1,5 @@
+
+
+
+#less $argv[1] | awk '/Startpoint/ {printf $2" "} /Endpoint/ {printf $2" "} /Path Group/ {printf $3" "} /slack \(VIO/ {print $3}' | grep -v -e INPUTS -e OUTPUTS -e COMB_PATHS
+less $argv[1] | grep -A1 -e Startpoint -e Endpoint -e "Path Group" -e "slack (VIO" | awk '/Startpoint/ {printf $2" "}  /Endpoint/ {printf $2" "}  /clocked by/ {printf $NF" "}  /Path Group/ {printf $3" "} /slack \(VIO/ {print $3}' | sed -ne 's,),,gp' 
