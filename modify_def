@@ -1,0 +1,97 @@
+procedure modify_def {
+    -short_description "Remove VIAS section and power/ground ports."
+    -description "Removes entire VIAS section from def. from VIAS to END VIAS.
+                    Removes PORTS from power/ground ports, puts only direction and net."
+    -return
+    "Writes modified def."
+    -args {
+        {-def_fp
+            -type string
+            -description "In put def file. fp_def "
+            -mandatory
+        }
+        {-out_def
+            -type string
+            -description "Output def file."
+            -mandatory
+        }
+    }
+} {
+    # - If the diearea string has not be removed. do so now.
+    set fo [open $out_def w]
+    set fp [open $def_fp r]
+    if {[string match "*.gz" $def_fp]} {
+        # - Apply gzunzip decompression to the channel.
+        # - After this,  we can read the file as normal.
+        zlib push gunzip $fp
+    }
+   
+    while { [gets $fp line ] >= 0 } {
+        # -removing + PORTS from the nets which has USE POWER or GROUND
+        if { [regexp "^PINS" $line] } {
+                set line [ read_def_line -line $line -fp $fp ]
+                puts $fo $line
+                while { [gets $fp line ] >= 0 } {
+                        set line [ read_def_line -line $line -fp $fp ]
+                        set use [ lindex $line [ expr [ lsearch $line "USE" ] + 1 ] ]
+                        set obj [lindex $line 1]
+                        set skip 0
+                        if {  $use == "POWER" || $use == "GROUND" } {
+                                set skip 1
+                        }
+                        if { $skip == 0 } {
+                                puts $fo $line
+                        } else {
+                                puts $fo "- $obj + NET $obj + SPECIAL + DIRECTION INOUT + USE $use ;"
+                                puts "Skipping $obj"
+                        }
+                        if { [regexp "^END PINS" $line ] } {
+                                break
+                        }
+                }
+        # Removing VIAS section 
+        } elseif { [regexp "^VIAS" $line] } {
+                while { [gets $fp line ] >= 0 } {
+                        if { [regexp "^END " $line ] } {
+                                break
+                        }
+                }
+        } else {
+                puts $fo $line
+        }
+    }
+    close $fp
+    close $fo
+
+}
+
+procedure read_def_line {
+    -description "Only print" 
+    -return "full line upto ;"
+    -args {
+        { -line
+            -type string
+            -description "line to print"
+            -mandatory
+        }
+        { -fp
+            -type file
+            -description "File handler"
+            -mandatory
+        }
+    }
+} {
+    if { [regexp "^END" $line] || [ regexp ";" $line ] } {
+        set ret_line $line
+    } else {
+        set tmpline $line
+        while { [gets $fp line] >= 0 } {
+            set tmpline [ join "$tmpline $line" " " ]
+            if { [regexp ";" $line ] } {
+                break
+            }
+        }
+        set ret_line $tmpline
+    }
+    return $ret_line
+}
