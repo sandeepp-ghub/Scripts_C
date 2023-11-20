@@ -1,0 +1,24 @@
+
+set blocks [ list mio ]
+set gray_cells [ get_cells *rank_stage0* -hierarchical ]
+set total [ sizeof_collection $gray_cells ]
+puts "total : $total"
+sh rm -rf *_gray_cell.list
+foreach blk $blocks {
+    set fp [open "${blk}_gray_cell.list" w ]
+    set i 0
+    set inst [ get_object_name [ get_cells -filter "ref_name==$blk" ] ]
+        foreach_in_collection c $gray_cells {
+            set name [get_object_name $c]
+            set ref [get_attribute [all_fanin -startpoints_only -flat -trace_arcs all -to ${name}/D -only_cells ] ref_name ]
+            set count [sizeof_collection [ all_fanin -startpoints_only -flat -trace_arcs all -to ${name}/D -only_cells  ] ]
+            if { [regexp  "${inst}/" $name] && ![ regexp "tie" $ref ]  && $count > 0 } {
+                incr i
+                puts $fp $name
+            }
+        }
+    puts "\t$blk : $i"
+    close $fp
+}
+#sh rm iocx_gray.list
+#sh cat *.list | sed -ne 's/bit_[0-9]\+__rank_stage0/bit_*__rank_stage0/gp' | sort -u > iocx_gray.list
