@@ -1,0 +1,125 @@
+set fo [open "cdns_case_analysis.rpt" w ]
+
+
+
+foreach hier { iocx_mio_mio/U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/ iocx_mio_mio/U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/  } {
+
+foreach {value pat} {
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll_lpbk/lpbk_internal_reg/Q
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dqs/hic_io_dqs_mux/hic_dnt_mux2/S
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dqs/hic_io_wrdqs_mux/hic_dnt_mux2/S
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_line*/sel[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_line*/sel[0]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_line*/sel_prev[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_line*/sel_prev[1]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_line*/togg[*]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_control_slice_wr/add_half_clock
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_control_slice_wr_dqs/add_half_clock
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/hic_dll_xor_clk_wr_dqs_sd_ctrl_sel/i1
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/hic_dll_xor_clk_wr_dqs/i2
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_datacell_*_adder_slv/dll_adder_delay_line/sel[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_datacell_*_adder_slv/dll_adder_delay_line/sel[0]
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_datacell_*_adder_slv/dll_adder_delay_line/sel_prev[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_datacell_*_adder_slv/dll_adder_delay_line/sel_prev[1]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_datablk/clkdqs_*_adder_slv/dll_adder_delay_line/sel[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_datablk/clkdqs_*_adder_slv/dll_adder_delay_line/sel[0]
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_datablk/clkdqs_*_adder_slv/dll_adder_delay_line/sel_prev[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_datablk/clkdqs_*_adder_slv/dll_adder_delay_line/sel_prev[1]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_cmdcell_adder_slv/dll_adder_delay_line/sel[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_cmdcell_adder_slv/dll_adder_delay_line/sel[0]
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_cmdcell_adder_slv/dll_adder_delay_line/sel_prev[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_cmdcell_adder_slv/dll_adder_delay_line/sel_prev[1]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line/sel[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line/sel[0]
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line/sel_prev[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line/sel_prev[1]
+} { 
+    puts $fo  "# PAT :  ${hier}$pat "
+    foreach_in_collection pin  [ get_pins ${hier}$pat ]  {
+       set driver [ get_pins -quiet -of [get_nets -of $pin ] -leaf -filter "direction==out" ]
+       if { [sizeof_collection $driver]  != 0 } {
+            puts $fo "#\tPIN : [get_object_name $pin] "
+            set fin [ get_object_name [ get_pins [all_fanin -flat -to $pin  -trace_arcs all] -filter "full_name=~*/Q*" ]  ] 
+            if {[llength $fin] > 1 } {
+                set pname [get_object_name $pin]
+                puts $fo "$pname has more than 1 fanin $fin"
+            }
+            foreach qpin $fin {
+                   puts $fo "set_case_analysis $value  \[get_pins $qpin\]"
+            }
+      } else {
+          puts $fo "#No driver pin : [get_object_name $pin]"
+      }
+    }
+}
+}
+foreach hier {  iocx_mio_mio/emmc_wrap/emmc_top/cdns_combo_dll_phy/ } {
+
+foreach {value pat} {
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice_0/dll_lpbk/lpbk_internal_reg/Q
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dqs/hic_io_dqs_mux/hic_dnt_mux2/S
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dqs/hic_io_wrdqs_mux/hic_dnt_mux2/S
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_line*/sel[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_line*/sel[0]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_line*/sel_prev[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_line*/sel_prev[1]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_line*/togg[*]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_control_slice_wr/add_half_clock
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dll/dll_delay_control_slice_wr_dqs/add_half_clock
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_datacell_*_adder_slv/dll_adder_delay_line/sel[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_datacell_*_adder_slv/dll_adder_delay_line/sel[0]
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_datacell_*_adder_slv/dll_adder_delay_line/sel_prev[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_datacell_*_adder_slv/dll_adder_delay_line/sel_prev[1]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_datablk/clkdqs_*_adder_slv/dll_adder_delay_line/sel[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_datablk/clkdqs_*_adder_slv/dll_adder_delay_line/sel[0]
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_datablk/clkdqs_*_adder_slv/dll_adder_delay_line/sel_prev[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_datablk/clkdqs_*_adder_slv/dll_adder_delay_line/sel_prev[1]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_cmdcell_adder_slv/dll_adder_delay_line/sel[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_cmdcell_adder_slv/dll_adder_delay_line/sel[0]
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_cmdcell_adder_slv/dll_adder_delay_line/sel_prev[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/io_cmdcell_adder_slv/dll_adder_delay_line/sel_prev[1]
+
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line/sel[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line/sel[0]
+0  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line/sel_prev[*]
+1  Inst_flash_databahn_dll_phy/dll_phy_slice_core/data_slice*/dfi_read_cmdblk/clkdqs_adder_slv/dll_adder_delay_line/sel_prev[1]
+} { 
+    puts $fo  "# PAT :  ${hier}$pat "
+    foreach_in_collection pin  [ get_pins ${hier}$pat ]  {
+       set driver [ get_pins -quiet -of [get_nets -of $pin ] -leaf -filter "direction==out" ]
+       if { [sizeof_collection $driver]  != 0 } {
+            puts $fo "#\tPIN : [get_object_name $pin] "
+            set fin [ get_object_name [ get_pins [all_fanin -flat -to $pin  -trace_arcs all] -filter "full_name=~*/Q*" ]  ] 
+            if {[llength $fin] > 1 } {
+                set pname [get_object_name $pin]
+                puts $fo "$pname has more than 1 fanin $fin"
+            }
+            foreach qpin $fin {
+                   puts $fo "set_case_analysis $value  \[get_pins $qpin\]"
+            }
+      } else {
+          puts $fo "#No driver pin : [get_object_name $pin]"
+      }
+    }
+}
+}
+close $fo
