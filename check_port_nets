@@ -1,0 +1,55 @@
+
+
+proc pin_distance { pin1 pin2} {
+    set x1 [ get_db $pin1 .location.x ]
+    set y1 [ get_db $pin1 .location.y ]
+    set x2 [ get_db $pin2 .location.x ]
+    set y2 [ get_db $pin2 .location.y ]
+    set dis [ expr [ expr abs( $x1 - $x2) ] + [ expr abs ($y1-$y2) ] ]
+    return $dis
+}
+
+
+proc check_port_nets {threshold sinks} {
+    foreach port [get_db ports ] {
+        set dir [ get_db $port .direction ]
+        if { $dir == "out" } {
+            set pins [ get_db $port .net.drivers ]
+            set loads [ get_db $port .net.loads ]
+            set pins [concat $pins $loads]
+            set load_count [ llength $loads ]
+        } else {
+            set pins [ get_db $port .net.loads ]
+            set load_count [ llength $pins ]
+        }
+        set length 0
+        foreach lw [  get_db $port .net.wires.length ] {
+            set length [expr $length + $lw] 
+        }
+        if { $length >= $threshold } {
+            puts "Port\t: $port # Loads : $load_count # Wire length : $length " 
+        foreach pin $pins {
+            if { $pin != $port } { 
+            set dis [ pin_distance $pin $port]
+            puts "\t$pin  :  $dis"
+            }
+        }
+            puts ""
+        }
+    
+    }
+}
+
+
+proc check_clk_port {ckport} {
+    set layer [  get_db [get_db ports $ckport ]  .layer.name ]
+    set width [  get_db [get_db ports $ckport ]  .width ]
+    set length [  get_db [get_db ports $ckport ]  .depth ]
+    set net [ get_db [get_db ports $ckport ]  .net.name ]
+
+    set net_length 0
+        foreach lw [  get_db [ get_db ports $ckport ] .net.wires.length ] {
+            set net_length [expr $length + $lw]
+        }
+   puts "Clock port : $ckport\n\tLayer\t\t: $layer\n\tWidth\t\t: $width\n\tLength\t\t: $length\n\tNet length (excluding port length) : $net_length" 
+}
