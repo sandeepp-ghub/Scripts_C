@@ -1,0 +1,34 @@
+
+
+foreach {dskew inmcp inmcph outmcp outmcph inclk outclk inst} $fuse_specs {
+
+if {[regexp TRUENT $inst]} {
+        #set_false_path -to $inst/SAENP
+        #Turn off data checks:
+        set_disable_timing [ get_timing_arcs -from ${inst}/SETP -to $inst/CENA ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/VREADDAC[0] ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/VREADDAC[1] ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/VREADDAC[2] ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/VREADDAC[3] ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/MIEMA[0] ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/MIEMA[1] ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/MIEMA[2] ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/MIEMA[3] ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/MIEMA[4] ] 
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/MIEMA[5] ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/CENA -to $inst/MIEMA[6] ]
+
+} elseif {[regexp SWITCH $inst]} {
+
+        set_disable_timing [ get_timing_arcs -from ${inst}/UNLOCK -to ${inst}/RESETB ]
+        set_disable_timing [ get_timing_arcs -from ${inst}/SELECTH -to ${inst}/UNLOCK ]
+        set_false_path -to [get_pins -quiet $inst/PD]
+        set_false_path -to [get_pins -quiet $inst/PS]
+
+    } else {
+        #Turn off data checks:
+        set_false_path -to [get_pins -quiet $inst/PD]
+        set_false_path -to [get_pins -quiet $inst/PS]
+    }
+
+}
