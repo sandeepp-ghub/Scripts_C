@@ -1,0 +1,39 @@
+proc CHECK_TIE_CELL_NETS {length} {
+    puts "Net\t\t\t\t\tTotal Length\t\tFanout\t\tManhattan"
+set tie_cells [get_db [get_db insts -if {.base_cell.name == *tie*}] .name]
+set num_less_than_length 0
+set num_more_than_length 0
+foreach inst $tie_cells {
+#  set net [get_object_name [get_nets -of [get_pins -of $tcell -filter {direction == out}]]]
+set net [get_db [ get_db [get_db [get_db [get_db insts $inst] .pins]  -if {.direction == out}] .net] .name]
+if {$net != "" } {
+set tot_len 0
+
+set inst_loc_x [get_db [get_db insts $inst] .location.x]
+set inst_loc_y [get_db [get_db insts $inst] .location.y]
+
+ foreach len [get_db [get_db nets $net] .wires.length] { set tot_len [expr $tot_len + $len] }
+  set num_loads [get_db [get_db nets $net] .num_loads]
+  
+array unset mh
+  get_db [get_db nets $net] .loads -foreach {
+    set load_x [get_db [get_db pins $obj(.name)]  .inst.location.x]
+    set load_y [get_db [get_db pins $obj(.name) ] .inst.location.y]
+    set xd [expr abs([expr $inst_loc_x - $load_x])]
+    set yd [expr abs([expr $inst_loc_y - $load_y])]
+    set total [expr $xd + $yd]
+    lappend mh($net) "$total"
+  }
+
+  if {$tot_len > $length} {
+    puts "$net\t\t\t$tot_len\t\t\t$num_loads\t\t [  lsort -real -decreasing $mh($net)]"
+    incr num_more_than_length
+   } else {
+       incr num_less_than_length
+   }
+  }
+}
+puts "$num_more_than_length longer than $length"
+puts "$num_less_than_length shorter than $length"
+}
+
