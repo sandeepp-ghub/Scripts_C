@@ -1,0 +1,33 @@
+
+    delete_routes -net bts_pll__tap_mux
+    delete_obj  [ get_db route_blockages tp_analog_M12_blockage  ]
+    read_def ../config/DEFS/bts_pll__tap_mux.def
+
+    delete_routes -net  [ get_db  [get_obj_in_area -areas {675.648 323.596 926.007 538.608} -obj_type wire -layers M8  ] .net.name  ]
+    create_route_blockage -rects {675.648 323.396 926.007 538.808} -layers M8 -except_pg_nets -name AVS_N5P_M8_route_blockage_signal
+
+#LVD blockahge
+
+ set i 0
+foreach bbox [ get_db [get_db insts -if {.base_cell.name == LVD_ADC} ] .bbox ] {
+        foreach {llx lly urx ury} $bbox {}
+        set lly [expr $lly - 0.2]
+        set ury [expr $lly + 0.2]
+      create_route_blockage -layers {M5 M6} -except_pg_nets -name LVD_ADC_bottom_M5_M6_blockages_${i} -rects "$llx $lly $urx $ury"
+      incr i
+}
+set i 0
+foreach bbox [ get_db [get_db insts -if {.base_cell.name == LVD_ADC} ] .bbox ] {
+        foreach {llx lly urx ury} $bbox {}
+        set lly $ury
+        set ury [expr $lly + 0.2]
+      create_route_blockage -layers {M5 M6} -except_pg_nets -name LVD_ADC_bottom_M5_M6_blockages_${i} -rects "$llx $lly $urx $ury"
+      incr i
+}
+
+# BTS pll blockage
+
+set bbox [ get_db  [get_db insts -if {.base_cell.name == dual_pll} ] .bbox ] 
+    create_route_blockage -layers { M11 M12} -except_pg_nets -name bts_pll_M12_horizontal -rects  [ get_computed_shapes  [get_computed_shapes $bbox SIZEY 0.15 ] ANDNOT $bbox ] 
+    create_route_blockage -layers {M11 M12} -except_pg_nets -name bts_pll_M12_vertical -rects  [ get_computed_shapes  [get_computed_shapes $bbox SIZEX 0.25 ] ANDNOT $bbox ] 
+     
