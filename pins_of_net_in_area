@@ -1,0 +1,6 @@
+
+
+proc pins_of_net_from_area {net area} {
+  set pins [  get_db  [get_db  [get_obj_in_area -areas "$area" -obj_type pin  ] -if { .net.name == $net } ] .name ]
+  return $pins 
+}
