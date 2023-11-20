@@ -1,0 +1,88 @@
+
+puts "EMMC out "
+puts "Port          Setup  Hold "
+foreach p [ get_object_name [ get_ports emmc_dat[*] ] ]  {
+    set max_slk   [  get_attribute  [get_timing_paths -to $p ] slack ]
+    set min_slk   [  get_attribute  [get_timing_paths -to $p -delay_type min ] slack ]
+    puts "$p  $max_slk $min_slk"
+}
+
+puts ""
+puts "================================================================================================"
+puts ""
+
+puts "EMMC in "
+puts "Port          Setup  Hold "
+foreach p [ get_object_name [ get_ports emmc_dat[*] ] ]  {
+    set max_slk   [  get_attribute  [get_timing_paths -from $p ] slack ]
+    set max_ep   [ get_object_name  [  get_attribute  [get_timing_paths -from $p  ] endpoint ] ]
+    set min_slk   [  get_attribute  [get_timing_paths -from $p -delay_type min ] slack ]
+    set min_ep  [ get_object_name  [  get_attribute  [get_timing_paths -from $p -delay_type min ] endpoint ] ]
+    set hold_sw  [   get_attribute  [get_timing_paths -to $max_ep -delay_type min ] slack ] 
+    set setup_hw  [   get_attribute  [get_timing_paths -to $min_ep -delay_type max ] slack ] 
+    puts "$p  $max_slk $min_slk"
+    puts "\t setup ep : $hold_sw  $max_ep "
+    puts "\t hold  ep : $setup_hw $min_ep "
+}
+
+puts ""
+puts "================================================================================================"
+puts ""
+
+
+puts "XSPI0 out"
+puts "Port          Setup  Hold "
+foreach p [ get_object_name [ get_ports {gpio[16] gpio[17] gpio[18] gpio[19] gpio[20] gpio[21] gpio[22] gpio[23]} ] ]  {
+    set max_slk   [  get_attribute  [get_timing_paths -to $p ] slack ]
+    set min_slk   [  get_attribute  [get_timing_paths -to $p -delay_type min ] slack ]
+    puts "$p  $max_slk $min_slk"
+}
+
+puts ""
+puts "================================================================================================"
+puts ""
+puts "XSPI0 in"
+puts "Port          Setup  Hold "
+foreach p [ get_object_name [ get_ports {gpio[16] gpio[17] gpio[18] gpio[19] gpio[20] gpio[21] gpio[22] gpio[23]} ] ]  {
+    set max_slk   [  get_attribute  [get_timing_paths -from $p ] slack ]
+    set min_slk   [  get_attribute  [get_timing_paths -from $p -delay_type min ] slack ]
+    set max_ep   [ get_object_name [  get_attribute  [get_timing_paths -from $p  ] endpoint ] ]
+    set min_ep  [ get_object_name  [  get_attribute  [get_timing_paths -from $p -delay_type min ] endpoint ] ]
+    set hold_sw   [  get_attribute  [get_timing_paths -to $max_ep -delay_type min ] slack ] 
+    set setup_hw   [  get_attribute  [get_timing_paths -to $min_ep -delay_type max ] slack ] 
+    puts "$p  $max_slk $min_slk"
+    puts "\t setup ep : $hold_sw  $max_ep "
+    puts "\t hold  ep : $setup_hw $min_ep "
+}
+
+puts ""
+puts "================================================================================================"
+puts ""
+
+puts "XSPI1 out "
+puts "Port          Setup  Hold "
+foreach p [ get_object_name [ get_ports {gpio[30] gpio[31] gpio[32] gpio[33] gpio[34] gpio[35] gpio[36] gpio[37]} ] ]  {
+    set max_slk   [  get_attribute  [get_timing_paths -to $p ] slack ]
+    set min_slk   [  get_attribute  [get_timing_paths -to $p -delay_type min ] slack ]
+    puts "$p  $max_slk $min_slk"
+}
+
+puts ""
+puts "================================================================================================"
+puts ""
+puts "XSPI1 in "
+
+puts "Port          Setup  Hold "
+foreach p [ get_object_name [ get_ports {gpio[30] gpio[31] gpio[32] gpio[33] gpio[34] gpio[35] gpio[36] gpio[37]} ] ]  {
+    set max_slk   [  get_attribute  [get_timing_paths -from $p ] slack ]
+    set max_ep  [ get_object_name  [  get_attribute  [get_timing_paths -from $p  ] endpoint ] ]
+    set min_slk   [  get_attribute  [get_timing_paths -from $p -delay_type min ] slack ]
+    set min_ep  [ get_object_name  [  get_attribute  [get_timing_paths -from $p -delay_type min ] endpoint ] ]
+    set hold_sw   [  get_attribute  [get_timing_paths -to $max_ep -delay_type min ] slack ] 
+    set setup_hw   [  get_attribute  [get_timing_paths -to $min_ep -delay_type max ] slack ] 
+
+    puts "$p  $max_slk $min_slk"
+    puts "\t setup ep : $hold_sw  $max_ep "
+    puts "\t hold  ep : $setup_hw $min_ep "
+
+}
