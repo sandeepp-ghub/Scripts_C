@@ -1,0 +1,13 @@
+
+
+foreach f [ get_object_name [all_registers ] ] {
+        set fin [ get_object_name [  all_fanin -trace_arcs all -flat -startpoints_only -to  [  get_pins -leaf -of_objects $f -filter "direction==in" ] ] ]
+        set fout [ get_object_name [  all_fanout -trace_arcs all -flat -endpoints_only -from  [  get_pins -leaf -of_objects $f -filter "direction==out" ] ] ]
+        if { [ llength $fin ] == 0 } {
+            puts "No inputs $f"
+        }
+        if { [ llength $fout ] == 0 } {
+            puts "No outputs $f"
+        }
+
+}
