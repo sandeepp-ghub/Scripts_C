@@ -1,0 +1,47 @@
+date
+puts ""
+set_db ui_precision_timing 5
+
+set InternalWNS 0
+set InternalTNS 0
+set InternalNVP 0
+
+set InterfaceWNS 0
+set InterfaceTNS 0
+set InterfaceNVP 0
+#set max_path  [ llength [ get_db  [ get_db  [ get_db insts -if {.is_sequential==true}  ] .pins -if {.is_clock==0 && .direction==in} ] .name ] ]
+set max_path 10000000
+
+#set vio_paths [  get_db [ report_timing -to [ get_db  [ get_db  [ get_db insts -if {.is_sequential==true}  ] .pins -if {.is_clock==0 && .direction==in} ] .name ] -collection -max_paths $max_path ] -if {.slack < 0  } ]
+set vio_paths_i2r [  get_db [ report_timing -early -from [all_inputs ] -to [all_registers ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+set vio_paths_r2r [  get_db [ report_timing -early -from [all_registers ] -to [all_registers ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+set vio_paths_r2o [  get_db [ report_timing -early -from [all_registers ] -to [all_outputs ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+set vio_paths_i2o [  get_db [ report_timing -early -from [all_inputs ] -to [all_outputs ] -max_paths $max_path -collection  ]  -if {.slack < 0 } ]
+
+foreach p $vio_paths_r2r {
+
+    set slack [ get_db $p .slack ]
+    
+    set InternalTNS [expr $InternalTNS + $slack]
+    incr InternalNVP
+    if { $slack < $InternalWNS } {
+      set InternalWNS $slack
+    }
+}
+
+foreach p [concat $vio_paths_i2r $vio_paths_r2o $vio_paths_i2o] { 
+
+     set slack [ get_db $p .slack ]
+
+     set InterfaceTNS [expr $InterfaceTNS + $slack]
+     incr InterfaceNVP
+     if { $slack < $InterfaceWNS } {
+       set InterfaceWNS $slack
+     }
+}
+puts "Group      WNS      TNS     NVP "
+puts "Interanl  $InternalWNS $InternalTNS $InternalNVP"
+puts "Interface $InterfaceWNS $InterfaceTNS $InterfaceNVP"
+set_db ui_precision_timing 3
+puts ""
+date
