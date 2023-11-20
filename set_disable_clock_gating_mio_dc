@@ -1,0 +1,18 @@
+set fo [ open "set_disable_clock_gating_xspi_gpio.tcl" w ]
+
+foreach_in_collection clk [get_clocks XSPI*] {
+    set clk_name [ get_object_name $clk]
+    set sources [ get_object_name [ get_attribute -quiet [ get_clocks $clk ] sources ] ]
+
+    puts $fo "# Clock : $clk_name Source : $sources"
+    if { $sources != "" } {
+    foreach_in_collection cell [ get_cells [all_fanout -only_cells -flat -from $sources ] -filter "full_name=~*/gpio/* && full_name!~*act_filter* && full_name!~*flag_buf* && full_name!~*dft_bypass_fplat* && full_name!~*_false_path* && full_name!~*bts* && full_name!~*ptp* && full_name!~*clk* && full_name!~*drsync* && full_name!~*reg*"   ]  {
+        set cell_name [ get_object_name $cell ]
+        puts $fo "  set_disable_clock_gating_check $cell_name"
+    }
+    }
+}
+
+close $fo
+
+#source ./set_disable_clock_gating_xspi_gpio.tcl
