@@ -1,0 +1,17 @@
+
+ # delete_drc_markers
+# check_drc -check_only regular -limit 1000000 > /dev/null
+   set drc_insts [list ]
+   foreach mrkr [get_db markers -if {(.subtype==Metal_Short || .subtype==EndOfLine_Keepout) && .layer==*M1}] {
+      set mrkr_bbox [get_db $mrkr .bbox]
+      foreach i [get_db [get_obj_in_area -areas $mrkr_bbox -obj_type inst] -if {.base_cell.class==core && .base_cell.name == *tie*}] {
+          lappend drc_insts $i
+      }
+   }
+
+ for {set i 0} {$i <= [llength $drc_insts ] } {incr i 2 } { 
+    set inst [lindex $drc_insts $i]  
+    move_obj -direction left -distance 0.7 $inst
+ }
+#place_eco
+#route_eco
