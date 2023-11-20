@@ -1,0 +1,120 @@
+
+set xspi0 [list gpio[25] gpio[16] gpio[17] gpio[18] gpio[19] gpio[20] gpio[21] gpio[22] gpio[23] ]
+set xspi1 [list gpio[39] gpio[30] gpio[31] gpio[32] gpio[33] gpio[34] gpio[35] gpio[36] gpio[37] ]
+set emmc [list emmc_dqs emmc_dat[0] emmc_dat[1] emmc_dat[2] emmc_dat[3] emmc_dat[4] emmc_dat[5] emmc_dat[6] emmc_dat[7] ]
+
+puts  "DI to MIO side port.\n"
+set start 16
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DI" ]]
+    set ep "pad__blk_pi_gpio[$i]"
+     set_max_delay 0.500 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.450 -ignore_clock_latency -from $sp -to $ep
+}
+
+
+
+set temp_list [list ]
+set start 30
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DI" ]]
+    set ep "pad__blk_pi_gpio[$i]"
+     set_max_delay 0.500 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.450 -ignore_clock_latency -from $sp -to $ep
+}
+
+
+
+set temp_list [list ]
+set start 0
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports emmc_dat[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DI" ]]
+    set ep "pad__blk_pi_emmc_dat[$i]"
+     set_max_delay 0.180 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.130 -ignore_clock_latency -from $sp -to $ep
+}
+
+
+
+puts "MIO side port to DO.\n"
+
+set temp_list [list ]
+set start 16
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_po_gpio[$i]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO" ]]
+     set_max_delay 0.500 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.450 -ignore_clock_latency -from $sp -to $ep
+}
+
+
+set temp_list [list ]
+set start 30
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_po_gpio[$i]" 
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO" ]]
+     set_max_delay 0.500 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.450 -ignore_clock_latency -from $sp -to $ep
+}
+
+set temp_list [list ]
+set start 0
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_po_emmc_dat[$i]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports emmc_dat[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO" ]]
+     set_max_delay 0.180 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.130 -ignore_clock_latency -from $sp -to $ep
+}
+
+
+set temp_list [list ]
+set start 16
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_pe_gpio[$i]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO_EN" ]]
+     set_max_delay 0.500 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.450 -ignore_clock_latency -from $sp -to $ep
+}
+
+set temp_list [list ]
+set start 30
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_pe_gpio[$i]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports gpio[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO_EN" ]]
+     set_max_delay 0.500 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.450 -ignore_clock_latency -from $sp -to $ep
+}
+
+
+set temp_list [list ]
+set start 0
+for {set i $start} { $i < [expr $start + 8]} {incr i}  {
+    set sp "blk__pad_pe_emmc_dat[$i]"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports emmc_dat[$i] ] ] -leaf ] ]  -filter "lib_pin_name==DO_EN" ]]
+     set_max_delay 0.180 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.130 -ignore_clock_latency -from $sp -to $ep
+}
+
+set xspi_ctrl [list gpio[24] gpio[26] gpio[27] gpio[28] gpio[29] gpio[38] gpio[40] gpio[41] gpio[42] gpio[43] ]
+foreach port $xspi_ctrl {
+    set sp "blk__pad_po_${port}"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports $port ] ] -leaf ] ]  -filter "lib_pin_name==DO" ]]
+     set_max_delay 0.500 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.450 -ignore_clock_latency -from $sp -to $ep
+}
+
+foreach port $xspi_ctrl {
+    set sp "blk__pad_pe_${port}"
+    set ep [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports $port ] ] -leaf ] ]  -filter "lib_pin_name==DO_EN" ]]
+     set_max_delay 0.500 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.450 -ignore_clock_latency -from $sp -to $ep
+}
+
+foreach port $xspi_ctrl {
+    set ep "pad__blk_pi_${port}"
+    set sp [  get_object_name [get_pins -of [get_cells -of  [get_pins -of [get_nets -of [get_ports $port ] ] -leaf ] ]  -filter "lib_pin_name==DI" ]]
+     set_max_delay 0.500 -ignore_clock_latency -from $sp -to $ep
+     set_min_delay 0.450 -ignore_clock_latency -from $sp -to $ep
+}
+
+
