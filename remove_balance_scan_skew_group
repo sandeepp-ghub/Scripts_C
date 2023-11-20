@@ -1,0 +1,7 @@
+
+ get_db  skew_groups *scan* -foreach { 
+     set skgrp_name $obj(.name)
+     puts " Removing sinks from $skgrp_name "
+     set pins  [ get_db [get_db skew_groups $skgrp_name ] .sinks_active.name  ] 
+     update_skew_group -skew_group $skgrp_name -add_ignore_pins $pins
+ }
