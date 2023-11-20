@@ -1,0 +1,7 @@
+
+alias afin "all_fanin -flat -startpoints_only -trace_arcs all -to "
+alias afout "all_fanout -flat -endpoints_only -trace_arcs all -from "
+alias rt "report_timing -nets -input_pins -transition_time -nosplit -capacitance "
+alias rtm "report_timing -nets -input_pins -transition_time -nosplit -capacitance -delay_type min "
+alias rth "report_timing -nets -input_pins -transition_time -nosplit -capacitance -include_hierarchical_pins "
+alias rthm "report_timing -nets -input_pins -transition_time -nosplit -capacitance -delay_type min -include_hierarchical_pins "
