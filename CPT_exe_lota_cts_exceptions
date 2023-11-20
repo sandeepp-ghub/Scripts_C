@@ -1,0 +1,17 @@
+
+
+set input_pins lotx__lot_epci_inb*
+set output_pins lot__lotx_epci_outb* 
+
+foreach pin [ get_db  [get_db  [get_db  [ get_db  [all_fanout -from  [get_db ports $input_pins -if {.direction==in} ] -endpoints_only -only_cells   ] -if { .is_sequential  == true && .name != *latch* }  ] .pins  ] -if { .base_name == CP } ] .name ] {
+    set_db [get_db pins $pin] .cts_pin_insertion_delay -0.07
+}
+
+foreach pin [ get_db  [get_db  [get_db  [ get_db  [all_fanin -to  [get_db ports $output_pins -if {.direction==out} ] -startpoints_only -only_cells   ] -if { .is_sequential  == true && .name != *latch* }  ] .pins  ] -if { .base_name == CP } ] .name ] {
+    set_db [get_db pins $pin] .cts_pin_insertion_delay 0.07
+}
+set output_pins lot__lotx_dbg_data*
+
+foreach pin [ get_db  [get_db  [get_db  [ get_db  [all_fanin -to  [get_db ports $output_pins -if {.direction==out} ] -startpoints_only -only_cells   ] -if { .is_sequential  == true && .name != *latch* }  ] .pins  ] -if { .base_name == CP } ] .name ] {
+    set_db [get_db pins $pin] .cts_pin_insertion_delay 0.07
+}
