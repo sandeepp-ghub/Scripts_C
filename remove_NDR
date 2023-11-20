@@ -1,0 +1,4 @@
+
+
+set nets [get_db   [get_db  [all_fanout -from  [get_db  [ get_db  [get_db   [get_db  [get_db hinsts gpio/gpio ] .hports ]  -if {.direction == out && .name != *gser* } ] -if {.name != *pi*spi*dqs*} ]  .hnet.net.drivers.name  ] -trace_through all ]  ] .net.name ]
+foreach n $nets {set_route_attributes -nets $n -route_rule default }
