@@ -1,0 +1,24 @@
+
+
+##A_READ mode
+#   CSB STROBE LOAD PGENB PS PD MR RSB RWL TRCS
+#   0   1      1     1    0  0  0  0   0   0
+set_case_analysis 0 [get_pins efuse/bnk0_EFUSE/CSB ]
+set_case_analysis 1 [get_pins efuse/bnk0_EFUSE/LOAD ]
+set_case_analysis 1 [get_pins efuse/bnk0_EFUSE/PGENB ]
+set_case_analysis 0 [get_pins efuse/bnk0_EFUSE/PS ]
+set_case_analysis 0 [get_pins efuse/bnk0_EFUSE/PD ]
+set_case_analysis 0 [get_pins efuse/bnk0_EFUSE/MR ]
+set_case_analysis 0 [get_pins efuse/bnk0_EFUSE/RSB ]
+set_case_analysis 0 [get_pins efuse/bnk0_EFUSE/RWL ]
+set_case_analysis 0 [get_pins efuse/bnk0_EFUSE/TRCS ]
+
+set_case_analysis 0 [get_pins efuse/bnk1_EFUSE/CSB ]
+set_case_analysis 1 [get_pins efuse/bnk1_EFUSE/LOAD ]
+set_case_analysis 1 [get_pins efuse/bnk1_EFUSE/PGENB ]
+set_case_analysis 0 [get_pins efuse/bnk1_EFUSE/PS ]
+set_case_analysis 0 [get_pins efuse/bnk1_EFUSE/PD ]
+set_case_analysis 0 [get_pins efuse/bnk1_EFUSE/MR ]
+set_case_analysis 0 [get_pins efuse/bnk1_EFUSE/RSB ]
+set_case_analysis 0 [get_pins efuse/bnk1_EFUSE/RWL ]
+set_case_analysis 0 [get_pins efuse/bnk1_EFUSE/TRCS ]
