@@ -1,0 +1,1398 @@
+#!/usr/bin/env ipbu_perl
+
+use strict;
+use warnings;
+
+use CnUlogUtils;
+use Data::Dumper;
+use File::Basename;
+use File::stat;
+use File::Copy;
+use File::Find;
+use Getopt::Long;
+use File::Path qw(mkpath rmtree);
+use threads qw/yield/;
+use threads::shared;
+use Thread::Semaphore;
+
+$::Debug=0;
+my $commandline = join " ", $0, @ARGV;
+my $ctime;
+################################################################################################
+# Begin parsing input arguments
+# Parse command line arguments and set defaults
+################################################################################################
+my %opt;
+
+GetOptions("h|help"                                        =>    \$opt{help},
+	   "debug=i"                                       =>    \$::Debug,
+	   "dir=s"                                         =>    \$opt{dir},
+	   "tool=s"                                        =>    \$opt{tool},
+	   "tool_version=s"                                =>    \$opt{tool_version},
+	   "mkit_version=s"                                =>    \$opt{mkit_version},
+	   "num_cores=i"                                   =>    \$opt{num_cores},
+	   "mem_size=i"                                    =>    \$opt{mem_size},
+	   "queue=s"                                       =>    \$opt{queue},
+	   "flow_override=s"                               =>    \$opt{flow_override},
+	   "cfg_override=s"                                =>    \$opt{cfg_override},
+	   "delay_model=s"                                 =>    \$opt{delay_model},
+	   "pnr_blk_override_flat_paths=s"                 =>    \$opt{pnr_blk_override_flat_paths},
+	   "pnr_blk_override_paths=s"                      =>    \$opt{pnr_blk_override_paths},
+	   "partition_override_paths=s"                    =>    \$opt{partition_override_paths},
+	   "etm_override_paths=s"                          =>    \$opt{etm_override_paths},
+	   "set_msta_settings_to_values=s"                 =>    \$opt{set_msta_settings_to_values},
+	   "set_variables_to_values_at_runtime=s"          =>    \$opt{set_variables_to_values_at_runtime},
+	   "ptpx_inp_dir=s"                                =>    \$opt{ptpx_inp_dir},
+	   "block_flow_run"                                =>    \$opt{block_flow_run},
+	   "pnr_blk_timing"                                =>    \$opt{pnr_blk_timing},
+	   "signoff_timing_run"                            =>    \$opt{signoff_timing_run},
+	   "new_blk_setup"                                 =>    \$opt{new_blk_setup},
+	   "generate_exceptions_sdc"                       =>    \$opt{generate_exceptions_sdc},
+	   "zwlm_mode"                                     =>    \$opt{zwlm_mode},
+	   "run_ptpx"                                      =>    \$opt{run_ptpx},
+	   "ptpx_gatesim_vcd"                              =>    \$opt{ptpx_gatesim_vcd},
+	   "ptpx_emulation_vcd"                            =>    \$opt{ptpx_emulation_vcd},
+	   "ptpx_dont_allocate_clock_power_to_sequentials" =>    \$opt{ptpx_dont_allocate_clock_power_to_sequentials},
+	   "ptpx_use_fm_map_only"                          =>    \$opt{ptpx_use_fm_map_only},
+	   "ptpx_use_mb_map"                               =>    \$opt{ptpx_use_mb_map},
+	   "ptpx_block_cfg=s"                              =>    \$opt{ptpx_block_cfg},
+	   "ptpx_waves_dir=s"                              =>    \$opt{ptpx_waves_dir},
+    );
+
+###################################################################################
+# Globals Variables
+###################################################################################
+my $TOP_LVL_BLK;
+my $PROJECT=$ENV{MRVL_PROJECT};
+my $COMPMEM_ROOT;
+if (defined $ENV{COMPMEM_ROOT}) {
+    $COMPMEM_ROOT=$ENV{COMPMEM_ROOT};
+} else {
+    print "INFO: setting \$COMPMEM_ROOT to /proj/$ENV{MRVL_PROJECT}/compmem/$ENV{PHYSPROJLITE_PROJECT}\n";
+    $COMPMEM_ROOT="/proj/$ENV{MRVL_PROJECT}/compmem/$ENV{PHYSPROJLITE_PROJECT}";
+}
+my $found_error=0;
+if ($#ARGV < 0) {
+    print "Error: Block name was not given\n";
+    $found_error +=1;
+} else {
+    $TOP_LVL_BLK = $ARGV[0];
+}
+
+###################################################################################
+# temporary hack for old spef and missing m for negative extract temp
+###################################################################################
+my $acceptable_spef_names={};
+$acceptable_spef_names->{rcworstCCwTm40c}=["rcworstCCwT40c","rcworstm40c","rcworst40c"];
+$acceptable_spef_names->{cworstCCwTm40c}=["rcworstCCwTm40c","rcworstCCwT40c","rcworstm40c","rcworst40c"];
+$acceptable_spef_names->{rcworstCCwT125c}=["rcworstCCwTm40c","rcworstCCwT40c","rcworstm40c","rcworst40c"];
+$acceptable_spef_names->{rcworstm40c}=["rcworst40c"];
+$acceptable_spef_names->{rcbestCCbT125c}=["rcbest125c"];
+$acceptable_spef_names->{cbestCCbTm40c}=["cbestCCbT40c","rcbestCCbT125c","rcbest125c"];
+$acceptable_spef_names->{cbestCCbT125c}=["rcbestCCbT125c","rcbest125c"];
+$acceptable_spef_names->{rcworstCCw125c}=["rcworstCCwT125c","rcworstCCwTm40c","rcworstCCwT40c","rcworstm40c","rcworst40c"];
+$acceptable_spef_names->{rcbestCCbm40c}=["cbestCCbTm40c","cbestCCbT40c","rcbestCCbT125c","rcbest125c"];
+
+
+
+my @pnr_list;
+my @compmem_list;
+my @unk_list;
+my @ip_list;
+my @partitions_list;
+
+my $RUNDIR;
+my $cwd = `pwd`;
+chomp $cwd;
+if (defined $opt{dir}) {
+    if (-e $opt{dir}) {
+	if ($opt{dir} eq "." ) {
+	    $RUNDIR = $cwd;
+	} else {
+	    $RUNDIR = $opt{dir};
+	}
+    } else {
+	&sub_mkdir($opt{dir});
+	$RUNDIR = $opt{dir};
+    }
+} else {
+    $RUNDIR = $cwd;
+}
+my $mkit_version = $ENV{TIMING_MKIT_VERSION};
+if ($opt{mkit_version}) {
+    $mkit_version = $opt{mkit_version};
+}
+my $required_opts = [qw(tool tool_version num_cores mem_size queue )];
+# request half the number of num_cores in sg opt, as each physical core supports 2 threads
+my $actual_cores = int(($opt{num_cores}+1)/2);
+my $restore_max_actual_cores =2;
+if ($restore_max_actual_cores > $actual_cores) {
+    $restore_max_actual_cores = $actual_cores;
+}
+$found_error += &_check_required_opts($required_opts);
+
+if (defined($opt{set_variables_to_values_at_runtime})) {
+    UINFO(1,"$opt{set_variables_to_values_at_runtime}");
+    my @var_val_arr = split ',',$opt{set_variables_to_values_at_runtime};
+    if (scalar @var_val_arr % 2 != 0) {
+	print "Error, --set_variables_to_values_at_runtime does not have even number of comma separated elements\n";
+	$found_error += 1;
+    }
+}
+if (defined($opt{set_msta_settings_to_values})) {
+    UINFO(1,"$opt{set_msta_settings_to_values}");
+    my @var_val_arr = split ',',$opt{set_msta_settings_to_values};
+    if (scalar @var_val_arr % 2 != 0) {
+	print "Error, --set_msta_settings_to_values does not have even number of comma separated elements\n";
+	$found_error += 1;
+    }
+}
+if (defined($opt{pnr_blk_override_flat_paths})) {
+    my @override_arr= split ',',$opt{pnr_blk_override_flat_paths};
+    if (scalar @override_arr % 2 != 0) {
+	print "Error, --pnr_blk_override_flat_paths does not have even number of comma separated elements\n";
+	$found_error += 1;
+    }
+}
+if (defined($opt{pnr_blk_override_paths})) {
+    my @override_arr= split ',',$opt{pnr_blk_override_paths};
+    if (scalar @override_arr % 2 != 0) {
+	print "Error, --pnr_blk_override_paths does not have even number of comma separated elements\n";
+	$found_error += 1;
+    }
+}
+
+if (defined($opt{partition_override_paths})) {
+    my @override_arr= split ',',$opt{partition_override_paths};
+    if (scalar @override_arr % 2 != 0) {
+	print "Error, --partition_override_paths does not have even number of comma separated elements\n";
+	$found_error += 1;
+    }
+}
+
+if (!(defined($ENV{PROJ_MSTR_ACCNT}))) {
+    print "Error: Environment variable PROJ_MSTR_ACCNT is not defined, please run pp set to a physproj\n";
+    print "       You can run pp list to list all available physproj\n";
+}
+
+if ($found_error) {
+    print "\nError: Found error in arguments given, correct error and rerun\n\n";
+    exit(1);
+}
+$ctime=localtime();
+
+my $ipbu_perl_executable;
+
+my $PATH = $ENV{PATH};
+chomp $PATH;
+my @bin_paths = split(":",$PATH);
+foreach my $bin_path (@bin_paths) {
+    if ($bin_path =~ m%/perl_common/%) {
+	if (-e "$bin_path/ipbu_perl") {
+	    $ipbu_perl_executable =  "$bin_path/ipbu_perl";
+	}
+    }
+}
+chdir($RUNDIR);
+if (-e "$RUNDIR/.setup_timing_rundir.lock") {
+    print "Error: .setup_timing_rundir.lock file detected, aborting\n";
+    exit(1);
+} else {
+    system("touch $RUNDIR/.setup_timing_rundir.lock")
+}
+open (my $LOG,">setup_timing_rundir.log") || die "Cannot write to $RUNDIR/setup_timing_rundir.log\n";
+print $LOG "Command line:  [$ctime]\n";
+print $LOG "-------------\n";
+print $LOG "$commandline\n\n";
+print $LOG "Top Level Block      : $TOP_LVL_BLK\n";
+print $LOG "Timing Run Directory : $RUNDIR\n\n";
+
+print $LOG "Setting up directory structure ...\n";
+system("rm -rf inp");
+system("rm -rf reports");
+system("rm -rf ptpx");
+system("rm -rf misc_logs");
+&sub_mkdir("inp/partition","inp/pnr","inp/compmem","inp/ip","inp/etm","reports","ptpx","misc_logs");
+print $LOG "Done\n\n";
+###################################################################################
+# begin get tdb info
+###################################################################################
+
+print $LOG "Reading project level tdb setting\n";
+system("rm -f tdb_perl_hash_pl.txt");
+my $msta_setting_type;
+if ($opt{signoff_timing_run}) {
+    $msta_setting_type = "SIGNOFF";
+} else {
+    $msta_setting_type = "NONSIGNOFF";
+}
+my $tcl_err =`export PERL5LIB="";tclsh8.5 $ENV{TIMING_FLOW_ROOT}/tdb_util/write_tdb_perl_href_pl.tcl signoff $msta_setting_type > misc_logs/parse_tdb.log`;
+print $LOG $tcl_err;
+
+$::tdb_href ={};
+open (my $fh,"<tdb_perl_hash_pl.txt") || die "Cannot read tdb_perl_hash_pl.txt\n";
+while (<$fh>) {
+    eval $_;
+}
+close $fh;
+UINFO(1,$::tdb_href);
+
+# Modify msta settings values
+$::tdb_href->{MSTA_SETTINGS}{tool}=$opt{tool};
+$::tdb_href->{MSTA_SETTINGS}{tool_version}=$opt{tool_version};
+$::tdb_href->{MSTA_SETTINGS}{exit_on_error}=0;
+$::tdb_href->{MSTA_SETTINGS}{sgq}="$opt{queue}:${actual_cores}c:$opt{mem_size}m";
+if (defined $opt{set_msta_settings_to_values}) {
+    my @arr = split ",",$opt{set_msta_settings_to_values};
+    while (my ($var,$val) = splice(@arr,0,2)) {
+	if (defined $::tdb_href->{MSTA_SETTINGS}{$var}) {
+	    $::tdb_href->{MSTA_SETTINGS}{$var}=$val;
+	} else {
+	    # TODO: need to fix when we have MSTA_SETTINGS in tdb
+	    $::tdb_href->{MSTA_SETTINGS}{$var}=$val;
+	}
+    }
+}
+if ($opt{zwlm_mode}) {
+    $::tdb_href->{MSTA_SETTINGS}{zwlm}=1;
+}
+
+my $required_msta_settings=[qw(tool tool_version sgq)];
+my $optional_msta_settings =[qw(tool_version)];
+my $incomplete_scenarios_href = {};
+###################################################################################
+# done get tdb info
+###################################################################################
+
+# locate designs
+print $LOG "Locating design inputs ...\n";
+$::block_info_href={};
+my @verilogs;
+my %parasitics;
+my %sdcs;
+my $blackboxed_blocks={};
+
+my $blk_overrides={};
+
+if ($opt{pnr_blk_override_flat_paths}) {
+    my @arr = split ",",$opt{pnr_blk_override_flat_paths};
+    while (my ($blk,$path) = splice(@arr,0,2)) {
+	if (-e $path) {
+	    $blk_overrides->{flat_pnr}{$blk}=$path;
+	} else {
+	    print "Error: $path does not exist\n";
+	    exit(1);
+	}
+    }
+}
+if ($opt{pnr_blk_override_paths}) {
+    my @arr = split ",",$opt{pnr_blk_override_paths};
+    while (my ($blk,$path) = splice(@arr,0,2)) {
+	if (-e $path) {
+	    $blk_overrides->{pnr}{$blk}=$path;
+	} else {
+	    print "Error: $path does not exist\n";
+	    exit(1);
+	}
+    }
+}
+
+if ($opt{partition_override_paths}) {
+    my @arr = split ",",$opt{partition_override_paths};
+    while (my ($partition,$path) = splice(@arr,0,2)) {
+	if (-e $path) {
+	    $blk_overrides->{partition}{$partition}=$path;
+	} else {
+	    print "Error: $path does not exist\n";
+	    exit(1);
+	}
+    }
+}
+my $etm_overrides={};
+if ($opt{etm_override_paths}) {
+    my @arr = split ",",$opt{etm_override_paths};
+    while (my ($etm,$path) = splice(@arr,0,2)) {
+	if (-e $path) {
+	    $etm_overrides->{$etm}=$path;
+	} else {
+	    print "Error: $path does not exist\n";
+	    exit(1);
+	}
+    }
+}
+
+my $stdcell_track={};
+# create an empty sdc to make msta happy, actual sourcing of config will be done in ipbu_post_constraint.tcl
+system("touch $RUNDIR/inp/empty.sdc");
+
+if (!$opt{pnr_blk_timing}) {
+    if (defined $blk_overrides->{flat_pnr}{$TOP_LVL_BLK}) {
+	$opt{pnr_blk_timing}=1;
+    }
+    if (defined $blk_overrides->{pnr}{$TOP_LVL_BLK}) {
+	$opt{pnr_blk_timing}=1;
+    }
+}
+&_print_tee_log("-- DESIGN INPUT INFO --\n");
+
+if ($opt{pnr_blk_timing}) {
+    # setup for the case the top level is pnr block with override
+    if (defined $blk_overrides->{flat_pnr}{$TOP_LVL_BLK}) {
+	&_print_tee_log("DESIGN_INPUT:     (flat pnr override) $TOP_LVL_BLK  ->  $blk_overrides->{flat_pnr}{$TOP_LVL_BLK}\n");
+	&_setup_with_pnr_blk_flat_path($TOP_LVL_BLK,$blk_overrides->{flat_pnr}{$TOP_LVL_BLK});	
+    } elsif (defined $blk_overrides->{pnr}{$TOP_LVL_BLK}) {
+	&_print_tee_log("DESIGN_INPUT:     (pnr override)      $TOP_LVL_BLK  ->  $blk_overrides->{pnr}{$TOP_LVL_BLK}\n");
+	&_setup_with_pnr_blk_path($TOP_LVL_BLK,$blk_overrides->{pnr}{$TOP_LVL_BLK});
+    } else {
+	system("mkdir -p $RUNDIR/design_set/$TOP_LVL_BLK;cd $RUNDIR/design_set/$TOP_LVL_BLK;ipbu_ver.py -release_type PNR -update $TOP_LVL_BLK > $TOP_LVL_BLK.ipbu_ver.log");
+	if (-e "$RUNDIR/design_set/$TOP_LVL_BLK/design_set/$TOP_LVL_BLK") {
+	    my $design_path= `readlink -f $RUNDIR/design_set/$TOP_LVL_BLK/design_set/$TOP_LVL_BLK`;
+	    chomp $design_path;
+	    &_setup_with_pnr_blk_path($TOP_LVL_BLK,$design_path);
+	    &_print_tee_log("DESIGN_INPUT:     (ipbu_ver.py)      $TOP_LVL_BLK  ->  $design_path\n");
+	} else {
+	    &_print_tee_log("Error: Failed to find a release for $TOP_LVL_BLK to use for timing, exiting\n");
+	    exit(1);
+	}
+    }
+} else {
+    system("mkdir -p $RUNDIR/temp_design_set;cd $RUNDIR/temp_design_set;ipbu_ver.py -release_type PTN -hierarchy default -update $TOP_LVL_BLK > ../$TOP_LVL_BLK.hierarchy.ipbu_ver.log");
+    my $hier_versions={};
+    if (-e "$RUNDIR/temp_design_set/design_set") {
+	my @glob_out = glob("$RUNDIR/temp_design_set/design_set/*");
+	foreach my $f (@glob_out) {
+	    if (-l $f) {
+		my $bname = basename $f;
+		if ($bname eq "libset") {
+		    next;
+		}
+		my $full_path = `readlink -f $f`;
+		chomp $full_path;
+		my $release_type = &_find_type_of_release($full_path);
+		$hier_versions->{$release_type}{$bname}{designset_path}=$full_path;
+	    }
+	}
+	system("cd $RUNDIR/temp_design_set;ipbu_ver.py -release_type PTN -hierarchy default -clean $TOP_LVL_BLK > ../$TOP_LVL_BLK.hierarchy.ipbu_ver.clean.log");
+	system("rm -rf $RUNDIR/temp_design_set");
+	    
+    }
+    foreach my $partition (keys %{$blk_overrides->{partition}}) {
+	$hier_versions->{partition}{$partition}{partition_override}=$blk_overrides->{partition}{$partition};
+    }
+    foreach my $pnrblk (keys %{$blk_overrides->{pnr}}) {
+	$hier_versions->{pnr}{$pnrblk}{pnr_override}=$blk_overrides->{pnr}{$pnrblk};
+    }
+    foreach my $flatpnrblk (sort keys %{$blk_overrides->{flat_pnr} }) {
+	if (defined $hier_versions->{pnr}{$flatpnrblk}{pnr_override}) {
+	    &_print_tee_log("Error: both pnr override and flat pnr override found for $flatpnrblk, this is not allowed\n");
+	    exit(1);
+	}
+	$hier_versions->{pnr}{$flatpnrblk}{flat_pnr_override}=$blk_overrides->{flat_pnr}{$flatpnrblk};
+    }
+    if (!defined $hier_versions->{partition}{$TOP_LVL_BLK}) {
+	print "Error: No input directory found for top level partition $TOP_LVL_BLK\n";
+	exit(1);
+    } else {
+	foreach my $ptn (sort keys %{$hier_versions->{partition}}) {
+	    if (defined $hier_versions->{partition}{$ptn}{partition_override}) {
+		&_print_tee_log("DESIGN_INPUT:     (partition override)  $ptn  ->  $hier_versions->{partition}{$ptn}{partition_override}\n");
+		&_setup_with_partition_path($ptn,$hier_versions->{partition}{$ptn}{partition_override});		
+	    } elsif (defined $hier_versions->{partition}{$ptn}{designset_path}) {
+		&_print_tee_log("DESIGN_INPUT:     (ipbu_ver.py)         $ptn  ->  $hier_versions->{partition}{$ptn}{designset_path}\n");
+		&_setup_with_partition_path($ptn,$hier_versions->{partition}{$ptn}{designset_path});		
+	    }
+	}
+	foreach my $pnr (sort keys %{$hier_versions->{pnr}}) {
+	    if (defined $hier_versions->{pnr}{$pnr}{pnr_override}) {
+		&_print_tee_log("DESIGN_INPUT:     (pnr override)        $pnr  ->  $hier_versions->{pnr}{$pnr}{pnr_override}\n");
+		&_setup_with_pnr_blk_path($pnr,$hier_versions->{pnr}{$pnr}{pnr_override});		
+	    } elsif (defined $hier_versions->{pnr}{$pnr}{flat_pnr_override}) {
+		&_print_tee_log("DESIGN_INPUT:     (flat pnr override)   $pnr  ->  $hier_versions->{pnr}{$pnr}{flat_pnr_override}\n");
+		&_setup_with_pnr_blk_flat_path($pnr,$hier_versions->{pnr}{$pnr}{flat_pnr_override});		
+	    } elsif (defined $hier_versions->{pnr}{$pnr}{designset_path}) {
+		&_print_tee_log("DESIGN_INPUT:     (ipbu_ver.py)         $pnr  ->  $hier_versions->{pnr}{$pnr}{designset_path}\n");
+		&_setup_with_pnr_blk_path($pnr,$hier_versions->{pnr}{$pnr}{designset_path});		
+	    }	    
+	}
+    }    
+}
+
+my $remove_stdcell_track="";
+foreach my $track (qw(h280 h210)) {
+    if (!defined $stdcell_track->{$track}) {
+	$remove_stdcell_track=$track;
+    }
+}
+
+# TODO: Found hierarchy of block
+# similar code to gen_hierarchy_csv.pl needed
+# For now
+
+chdir($RUNDIR);
+my $lib_or_db;
+if ($opt{tool} eq "PT") {
+    $lib_or_db= "DB";
+} elsif ($opt{tool} eq "TEMPUS") {
+    $lib_or_db= "LIB";
+}
+
+foreach my $scenario (sort keys %{$::tdb_href->{SCENARIOS}}) {
+    foreach my $libcell (sort keys %{$::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}}) {
+	my $lib = $::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}{$libcell};
+
+	if ($lib=~m%/IP/%) {
+
+	    if (defined($blackboxed_blocks->{IP}{$libcell})) {
+		$blackboxed_blocks->{IP}{$libcell}="FOUND_LIB";
+	    } else {
+		print $LOG "INFO: Removing $libcell from lib list as it is not used\n";
+		delete $::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}{$libcell};
+	    }
+	}
+    }
+}
+
+foreach my $block (keys %{$blackboxed_blocks->{IP}}) {
+    if ($blackboxed_blocks->{IP}{$block} ne "FOUND_LIB") {
+	&_print_tee_log("Warning: Did not find any lib for blackboxed block $block\n");
+    }
+}
+my $lib_attr = {};
+foreach my $opcond (keys %{$::tdb_href->{LIBSET}}) {
+    foreach my $libcell (keys %{$::tdb_href->{LIBSET}{$opcond}{$lib_or_db}}) {
+	foreach my $model_type (keys %{$::tdb_href->{LIBSET}{$opcond}{$lib_or_db}{$libcell}}) {
+	    foreach my $is_lvf (keys %{$::tdb_href->{LIBSET}{$opcond}{$lib_or_db}{$libcell}{$model_type}}) {
+		my $lvf_str = ($is_lvf eq "lvf_true") ? "_lvf" :"";
+		my $lib = $::tdb_href->{LIBSET}{$opcond}{$lib_or_db}{$libcell}{$model_type}{$is_lvf}{FILE};
+		$lib_attr->{$lib}{opcond}=$opcond;
+		$lib_attr->{$lib}{libcell}=$libcell;
+		$lib_attr->{$lib}{model_type}=$model_type;
+		$lib_attr->{$lib}{lvf_str}=$lvf_str;
+	    }
+	}
+    }
+}
+my $lib_cell_attr = {};
+foreach my $scenario (sort keys %{$::tdb_href->{SCENARIOS}}) {
+    foreach my $libcell (sort keys %{$::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}}) {
+	$lib_cell_attr->{$libcell}{COMPLETE}=1;
+    }
+}
+&_print_tee_log("\nChecking lib mapping across scenarios\n\n");	 
+foreach my $libcell (sort keys %{$lib_cell_attr}) {
+    foreach my $scenario (sort keys %{$::tdb_href->{SCENARIOS}}) {
+	my $opcond = $::tdb_href->{SCENARIOS}{$scenario}{OPCOND};
+	if (!defined($::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}{$libcell})) {
+	    $lib_cell_attr->{$libcell}{COMPLETE}=0;
+	    &_print_tee_log("WARNING: $libcell is not mapped for $scenario, it will be removed from other scenarios as it will be a problem for dmsa runs\n");	    
+	}
+    }
+}
+&_print_tee_log("\n");		
+UINFO(2,\$lib_attr);
+if ($opt{delay_model}) {
+    if ($opt{delay_model} eq "ccs") {
+	$opt{delay_model}="ccs_lvf";
+    }
+    &_print_tee_log("Attempting to map default libs to the preferred type $opt{delay_model}\n");
+    &_print_tee_log("(Will still be using NLDM model for compiled memories)\n");
+    	
+    foreach my $scenario (sort keys %{$::tdb_href->{SCENARIOS}}) {
+	my $opcond = $::tdb_href->{SCENARIOS}{$scenario}{OPCOND};
+	foreach my $libcell (sort keys %{$::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}}) {
+	    my $lib = $::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}{$libcell};
+	    if (defined($lib_attr->{$lib}{model_type}) && defined($lib_attr->{$lib}{lvf_str}) && defined($lib_attr->{$lib}{opcond})) {
+		my $olib_type = $lib_attr->{$lib}{model_type};
+		my $olib_lvf_str=$lib_attr->{$lib}{lvf_str};	    
+		my $olib_opcond = $lib_attr->{$lib}{opcond};
+		if ("$olib_type$olib_lvf_str" eq $opt{delay_model}) {
+		    print $LOG "INFO: No need to map $lib\n";
+		} else {
+		    my $map_to = &_map_libdb_type($libcell,$olib_opcond,$opt{delay_model});
+		    if ($map_to eq "1") {
+			&_print_tee_log("Warning: Failed to map lib for $libcell $opcond from $olib_type$olib_lvf_str to $opt{delay_model}\n");
+		    } else {
+			print $LOG "INFO: MAPPING  $lib -> $map_to\n";
+			$::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}{$libcell}= $map_to;
+		    }
+		}
+	    } else {
+		&_print_tee_log("Error: $lib does not have needed attribute in the libset to be mapped");
+	    }
+	}
+    }
+    &_print_tee_log("Done mapping\n");
+}
+foreach my $etm (sort keys %{$etm_overrides}) {
+    if (-e $etm_overrides->{$etm}) {
+	system("ln -ns $etm_overrides->{$etm} $RUNDIR/inp/etm/$etm");
+	my $lib_or_db_lc = lc($lib_or_db);
+	foreach my $scenario (sort keys %{$::tdb_href->{SCENARIOS}}) {
+	    my $scenario_full_name = $::tdb_href->{SCENARIOS}{$scenario}{FULLNAME};
+	    my $opcond = $::tdb_href->{SCENARIOS}{$scenario}{OPCOND};
+	    if (-e "$RUNDIR/inp/etm/$etm/$lib_or_db_lc/${etm}_$scenario_full_name.$lib_or_db_lc") {
+		$::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}{$etm}="\$DIR/inp/etm/$etm/$lib_or_db_lc/${etm}_$scenario_full_name.$lib_or_db_lc";
+	    } else {
+		&_print_tee_log("Warning: Failed to find etm file $RUNDIR/inp/etm/$etm/$lib_or_db_lc/${etm}_$scenario_full_name.$lib_or_db_lc\n");
+		$incomplete_scenarios_href->{$scenario}{missing_etm}{$etm}=1;
+	    }
+	}
+    } else {
+	&_print_tee_log("Error: etm_override_path  $etm_overrides->{$etm} does not exist\n");
+	exit(1);
+    }
+}
+
+foreach my $block (keys %{$blackboxed_blocks->{COMPMEM}}) {
+    foreach my $scenario (sort keys %{$::tdb_href->{SCENARIOS}}) {
+	my $opcond = $::tdb_href->{SCENARIOS}{$scenario}{OPCOND};
+	my ($p,$v,$t);
+	if ($opcond =~ /([a-z]*)(\d+p?\d*v)(.+)/) {
+	    ($p,$v,$t)=($1,$2,$3);
+
+	    $v =~ s/(p\d*?[1-9])0+/$1/;
+	    $v =~ s/v$//;
+	    my $libdb = lc($lib_or_db);
+	    my $found_lib=0;
+	    if ($block =~ /^tprf_/ || $block =~ /^tprfs_/) {
+		if ($p eq "ssgnp") { $p = "ssgnp_ccwt"}
+		if ($p eq "ffgnp") { $p = "ffgnp_ccbt"}
+		$t =~ s/m/n/;
+		# handle missing lib for ssgnp 0p855v 125c		
+		if ($p eq "ssgnp_ccwt" && $v eq "0p855" && $t eq "125c") {
+		    $p = "tt";
+		    $v = "0p85";
+		    $t = "85c";
+		}
+		my @libs = glob("inp/compmem/$block/$libdb/${block}_$p${v}*v$t.$libdb*");
+		foreach my $lib (@libs) {
+		    if ($lib =~ m%inp/compmem/$block/$libdb/${block}_${p}${v}0*v${t}\.(db|lib(|.gz))$%) {
+			print $LOG "INFO: Adding $lib to lib list\n";
+			$::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}{$block} = "\$DIR/$lib";
+			$found_lib=1;
+			last;			
+		    }
+		}
+		
+	    } else {
+		my $rc_corner;
+		if ($p eq "ssgnp") { $rc_corner = "cworst_ccworst_t"}
+		if ($p eq "ffgnp") { $rc_corner = "cbest_ccbest"}
+		if ($p eq "tt") { $rc_corner = "typical"}
+		my @libs = glob("inp/compmem/$block/$libdb/${block}_${p}_${v}*v_${t}_$rc_corner.$libdb*");
+		foreach my $lib (@libs) {
+		    if ($lib =~ m%inp/compmem/$block/$libdb/${block}_${p}_${v}0*v_${t}_${rc_corner}\.(db|lib(|.gz))$%) {
+			print $LOG "INFO: Adding $lib to lib list\n";
+			$::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}{$block} = "\$DIR/$lib";
+			$found_lib=1;
+			last;			
+		    }
+		}
+	    }
+	    if (!$found_lib) {
+		&_print_tee_log("Error: Failed to find a $libdb of $block for opcond $opcond\n");
+	    }
+	    
+	    
+	} else {
+	    &_print_tee_log("Error: opcond $opcond does not fit the expected format to find lib for compiled memory\n");
+	}
+    }
+}
+UINFO(1,$blackboxed_blocks);
+
+print $LOG "Done\n\n";
+
+UINFO(1,\%parasitics);
+UINFO(1,\%sdcs);
+print $LOG "Setting up flow scripts and timing config ...\n";
+if (defined $opt{flow_override}) {
+    if (-d $opt{flow_override}) {
+	my $lc_tool = lc $opt{tool};
+	system("ln -nfs $opt{flow_override}/ipbu_${lc_tool}_scripts timing_scripts");
+    } else {
+	print "Error: --flow_override is given, but the path is not valid\n";
+	exit;
+    }
+} else {
+    my $lc_tool = lc $opt{tool};
+    system("cp -r $ENV{TIMING_SCRIPT_ROOT} timing_flow_tsmcn5;chmod g+w --recursive timing_flow_tsmcn5");
+    system("ln -nfs timing_flow_tsmcn5/ipbu_${lc_tool}_scripts timing_scripts");
+}
+if (defined $opt{cfg_override}) {
+    if (-d $opt{cfg_override}) {
+	system("ln -nfs $opt{cfg_override} timing_configs");
+    } else {
+	print "Error: --cfg_override is given, but the path is not valid\n";
+	exit;
+    }
+} else {
+    &_check_out_cfg();
+    if ($opt{new_blk_setup}) {
+	&_create_file_structure();
+    }
+}
+print $LOG "Done\n\n";
+
+print $LOG "Creating snapshot of timing flows ...\n";
+system("mkdir .timing_flow_snapshot");
+system("tar -C $ENV{TIMING_FLOW_ROOT} --exclude=.svn --transform 's,^\.,timing_flow_wrapper,' -zcf .timing_flow_snapshot/timing_flow_wrapper.tgz .");
+system("tar -C $ENV{TIMING_SCRIPT_ROOT} --exclude=.svn --transform 's,^\.,timing_flow_tsmcn5,' -zcf .timing_flow_snapshot/timing_flow_tsmcn5.tgz .");
+
+print $LOG "Done\n\n";
+my @complete_scenarios;
+&_print_tee_log("\nINFO: checking missing inputs for scenarios\n\n");
+foreach my $scenario (sort keys %{$::tdb_href->{SCENARIOS}}) {
+    if (defined ($incomplete_scenarios_href->{$scenario})) {
+	&_print_tee_log("\#\# WARNING \#\#: $scenario has incomplete data for this run, it cannot be run\n");
+	foreach my $missing_input (sort keys %{$incomplete_scenarios_href->{$scenario}}) {
+	    foreach my $missing_input_detail (sort keys %{$incomplete_scenarios_href->{$scenario}{$missing_input}}) {
+		&_print_tee_log("\#\# WARNING \#\#: MISSING $scenario $missing_input $missing_input_detail\n");
+	    }
+	}
+    } else {
+	push @complete_scenarios,$scenario;
+    }
+}
+&_print_tee_log("\nComplete scenarios:\n");
+foreach my $scenario (@complete_scenarios) {
+    &_print_tee_log("    $scenario\n");
+}
+&_print_tee_log("\n");
+# begin writing execution scripts
+print $LOG "Writing msta config files ...\n";
+&_write_msta_conf_vars_tcl();
+&_write_msta_run_vars_tcl();
+print $LOG "Done\n";
+foreach my $scenario (@complete_scenarios) {
+    print $LOG "Writing run and restore script for $scenario ...\n";
+    &_write_mstarun_script("run",$scenario,$::tdb_href->{SCENARIOS}{$scenario}{FULLNAME});
+    &_write_mstarun_script("restore",$scenario,$::tdb_href->{SCENARIOS}{$scenario}{FULLNAME});
+    print $LOG "Done\n\n";
+}
+
+$ctime = localtime();
+print $LOG "\nTiming rundir setup is done [$ctime]\n";
+exit(0);
+
+###################################################################################
+# Subroutines
+###################################################################################
+# Easier way to create sub directorys
+sub sub_mkdir{
+    foreach my $dir (@_) {
+	system("rm -rf $dir");
+	mkpath("$dir",{verbose => 0 ,mode => 0777});
+    }
+}
+sub _check_required_opts {
+    my $opt_aref = shift;
+    my $found_error=0;
+    foreach my $opt_name (@{$opt_aref}) {
+	if (!(defined $opt{$opt_name})) {
+	    print "Error: required opt --$opt_name is not given\n";
+	    $found_error=1;
+	} else {
+	    if ($opt_name eq "queue") {
+		my @matches = grep {/^$opt{$opt_name}$/} qw(short normal long);
+		if (scalar @matches == 0) {
+		    print "Error: --queue can only take short,normal or long\n";
+		    $found_error=1;
+		}
+	    }
+	    if ($opt_name eq "tool") {
+		my @matches = grep {/^$opt{$opt_name}$/} qw(PT TEMPUS);
+		if (scalar @matches == 0) {
+		    print "Error: --tool can only take PT or TEMPUS\n";
+		    $found_error=1;
+		}
+	    }
+	    if ($opt_name eq "mem_size" || $opt_name eq "num_cores") {
+		if ($opt{$opt_name} == 0) {
+		    print "Error: --$opt_name cannot be 0\n";
+		    $found_error=1;
+		}
+	    }
+	}
+    }
+    return $found_error;
+}
+sub _write_msta_conf_vars_tcl {
+    open (my $conf_vars_fh,">msta_conf_vars.tcl") || die "Cannot write to msta_conf_vars.tcl\n";
+    print $conf_vars_fh "\n";
+    print $conf_vars_fh "set PROCESS $::tdb_href->{PROCESS}\n\n";
+    print $conf_vars_fh "set TOP $TOP_LVL_BLK\n\n";
+    print $conf_vars_fh "set SEARCHPATH {}\n\n";
+
+    print $conf_vars_fh "array set LIBCORNERS [list \\\n";
+
+    foreach my $scenario (@complete_scenarios) {
+	my $opcond = $::tdb_href->{SCENARIOS}{$scenario}{OPCOND};
+	print $conf_vars_fh "    $opcond [list \\\n";
+	foreach my $libcell (sort keys %{$::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}}) {
+	    if (! defined($lib_cell_attr->{$libcell}{COMPLETE}) || $lib_cell_attr->{$libcell}{COMPLETE}) {
+		my $lib = $::tdb_href->{SCENARIOS}{$scenario}{$lib_or_db}{$libcell};
+		
+		if ($lib =~ m%/stdlib/% && $remove_stdcell_track ne "") {
+		    if ($lib =~ m%/$remove_stdcell_track/%) {
+		    } else {
+			print $conf_vars_fh "        $lib \\\n";
+			
+		    }
+		} else {
+		    print $conf_vars_fh "        $lib \\\n";
+		}
+	    } else {
+		&_print_tee_log("WARNING: $libcell removed for $scenario as it does not have libs mapped for all scenarios\n");
+	    }
+	}
+	print $conf_vars_fh "    ] \\\n";
+    }
+    print $conf_vars_fh "]\n\n";
+    print $conf_vars_fh "set LEFS [list \\\n";
+    print $conf_vars_fh "]\n\n";
+    print $conf_vars_fh "set DEFS [list \\\n";
+    print $conf_vars_fh "]\n\n";
+    print $conf_vars_fh "array set VERILOG [list \\\n";
+    foreach my $v (sort @verilogs) {
+	print $conf_vars_fh "    $v \\\n";
+    }
+    print $conf_vars_fh "]\n\n";
+
+    print $conf_vars_fh "array set PARASITICS [list \\\n";
+    foreach my $key (sort keys %parasitics) {
+	print $conf_vars_fh "    $key $parasitics{$key} \\\n";
+    }
+    print $conf_vars_fh "]\n\n";
+
+    print $conf_vars_fh "array set CONSTRAINTS [list \\\n";
+
+    print $conf_vars_fh "    $TOP_LVL_BLK.\@ALL \$DIR/inp/empty.sdc \\\n";
+    
+    print $conf_vars_fh "]\n\n";
+    close $conf_vars_fh;
+}
+sub _write_msta_run_vars_tcl {
+    open (my $run_vars_fh,">msta_run_vars.tcl") || die "Cannot write msta_run_vars.tcl\n";
+    print $run_vars_fh "array set mSTA_SETTINGS {\n";
+    my @scenarios;
+    foreach my $scenario (@complete_scenarios) {
+	my $mode = $::tdb_href->{SCENARIOS}{$scenario}{MODE};
+	my $opcond = $::tdb_href->{SCENARIOS}{$scenario}{OPCOND};
+	my $rc_corner = $::tdb_href->{SCENARIOS}{$scenario}{RC};
+
+	push @scenarios,"$scenario\_$mode\_$opcond\_$rc_corner";
+    }
+    my $scenarios_str = join " ",@scenarios;
+
+    print $run_vars_fh "  -scenarios {$scenarios_str}\n";
+    foreach my $attr_name (sort keys %{$::tdb_href->{MSTA_SETTINGS}}) {
+	if ($attr_name !~ /^eco_/) {
+	    my $val = $::tdb_href->{MSTA_SETTINGS}{$attr_name};
+	    if ($val eq "") {
+		$val = "{}";
+	    }
+	    print $run_vars_fh "  -$attr_name $val\n";
+	}
+    }
+    print $run_vars_fh "}\n\n";
+    print $run_vars_fh "set TOP $TOP_LVL_BLK\n\n";
+    print $run_vars_fh "set project $PROJECT\n\n";
+    print $run_vars_fh "set DIR \$::env(RUN_TIMING_DIR)\n\n";
+    print $run_vars_fh "set IPBU_PERL_EXECUTABLE \$::env(IPBU_PERL_EXECUTABLE)\n\n";
+    if ($opt{signoff_timing_run}) {
+	print $run_vars_fh "\nset PT_SIGNOFF_TIMING_RUN true\n\n";
+    }
+    if ($opt{pnr_blk_timing}) {
+	print $run_vars_fh "set PT_PNR_BLOCK_LEVEL_RUN true\n\n";
+    }
+    if ($opt{block_flow_run}) {
+	print $run_vars_fh "set PT_BLOCK_FLOW_RUN true\n\n";
+    } else {
+	if (! -d "/proj/$PROJECT/session") {
+	    &_print_tee_log("\nWARNING: /proj/$PROJECT/session does not exist, setting PT_SAVE_SESSION_LOCAL to true\n");
+	    print $run_vars_fh "set PT_SAVE_SESSION_LOCAL true\n\n";
+	}
+    }
+    foreach my $key (sort keys %sdcs) {
+	print $run_vars_fh "set PT_PNR_BLOCK_SDC($key) $sdcs{$key}\n";
+    }
+    print $run_vars_fh "\n";
+
+    
+    if ($opt{run_ptpx}) {
+	print $run_vars_fh "# Run ptpx step afte update timing\n";
+	print $run_vars_fh "set PT_RUN_PTPX true\n";
+	print $run_vars_fh "set PTPX_RPT_DIR reports_ptpx\n";
+    }
+    if ($opt{ptpx_inp_dir}) {
+	print $run_vars_fh "# Set where to find ptpx input collateral, and default report dir\n";
+	print $run_vars_fh "set PTPX_INP_DIR $opt{ptpx_inp_dir}\n";
+	
+    }
+    if ($opt{ptpx_gatesim_vcd}) {
+	print $run_vars_fh "# Using gatesim vdc in this run\n";
+	print $run_vars_fh "set PTPX_GATESIM_VDC true\n";
+    }
+    if ($opt{ptpx_emulation_vcd}) {
+	print $run_vars_fh "# Using emulation vdc in this run\n";
+	print $run_vars_fh "set PTPX_EMULATION_VDC true\n";
+    }
+    if ($opt{ptpx_dont_allocate_clock_power_to_sequentials}) {
+	print $run_vars_fh "# Do not allocate clock power to sequential\n";
+	print $run_vars_fh "set PTPX_DONT_ALLOCATE_CLOCK_POWER_TO_SEQUENTIALS true\n";
+    }
+    if ($opt{ptpx_use_fm_map_only}) {
+	print $run_vars_fh "# Use FM map only \n";
+	print $run_vars_fh "set PTPX_USE_FM_MAP_ONLY true\n";
+    }
+    if ($opt{ptpx_use_mb_map}) {
+	print $run_vars_fh "# Enabling Multibit mapping from Inv \n";
+	print $run_vars_fh "set PTPX_USE_MB_MAP true\n";
+    }
+
+    if ($opt{ptpx_block_cfg}) {
+	print $run_vars_fh "# User defined ptpx_block_config.tcl\n";
+	print $run_vars_fh "set PTPX_BLOCK_CFG $opt{ptpx_block_cfg}\n"; 
+    }
+    if ($opt{ptpx_waves_dir}) {
+	print $run_vars_fh "# PTPX waves area\n"; 
+	print $run_vars_fh "set PTPX_WAVES_DIR $opt{ptpx_waves_dir}\n"; 
+    }
+    print $run_vars_fh "\n";
+    if (defined $opt{set_variables_to_values_at_runtime}) {
+	print $run_vars_fh "\# User added runtime variables\n";
+	my @arr = split ",",$opt{set_variables_to_values_at_runtime};
+	while (my ($var,$val) = splice(@arr,0,2)) {
+	    print $run_vars_fh "set $var $val\n";
+	}
+	print $run_vars_fh "\n";
+    }
+    my $pnr_dir = "$RUNDIR/inp/pnr";
+    my $ip_dir = "$RUNDIR/inp/ip";
+    my $compmem_dir = "$RUNDIR/inp/compmem";
+    my $partitions_dir = "$RUNDIR/inp/partition";
+
+    chdir($pnr_dir);
+    @pnr_list = glob "*";
+
+    chdir($ip_dir);
+    @ip_list = glob "*";
+
+    chdir($compmem_dir);
+    @compmem_list = glob "*";
+
+    chdir($partitions_dir);
+    @partitions_list = glob "*";
+
+    print $run_vars_fh "set pnr_blks {\n";
+    foreach (@pnr_list) {
+	print $run_vars_fh "    $_ \n";
+    }
+    # loop thr inp/pnr dir
+    print $run_vars_fh "}\n\n";
+
+    print $run_vars_fh "set partitions {\n";
+    foreach (@partitions_list) {
+	print $run_vars_fh "    $_ \n";
+    }
+    # loop thr inp/partitions
+    print $run_vars_fh "}\n\n";
+
+    print $run_vars_fh "set custom_blks {\n";
+    # loop thr inp/custom ; clock macros and other custom blocks.
+    print $run_vars_fh "}\n\n";
+
+    print $run_vars_fh "set compmems {\n";
+    foreach (@compmem_list) {
+	print $run_vars_fh "    $_ \n";
+    }
+    print $run_vars_fh "}\n\n";
+    print $run_vars_fh "set external_ip_blks {\n";
+    foreach (@ip_list) {
+	print $run_vars_fh "    $_ \n";
+    }
+    # loop thr inp/ip
+    print $run_vars_fh "}\n\n";
+    print $run_vars_fh "set unknown_blks {\n";
+    print $run_vars_fh "}\n\n";
+
+
+    print $run_vars_fh "source \$DIR/timing_scripts/convert_msta_injection_procs_to_files.tcl\n\n";
+
+    close $run_vars_fh;
+    chdir($RUNDIR);
+}
+sub _write_mstarun_script {
+    my $purpose=shift;
+    my $scenario=shift;
+    my $fullname = shift;
+    my $restore_opt = ($purpose eq "restore") ? "-restore" : "";
+    my $sgq_opt =  ($purpose eq "restore") ?
+	"-sgq $opt{queue}:${restore_max_actual_cores}c:$opt{mem_size}m" :
+	"-sgq $opt{queue}:${actual_cores}c:$opt{mem_size}m";
+
+    open (my $run_script,">$purpose\_$scenario.script") || die "Cannot write $purpose\_$scenario.script\n";
+
+    print $run_script <<'EOF';
+#!/usr/local/bin/tcsh -f
+
+if (! $?PROJ_MSTR_ACCNT) then
+    echo "ERROR: PROJ_MSTR_ACCNT is not defined"
+    echo "   Please run pp set to a physproj and retry"
+    exit
+endif
+
+source /proj/cadinfr/app/bin/appalias.csh
+app init
+EOF
+    my $lc_tool = lc $opt{tool};
+    print $run_script "app add $lc_tool=$opt{tool_version}\n\n";
+
+    print $run_script "setenv RUN_TIMING_DIR \`ls -l /proc/\$\$/fd | sed -e \'s/\^\[\^/\]\*//' \\\n" ;
+    print $run_script "                          | grep \"$purpose\_$scenario.script\" \\\n";
+    print $run_script "                          | xargs dirname \\\n";
+    print $run_script "                          | xargs readlink -f\`\n\n";
+    if ($purpose eq "run") {
+	print $run_script "if (-f \$RUN_TIMING_DIR/$purpose\_$scenario.lock) then\n";
+	print $run_script "    echo \"Error: $purpose\_$scenario.lock detected, aborting\"\n";
+	print $run_script "    exit\n";
+	print $run_script "else\n";
+	print $run_script "    touch \$RUN_TIMING_DIR/$purpose\_$scenario.lock\n";
+	print $run_script "endif\n";
+    }
+    print $run_script "setenv IPBU_PERL_EXECUTABLE $ipbu_perl_executable\n\n";
+
+    if ($opt{tool} eq "PT" && $opt{tool_version} lt "O-2018.06-SP3") {
+	print $run_script "\nsetenv DEVEL 1\n\n";
+    }
+    
+    print $run_script "setenv VERSION_MKIT $mkit_version\n\n";
+    print $run_script <<'EOF';
+
+setenv MFLOW 1
+
+setenv PROJ_LIBSET_VERSION ""
+setenv VERSION_MSTA         ""
+setenv VERSION_MSET         ""
+setenv VERSION_MSESSION     ""
+setenv VERSION_MFLOWGUI     ""
+setenv VERSION_MCONFIG      ""
+
+setenv MKIT_ROOT /proj/cadpnr/mKit
+source ${MKIT_ROOT}/mKit.setup.csh
+setenv PDS_PROJFLOWROOT   /proj/cadpnr/mKit/tsmc005p/$VERSION_MKIT/mFlow/flow
+
+setenv MSTA_NOMAIL 1
+
+echo ""
+echo "Parsing option with parse_run_args.sh"
+EOF
+    print $run_script "\$TIMING_FLOW_ROOT/utility_scripts/parse_run_opt.sh --sgq $opt{queue}:${actual_cores}c:$opt{mem_size}m \$argv:q\n";
+    print $run_script "set parse_output=`\$TIMING_FLOW_ROOT/utility_scripts/parse_run_opt.sh --sgq $opt{queue}:${actual_cores}c:$opt{mem_size}m \$argv:q`\n";
+    print $run_script <<'EOF';
+if ($? != 0) then
+    echo "Error detected in parse_run_args.sh, exiting"
+    exit
+endif
+echo "Done parsing option"
+echo ""
+unsetenv MSTATMP
+if (`stat -c %U $RUN_TIMING_DIR` != $USER) then
+    mkdir -p $RUN_TIMING_DIR/temp_$USER
+    setenv MSTATMP $RUN_TIMING_DIR/temp_$USER
+endif
+
+set arr = `echo $parse_output:q | sed 's/,/ /g'`
+
+unsetenv LINK_STA_LOGFILE_TO
+if (${#arr} == 2) then
+    setenv LINK_STA_LOGFILE_TO $arr[2]
+endif
+
+set opts=`echo $arr[1]:q | sed 's/=/ /g'`
+
+EOF
+
+    print $run_script "\nmstarun $restore_opt \$opts $fullname\n\n";
+
+
+
+    print $run_script "\# Flush nfs cache\n";
+    print $run_script "rmdir \$RUN_TIMING_DIR >& /dev/null\n";
+    print $run_script "echo\n";
+
+    close $run_script;
+
+    system("chmod a+x $purpose\_$scenario.script");
+}
+sub _check_out_cfg {
+    system("mkdir timing_configs > misc_logs/cfg_checkout.log");
+    system("svn co $ENV{SVNROOT}/ipbu_tools/timing_configs/all_proj timing_configs/all_proj >> misc_logs/cfg_checkout.log");
+    system("svn co $ENV{SVNROOT}/ipbu_tools/timing_configs/$PROJECT timing_configs/$PROJECT >> misc_logs/cfg_checkout.log");
+}
+
+sub _map_libdb_type {
+    my ($libcell,$opcond,$target_type) = @_;
+
+    my $lvf_key = ($target_type =~ /_lvf$/)? "lvf_true":"lvf_false";
+    my $model_type = $target_type;
+    $model_type =~ s/_lvf$//;
+    if (defined($::tdb_href->{LIBSET}{$opcond}{$lib_or_db}{$libcell}{$model_type}{$lvf_key})) {
+
+	return $::tdb_href->{LIBSET}{$opcond}{$lib_or_db}{$libcell}{$model_type}{$lvf_key}{FILE};
+    } elsif ($target_type =~ /_lvf$/) {
+	$lvf_key="lvf_false";
+	if (defined($::tdb_href->{LIBSET}{$opcond}{$lib_or_db}{$libcell}{$model_type}{$lvf_key})) {
+	    &_print_tee_log("INFO: failed to find $target_type lib for $libcell $opcond, mapping to non lvf $model_type lib\n");
+	    return $::tdb_href->{LIBSET}{$opcond}{$lib_or_db}{$libcell}{$model_type}{$lvf_key}{FILE};
+	}
+    } else {
+	return 1;
+    }
+}
+sub _setup_with_pnr_blk_flat_path {
+    my $blk=shift;
+    my $flat_path=shift;
+    $stdcell_track->{h280}=1;
+    $stdcell_track->{h210}=1;
+    if (-e $flat_path) {
+	system("ln -ns $flat_path inp/pnr/$blk");
+	if (-e "inp/pnr/$blk/$blk.v") {
+	    push @verilogs,"$blk \$DIR/inp/pnr/$blk/$blk.v";
+	} elsif (-e "inp/pnr/$blk/$blk.v.gz") {
+	    push @verilogs,"$blk \$DIR/inp/pnr/$blk/$blk.v.gz";
+	} else {
+	    &_print_tee_log("Error: Could not find verilog for $blk\n");
+	    exit(1);
+	}
+	
+	foreach my $scenario (sort keys %{$::tdb_href->{SCENARIOS}}) {
+	    my $mode = $::tdb_href->{SCENARIOS}{$scenario}{MODE};
+	    my $rc_corner = $::tdb_href->{SCENARIOS}{$scenario}{RC};
+	    my @rc_corners = ($rc_corner);
+	    if (defined $acceptable_spef_names->{$rc_corner}) {
+		@rc_corners=($rc_corner,@{$acceptable_spef_names->{$rc_corner}});
+	    }
+	    if (!$opt{zwlm_mode}) {
+		my $found_acceptable_spef=0;
+	        RC: foreach my $rc (@rc_corners) {
+		    foreach my $spef_name ("$blk.spef.$rc","$blk.spef.$rc.gz") {
+			if (-e "inp/pnr/$blk/$spef_name") {
+			    $parasitics{"$blk.$rc_corner"}="\$DIR/inp/pnr/$blk/$spef_name";
+			    if ($rc ne $rc_corner) {
+				&_print_tee_log("WARNING: Using alternative rc corner $rc for $rc_corner for pnr $blk\n");
+			    }
+			    $found_acceptable_spef=1;
+			    last RC;
+			}
+		    }
+		}
+		
+		if (!$found_acceptable_spef) {
+		    &_print_tee_log("WARNING: Could not find spef for rc corner $rc_corner in inp/pnr/$blk\n");
+		    $incomplete_scenarios_href->{$scenario}{"$blk missing_spef"}{$rc_corner}=1;
+		}
+	    }
+	    
+
+	    if (-e "inp/pnr/$blk/$blk.$scenario.sdc") {
+		$sdcs{"$blk.$scenario"} = "\$DIR/inp/pnr/$blk/$blk.$scenario.sdc";
+	    } elsif (-e "inp/pnr/$blk/$blk.sdc") {
+		$sdcs{"$blk.$scenario"} = "\$DIR/inp/pnr/$blk/$blk.sdc";
+	    } else {
+		&_print_tee_log("WARNING: Could not find sdc for $scenario\_$mode in \$DIR/inp/pnr/$blk\n");
+		if ($blk eq $TOP_LVL_BLK) {
+		    $incomplete_scenarios_href->{$scenario}{"$blk missing_sdc"}{"$scenario\_$mode"}=1;
+		}
+	    }
+	}
+	
+	
+	if (!-e "inp/pnr/$blk/$blk.bbox") {
+	    &_print_tee_log("\nWarning: Did not find $blk.bbox, this is the file that lists blackboxed blocks in the construction of this block\n");
+	    &_print_tee_log("         This usually can be linked from defacto.rtl/dataout/\$block.defacto.rtl.defacto:get_rtl.bbox in mFlow track\n");
+	} else {
+	    &_parse_bbox_file("inp/pnr/$blk/$blk.bbox");
+	}
+    } else {
+	die "Error: -pnr_blk_flat_path given, but this path does not exist\n";
+	exit(1);
+    }
+}
+sub _parse_bbox_file {
+    my $bbox_file=shift;
+    open(my $bb_list,"<$bbox_file") || die "Cannot read $bbox_file\n";
+    while(<$bb_list>) {
+	if (/^\s*$/) {
+	} elsif (/black-boxed designs/) {
+	} elsif (/design name/) {
+	} elsif (/------/) {
+	} elsif (/^\s*\S+\.(\S+)\s*$/) {
+	    if (-d "$COMPMEM_ROOT/$1") {
+		$blackboxed_blocks->{COMPMEM}->{$1}=1;
+		system("ln -nfs $COMPMEM_ROOT/$1 $RUNDIR/inp/compmem/$1")
+	    } else {
+		$blackboxed_blocks->{IP}->{$1}=1;
+		system ("ln -nfs /proj/tools01/release/IP/$1 $RUNDIR/inp/ip/$1")
+	    }
+	}
+    }
+    close $bb_list;
+}
+sub _setup_with_pnr_blk_path {
+    my $blk=shift;
+    my $track_path=shift;
+    my $handoff_file;
+    if (-e "$track_path/qrc.signoff/dataout/HANDOFF") {
+	$handoff_file="$track_path/qrc.signoff/dataout/HANDOFF";
+    } elsif (-e "$track_path/xt.signoff/dataout/HANDOFF") {
+	$handoff_file="$track_path/xt.signoff/dataout/HANDOFF";
+    } elsif ($opt{zwlm_mode} && -e "$track_path/invcui.post.opt/dataout/HANDOFF") {
+	$handoff_file="$track_path/invcui.post.opt/dataout/HANDOFF";
+    } else {
+	print "Error: Cannot find HANDOFF file for $blk in qrc.signoff or xt.signoff\n";
+	exit(1);
+    }
+
+    my $parsed_handoff = `tclsh8.5 $ENV{TIMING_FLOW_ROOT}/utility_scripts/read_bfw_handoff.tcl $handoff_file`;	
+    foreach my $line (split("\n",$parsed_handoff)) {
+	eval $line;
+    }
+    if (!defined($::block_info_href->{$blk})) {
+	&_print_tee_log("Error: did not find data for block $blk, maybe block name is not correct for the handoff file\nInfo from handoff file :\n");	
+	UINFO(0,$parsed_handoff);
+	exit(1);
+    }
+    my $h = $::block_info_href->{$blk};
+    
+    my $error_in_handoff=0;
+    # TODO: add upf to the list when upf is a must have for blocks
+    foreach my $key (qw(verilog spef sdc infile_sdc bbox)) {
+	if ($opt{zwlm_mode} && $key eq "spef") {
+	    next;
+	}
+	if (!defined $h->{$key}) {
+	    print "Error: $key is not found in $handoff_file\n";
+	    $error_in_handoff++;
+	} else {
+	    if ($key eq "spef" || $key eq "sdc") {
+		foreach my $key2 (keys %{$h->{$key}}) {
+		    my $file_path=&_format_handoff_path($h->{$key}{$key2}, $track_path);
+		    if (!-e $file_path) {
+			print "Error: $key $key2 lead to a file that does not exist\n";
+			$error_in_handoff++;
+		    }
+		}
+	    } else {
+		my $file_path=&_format_handoff_path($h->{$key}, $track_path);
+		if (!-e $file_path) {
+		    print "Error: $key lead to a file that does not exist\n";
+		    $error_in_handoff++;
+		}
+	    }
+	}
+    }
+    if ($error_in_handoff) {
+	exit(1);
+    }
+    if (defined $h->{cell_tracks}) {
+	my $track=lc($h->{cell_tracks});
+	$stdcell_track->{$track}=1;
+    } else {
+	$stdcell_track->{h280}=1;
+	$stdcell_track->{h210}=1;
+    }
+    system("mkdir inp/pnr/$blk");
+    system("ln -ns $handoff_file $RUNDIR/inp/pnr/$blk/");
+    my $verilog_path=&_format_handoff_path($h->{verilog},$track_path);
+    if ($verilog_path !~ /v_post_route/) {	
+	if (defined($h->{v_post_route})) {
+	    &_print_tee_log("\nWARNING: VERILOG($blk) does not seem to be pointing to post route verilog, using INFILE(v_post_route) verilog instead\n\n");
+	    $verilog_path=&_format_handoff_path($h->{v_post_route},$track_path);
+	} else {
+	    &_print_tee_log("\nError: VERILOG($blk) does not seem to be pointing to post route verilog, INFILE(v_post_route) is not defined, using VERILOG($blk) verilog, this run could be broken\n\n");
+	}
+    }
+    my $verilog_bname = basename($verilog_path);
+
+    push @verilogs,"$blk \$DIR/inp/pnr/$blk/$verilog_bname";
+    system("ln -ns $verilog_path $RUNDIR/inp/pnr/$blk/");
+
+    foreach my $scenario (sort keys %{$::tdb_href->{SCENARIOS}}) {
+	my $mode = $::tdb_href->{SCENARIOS}{$scenario}{MODE};
+	my $rc_corner = $::tdb_href->{SCENARIOS}{$scenario}{RC};
+	my @rc_corners = ($rc_corner);
+	if (defined $acceptable_spef_names->{$rc_corner}) {
+	    @rc_corners=($rc_corner,@{$acceptable_spef_names->{$rc_corner}});
+	}
+	if (!$opt{zwlm_mode}) {
+	    my $found_acceptable_spef=0;
+	    foreach my $rc (@rc_corners) {
+		if (defined $h->{spef}{"$blk.$rc"}) {
+		    my $spef_path=&_format_handoff_path($h->{spef}{"$blk.$rc"},$track_path);
+		    my $spef_bname = basename($spef_path);
+		    $parasitics{"$blk.$rc_corner"} = "\$DIR/inp/pnr/$blk/$spef_bname";
+		    system("ln -nfs $spef_path $RUNDIR/inp/pnr/$blk/");
+		    if ($rc ne $rc_corner) {
+			&_print_tee_log("WARNING: Using alternative rc corner $rc for $rc_corner for pnr $blk\n");
+		    }
+		    $found_acceptable_spef=1;
+		    last;
+		}
+	    }
+	    if (!$found_acceptable_spef) {
+		&_print_tee_log("\nWARNING: Did not find spef for $rc_corner in handoff file of $blk\n");
+		$incomplete_scenarios_href->{$scenario}{"$blk missing_spef"}{$rc_corner}=1;
+	    }
+	}
+
+	
+	my $sdc_path;
+	# fix me, require more correct sdc when block flow fixed the issue with sdc
+	if (defined $h->{sdc}{"$blk.$scenario.$mode"}) {
+	    $sdc_path=&_format_handoff_path($h->{sdc}{"$blk.$scenario.$mode"},$track_path);
+	} else {
+	    $sdc_path=&_format_handoff_path($h->{infile_sdc},$track_path);
+	}
+	my $sdc_bname=basename($sdc_path);
+	
+	$sdcs{"$blk.$scenario"}="\$DIR/inp/pnr/$blk/$sdc_bname";
+	system("ln -nfs $sdc_path $RUNDIR/inp/pnr/$blk/");	
+    }
+
+    if ($opt{run_ptpx}) {
+	if (-e "$track_path/dc.syn/dataout/$blk.struct.log") {
+	    system("ln -ns $track_path/dc.syn/dataout/$blk.struct.log inp/pnr/$blk/");
+	} else {
+	    &_print_tee_log("Error: run_ptpx is 1, $track_path/dc.syn/dataout/$blk.struct.log is expected, but not found")
+	}
+	if (-e "$track_path/dc.syn/report/rtlregs.tcl") {
+	    system("ln -ns $track_path/dc.syn/report/rtlregs.tcl inp/pnr/$blk/");
+	} else {
+	    &_print_tee_log("Error: run_ptpx is 1, $track_path/dc.syn/report/rtlregs.tcl is expected, but not found")
+	}
+	if (-e "$track_path/dc.syn/report/rtlregs.tcl") {
+	    system("ln -ns $track_path/fm.invcui.r2g/dataout/$blk.fm.invcui.r2g.ec:map.out_map inp/pnr/$blk/$blk.map");
+	} else {
+	    &_print_tee_log("Error: run_ptpx is 1, $track_path/dc.syn/report/rtlregs.tcl is expected, but not found")
+	}		
+    }
+
+    my $bbox_path =&_format_handoff_path($h->{bbox},$track_path);
+    system("ln -ns $bbox_path $RUNDIR/inp/pnr/$blk/");
+
+    &_parse_bbox_file($bbox_path);
+
+}
+sub _format_handoff_path {
+    my $opath=shift;
+    my $track_path=shift;
+    $opath =~ s%^\.\./%%;
+    return "$track_path/$opath";
+}
+sub _print_tee_log {
+    print @_;
+    print $LOG @_;
+}
+
+sub _setup_with_partition_path {
+    my $partition=shift;
+    my $partition_path=shift;
+    my $partition_dir="inp/partition/$partition";
+    $stdcell_track->{h280}=1;
+    $stdcell_track->{h210}=1;
+    if (-e $partition_path) {
+	system("ln -ns $partition_path inp/partition/$partition");
+	#my @verilog_list = ("$partition.pg.v","$partition.pg.v.gz","data/route/$partition.pg.v","data/route/$partition.pg.v.gz","$partition.v","$partition.v.gz");
+	my @verilog_list = ("$partition.v","$partition.v.gz","data/route/$partition.v","data/route/$partition.v.gz");
+	my $found_verilog=0;
+	foreach my $verilog_file (@verilog_list) {
+	    if (-e "$partition_dir/$verilog_file") {
+		$found_verilog=1;
+		push @verilogs,"$partition \$DIR/$partition_dir/$verilog_file";
+		last;
+	    }
+	}
+	if (!$found_verilog) {
+	    &_print_tee_log("Error: did not find verilog for $partition, please check release directory\n");
+	    exit(1);		
+	}
+	foreach my $scenario (sort keys %{$::tdb_href->{SCENARIOS}}) {
+	    my $mode = $::tdb_href->{SCENARIOS}{$scenario}{MODE};
+	    my $rc_corner = $::tdb_href->{SCENARIOS}{$scenario}{RC};
+	    my @rc_corners = ($rc_corner);
+	    if (defined $acceptable_spef_names->{$rc_corner}) {
+		@rc_corners=($rc_corner,@{$acceptable_spef_names->{$rc_corner}});
+	    }
+	    if (!$opt{zwlm_mode}) {
+		my $found_acceptable_spef=0;
+	        RC: foreach my $rc (@rc_corners) {
+		    foreach my $spef_name ("$partition.$rc.spef","$partition.$rc.spef.gz","$partition.qrc_$rc.spef.gz","data/extract/$partition.xt.signoff.spef.$rc.spef.gz") {
+			if (-e "$partition_dir/$spef_name") {
+			    $parasitics{"$partition.$rc_corner"}="\$DIR/$partition_dir/$spef_name";
+			    if ($rc ne $rc_corner) {
+				&_print_tee_log("WARNING: Using alternative rc corner $rc for $rc_corner for partition $partition\n");
+			    }
+			    $found_acceptable_spef=1;
+			    last RC;
+			}
+		    }
+		}
+		if (!$found_acceptable_spef) {
+		    &_print_tee_log("WARNING: Could not find spef for rc corner $rc_corner in inp/partition/$partition\n");
+		    $incomplete_scenarios_href->{$scenario}{"$partition missing_spef"}{"$scenario\_$mode"}=1;
+		}
+	    }
+	}	
+    } else {
+	print "Error: -partition_override_path given : $partition_path, but this path does not exist\n";
+	exit(1);
+    }
+}
+
+sub _create_file_structure {
+    my $blk="$TOP_LVL_BLK";
+    my $config_dir="$RUNDIR/timing_configs/$PROJECT/block_cfgs";
+    my $template_dir="$RUNDIR/timing_configs/all_proj/common/file_template";
+    print "--------------------------------------------------------\n";
+    print "Begin: Creating a template file structure  for the blk  : $blk\n";
+    print "--------------------------------------------------------\n";
+    chdir($template_dir);
+    my @files = glob("*");
+    my $nok=1;
+    if (-e "$config_dir/$blk") {
+	print "$config_dir/$blk already exists skipping creating it ..\n";
+    } else {
+	$nok=system("svn mkdir $config_dir/$blk");
+	if ($nok) {
+	    print "Error : Unable to create folder $blk in $config_dir/$blk. Tried svn mkdir $config_dir/$blk \n";
+	}
+    }
+    foreach my $file (@files) {
+	if ( -e "$config_dir/$blk/${blk}_$file" ) {
+	    print "$config_dir/$blk/${blk}_$file exists . Not overriding it. \n";
+	    next;
+	} else {
+	    print "svn cp  $file $config_dir/$blk/${blk}_$file\n";
+	    $nok=system("svn cp  $file $config_dir/$blk/${blk}_$file");	    
+	}
+    }
+    chdir($RUNDIR);
+    if (!$nok) {
+	system("svn commit $config_dir/$blk -m \"Adding necessary files required by the new flow. \"");
+	print "committing the changes \n";
+    } 
+    print "--------------------------------------------------------\n";
+    print "Done: Creating a template file structure  for the blk  : $blk\n";
+    print "--------------------------------------------------------\n";
+}
+sub _find_type_of_release {
+    my $release_dir = shift;
+
+    if (-e "$release_dir/dc.syn") {
+	return "pnr";	
+    } else {	
+	return "partition";
+    }
+}
