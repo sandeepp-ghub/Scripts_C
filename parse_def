@@ -1,0 +1,167 @@
+
+
+#set file "/mrvl/cavmhomes/vdesai2/scripts/tad_dat_dtm.dc.syn.finish.place.def"
+set file "/mrvl/cavmhomes/vdesai2/scripts/tmp.def"
+
+proc read_line {line fp} {
+    set return_line ""
+    if { [regexp ";" $line ] || [regexp "^END" $line] } {
+        set return_line $line
+    } else {
+        set tmpline $line
+        while { [gets $fp line ] >= 0 } {
+            set tmpline [ join "$tmpline $line" " " ]
+            if { [regexp ";" $line] } {
+                break
+            }
+        }
+        set return_line $tmpline
+    }
+    return $return_line
+}
+proc parse_def {def_file} {
+    set fp [open $def_file r]
+    set header [ list  ]
+    while { [gets $fp line ] >= 0 } {
+        #puts $line
+        if { [regexp "^#" $line ] } {
+                lappend header $line
+                continue;
+        } 
+        set line [read_line $line $fp]
+        #puts "LINE : $line"
+        #if { [regexp ";" $line ] || [regexp "^END" $line] } {
+        #        set line $line
+        #} else {
+        #        set tmpline $line
+        #        while { [gets $fp line ] >= 0 } {
+        #            lappend tmpline $line
+        #            if { [regexp ";" $line] } {
+        #                break
+        #            }
+        #        }
+        #        set line $tmpline
+        #}
+        if { [regexp "^VERSION.*;" $line ] || [regexp "^DIVIDERCHAR.*;" $line ] || [regexp "^BUSBITCHARS.*;" $line] || [regexp "^DESIGN.*;" $line] } {
+                dict set sections [lindex $line 0] [lindex $line 1 ]
+        } 
+        if { [regexp "^UNITS DISTANCE MICRONS" $line] } {
+                dict set sections "UNITS" [ lrange $line 1 end-1 ]
+        }
+        if { [regexp "^DIEAREA.*;" $line] } {
+                regexp {^DIEAREA\s+\(\s+(\d+)\s+(\d+)\s+\)\s+\(\s+(\d+)\s+(\d+)\s+\)\s+;$} $line matched llx lly urx ury
+                dict set sections [lindex $line 0] llx $llx
+                dict set sections [lindex $line 0] lly $lly
+                dict set sections [lindex $line 0] urx $urx
+                dict set sections [lindex $line 0] ury $ury
+        }
+        if { [regexp "^PINS.*;" $line] } {
+                dict set sections [lindex $line 0] count [lindex $line 1]
+                while { [gets $fp line ] >= 0 } {
+                    set line [read_line $line $fp]
+                    if { [regexp "^END PINS" $line] } {
+                        break
+                    }
+                    if { [regexp "\\+" $line ] } {
+                        set pin_comp [split $line + ]
+                        set pinname [ lindex [lindex $pin_comp 0] 1 ]
+                        foreach pc $pin_comp {
+                            if { [regexp "\-" [lindex $pc 0] ] } {
+                                continue
+                            }
+                            dict set pin_detail [lindex $pc 0 ] [ join [lrange $pc 1 end] " " ]
+                        }
+                            dict set sections "PINS" $pinname $pin_detail
+                    }
+                }
+        }
+        if { [regexp "^COMPONENTS.*;" $line] } {
+                dict set sections [lindex $line 0] count [lindex $line 1]
+                while { [gets $fp line ] >= 0 } {
+                    set line [read_line $line $fp]
+                    if { [regexp "^END COMPONENTS" $line] } {
+                        break
+                    }
+                    if { [regexp "\\+" $line ] } {
+                        set cell_comp [split $line + ]
+                        set cellname [ lindex [lindex $cell_comp 0] 1 ]
+                        set refname [ lindex [lindex $cell_comp 0] 2 ]
+                            dict set cell_detail refname $refname 
+                        foreach pc $cell_comp {
+                            if { [regexp "\-" [lindex $pc 0] ] } {
+                                    continue
+                            }
+                            dict set cell_detail [lindex $pc 0 ] [ join [lrange $pc 1 end] " " ]
+                        }
+                            dict set sections "COMPONENTS" $cellname $cell_detail
+                    }
+                }
+        }
+        
+        
+    }
+    if { [regexp "^VIAS.*;" $line] } {
+    }
+    dict set sections "HEADER" $header
+    close $fp
+    return $sections
+}
+
+proc write_def_by_section {outfile sections_to_print input_data ignored_objs} {
+    #parse_proc_arguments -args $args results
+    set fo [ open "$outfile" w ]
+    set default_sections [ list  HEADER VERSION DIVIDERCHAR BUSBITCHARS DESIGN UNITS DIEAREA ]
+    set sections_to_dump $sections_to_print
+    set sections $input_data
+    foreach i [ concat $default_sections $sections_to_dump ] {
+            set values [dict get $sections $i]
+            if { $i == "HEADER"} {
+                    foreach pl $values {
+                            puts $fo "$pl"
+                    }
+            } elseif { $i == "DIEAREA"} {
+                    foreach {d1 llx d2 lly d3 urx d4 ury} $values {
+                            puts $fo "DIEAREA ( $llx $lly ) ( $urx $ury ) ;"
+                    }
+            } elseif { $i == "PINS" || $i == "COMPONENTS"} {
+                   foreach {obj val} $values {
+                       set toprint [list ]
+                       if { $obj == "count" } {
+                           puts $fo "$i $val ;"
+                       } elseif { [ info exists ignored_objs ] } {
+                           foreach pat $ignored_objs {
+                                if { [regexp $pat $obj] } {
+                                    puts "Skipping $obj"
+                                }
+                           }
+                       } else {
+                            foreach {ele dat} $val {
+                                    if { $ele == "refname" } {
+                                        lappend toprint " $dat"
+                                    } else {
+                                        lappend toprint " + $ele $dat"
+                                    }
+                            }
+                            set toprint [join $toprint  "" ]
+                            puts $fo " - $obj$toprint"
+                       }
+                   }
+                   puts $fo "END $i"
+            } else {
+                    
+                    puts $fo "$i $values ;" 
+            }
+    }
+    puts $fo "END DESIGN"
+    close $fo
+}
+
+#define_proc_attributes write_def_by_section -info "Write DEF for specific sections" \
+#-define_args { \
+#{-out_file "output DEF file" file string required } \
+#{-sections "DEF sections to be write" "section list" list required} \
+#{-ignore_objects "Objects to be ignored" "ignored object list" list optional} \
+#{-input_data "Input data generated from parse_def" "dict data" dict required} }
+
+set sections [ parse_def $file ]
+write_def_by_section  "/user/vdesai2/scripts/out.def"  [list PINS] $sections "way rclk"
