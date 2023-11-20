@@ -1,0 +1,14 @@
+
+set fo [open module_names.list w ]
+
+ foreach r [get_attribute [ get_cells -hierarchical -filter "full_name=~iocx_mio_mio/U_mio_xspi_1/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/* && is_hierarchical==true" ] ref_name ]  {
+     puts $fo $r
+ }  
+ foreach r [get_attribute [ get_cells -hierarchical -filter "full_name=~iocx_mio_mio/U_mio_xspi_0/U_mio_xspi_ext/U_cdn_ip6182_1fff_dll_phy/Inst_flash_databahn_dll_phy/* && is_hierarchical==true" ] ref_name ]  {
+     puts $fo $r
+ }  
+ foreach r [get_attribute [ get_cells -hierarchical -filter "full_name=~iocx_mio_mio/emmc_wrap/emmc_top/cdns_combo_dll_phy/* && is_hierarchical==true" ] ref_name ]  {
+     puts $fo $r
+ }  
+
+ close $fo
