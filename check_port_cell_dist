@@ -1,0 +1,24 @@
+
+
+proc pin_distance { pin1 pin2} {
+    set x1 [ get_db $pin1 .location.x ]
+    set y1 [ get_db $pin1 .location.y ]
+    set x2 [ get_db $pin2 .location.x ]
+    set y2 [ get_db $pin2 .location.y ]
+    set dis [ expr [ expr abs( $x1 - $x2) ] + [ expr abs ($y1-$y2) ] ]
+    return $dis
+}
+
+foreach port [get_db ports ] {
+    set dir [ get_db $port .direction ]
+    if { $dir == "out" } {
+        set pins [ get_db $port .net.drivers ]
+    } else {
+        set pins [ get_db $port .net.loads ]
+    }
+    foreach pin $pins {
+        set dis [ pin_distance $pin $port]
+        puts "$port $pin $dis"
+    }
+
+}
