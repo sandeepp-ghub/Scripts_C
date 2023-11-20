@@ -1,0 +1,17 @@
+
+
+foreach p [ get_object_name [get_ports -filter "direction==out" ] ] {
+        set driver [ sizeof_collection  [get_pins -quiet -of  [get_nets -of  [get_ports $p ] ] -leaf ]]
+        if { $driver != 1} {
+            puts  "$p ==> $driver"
+       }
+}
+
+foreach p [ get_object_name [get_ports -filter "direction==in" ] ] {
+        set driver [ sizeof_collection  [ filter_collection [get_pins -quiet -of  [get_nets -of  [get_ports $p ] ] -leaf ] "full_name!~*PORT_DIODE_*"  ]]
+        if { $driver > 1} {
+            puts  "$p ==> $driver"
+       }
+}
+
+
