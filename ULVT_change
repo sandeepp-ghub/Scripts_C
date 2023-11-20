@@ -1,0 +1,11 @@
+
+set insts [ get_db [ get_pins -quiet  [ get_db [ report_timing -group sclk -max_slack -0.030 -collection  -max_paths 100000  ] .timing_points.hierarchical_name   ]   ] .inst.name  -u ]
+set fp [open "eco.tcl" w ]
+foreach inst $insts {
+    set cell [ get_db inst:$inst .base_cell.name ]
+    if { ![regexp "SDF" $cell ] } {
+    regsub "CNODLVT" $cell "CNODULVT" cc
+    puts $fp "eco_update_cell -insts $inst -cells $cc"
+    }
+}
+close $fp
