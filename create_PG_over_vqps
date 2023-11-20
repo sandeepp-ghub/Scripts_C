@@ -1,0 +1,664 @@
+
+#source $::env(PDS_PROJFLOWROOT)/inv/proc/floorplan/pg_defines.tcl 
+
+# Parameterize
+#set LONG_M2_STAPLE_LENGTH [expr {[info exists CN_PG_DEFINES(long_m2_staple_length)] ? $CN_PG_DEFINES(long_m2_staple_length) : 1}]
+# Parameterize
+#set VDDM_SPEC [expr {[info exists CN_PG_DEFINES(vddm_spec)] ? $CN_PG_DEFINES(vddm_spec) : [list [list [list]  swap 0.5 ]]}]
+# Parameterize
+#set pg_spec_bbox_specified 0
+source $::env(PDS_PROJFLOWROOT)/invcui/script/proc_ndrtracks.tcl
+
+proc mint_inv_add_pg_stripes_over_vqps { {layer ""} {noeval "0"}} {  
+    
+    puts "\nNoEval is $noeval\n"
+    set core_bbox [get_db current_design .core_bbox]
+    set core_llx [get_db current_design .core_bbox.ll.x]
+    set core_lly [get_db current_design .core_bbox.ll.y]
+    set core_urx [get_db current_design .core_bbox.ur.x]
+    set core_ury [get_db current_design .core_bbox.ur.y]
+    
+    #set die_bbox [get_db current_design .bbox]
+    set die_bbox [get_db current_design .boundary]
+    set die_llx [get_db current_design .bbox.ll.x]
+    set die_lly [get_db current_design .bbox.ll.y]
+    set die_urx [get_db current_design .bbox.ur.x]
+    set die_ury [get_db current_design .bbox.ur.y]
+
+    set layer_list [dict keys $::CN_PG::CN_PG_METAL_SPECS_dict]
+    set layer_index [lsearch $layer_list $layer]
+    set layer_above [expr {[llength $layer_list]==[expr {$layer_index+1}] ? $layer : [lindex $layer_list [expr {$layer_index+1}]]}]
+    set layer_below [expr {$layer_index==0 ? $layer : [lindex $layer_list [expr {$layer_index-1}]]}]
+    
+    #set vss_name [expr {[dict exists $CN_PG_DEFINES_dict vss_name] ? [dict get $CN_PG_DEFINES_dict vss_name] : "VSS"}]
+    #set vdd_name [expr {[dict exists $CN_PG_DEFINES_dict vdd_name] ? [dict get $CN_PG_DEFINES_dict vdd_name] : "VDD"}]
+    #set vdd_2_name [expr {[dict exists $CN_PG_DEFINES_dict vdd_2_name] ? [dict get $CN_PG_DEFINES_dict vdd_2_name] : ""}]
+    #set has_vdd_2 [expr {$vdd_2_name eq "" ? 0 : 1}]
+
+    puts "-I- Processing PG layer $layer..."
+
+    # Parse layer settings into local variables
+    # Width, set_to_set, and offsets for each rail are required
+    if {[dict exists $::CN_PG::CN_PG_METAL_SPECS_dict $layer]} {
+        set layer_settings [dict get $::CN_PG::CN_PG_METAL_SPECS_dict $layer]
+        # Width
+        if {[dict exists $layer_settings width]} {
+            set width [dict get $layer_settings width]
+        } else {
+            puts "-E- Layer $layer width is not defined in PG specs"
+            return 4
+        }
+        # Set_to_set
+        if {[dict exists $layer_settings set_to_set]} {
+            set set_to_set [dict get $layer_settings set_to_set]
+        } else {
+            puts "-E- Layer $layer set_to_set is not defined in PG specs"
+            return 4
+        }
+        # Offset
+        if {[dict exists $layer_settings offset]} {
+            set offset [dict get $layer_settings offset]
+        } else {
+            puts "-E- Layer $layer offsets are not defined in PG specs"
+            return 4
+        }
+        # Staple
+        if {[dict exists $layer_settings staple]} {
+            set is_stapled true
+            set staple [dict get $layer_settings staple]
+            if {[dict exists $staple length]} {
+                set staple_length [dict get $staple length]
+            } else {
+                puts "-E- Layer $layer staple length is not defined in the PG specs"
+                return 4
+            }
+            if {[dict exists $staple ref_layer ]} {
+                set use_staple_reference true
+                set staple_ref_layer [dict get $staple ref_layer]
+            } else {
+                set use_staple_reference false
+                #puts "-I- Layer $layer staple reference layer is not defined in the PG specs, continuing to look for pitch, n, and offset."
+                if {[dict exists $staple pitch]} {
+                    set staple_pitch [dict get $staple pitch]
+                } else {
+                    puts "-E- Layer $layer staple pitch is not defined in the PG specs"
+                    return 4
+                }
+                if {[dict exists $staple n]} {
+                    set staple_n [dict get $staple n]
+                } else {
+                    puts "-E- Layer $layer staple n is not defined in the PG specs"
+                    return 4
+                }
+                if {[dict exists $staple offset]} {
+                    set staple_offset [dict get $staple offset]
+                } else {
+                    puts "-E- Layer $layer staple offsets are not defined in PG specs"
+                    return 4
+                }
+            }
+        } else {
+            set is_stapled false
+            #puts "-I- Layer $layer staple is not defined in PG specs"
+        }
+        # Pattern
+        # Optional, but if specified, requires separate entries for vss, vdd, and vdd_2
+        if {[dict exists $layer_settings pattern]} {
+            set is_patterned true
+            set pattern [dict get $layer_settings pattern]
+        } else {
+            set is_patterned false
+            #puts "-I- Layer $layer patterns are not defined in PG specs"
+        }
+        # Default is to align power grid to core boundary (true) instead of die boundary (false)
+        set core_align [expr {[dict exists $layer_settings core_align] ? [dict get $layer_settings core_align] : true}]
+        if {$core_align} {
+            #puts "-I- Aligning layer $layer to core boundary"
+            set area $core_bbox
+        } else {
+            #puts "-I- Aligning layer $layer to die boundary"
+            set area $die_bbox
+        }
+        # Same Layer Target
+        # Optional, defaults to 0
+        set same_layer_target [expr {[dict exists $layer_settings same_layer_target] ? [dict get $layer_settings same_layer_target] : false}]
+
+        # Attributes for add_stripes_*
+        # via_below: default=true
+        # via_above: default=true
+        set via_below [expr {[dict exists $layer_settings via_below] ? [dict get $layer_settings via_below] : true}]
+        set via_above [expr {[dict exists $layer_settings via_above] ? [dict get $layer_settings via_above] : true}]
+
+    } else {
+        puts "-E- Layer $layer is not defined in PG specs"
+        return 4
+    }
+
+
+    set bottom_layer [expr {$via_below ? $layer_below : $layer}]
+    set top_layer [expr {$via_above ? $layer_above : $layer}]
+    reset_db -category generate_special_via
+    reset_db -category route_special
+    reset_db -category add_stripes
+    
+    set_db add_stripes_stacked_via_bottom_layer $bottom_layer
+    set_db add_stripes_stacked_via_top_layer $top_layer 
+
+    if {[dict exists $layer_settings add_stripes_attr]} {
+        dict for {attr value} [dict get $layer_settings add_stripes_attr] {
+            set_db add_stripes_$attr $value
+        }
+    }
+    if {[dict exists $layer_settings generate_special_via_attr]} {
+        dict for {attr value} [dict get $layer_settings generate_special_via_attr] {
+            set_db generate_special_via_$attr $value
+        }
+    }
+
+    # Get layer-specific info from Innovus DB
+    set layer_db [get_db layers $layer]
+    set direction [get_db $layer_db .direction]
+    if {$direction=="horizontal"} {
+        set layer_pitch [get_db $layer_db .pitch_y]
+    } else {
+        set layer_pitch [get_db $layer_db .pitch_x]
+    }
+    set min_width [get_db $layer_db .min_width]
+
+    # Build command based on net being processed
+    foreach net [dict keys [dict get $::CN_PG::CN_PG_DEFINES_dict net_name]] {
+        set net_name [dict get $::CN_PG::CN_PG_DEFINES_dict net_name $net]
+        if {[dict exists $offset $net]} {
+            set net_offset [dict get $offset $net]
+        } else {
+            puts "-E- Layer $layer has no offset defined for $net_name"
+            return 4
+        }
+        # Set up start and stop locations for striping
+        # If core-aligned, use core boundaries,
+        # but if die-aligned, extend right/upper boundary to allow a stripe to fall on the edge
+        if {$direction == "horizontal"} {
+            if {$core_align} {
+                set start_loc [expr {$core_lly + $net_offset}]
+                set stop_loc $core_ury
+            } else {
+                if {$net_offset < 0 } {
+                    #set area "{$die_llx [expr {$die_lly+$net_offset}] $die_urx [expr {$die_ury-$net_offset}]}"
+                    set stop_loc [expr {$die_ury - $net_offset}]
+                } else {
+                    #set area "{$die_llx $die_lly $die_urx [expr {$die_ury+$width/2}]}"
+                    set stop_loc [expr {$die_ury + $width/2}]
+                }
+                set area [list [join [join [get_computed_shapes [get_db current_design .boundary]  SIZEY [expr {0-$net_offset}] -output polygon]]]]
+                set start_loc [expr {$die_lly + $net_offset}]
+            }
+        } else {
+            if {$core_align} {
+                set start_loc [expr {$core_llx + $net_offset}]
+                set stop_loc $core_urx
+            } else {
+                if { $net_offset < 0 } {
+                    #set area "{[expr {$die_llx+$net_offset}] $die_lly [expr {$die_urx-$net_offset}] $die_ury}"
+                    set stop_loc [expr {$die_urx - $net_offset}]
+                } else {
+                    #set area "{$die_llx $die_lly [expr {$die_urx+$width/2}] $die_ury}"
+                    set stop_loc [expr {$die_urx + $width/2}]
+                }
+                ##  TODO  real PG would just be: area=BBOX, area_blockage=(BBOX NOT BOUNDRAY) 
+                set area [list [join [join [get_computed_shapes [get_db current_design .boundary]  SIZEX [expr {0-$net_offset}] -output polygon]]]]
+                set start_loc [expr {$die_llx + $net_offset}]
+            }
+        }
+
+        # Create baseline command with information that will be common to all situations
+#                             -stop $stop_loc 
+#                             -start $start_loc
+#                             -start_offset $net_offset
+        set cmd "add_stripes -area $area \
+                             -layer $layer \
+                             -width $width \
+                             -direction $direction \
+                             -stop $stop_loc \
+                             -start $start_loc \
+                             -set_to_set_distance $set_to_set \
+                             -same_layer_target_only $same_layer_target "
+         
+        # Get area of cells to block
+        # This was primarily intended to avoid striping over the intentional M0 gaps left in right/left endcaps
+        if {[dict exists $layer_settings block_cells]} {
+            set cell_list [dict get $layer_settings block_cells]
+	    set cell_area_list [list]
+            foreach cell $cell_list {
+                lappend cell_area_list {*}[get_db [get_db insts -if {.base_cell.name==$cell}] .bbox]
+            }
+	    if {[llength $cell_area_list] > 0} {
+		foreach bbox [get_computed_shapes $cell_area_list OR $cell_area_list] {
+		    lappend block_area $bbox
+		}
+		append cmd "-area_blockage [list $block_area] "
+	    }
+        }
+
+        # TODO: Look into consolidating code to produce single-element {$net} list if no pattern found
+        if {$is_patterned} {
+            if {[dict exists $pattern $net]} {
+                set net_pattern [dict get $pattern $net]
+                set net_spacing_list [list]
+                foreach n $net_pattern {
+                    lappend net_spacing_list [expr {$n*$layer_pitch-$width}]
+                }
+                set net_names_list [lrepeat [expr {[llength $net_pattern]+1}] $net_name]
+                append cmd "-nets {$net_names_list} -spacing {$net_spacing_list} "
+            } else {
+                puts "-E- Layer $layer has no pattern defined for $net_name"
+                return 4
+            }
+        } else {
+           append cmd "-nets $net_name "
+        }
+        # Snap wire center
+        if {[dict exists $layer_settings snap_wire_center]} { 
+            append cmd "-snap_wire_center_to_grid [dict get $layer_settings snap_wire_center]"
+        }
+        if {$is_stapled} {
+            if {$use_staple_reference} {
+                if { $noeval } {
+                    puts "$cmd -stapling {$staple_length $staple_ref_layer}"
+                } else {
+                    eval "$cmd -stapling {$staple_length $staple_ref_layer}"
+                }
+            } elseif {[dict exists $staple offset $net]} {
+                set net_staple_offset [dict get $staple offset $net]
+                if {[dict exists $staple offset_pattern $net]} {
+                    set net_staple_offset_pattern [dict get $staple offset_pattern $net]
+                    set layer_below_db [get_db layers $layer_below]
+                    if {[get_db $layer_below_db .direction] == "vertical"} {
+                        set layer_below_min_pitch [get_db $layer_below_db .pitch_x]
+                    } else {
+                        set layer_below_min_pitch [get_db $layer_below_db .pitch_y]
+                    }
+                    set new_offset [expr {$net_staple_offset + $core_llx}]
+                    # Run add_stripes once for every element in offset_pattern
+                    foreach offset_tracks $net_staple_offset_pattern {
+                        set new_offset [expr {$new_offset + $offset_tracks * $layer_below_min_pitch}]
+                        if { $noeval } {
+                            puts "$cmd -stapling {$staple_length $new_offset $staple_pitch:$staple_n} "
+                        } else {
+                            eval "$cmd -stapling {$staple_length $new_offset $staple_pitch:$staple_n} "
+                        }
+                    }
+                } else {
+                    # Otherwise, if there's no pattern, run a single add_stripes for stapling
+                    if { $noeval } { 
+                        puts "$cmd -stapling {$staple_length $net_staple_offset $staple_pitch:$staple_n} "
+                    } else {
+                        eval "$cmd -stapling {$staple_length $net_staple_offset $staple_pitch:$staple_n} "
+                    }
+                }
+
+            } else {
+                puts "-E- Layer $layer has no staple offset defined for $net_name"
+                return 4
+            }
+        } else {
+            # If the layer is not stapled, run the command as-is
+            if { $noeval } { 
+                puts $cmd 
+            } else {
+                eval $cmd 
+            }
+        }
+
+        gui_deselect -all
+    }
+
+    return 1
+}
+
+proc mint_inv_fix_mesh_colors { } {
+    # Colorize the grid first
+    # DO NOT FLIP COLORS ON WIDE METAL - M0 PG designed that way.
+    # But this setting means if we did wide metal on M1-M4, it'd probably
+    # mis-color it.  In that case, go back to 1, and enable below code
+    add_power_mesh_colors -reverse_with_non_default_width 1
+
+    # # Fix all the M0/VIA0 colors to bottom_mask 0
+    # # Tool gets this wrong if you do -reverse_with_non_default_with 1
+     deselect_obj -all 
+     select_routes -layer M0 -type special -nets [get_db pg_nets]
+     set_db selected .mask 1
+     deselect_obj -all 
+     select_vias -nets [get_db pg_nets] -type special -cut_layer VIA0
+     set_db selected .bottom_mask 1
+     deselect_obj -all 
+
+    
+}
+
+# TODO: Fix hard-coded layer range for DRC checking
+proc mint_inv_create_pg {args} {
+    
+    # Populate blockage dict 
+    _populate_blockage_dict
+    global BLOCKAGE_dict
+    
+    # TODO - Change order todraw stripe first and then staple to ensure there are not
+    # staples on the IP
+    set last_colored false
+    get_db [get_db / .layers \
+    -if {[regexp {^M\d+} .name ] && ![regexp {_FB} .name]}]  \
+    -foreach  { \
+        set layer $obj(.name)
+        # Draw the actual grid first
+        if { $::FLOW(pg_over_ip) } { 
+            set pgdef [dict get $::CN_PG::CN_PG_METAL_SPECS_dict $layer]
+            if [dict exists $BLOCKAGE_dict $layer] {
+                # Need to do PG stripping over IPs.
+                # Check if the layer in question is a staple
+                # or not
+                puts "I- there exits BLOCKAGE_dict for $layer"
+                if {[dict exists $pgdef staple]} {
+                   #Call proc to fix stripes over IP
+                    puts "I- $layer is staple"
+                    ipbu_pg_over_IP $layer 
+                }
+            }
+        }
+        mint_inv_add_pg_stripes $layer 0
+        set colored [expr [get_db [get_db layers $layer] .num_masks] > 1]
+        # If we've now drawn an uncolored layer, colorize the whole mesh
+        if {$last_colored && !$colored} {
+            mint_inv_fix_mesh_colors
+        }
+        set last_colored $colored
+        if {[ llength [get_db route_blockages \
+                -if {.name == pg_sliver_blkg_$layer}] ] > 0 } {
+            delete_route_blockages -name pg_sliver_blkg_$layer
+        }
+    }
+    # Maybe we only drew colored PG layers.  So still have to colorize the mesh
+    if {$last_colored} {
+        mint_inv_fix_mesh_colors
+    }
+
+    # Now pull a DRC
+    delete_drc_markers
+    set_db check_drc_disable_rules out_of_die
+    set drc_layer_range {M0 M16}
+    puts "Information: Checking DRCs after PG build"
+    check_drc -layer_range $drc_layer_range -limit 1000000    
+    gui_deselect -all
+
+}
+
+proc _populate_blockage_dict {} {
+    global BLOCKAGE_dict
+    set BLOCKAGE_dict [dict create]
+
+    if {[llength [get_db insts -if .is_macro]] > 0} {
+        #aah This proc basically creates a dictionary
+        # for each layer and find all IPs/macros that 
+        # have the layer as top layer for blockage
+        # I can then use this information to decide how to 
+        # stripe over the IPs
+        # TODO- Consider what happens if macro has compatible PG
+        get_db insts -if .is_macro -foreach {
+            set macro_name [get_db insts $obj(.name)]
+            set supply [string tolower [get_db [get_db insts $obj(.name)] \
+                .pg_pins.base_name]]
+            # TODO - Probably use the PG pin to get the top layer instead of obs
+            set top_blkge_layer [lindex [ lsort [get_db $macro_name \
+                .pg_pins.pg_base_pin.physical_pins.layer_shapes.layer.name -u] \
+                ] 0 ]
+            # use get_db layers and route index to compute the n+1 layer
+            # also think about what if M1 is route index 1
+            regsub {^M(\d+?)$} $top_blkge_layer {\1} layer_num
+            incr layer_num
+            # We dont have staples above M10
+            # So if an IP has M11 as its top layer, M12
+            # will get drawn over it no problem.. 
+            if { $layer_num < 10 } { 
+                set top_layer "M${layer_num}"
+                dict lappend BLOCKAGE_dict $top_layer $macro_name
+            }
+        }
+    }
+}
+
+proc ipbu_pg_over_IP { {layer}  { dbg "0"} } {
+    
+    ## Overall Strategy 
+    #->  Build a blockage dictionary BLOCKAGE_dict that has a layer entry
+    #    for every layer+1 that needs to be draw over an IP. The schema is 
+    #    layer -> {list of instances}
+    #->  When it turn to draw the layer of interest, we see if this layer
+    #    requires fixing over any IP in the design. If its true,
+    #    then we basically compute the shape/rect that encompasses all the 
+    #    IP area in the design and blocks out everythig else. 
+    #-> I use Dan's code to get the minimum repeat window for the layer of 
+    #   interest w.r.t the pg tile. IT gives the loaction of where the vdd or vss
+    #   is present. 
+    #-> we build an add stripe with this and create a full stripe over the macro  
+    # TODOs
+    # - Need to know what VDD or VSS connects to in the IP's pg pin list?
+    # - Should the data for the VDD or VSS come from UPF?
+    # - What happens if IP needs more than 2 supplies?
+    # - How can this be made faster?
+    puts "I- Entering fix_pg_over_IP"
+    # Determine if we have macros in the block.. 
+    global BLOCKAGE_dict
+    if {[llength [get_db insts -if {.is_macro}]] == 0} {
+        puts "[PG INFO]: No macros in the block and so skipping macro PG fixes"
+        return 1
+    } else {
+        regsub -all {^M(\d+)} $layer {\1} layer_num
+        if { $layer_num >= 10 } { 
+            # After M10, its all always continuous at this point
+            # and so there is no room for screw up by Innovus
+            puts "[PG WARN]: You are looking at layer above M10, not supported"
+            return 1
+        } else {
+            set next_layer "M[expr {$layer_num+1}]"
+        }
+	    set pgdef [dict get $::CN_PG::CN_PG_METAL_SPECS_dict $layer]
+        set pgdef2 [dict get $::CN_PG::CN_PG_METAL_SPECS_dict $next_layer]
+        set core2die_left 1.428
+        set core2die_top  1.68
+        #set dbg 1
+        set layer_dir [get_db [get_db layers $layer ] .direction]
+        set effective_tracks [mutil_get_effective_tracks $layer]
+        set pg_interval [dict get $effective_tracks repeat_interval $layer]
+        set pg_metal_dict [dict get $::CN_PG::CN_PG_METAL_SPECS_dict $layer]
+        set pg_width_um [dict get $pg_metal_dict width]
+        set pg_width_dbu [convert_um_to_dbu $pg_width_um]
+        set core_offset_y [get_db current_design .core_bbox.ll.y -dbu]
+        set core_offset_x [get_db current_design .core_bbox.ll.x -dbu]
+        # Since the goal here is to block NON-IP regions, i can get away with 
+        # bbox instead of boundary even for rectilinear designs
+        set die_box [get_db current_design .bbox]
+        if {[dict exists $pgdef core_align] && [dict get $pgdef core_align]} {
+            set core_bbox [get_computed_shapes -output rect $die_box \
+                SIZEX [expr {-1*$core2die_left}]]
+            set core_bbox [get_computed_shapes -output rect $core_bbox \
+                SIZEY [expr {-1*$core2die_top}]]
+            set route_blockage_area $core_bbox
+        } else {
+            set route_blockage_area $die_box
+        }
+        
+        set all_supplies [list]
+
+        ## Cant figure out why this wont work when called from the proc
+        #but when called in innovus shell with this proc name, it works.. 
+        # Is it because this proc is called from within a get_db call a
+        # and so the $obj is all fucked?
+        ##get_db insts -if {.is_macro} -foreach {
+        #    puts "Here1"
+        #    set mname [get_db insts $obj(.name)]
+        #    puts "$mname"
+        #    puts "VVVV : $mname"
+        #    lappend all_supplies \
+        #        [get_db $mname \
+        #        .pg_pins.base_name]
+        #}
+        set all_macro_list [get_db insts -if {.is_macro} ]
+        foreach mname $all_macro_list {
+            lappend all_supplies \
+            [get_db $mname .pg_pins.base_name]
+        }
+        set all_supplies [lsort -unique [join $all_supplies ] ]
+        set route_blockage_sliver_areas [list ]
+        foreach supply $all_supplies {
+            # TODO - These attributes are probably already available
+            # If required, consider storing state and reset it.
+            # Move it outside the supply loop.
+            # Also consider moving these attribute setting to a 
+            # separate proc
+            reset_db -category generate_special_via
+            reset_db -category route_special
+            reset_db -category add_stripes
+            set cmd "add_stripes "
+            append cmd "-width $pg_width_um\
+                    -set_to_set_distance  [convert_dbu_to_um $pg_interval] \
+                    -layer $layer -direction $layer_dir "
+            if {[dict exists $pgdef core_align]} {
+                set_db add_stripes_trim_stripe core_boundary
+                if {[regexp -nocase {horizontal}  $layer_dir]} {
+                    append cmd "-start [expr $core2die_top + \
+                        [dict get $pgdef offset [string tolower $supply]]] "
+                } elseif {[regexp {vertical} $layer_dir]} {
+                    append cmd "-start [expr $core2die_left + \
+                        [dict get $pgdef offset [string tolower $supply]]] "
+                }
+            }
+            if {[dict exists $pgdef snap_wire_center]} {
+                append cmd "-snap_wire_center_to_grid [dict get $pgdef snap_wire_center] "
+            }
+            if {[dict exists $pgdef generate_special_via_attr]} {
+                dict for {attr value} [dict get $pgdef generate_special_via_attr] {
+                    set_db generate_special_via_$attr $value
+                }
+            }
+            #set_db generate_special_via_rule_preference generated
+            set repeat_window [lsort -int [dict keys \
+                              [dict get $effective_tracks \
+                               pg_info $layer [string tolower $supply]]\
+                              ]]
+            if {[lindex [lsort $repeat_window] 0 ] < 0 } {
+                puts "Error: Negative number found repeat window.
+                             Something is wrong. Contact Venkat."
+            }
+            # Calculate spacing list
+            # TODO- check  if just one value for -net is enough for a set
+            # Also move the lmap for net inside the newpos loop
+            set oldpos [lindex $repeat_window 0]
+            set spacing_list [list ]
+            set net [list  $supply]
+            foreach newpos [lrange $repeat_window 1 end] {
+                set delta {*}[convert_dbu_to_um [expr {$newpos - $oldpos - $pg_width_dbu}]]
+                lappend spacing_list $delta
+                set oldpos $newpos
+                lappend net $supply
+            }
+            set stripe_area "{0 0 0 0}"
+            foreach inst [dict get $BLOCKAGE_dict $layer] {
+                if {[lsearch -nocase -exact [get_db $inst .pg_pins.base_name] \
+                      $supply] != -1} {
+                    set inst_bbox [get_db $inst .bbox]
+                    if { $dbg } {puts "Inst $inst \n\t $inst_bbox" }
+                    # Create a sliver blockage to prevent 
+                    # Innovus from doing nonsense around IP boundaries
+                    # Only required if the n+1 layer is a staple
+                    if {[dict exists $pgdef2 staple]} {
+                        set dir [get_db [get_db layers $next_layer ] .direction]
+                        set llx [get_db $inst .bbox.ll.x]
+                        set lly [get_db $inst .bbox.ll.y]
+                        set urx [get_db $inst .bbox.ur.x]
+                        set ury [get_db $inst .bbox.ur.y]
+                        set height [get_db $inst .bbox.length]
+                        set width  [get_db $inst .bbox.width]
+                        if { $dir == "vertical" } {
+                            # left sliver
+                            lappend route_blockage_sliver_areas \
+                                    [list \
+                                    [expr {$llx - 0.5}] \
+                                    $lly \
+                                    [expr {$llx + 0.5}] \
+                                    $ury]
+                            # right sliver
+                            lappend route_blockage_sliver_areas \
+                                    [list \
+                                    [expr {$urx - 0.5}] \
+                                    $lly \
+                                    [expr {$urx + 0.5}] \
+                                    $ury]
+                        } elseif { $dir == "horizontal" } {
+                            # bottom sliver
+                            lappend route_blockage_sliver_areas \
+                                    [list \
+                                    $llx \
+                                    [expr {$lly - 0.5}] \
+                                    [expr $urx \
+                                    [expr {$lly +  0.5}]]
+                            # top sliver
+                            lappend route_blockage_sliver_areas \
+                                    [list \
+                                    $llx \
+                                    [expr {$ury - 0.5}] \
+                                    $urx \
+                                    [expr {$ury + 0.5}]]
+                        }
+                    }
+                    #set route_blockage_area [get_computed_shapes -output rect \
+                        $route_blockage_area XOR $inst_bbox ]
+                    #if { $dbg } { puts "Route Blockage: \n\t$route_blockage_area" }
+                    set stripe_area [get_computed_shapes -output rect \
+                        $stripe_area OR $inst_bbox ]
+                    #if  {$dbg} {puts "Stripe Area: \n\t$stripe_area"}
+                } else { continue }
+            }
+            append cmd "-spacing {$spacing_list} \
+                        -nets {$net} \
+                        -area $core_bbox "
+
+            if {[dict exists $pgdef core_align] && [dict get $pgdef core_align]} {
+                set route_blockage_area [get_computed_shapes -output rect \
+                    [get_computed_shapes -output rect $core_bbox \
+                   ANDNOT $stripe_area] SIZEX -0.001]
+            } else {
+                set route_blockage_area [get_computed_shapes -output rect \
+                    [get_computed_shapes -output rect $core_bbox \
+                   ANDNOT $stripe_area] SIZEX -0.001]
+            }
+            append cmd "-area_blockage [list $route_blockage_area] "
+            #set route_blockage_area [get_computed_shapes -output rect \
+            #    $route_blockage_area  SIZEX -0.001]
+            #if {[llength [get_db route_blockages -if {.name==*pg_over_IP_$layer}]] == 0 } { 
+            #    if { $dbg} { puts "Final Route Blockage: \n\t\t$route_blockage_area"}
+            #    if { $dbg } {puts "I- create_route_blockage -layers $layer -name pg_over_IP_${layer} \
+            #        -polygon $route_blockage_area" }
+            #    create_route_blockage -layers $layer -name pg_over_IP_${layer} \
+            #        -rects  $route_blockage_area -spacing 0
+            #}
+                if {$dbg} {
+                    puts "I- $cmd"
+                } else {
+                    eval $cmd
+                }
+        }   
+        #  Crete sliver blockage if required 
+        if {[llength $route_blockage_sliver_areas] > 0} {
+            #puts "create_route_blockage -spacing 0 -layers $next_layer \
+                -rect $route_blockage_sliver_areas -name pg_sliver_blkg"
+            create_route_blockage -spacing 0 -layers $next_layer \
+                -rect $route_blockage_sliver_areas -name pg_sliver_blkg_${next_layer}
+        }
+        #if {!$dbg} {
+        #    delete_route_blockage -name pg_over_IP_${layer}
+        #}
+    }
+}
+# Run the whole deal
+#mint_inv_create_pg
+#
+#recompute the pattern offset and appoly the whole thing 
