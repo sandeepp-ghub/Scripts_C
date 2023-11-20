@@ -1,0 +1,7 @@
+
+set nets [  get_db [get_db nets -if {.route_rule.name == 2w2s_ndr } ] .name ]
+set fp [open "dataout/route_ndr_nets.tcl" w]
+puts $fp "set route_ndr_nets \[ list $nets\]"
+close $fp
+foreach net [  get_db [get_db nets -if {.route_rule.name == 2w2s_ndr } ] .name ] {
+}
