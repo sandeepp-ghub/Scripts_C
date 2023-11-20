@@ -1,0 +1,27 @@
+
+
+
+
+
+
+set cn_blk_setup_leakage_setup_code {
+    set pteco_setup_slack_less   0.000
+    set pteco_setup_margin       0.000
+
+    set pteco_hold_slack_less    0.000
+    set pteco_hold_margin        0.005
+
+    eval $cn_setup_code
+
+    set pteco_power_rec_margin 0.015
+
+    eval $cn_footprint_on_code
+    eval $cn_leakage_code
+    eval $cn_footprint_off_code
+
+    set pteco_setup_slack_less 0.015
+    set pteco_setup_margin 0.015
+
+    eval $cn_setup_code
+}
+
