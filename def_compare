@@ -1,0 +1,259 @@
+procedure is_def_same {
+    -short_description "Remove VIAS section and power/ground ports."
+    -description "Removes entire VIAS section from def. from VIAS to END VIAS.
+                    Removes PORTS from power/ground ports, puts only direction and net."
+    -return
+    "Writes modified def."
+    -args {
+        {-def_fp
+            -type string
+            -description "In put def file. fp_def "
+            -mandatory
+        }
+        {-def_dc
+            -type string
+            -description "Output def file."
+            -mandatory
+        }
+        {-ignore
+            -type list
+            -description "ignore pins"
+        }
+    }
+} {
+    # - If the diearea string has not be removed. do so now.
+    set dc [open $def_dc r]
+    set fp [open $def_fp r]
+    if {[string match "*.gz" $def_fp]} {
+        # - Apply gzunzip decompression to the channel.
+        # - After this,  we can read the file as normal.
+        zlib push gunzip $fp
+    }
+    if {[string match "*.gz" $def_dc]} {
+        # - Apply gzunzip decompression to the channel.
+        # - After this,  we can read the file as normal.
+        zlib push gunzip $dc
+    }
+    while { [gets $fp line ] >= 0 } {
+        # -Create dict from def to compare.
+        if { [regexp "^PINS" $line] } {
+                set line [ read_def_line -line $line -fp $fp ]
+                set fp_pin_count [ lindex $line 1 ]
+                while { [gets $fp line ] >= 0 } {
+                        set line [ read_def_line -line $line -fp $fp ]
+                        if { [regexp "^END PINS" $line ] } {
+                                break
+                        }
+                        set use [ lindex $line [ expr [ lsearch $line "USE" ] + 1 ] ]
+                        set obj [lindex $line 1]
+                        set skip 0
+                        if {  $use == "POWER" || $use == "GROUND" || [regexp $obj $ignore ]} {
+                                set skip 1
+                        }
+                        if { $skip == 0 } {
+                                set pin_data [ split $line + ]
+                                set to_dict [ list ]
+                                foreach pd $pin_data {
+                                        lappend to_dict [lindex $pd 0] 
+                                        lappend to_dict [ join [lrange $pd 1 end ] " " ]
+                                }
+                                dict set FP PINS $obj $to_dict
+                        } else {
+                                puts "Skipping $obj"
+                        }
+                }
+        } elseif { [regexp "^DIEAREA" $line] } {
+                set line [ read_def_line -line $line -fp $fp ]
+                regsub -all {\(|\)|;|DIEAREA} $line { } coordinates
+                set fp_die $coordinates
+        } elseif { [regexp "UNITS DISTANCE MICRONS" $line] } {
+                set line [ read_def_line -line $line -fp $fp ]
+                regexp {^UNITS DISTANCE MICRONS (\d+)} $line full_match dbunit
+                set fp_db_unit $dbunit
+        } else {
+                continue
+        }
+    }
+    while { [gets $dc line ] >= 0 } {
+        # -Create dict from def to compare.
+        if { [regexp "^PINS" $line] } {
+                set line [ read_def_line -line $line -fp $dc ]
+                set dc_pin_count [ lindex $line 1 ]
+                while { [gets $dc line ] >= 0 } {
+                        set line [ read_def_line -line $line -fp $dc ]
+                        if { [regexp "^END PINS" $line ] } {
+                                break
+                        }
+                        set use [ lindex $line [ expr [ lsearch $line "USE" ] + 1 ] ]
+                        set obj [lindex $line 1]
+                        set skip 0
+                        if {  $use == "POWER" || $use == "GROUND" || [regexp $obj $ignore ]} {
+                                set skip 1
+                        }
+                        if { $skip == 0 } {
+                                set pin_data [ split $line + ]
+                                set to_dict [ list ]
+                                foreach pd $pin_data  {
+                                        lappend to_dict [lindex $pd 0] 
+                                        lappend to_dict [ join [lrange $pd 1 end ] " " ]
+                                }
+                                dict set DC PINS $obj $to_dict
+                        } else {
+                                puts "Skipping $obj"
+                        }
+                }
+        } elseif { [regexp "^DIEAREA" $line] } {
+                set line [ read_def_line -line $line -fp $dc ]
+                regsub -all {\(|\)|;|DIEAREA} $line { } coordinates
+                set dc_die $coordinates
+        } elseif { [regexp "UNITS DISTANCE MICRONS" $line] } {
+                set line [ read_def_line -line $line -fp $dc ]
+                regexp {^UNITS DISTANCE MICRONS\s+(\d+)} $line full_match dbunit
+                set dc_db_unit $dbunit
+        } else {
+                continue
+        }
+    }
+    close $fp
+    close $dc
+    set mismatched [ list ]
+    set to_micron [ list ]
+    for {set i 0} {$i < [llength $fp_die]} {incr i} {
+        lappend to_micron [expr double([ lindex $fp_die $i ]) / $fp_db_unit ]
+    }
+    set fp_die $to_micron
+    set to_micron [ list ]
+    for {set i 0} {$i < [llength $dc_die]} {incr i} {
+        lappend to_micron [expr double([ lindex $dc_die $i ]) / $dc_db_unit ]
+    }
+    set dc_die $to_micron
+    #set dc_die [ dict get $DC "DIEAREA" ]
+    if { [llength $fp_die] == [llength $dc_die] } {
+            for {set i 0} { $i < [llength $fp_die] } { incr i} {
+                    if { [lindex $fp_die $i] ==  [lindex $dc_die $i] } {
+                        set die_matched 1
+                        continue
+                    } else {
+                        set die_matched 0
+                        lappend mismatched DIEAREA
+                        lappend mismatched "$fp_die <==> $dc_die"
+                        break
+                    }
+            }
+    } elseif { [llength $fp_die] < [llength $dc_die] } {
+            if { [lindex $fp_die 2] == [ lindex $dc_die 4 ] && [lindex $fp_die 3] == [ lindex $dc_die 5 ] } {
+                set die_matched 1
+            } else {
+                set die_matched 0
+                lappend mismatched DIEAREA
+                lappend mismatched "$fp_die <==> $dc_die"
+            }
+    } else {
+            if { [lindex $fp_die 4] == [ lindex $dc_die 2 ] && [lindex $fp_die 5] == [ lindex $dc_die 3 ] } {
+                set die_matched 1
+            } else {
+                set die_matched 0
+                lappend mismatched DIEAREA
+                lappend mismatched "$fp_die <==> $dc_die"
+            }
+    }
+    foreach  pin [dict keys [ dict get $FP "PINS" ] ] {
+         #puts "$pin"
+         if { [ dict exists [ dict get $FP "PINS" ] $pin ] && [ dict exists  [ dict get $DC "PINS" ] $pin ] } { 
+         set fp_pin  [ dict get  [ dict get $FP "PINS" ] $pin ]
+         set dc_pin  [ dict get  [ dict get $DC "PINS" ] $pin ]
+            } else {
+                puts "$pin not found in one of the def"
+                set fp_pin ""
+                set dc_pin ""
+            }
+         foreach {k v} $fp_pin {
+            set v1 [ dict get $dc_pin $k ] 
+            if { $k == "-" || $k == "NET" || $k == "DIRECTION" || $k == "USE" } {
+                if { [string compare $v $v1] } {
+                                lappend mismatched $pin
+                                lappend mismatched "$k $v <==> $v1"
+                } else {
+                                #puts "$k $v <==> $v1"
+                                continue
+                }
+            } elseif { $k == "LAYER" } {
+                 regsub -all {\(|\)|;} $v { } v ; set fp_lay_name [ lindex $v 0 ] ; if { [regexp {M1$|M2$|M3$} $fp_lay_name ] } { set v [ lreplace $v 0 2  ] } else {  set v [ lreplace $v 0 0  ] }
+                 set to_micron [ list ] ; for {set i 0} {$i < [llength $v]} {incr i} { lappend to_micron [expr double([ lindex $v $i ]) / $fp_db_unit ] } ; set v $to_micron
+                 regsub -all {\(|\)|;} $v1 { } v1 ; set dc_lay_name [ lindex $v1 0 ] ; if { [regexp {M1$|M2$|M3$} $dc_lay_name ] } { set v1 [ lreplace $v1 0 2  ] } else {  set v1 [ lreplace $v1 0 0  ] }
+                 set to_micron [ list ] ; for {set i 0} {$i < [llength $v1]} {incr i} { lappend to_micron [expr double([ lindex $v1 $i ]) / $dc_db_unit ] } ; set v1 $to_micron
+                  if { $fp_lay_name == $dc_lay_name } {
+                  for {set i 0 } {$i < 4 } {incr i} {
+                        if { [lindex $v $i] == [lindex $v1 $i] } {
+                        } else {
+                                lappend mismatched $pin
+                                lappend mismatched "$k $fp_lay_name $v <==> $dc_lay_name $v1"
+                        }
+                  }
+                 } else {
+                        lappend mismatched $pin
+                        lappend mismatched "$k $fp_lay_name <==> $dc_lay_name "
+                 }
+            } elseif { $k == "PLACED" || $k == "FIXED" } {
+                regsub -all {\(|\)|;} $v {} v ; set fp_side [ lindex $v 2 ] ; set v [ lreplace $v 2 2 ]
+                regsub -all {\(|\)|;} $v1 {} v1 ; set dc_side [ lindex $v1 2 ] ; set v1 [ lreplace $v1 2 2 ]
+                 set to_micron [ list ] ; for {set i 0} {$i < [llength $v]} {incr i} { lappend to_micron [expr double([ lindex $v $i ]) / $fp_db_unit ] } ; set v $to_micron
+                 set to_micron [ list ] ; for {set i 0} {$i < [llength $v1]} {incr i} { lappend to_micron [expr double([ lindex $v1 $i ]) / $dc_db_unit ] } ; set v1 $to_micron
+                 if { $fp_side == $dc_side } {
+                  for {set i 0 } {$i < 2 } {incr i} {
+                        if { [lindex $v $i] == [lindex $v1 $i] } {
+                        } else {
+                                lappend mismatched $pin
+                                lappend mismatched "$k  $v $fp_side <==>  $v1 $dc_side"
+                        }
+                  }
+                 } else {
+                        lappend mismatched $pin
+                        lappend mismatched "$k $fp_side <==> $dc_side"
+                 }
+            } else {
+                    puts "Unknown attribute $k for pin $pin."
+            }
+         }
+    }
+    if { $fp_pin_count == $dc_pin_count } {
+    } else {
+            lappend mismatched PINCOUNT
+            lappend mismatched "$fp_pin_count <==> $dc_pin_count "
+    }
+    foreach {pin msg} $mismatched {
+            puts "$pin : $msg"
+    }
+    puts "die matched : $die_matched"
+}
+
+procedure read_def_line {
+    -description "Only print" 
+    -return "full line upto ;"
+    -args {
+        { -line
+            -type string
+            -description "line to print"
+            -mandatory
+        }
+        { -fp
+            -type file
+            -description "File handler"
+            -mandatory
+        }
+    }
+} {
+    if { [regexp "^END" $line] || [ regexp ";" $line ] } {
+        set ret_line $line
+    } else {
+        set tmpline $line
+        while { [gets $fp line] >= 0 } {
+            set tmpline [ join "$tmpline $line" " " ]
+            if { [regexp ";" $line ] } {
+                break
+            }
+        }
+        set ret_line $tmpline
+    }
+    return $ret_line
+}
