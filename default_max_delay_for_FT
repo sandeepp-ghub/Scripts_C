@@ -1,0 +1,43 @@
+
+proc _pin_distance {p1 p2} {
+    if { [ sizeof_collection [ get_pins -quiet $p1 ] ] > 0 } {
+        set p1loc [get_db pin:$p1 .location]
+    } elseif { [ sizeof_collection [ get_ports -quiet $p1 ] ] > 0 } {
+        set p1loc [get_db port:$p1 .location]
+    } else {
+        puts "Please provide pin or port as 1st argument"
+    }
+    if { [ sizeof_collection [ get_pins -quiet $p2 ] ] > 0 } {
+        set p2loc [get_db pin:$p2 .location]
+    } elseif { [ sizeof_collection [ get_ports -quiet $p2 ] ] > 0 } {
+        set p2loc [get_db port:$p2 .location]
+    } else {
+        puts "Please provide pin or port as 2nd argument"
+    }
+    set x1 [ lindex [lindex $p1loc 0 ] 0]
+    set y1 [ lindex [lindex $p1loc 0 ] 1]
+    set x2 [ lindex [lindex $p2loc 0 ] 0]
+    set y2 [ lindex [lindex $p2loc 0 ] 1]
+    set dist [ expr [expr abs ($x2 -$x1)] + [ expr abs ($y2-$y1)] ]
+    return $dist
+}
+proc _get_delay_for_distance {d} {
+    ## right 850ps per 2000um
+    set delay [ expr [ expr $d / 50 ] * 21 ]
+    return $delay
+}
+
+foreach in [ get_db [ get_db ports -if { .direction==in && .is_clock_used_as_clock == false } ] .name ] {
+        set fout [ all_fanout -endpoints_only -from $in ]
+        set pins  [ get_db [ get_db $fout -if {.obj_type == pin}] .name ]
+        set ports [ get_db [ get_db $fout -if {.obj_type == port}] .name ]
+        if { [llength $ports] > 0  } {
+            #puts "$in"
+            foreach op $ports {
+                #puts "\t$op"
+                set d [ _pin_distance $in $op ]
+                set delay [ _get_delay_for_distance $d ]
+                puts "set_max_delay -from $in -to $op $delay"
+            }
+        }
+}
