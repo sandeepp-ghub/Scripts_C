@@ -1,0 +1,23 @@
+
+
+foreach port  [get_object_name [get_ports blk__pad_pe_emmc* ] ] {
+    set fout_cell [ get_object_name [all_fanout -flat -only_cells -from $port ] ]
+    foreach cell $fout_cell {
+        set incount [  llength [get_object_name [get_pins -of [get_cells $cell ] -filter "direction==in" ] ] ]
+        if { $incount > 1 } {
+            set_disable_clock_gating_check [ get_cells $cell ]
+            set_false_path -hold -to [ get_pins -of [get_cells $cell] -filter "direction==in"]
+        }
+    }
+}
+
+foreach port  [get_object_name [get_ports blk__pad_pe_gpio* ] ] {
+    set fout_cell [ get_object_name [all_fanout -flat -only_cells -from $port ] ]
+    foreach cell $fout_cell {
+        set incount [  llength [get_object_name [get_pins -of [get_cells $cell ] -filter "direction==in" ] ] ]
+        if { $incount > 1 } {
+            set_disable_clock_gating_check [ get_cells $cell ]
+            set_false_path -hold -to [ get_pins -of [get_cells $cell] -filter "direction==in"]
+        }
+    }
+}
