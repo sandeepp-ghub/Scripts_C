@@ -1,0 +1,177 @@
+namespace eval ::dn {} {
+
+    #################################################################
+    # Name: netLengthPerLayer_get_db.tcl                           ##
+    # Script to find total length of the net &                     ##
+    # finds the wirelength of each metal layer of this net         ##
+    #                                                              ##
+    # USAGE:                                                       ##
+    # source this_script_directory/netLengthPerLayer_get_db.tcl    ##
+    # netLengthPerLayer <netname>                                  ##
+    #                                                              ##
+    # Output Example:                                              ##
+    # netLengthPerLayer leon/proc0/rf0/u0/u1/CTS_132               ##                                            
+    # #######################################################      ##
+    # NETNAME: leon/proc0/rf0/u0/u1/CTS_132                        ##
+    # length(Metal3) = 12.6                                        ##
+    # length(Metal4) = 201.4                                       ##
+    # length(Metal5) = 203.4                                       ##
+    # TOTAL NET LENGTH = 417.4                                     ##
+    #########################################################      ##
+    #################################################################
+    
+    proc netLengthPerLayer {netname} {
+	puts "\n#######################################################"
+	puts "NETNAME: $netname"
+	set wireList [get_db net:$netname .wires]
+	set layername_length ""
+	for {set wire 0} {$wire < [llength $wireList]} {incr wire} {
+	    set layerName [get_db [lindex $wireList $wire] .layer.name]
+	    set layerLength [get_db [lindex $wireList $wire] .length]
+	    lappend layername_length $layerName $layerLength
+	    puts "$layerName ==> $layerLength"
+        }
+	
+	## MAKING AN ARRAY TO DISPLAY THE RESULTS ##
+	unset -nocomplain length
+	set count 0
+	
+	foreach i $layername_length { 
+	    if {[regexp "M" $i]} { set length($i) 0}
+	}
+	
+	foreach i $layername_length {
+	    if {[regexp "M" $i]} {
+		set length($i) [expr $length($i) + [lindex $layername_length [expr $count + 1]]]
+	    }
+	    incr count
+	}
+	parray length
+	
+	## TO FIND TOTAL NET LENGTH ##
+	proc listadd L {expr [join $L +]+0}
+	puts "TOTAL NET LENGTH = [listadd [get_db net:$netname .wires.length]]"
+	puts "#######################################################\n"
+    }
+    
+    #######################################
+    ## To find length of a net :         ##
+    #######################################
+    proc net_length {netname} {
+	set net_length 0
+	set net_wire_lengths [get_db net:$netname .wires.length]
+	foreach i $net_wire_lengths {
+	    set net_length [expr $net_length + $i] 
+	}
+	return $net_length
+    }
+    
+    #####################################
+    ## Find nets greater than a length ##
+    #####################################
+    
+    proc netsGreaterThanLength {length filename} {
+	set fp [open $filename w]
+	puts $fp "Nets with net length greater than $length are:"
+	puts $fp "Net_Length \t\t Net_Name"
+	set cnt 0
+	set signal_nets [get_db [get_db nets -if {.is_clock != true && .is_power != true && .is_ground != true}] .name]
+	foreach net $signal_nets {
+	    if {[net_length $net] > $length} {
+		puts $fp "[net_length $net] \t\t $net"
+		incr cnt
+	    }
+	}
+	close $fp
+	puts "Number of nets longer than $length um: $cnt "
+	puts "Longer nets are reported in $filename\n"
+    }
+
+    # ------------------------------------------------
+    # For Antenna violations (from Troy Hille)
+    proc add_diode_xy {cell pin x y} {
+	set mylib [get_db [get_db base_cells ANTENNABWP*H6P5*CNODELVT \
+			       ANTENNAKABWP*H6P5*CNODELVT] .name]
+	set xloc $x
+	set yloc $y
+	
+	set inst $cell
+	
+	set term $pin
+	
+	puts "create_diode -diode_cell $mylib -location $xloc $yloc -pin $inst  $term -orient r0 -prefix \"myant\""
+	create_diode -diode_cell $mylib -location $xloc $yloc -pin $inst  $term -orient r0 -prefix "myant"
+    }
+
+    # ------------------------------------------------
+    # Highlight floorplan with regions
+    proc highlight_modules { } {
+	gui_set_obj_color -reset
+	set i 1
+	foreach inst [get_db insts .name] {
+	    gui_set_obj_color -color_id [expr $i%30] -include_children color -obj_name $inst;
+	    incr i
+	}
+    }    
+
+
+    proc find_common_nets { startpoint endpoint } {
+	
+	set common_nets ""
+	puts "--------------------------------"
+	puts "Common nets of SP: $startpoint"
+	puts "               EP: $endpoint"
+	
+	set sp [get_pins $startpoint]
+	set ep [get_pins $endpoint]
+	set fanin_nets_of_ep  [get_object [get_nets -of [get_pins [all_fanin -to $ep  ]]]]
+	set fanout_nets_of_sp [get_object [get_nets -of [get_pins [all_fanout -from $sp  ]]]]
+	set superset_nets [lsort -unique "$fanout_nets_of_sp $fanin_nets_of_ep"]
+	
+	foreach net $superset_nets { 
+	    #puts "superset: $net"
+	    if {[lsearch $fanout_nets_of_sp $net] != -1  && [lsearch $fanin_nets_of_ep $net] != -1 } { 
+		append common_nets " $net" 
+	    } 
+	}
+	
+	#foreach net $common_nets {puts "common: $net" }
+	
+	return "{$fanin_nets_of_ep} {$fanout_nets_of_sp} {$superset_nets} {$common_nets}"
+    }
+    
+    proc find_common_cells { startpoint endpoint } {
+	
+	set common_cells ""
+	puts "--------------------------------"
+	puts "Common cells of SP: $startpoint"
+	puts "                EP: $endpoint"
+	
+	set sp [get_pins $startpoint]
+	set ep [get_pins $endpoint]
+	set fanin_cells_of_ep  [get_object [get_cells -of [get_pins [all_fanin -to $ep  ]]]]
+	set fanout_cells_of_sp [get_object [get_cells -of [get_pins [all_fanout -from $sp  ]]]]
+	set superset_cells [lsort -unique "$fanout_cells_of_sp $fanin_cells_of_ep"]
+	
+	foreach cell $superset_cells { 
+	    #puts "superset: $cell"
+	    if {[lsearch $fanout_cells_of_sp $cell] != -1  && [lsearch $fanin_cells_of_ep $cell] != -1 } { 
+		append common_cells " $cell" 
+	    } 
+	}
+	
+	#foreach cell $common_cells {puts "common: $cell" }
+	
+	return "{$fanin_cells_of_ep} {$fanout_cells_of_sp} {$superset_cells} {$common_cells}"
+    }
+    
+}
+
+
+puts "Loading Innovus proc 'netLengthPerLayer <netname>'"
+puts "Loading Innovus proc 'net_length <netname>'"
+puts "Loading Innovus proc 'netsGreaterThanLength <length> <filename>'"
+puts "Loading Innovus proc 'add_diode_xy <cell> <pin> <x> <y>'"
+puts "Loading Innovus proc 'highlight_modules { }'"
+puts "Loading Innovus proc 'find_common_nets { startpoint endpoint }'"
+puts "Loading Innovus proc 'find_common_cells { startpoint endpoint }'"
