@@ -1,0 +1,27 @@
+#!/bin/tcsh
+
+# Generic script to summarize design data for different blocks in the project using the latest release
+
+set release_area = /proj/$MRVL_PROJECT/release
+
+echo "#$release_area"
+
+set designs = `ls -1 $release_area | grep -v work`
+
+foreach design ( $designs )
+    #echo $design
+    set latest_release = `ls -1 $release_area/$design | tail -n 1`
+    set post_opt_dir = $release_area/$design/$latest_release/invcui.post.opt/report
+    if ( -e $post_opt_dir ) then;
+	echo ""
+	echo -n "$design/$latest_release | "
+	cd $post_opt_dir
+	# Get the Count of instances and macros from the invcui.post.opt report
+	set instances = `zgrep "# Instances" invcui.post.opt.summary.rpt.gz | grep -v Net | sed 's/ //g'`
+	set macros = `zgrep "# Hard Macros:" invcui.post.opt.summary.rpt.gz | sed 's/Hard Macros/Hard_Macros/' | sed 's/ //g'`
+	echo -n "$instances $macros | " 
+	# Get the VT ratios from the invcui.post.opt design
+	zgrep area invcui.post.opt.vt_groups.rpt.gz | \grep ratio | sed -e 's/design.area.vth://' -e 's/ratio /ratio:/' -e 's/exclude clockpath/exclude_clockpath/' | sort -r | awk '{printf "%s ", $0}' 
+	cd -
+    endif
+end
