@@ -1,0 +1,14 @@
+proc highlight_fanout_cone { startpoint } {
+
+    puts "Highlighting fanout from '$startpoint'"
+    set cells [get_cells -of [all_fanout -from $startpoint]]
+
+    select_obj $cells
+    
+}
+
+
+# -----------------------------------------------------------
+# Initialize Environment
+#gui_deselect -all ; # Deselect all items in the GUI
+#gui_clear_highlight; # Clear all highlight
