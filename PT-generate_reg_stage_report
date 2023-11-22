@@ -1,0 +1,93 @@
+# Run this script in PrimeTime
+
+array unset ::timing_paths
+
+set max_paths 5000
+# ---------------------------------------------------------
+# Get list of inputs (stage 0)
+set inputs  [get_object [all_inputs]]
+set outputs [get_object [all_outputs]]
+
+# Get timing paths from (stage 0) --> stage 1
+
+#while { $more_stages } 
+for { set i 0 } { $i < 100 } { incr i } {
+
+    set potential_startpoints_for_next_stage ""
+
+    # Define the stage 
+    set stage [join "$i to [expr $i + 1]" _]
+
+    # Seed the 1st level 
+    if { $i == "0" } { 
+	set startpoints [get_object [all_inputs]] 
+    }
+
+    if {[llength $startpoints] } {
+	puts ""
+	puts "# ==============================================================================================="
+	puts "# Stage $stage timing_paths ..."
+
+	# Get a list of timing paths from the defined list of startpoints
+	set timing_paths($stage) [get_timing_paths -from $startpoints -slack_lesser_than inf -max_paths $max_paths]
+
+	set x 0
+	# Cycle through each timing path to query timing information
+	foreach_in_collection tp $timing_paths($stage) {
+	    incr x
+	    set startpoint [get_object [get_attribute $tp startpoint]]
+	    set endpoint   [get_object [get_attribute $tp endpoint]]
+	    set slack      [get_attribute $tp slack]; 
+	    set startpoint_clock [get_object [get_attribute $tp startpoint_clock]]
+	    set endpoint_clock   [get_object [get_attribute $tp endpoint_clock]]
+	    set format_line [format "%-6s | %10s | %s %s | %s %s" $x $slack $startpoint $startpoint_clock $endpoint $endpoint_clock]
+	    puts $format_line
+	    
+	    # Check if all endpoint is not an output port
+	    if {[lsearch $outputs $endpoint] == -1 } {
+		
+		# Replace the endpoint 
+		set endpoint_cell [file dir $endpoint]
+		#puts "endpoint = $endpoint"
+		#puts "endpoint_cell = $endpoint_cell"
+		set potential_clock_pin1 ${endpoint_cell}/CK
+		set potential_clock_pin2 ${endpoint_cell}/CP
+		#puts "got there 0: $potential_clock_pin"
+		if {[get_pin -quiet $potential_clock_pin1] != "" } {
+		    append potential_startpoints_for_next_stage " $potential_clock_pin1"
+		    #puts "got there 1"
+		} elseif {[get_pin -quiet $potential_clock_pin2] != "" } {
+		    append potential_startpoints_for_next_stage " $potential_clock_pin2"
+		    #puts "got there 2"
+		}
+	    }
+	}
+	
+	set unique_potential_startpoints_for_next_stage [lsort -unique $potential_startpoints_for_next_stage]
+	
+	# Count how many candidates for next stage
+	set candidates_for_next_stage [llength $unique_potential_startpoints_for_next_stage]
+
+	# Check if we are stuck in a loop
+	if { $startpoints == $unique_potential_startpoints_for_next_stage } {
+	    set startpoints ""
+	    puts "NOTE: Next stage ([expr $i + 1]) startpoints are same as current stage startpoints. Possibly in loop"
+	} else {
+	    # If there are unique candidates for next stage, then continue
+	    if { $candidates_for_next_stage } {
+		puts "Found $candidates_for_next_stage startpoints for stage [expr $i + 1]"
+		foreach c $unique_potential_startpoints_for_next_stage {
+		    #puts $c
+		}
+		set startpoints "$unique_potential_startpoints_for_next_stage"
+	    } else {
+		set startpoints ""
+	    }
+	}
+
+
+    }
+}
+#
+
+# ---------------------------------------------------------
