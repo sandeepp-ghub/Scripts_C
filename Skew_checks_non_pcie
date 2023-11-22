@@ -1,0 +1,255 @@
+# if {[info exists pt_split_blocks_from_report_cells]} {
+#     set out_dir ./reports/SKEW_CHECKS/${run_type_specific}
+
+#     if {! [file exists $out_dir]} {
+#         file mkdir $out_dir
+#     } else {
+#         if {[file exists ${out_dir}_prev]} {
+#             sh rm -rf ${out_dir}_prev
+#         }
+#         sh mv $out_dir ${out_dir}_prev
+#         file mkdir $out_dir
+#     }
+# }
+
+suppress_message UITE-416
+
+proc report_max_to_max_skew {skew_check_name timing_path_collection skew_allowed} {
+    global run_type_specific  
+    set delays [list]
+    set delays [get_attribute $timing_path_collection arrival]
+    if {[llength $delays] == 0} {
+	puts "$skew_check_name $run_type_specific NO_PATHS_FOUND"
+    } else {
+	set delays [lsort $delays]
+	set least_delay [lindex $delays 0]
+	set most_delay [lindex $delays end]
+	set slack [expr $skew_allowed - ($most_delay - $least_delay)]
+	puts "$skew_check_name [expr $slack < 0.0000 ? {{FAIL}} : {{PASS}}] $slack : [join $delays { }] (skew of [expr $most_delay - $least_delay])"
+    }
+}
+
+########################################################## PIPE_PCLK_IN[0-3] SKEW CHECK ######################################################################
+
+puts "
+########################################################## PIPE_PCLK_IN SKEW CHECK ######################################################################
+"
+foreach edge {rise fall} {
+    foreach_in_collection icg [get_pins connect_pcie?_ch0/pcie?_clkdiv_pem*/pclk_gen/u_cmicg/Q] {
+	report_max_to_max_skew "PIPE_PCLK_IN__ALL_gserp [get_object_name $icg] $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from $icg -${edge}_to [get_pins gserp_*lane?/gserp*/comphy/PIPE_PCLK_IN*]] 0.300
+	foreach {pcie_comphy_instance_prefix pcie_comphy_instance_name pcie_comphy_instance_lanes} $pcie_comphy_prefix_instance_lanes {
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIPE_PCLK_IN0 [get_object_name $icg] $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from $icg -${edge}_to [get_pins $pcie_comphy_instance_name/PIPE_PCLK_IN0]] 0.300
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIPE_PCLK_IN1 [get_object_name $icg] $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from $icg -${edge}_to [get_pins $pcie_comphy_instance_name/PIPE_PCLK_IN1]] 0.300
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIPE_PCLK_IN2 [get_object_name $icg] $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from $icg -${edge}_to [get_pins $pcie_comphy_instance_name/PIPE_PCLK_IN2]] 0.300
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIPE_PCLK_IN3 [get_object_name $icg] $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from $icg -${edge}_to [get_pins $pcie_comphy_instance_name/PIPE_PCLK_IN3]] 0.300
+	}
+	puts "\n"
+    }
+}
+
+########################################################## MCU_CLK[0-3]/CMN SKEW CHECK ######################################################################
+
+puts "
+########################################################## MCU_CLK/CMN SKEW CHECK ######################################################################
+"
+foreach edge {rise fall} {
+    report_max_to_max_skew "MAIN MCU_CLK_ALL_gserp $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from gclk -${edge}_to [get_pins gserp_*lane?/gserp*/comphy/PIN_MCU_CLK*]] 0.050
+    foreach {pcie_comphy_instance_prefix pcie_comphy_instance_name pcie_comphy_instance_lanes} $pcie_comphy_prefix_instance_lanes {
+        report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}MCU_CLK_CMN $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from gclk -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_MCU_CLK_CMN]] 0.050
+        report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}MCU_CLK0 $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from gclk -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_MCU_CLK0]] 0.050
+        report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}MCU_CLK1 $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from gclk -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_MCU_CLK1]] 0.050
+        report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}MCU_CLK2 $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from gclk -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_MCU_CLK2]] 0.050
+        report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}MCU_CLK3 $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -from gclk -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_MCU_CLK3]] 0.050
+    }
+    puts "\n"
+}
+########################################################## TXCLK_ALIGN_IN/_REF SKEW CHECKS ######################################################################
+
+puts "
+########################################################## TXCLK_ALIGN_IN/_REF SKEW CHECKS ######################################################################
+"
+
+puts "
+For the TXCLK_ALIGN skew checks :\n \
+      PIN_TXCLK_ALIGN_IN0 & PIN_TXCLK_ALIGN_IN_REF0 of the MASTER LANE are connected to DVSS\n \
+      MUX0 comes before MUX1\n \
+      MODE0_TXCLK_ALIGN_MUX1_I0 implies: report_timing_paths through I0 pin of MUX1 to PIN_TXCLK_ALIGN_IN* pins of the comphy\n \
+      MODE1_TXCLK_ALIGN_MUX0_I0 implies: report_timing_paths through I0 pin of MUX0 to PIN_TXCLK_ALIGN_IN* pins of the comphy\n \
+      MODE2_TXCLK_ALIGN_MUX0_I1 implies: report_timing_paths through I1 pin of MUX0 to PIN_TXCLK_ALIGN_IN* pins of the comphy
+"
+set TXCLK_ALIGN_MUX_PIN_PAIRS {
+    4x4_MODE0_TXCLK_ALIGN_MUX1_I0 gserp_*lane?/muxing_mux_txclk_align??_m1/I0 gserp_16lane?/muxing_mux_txclk_align_ref??_m1/I0
+    2x8_MODE1_TXCLK_ALIGN_MUX0_I0 gserp_*lane?/muxing_mux_txclk_align??_m0/I0 gserp_16lane?/muxing_mux_txclk_align_ref??_m0/I0
+    1x16_MODE2_TXCLK_ALIGN_MUX0_I1 gserp_*lane?/muxing_mux_txclk_align??_m0/I1 gserp_16lane?/muxing_mux_txclk_align_ref??_m0/I1
+}
+
+foreach {case_name pin_txclk_align_in_through_point pin_txclk_align_in_ref_through_point} $TXCLK_ALIGN_MUX_PIN_PAIRS {
+    foreach {pcie_comphy_instance_prefix pcie_comphy_instance_name pcie_comphy_instance_lanes} $pcie_comphy_prefix_instance_lanes {
+	for {set j 0} {$j<4} {incr j} {
+	    foreach edge {rise fall} {
+		set pin_txclk_align_paths {}
+		append_to_collection pin_txclk_align_paths [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -through [get_pins gserp_16lane?/gserp?/txclk_align_out[*]] -through [get_pins $pin_txclk_align_in_through_point] -${edge}_through [get_pins ${pcie_comphy_instance_name}/PIN_TXCLK_ALIGN_IN${j}]]
+		append_to_collection pin_txclk_align_paths [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -through [get_pins gserp_16lane?/gserp?/txclk_align_out[*]] -through [get_pins $pin_txclk_align_in_ref_through_point] -${edge}_through [get_pins ${pcie_comphy_instance_name}/PIN_TXCLK_ALIGN_IN_REF${j}]]
+		report_max_to_max_skew "${pcie_comphy_instance_name}_LANE${j} skew check in Mode: $case_name & for Edge: $edge" $pin_txclk_align_paths 0.050
+	    }
+	}
+    }
+    puts "\n"
+}
+
+# ########################################################## TXCLK_SYNC_EN_PLL_IN/OUT SKEW CHECK ######################################################################
+
+# puts "
+# ########################################################## TXCLK_SYNC_EN_PLL_IN/OUT SKEW CHECK ######################################################################
+# "
+# puts "
+# For the TXCLK_SYNC_EN_PLL skew checks :\n \
+#       MUX0 comes before MUX1\n \
+#       MODE0_TXCLK_SYNC_EN_PLL_MUX1_I0 implies: report_timing_paths through I0 pin of MUX1 to PIN_TXCLK_SYNC_EN_PLL_IN* pins of the comphy\n \
+#       MODE1_TXCLK_SYNC_EN_PLL_MUX0_I0 implies: report_timing_paths through I0 pin of MUX0 to PIN_TXCLK_SYNC_EN_PLL_IN* pins of the comphy\n \
+#       MODE2_TXCLK_SYNC_EN_PLL_MUX0_I1 implies: report_timing_paths through I1 pin of MUX0 to PIN_TXCLK_SYNC_EN_PLL_IN* pins of the comphy
+# "
+
+# set TXCLK_SYNC_EN_MUX_PIN_PAIRS {
+#     MODE0_TXCLK_SYNC_EN_MUX1_I0 gserp_*lane?/muxing_mux_txclk_sync_en_pll??_m1/I0
+#     MODE1_TXCLK_SYNC_EN_MUX0_I0 gserp_*lane?/muxing_mux_txclk_sync_en_pll??_m0/I0
+#     MODE2_TXCLK_SYNC_EN_MUX0_I1 gserp_*lane?/muxing_mux_txclk_sync_en_pll??_m0/I1
+# }
+
+# foreach {case_name pin_txclk_sync_en_mux_pin} $TXCLK_SYNC_EN_MUX_PIN_PAIRS {
+#     foreach edge {rise fall} {
+# 	report_max_to_max_skew "MAIN TXCLK_SYNC_EN_PLL_IN_ALL_gserp skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -thr $pin_txclk_sync_en_mux_pin  -${edge}_to [get_pins gserp_*lane?/gserp*/comphy/PIN_TXCLK_SYNC_EN_PLL_IN*]] 0.050
+# 	foreach {pcie_comphy_instance_prefix pcie_comphy_instance_name pcie_comphy_instance_lanes} $pcie_comphy_prefix_instance_lanes {
+# 	    #report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIN_TXCLK_SYNC_EN_PLL_OUT0 skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -thr $pin_txclk_sync_en_mux_pin -${edge}_thr [get_pins $pcie_comphy_instance_name/PIN_TXCLK_SYNC_EN_PLL_OUT0]] 0.050
+# 	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIN_TXCLK_SYNC_EN_PLL_IN0 skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -thr $pin_txclk_sync_en_mux_pin -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_TXCLK_SYNC_EN_PLL_IN0]] 0.050
+# 	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIN_TXCLK_SYNC_EN_PLL_IN1 skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -thr $pin_txclk_sync_en_mux_pin -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_TXCLK_SYNC_EN_PLL_IN1]] 0.050
+# 	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIN_TXCLK_SYNC_EN_PLL_IN2 skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -thr $pin_txclk_sync_en_mux_pin -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_TXCLK_SYNC_EN_PLL_IN2]] 0.050
+# 	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIN_TXCLK_SYNC_EN_PLL_IN3 skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -thr $pin_txclk_sync_en_mux_pin -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_TXCLK_SYNC_EN_PLL_IN3]] 0.050
+# 	}
+# 	puts "\n"    
+#     }
+# }
+
+########################################################## RESET_DTX_IN/OUT SKEW CHECK ######################################################################
+
+puts "
+########################################################## RESET_DTX_IN/OUT SKEW CHECK ######################################################################
+"
+puts "
+For the RESET_DTX skew checks :\n \
+      MUX0 comes before MUX1\n \
+      MODE0_RESET_DTX_MUX1_I0 implies: report_timing_paths through I0 pin of MUX1 to PIN_RESET_DTX_IN* pins of the comphy\n \
+      MODE1_RESET_DTX_MUX0_I0 implies: report_timing_paths through I0 pin of MUX0 to PIN_RESET_DTX_IN* pins of the comphy\n \
+      MODE2_RESET_DTX_MUX0_I1 implies: report_timing_paths through I1 pin of MUX0 to PIN_RESET_DTX_IN* pins of the comphy
+"
+
+set RESET_DTX_MUX_PIN_PAIRS {
+    MODE0_RESET_DTX_MUX1_I0 gserp_*lane?/muxing_mux_reset_dtx??_m1/I0
+    MODE1_RESET_DTX_MUX0_I0 gserp_*lane?/muxing_mux_reset_dtx??_m0/I0
+    MODE2_RESET_DTX_MUX0_I1 gserp_*lane?/muxing_mux_reset_dtx??_m0/I1
+}
+
+foreach {case_name reset_dtx_mux_pin} $RESET_DTX_MUX_PIN_PAIRS {
+    foreach edge {rise fall} {
+	report_max_to_max_skew "MAIN RESET_DTX_IN_ALL_gserp skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -thr $reset_dtx_mux_pin  -${edge}_to [get_pins gserp_*lane?/gserp*/comphy/PIN_RESET_DTX_IN*]] 3.200
+	foreach {pcie_comphy_instance_prefix pcie_comphy_instance_name pcie_comphy_instance_lanes} $pcie_comphy_prefix_instance_lanes {
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIN_RESET_DTX_OUT0 skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY -thr $reset_dtx_mux_pin -${edge}_thr [get_pins $pcie_comphy_instance_name/PIN_RESET_DTX_OUT0]] 3.200
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIN_RESET_DTX_IN0 skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -thr $reset_dtx_mux_pin -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_RESET_DTX_IN0]] 3.200
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIN_RESET_DTX_IN1 skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -thr $reset_dtx_mux_pin -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_RESET_DTX_IN1]] 3.200
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIN_RESET_DTX_IN2 skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -thr $reset_dtx_mux_pin -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_RESET_DTX_IN2]] 3.200
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}PIN_RESET_DTX_IN3 skew check in Mode: $case_name & for Edge: $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -thr $reset_dtx_mux_pin -${edge}_to [get_pins $pcie_comphy_instance_name/PIN_RESET_DTX_IN3]] 3.200
+	}
+	puts "\n"    
+    }
+}
+
+########################################################## SCLK_IN/OUT SKEW CHECK ######################################################################
+
+puts "
+########################################################## SCLK_IN/OUT SKEW CHECK ######################################################################
+"
+foreach edge {rise fall} {
+    report_max_to_max_skew "SCLK_IN_ALL_gserp $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -${edge}_to [get_pins gserp_*lane?/gserp*/comphy/PIPE_SCLK_IN*]] 0.050
+    foreach {pcie_comphy_instance_prefix pcie_comphy_instance_name pcie_comphy_instance_lanes} $pcie_comphy_prefix_instance_lanes {
+	foreach bit {0 1 2} {
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}SCLK_IN0[${bit}] $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -${edge}_to [get_pins $pcie_comphy_instance_name/PIPE_SCLK_IN0[${bit}]]] 0.050
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}SCLK_IN1[${bit}] $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -${edge}_to [get_pins $pcie_comphy_instance_name/PIPE_SCLK_IN1[${bit}]]] 0.050
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}SCLK_IN2[${bit}] $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -${edge}_to [get_pins $pcie_comphy_instance_name/PIPE_SCLK_IN2[${bit}]]] 0.050
+	    report_max_to_max_skew "BREAKDOWN ${pcie_comphy_instance_prefix}SCLK_IN3[${bit}] $edge" [get_timing_paths -max_paths 10000 -nworst 10000 -slack_less INFINITY  -${edge}_to [get_pins $pcie_comphy_instance_name/PIPE_SCLK_IN3[${bit}]]] 0.050
+	}
+    }
+    puts "\n"
+}
+
+########################################################## ADDITIONAL MCU_CLK/CMN SKEW CHECK ######################################################################
+
+puts "
+########################################################## ADDITIONAL MCU_CLK\/CMN SKEW CHECK ######################################################################
+"
+global gserp_partition_instance
+global pcie_subblock_instances
+
+foreach edge {rise fall} {
+    puts "\n#################### For ${edge}_edge ####################\n"
+    puts "${gserp_partition_instance}/gclk : \t\t\t\t\t\t\t\t[get_attribute [get_pins ${gserp_partition_instance}/gclk] max_${edge}_arrival]\n"
+    foreach {gserp_instance comphy_instance} $pcie_subblock_instances {
+	puts "${gserp_partition_instance}/gclk -> ${gserp_instance}/gclk : \t\t\t\t[expr [get_attribute [get_pins ${gserp_instance}/gclk] max_${edge}_arrival] - [get_attribute [get_pins ${gserp_partition_instance}/gclk] max_${edge}_arrival]]"
+	foreach_in_collection mcu_pins [get_pins ${comphy_instance}/PIN_MCU_CLK*] {
+	    puts "${gserp_instance}/gclk -> [get_object_name $mcu_pins] : \t[expr [get_attribute [get_timing_paths -slack_less INFINITY -${edge}_from [get_ports gclk] -to $mcu_pins] arrival] - [get_attribute [get_pins ${gserp_instance}/gclk] max_${edge}_arrival]]"
+	}
+	puts "\n"
+    }
+}
+
+unsuppress_message UITE-416
+
+########################################################## ADDITIONAL TX_ALIGN SKEW CHECK ######################################################################
+
+puts "
+########################################################## ADDITIONAL TX_ALIGN SKEW CHECK ######################################################################
+"
+puts "## Arrival time @ gserp_*lane*/gserp*/txclk_align_out[*] bits COMING OUT OF GSERP_4LANE_PNR block"
+foreach edge {rise fall} {
+    foreach_in_collection align [get_pins gserp_*lane*/gserp*/txclk_align_out[*]] {
+	puts "MAX_${edge}_ARRIVAL @ [get_object_name $align]: [get_attribute [get_pins [get_object_name $align]] max_${edge}_arrival]"
+    }
+    puts "\nMAX_${edge}_ARRIVAL delta's among gserp_*lane*/gserp*/txclk_align_out[*] bits coming out GSERP_4LANE_PNR block: [expr abs([expr [lindex [lsort [get_attribute [get_pins gserp_*lane*/gserp*/txclk_align_out[*]] max_${edge}_arrival]] 0] - [lindex [lsort [get_attribute [get_pins gserp_*lane*/gserp*/txclk_align_out[*]] max_${edge}_arrival]] end]])]\n"
+}
+
+set ALIGN_IN_LANES {}
+foreach_in_collection x [get_pins gserp_*lane*/gserp*/txclk_align_in_ref[*]] {
+    lappend ALIGN_IN_LANES [regsub _ref [get_object_name $x] {}]
+    lappend ALIGN_IN_LANES [get_object_name $x]
+}
+
+## 4x4_MODE0_TXCLK_ALIGN_MUX1_I0
+puts "## 4x4_MODE0_TXCLK_ALIGN_MUX1_I0"
+
+foreach edge {rise fall} {
+    foreach {align_in align_in_ref} $ALIGN_IN_LANES {
+	catch { puts "Arrival deltas in :$edge: edge between: $align_in & $align_in_ref : [expr [get_attribute  [filter_collection [get_attribute [get_timing_paths -thr gserp_16lane*/gserp*/txclk_align_out[*] -thr [get_pins gserp_*lane?/muxing_mux_txclk_align??_m1/I0] -thr $align_in -${edge}_thr [get_pins -hier */PIN_TXCLK_ALIGN_IN*] -slack_lesser_than inf] points] object.full_name=~$align_in] arrival] - [get_attribute  [filter_collection [get_attribute [get_timing_paths -thr gserp_16lane*/gserp*/txclk_align_out[*] -thr [get_pins gserp_*lane?/muxing_mux_txclk_align_ref??_m1/I0] -thr $align_in_ref -${edge}_thr [get_pins -hier */PIN_TXCLK_ALIGN_IN_REF*] -slack_lesser_than inf] points] object.full_name=~$align_in_ref] arrival]]" }
+    }
+    puts "\n"
+}
+
+## 2x8_MODE1_TXCLK_ALIGN_MUX0_I0
+puts "## 2x8_MODE1_TXCLK_ALIGN_MUX0_I0"
+
+foreach edge {rise fall} {
+    foreach {align_in align_in_ref} $ALIGN_IN_LANES {
+	catch { puts "Arrival deltas in :$edge: edge between: $align_in & $align_in_ref : [expr [get_attribute  [filter_collection [get_attribute [get_timing_paths -thr gserp_16lane*/gserp*/txclk_align_out[*] -thr [get_pins gserp_*lane?/muxing_mux_txclk_align??_m0/I0] -thr $align_in -${edge}_thr [get_pins -hier */PIN_TXCLK_ALIGN_IN*] -slack_lesser_than inf] points] object.full_name=~$align_in] arrival] - [get_attribute  [filter_collection [get_attribute [get_timing_paths -thr gserp_16lane*/gserp*/txclk_align_out[*] -thr [get_pins gserp_*lane?/muxing_mux_txclk_align_ref??_m0/I0] -thr $align_in_ref -${edge}_thr [get_pins -hier */PIN_TXCLK_ALIGN_IN_REF*] -slack_lesser_than inf] points] object.full_name=~$align_in_ref] arrival]]" }
+    }
+    puts "\n"
+}
+
+## 1x16_MODE1_TXCLK_ALIGN_MUX0_I0
+puts "## 1x16_MODE1_TXCLK_ALIGN_MUX0_I1"
+
+foreach edge {rise fall} {
+    foreach {align_in align_in_ref} $ALIGN_IN_LANES {
+	catch { puts "Arrival deltas in :$edge: edge between: $align_in & $align_in_ref : [expr [get_attribute  [filter_collection [get_attribute [get_timing_paths -thr gserp_16lane*/gserp*/txclk_align_out[*] -thr [get_pins gserp_*lane?/muxing_mux_txclk_align??_m0/I1] -thr $align_in -${edge}_thr [get_pins -hier */PIN_TXCLK_ALIGN_IN*] -slack_lesser_than inf] points] object.full_name=~$align_in] arrival] - [get_attribute  [filter_collection [get_attribute [get_timing_paths -thr gserp_16lane*/gserp*/txclk_align_out[*] -thr [get_pins gserp_*lane?/muxing_mux_txclk_align_ref??_m0/I1] -thr $align_in_ref -${edge}_thr [get_pins -hier */PIN_TXCLK_ALIGN_IN_REF*] -slack_lesser_than inf] points] object.full_name=~$align_in_ref] arrival]]" }
+    }
+    puts "\n"
+}
+
+
