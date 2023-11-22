@@ -1,0 +1,38 @@
+set max_paths 100
+array unset path_info
+
+# NOTE: $run_type is in the PT environment whose values are 'max' or 'min'
+foreach_in_collection group [get_path_groups] {
+    set path_group [get_object $group]
+    if {![string match "*PUT*" $path_group]} {
+	set tps [get_timing_paths -group $path_group -slack_lesser_than inf -max_paths $max_paths -delay_type $run_type]
+	
+	set i 0
+	set failing_eps 0
+	array unset sp
+	array unset ep
+	array unset slack
+	foreach_in_collection tp $tps {
+	    incr i
+	    set sp($i) [get_object [get_attribute $tp startpoint]]
+	    set ep($i) [get_object [get_attribute $tp endpoint]]
+	    set slack($i) [format %.4f [get_attribute $tp slack]]
+	    if { $slack($i) < 0 } {
+		incr failing_eps
+	    }
+	}
+	
+	if {[info exists slack(1)]} {
+	    set format_line [format "%30s | %10s | %s --> %s" $path_group $slack(1) $sp(1) $ep(1)]
+	    set path_info($path_group) "$format_line"
+	}
+    }
+}
+
+set ofile ./path_group_info.$run_type.txt
+set ofile_id [open $ofile w]
+foreach group [array names path_info] {
+    puts $ofile_id $path_info($group)
+}
+close $ofile_id
+puts "Wrote timing info to: $ofile"
