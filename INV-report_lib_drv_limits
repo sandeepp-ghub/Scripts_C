@@ -1,0 +1,34 @@
+array unset MAX_CAP_DATA
+array unset MAX_TRANS_DATA
+
+#set all_buffers   [get_lib_cells BUF*ULVT]
+#set all_inverters [get_lib_cells INV*ULVT]
+
+# Repeat for each gatetype
+set gate_types "INV BUF"
+
+foreach gate_type $gate_types {
+
+    # Build a list of library cells
+    set all_lib_cells [get_lib_cells ${gate_type}*ULVT]
+
+    # Determine the output pin
+    if { $gate_type == "INV" } {
+	set outpin "ZN"
+    } else {
+	set outpin "Z"
+    }
+
+    foreach_in_collection c [get_lib_cells $all_lib_cells] { 
+	set libcell [file tail [get_object $c]];
+	
+	set max_cap   [lsort -unique [get_property [get_lib_pins ${libcell}/${outpin}] max_capacitance]];
+	set max_trans [lsort -unique [get_property [get_lib_pins ${libcell}/${outpin}] max_transition]];
+	
+	set MAX_CAP_DATA($libcell)   "$max_cap"
+	set MAX_TRANS_DATA($libcell)  "$max_trans"
+    }
+}
+
+if {[array exists MAX_CAP_DATA]}    { puts "array 'MAX_CAP_DATA' exists for [array size MAX_CAP_DATA] library cells" }
+if {[array exists MAX_TRANS_DATA]} { puts "array 'MAX_TRANS_DATA' exists for [array size MAX_TRANS_DATA] library cells" }
