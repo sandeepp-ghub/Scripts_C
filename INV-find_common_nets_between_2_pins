@@ -1,0 +1,57 @@
+source /user/dnetrabile/scripts/INV-cadence_utils.tcl
+
+
+# #################################################
+set prefix "U_COBRA_MACPHY_WRAPPER_P1/U_COMPHY_64G_PIPE6_X4_4PLL_WTOP/U_COMPHY_64G_PIPE6_X4_4PLL_wrapper0/U_COMPHY_64G_PIPE6_X4_4PLL_TOP/COMPHY_64G_PIPE6_X4_4PLL_DFT/COMPHY_64G_PIPE6_X4_4PLL/PIN_TXCLK_ALIGN"
+
+#set pairs { {OUT0 IN1} {OUT0 IN2} {OUT0 IN3}}
+#{ {OUT1 IN_REF1} {OUT2 IN_REF2} {OUT3 IN_REF3}}
+
+set pairs { {OUT0 IN3} }
+
+foreach pair $pairs {
+    set nets_of_sp ""
+    set nets_of_ep ""
+    set nets_union ""
+    set nets_intersect ""
+    set cells_of_sp ""
+    set cells_of_ep ""
+    set cells_union ""
+    set cells_intersect ""
+
+    set sp [lindex $pair 0]; set startpoint "${prefix}_$sp"
+    set ep [lindex $pair 1]; set endpoint   "${prefix}_$ep"
+
+    # --------------------------------------------
+    # Analyze common nets
+    set returned_nets  [::dn::find_common_nets $startpoint $endpoint]
+    # Assign the returned nets to variables of interest
+    lassign $returned_nets nets_of_sp  nets_of_ep  nets_union  nets_intersect
+
+
+    set total_net_length [format "%.3f" 0.000 ]
+
+    if { 0 } {
+	foreach net $nets_intersect { 
+	    set length [::dn::net_length $net]
+	    set total_net_length [expr $total_net_length + $length]
+	    puts "common net: $total_net_length $length $net" 
+	    
+	    #::dn::netLengthPerLayer $net
+	}
+    }
+
+    if { 1 } { 
+	# --------------------------------------------
+	# Analyze common cells
+	set returned_cells  [::dn::find_common_cells $startpoint $endpoint]
+
+	# Assign the returned cells to variables of interest
+	lassign $returned_cells cells_of_sp  cells_of_ep  cells_union  cells_intersect
+
+	foreach cell $cells_intersect { puts "common cell: $cell" }
+	select_obj $cells_intersect
+    }
+
+
+}
