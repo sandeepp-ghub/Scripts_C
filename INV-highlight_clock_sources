@@ -1,0 +1,25 @@
+namespace eval ::dn {} {
+    proc highlight_clock_sources { clk } {
+	# Highlight the source of the clock
+	set clock_sources [get_db [get_clocks $clk] .sources]
+	select_obj $clock_sources
+	foreach src $clock_sources {
+	    set location [string range [get_db $src .location] 1 end-1]
+	    set location_x [lindex $location 0]
+	    set location_y [lindex $location 1]
+	    
+	    set x1 [format %.3f [expr $location_x - 5.0]]
+	    set x2 [format %.3f [expr $location_x + 5.0]]
+	    set y1 [format %.3f [expr $location_y - 5.0]]
+	    set y2 [format %.3f [expr $location_y + 5.0]]
+	    
+	    puts " $src $x1 $y1 $x2 $y2"
+	    # Draw a shape highlighting the source
+	    set rect [create_gui_shape -rect "$x1 $y1 $x2 $y2" -layer 99 -width 3]
+	    gui_highlight $rect -color red
+	    
+	}
+    }
+}
+
+puts "Loading proc ::dn::highlight_clock_sources <clk>"
