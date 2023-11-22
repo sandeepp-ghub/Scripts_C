@@ -1,0 +1,11 @@
+# - ensure that all input buffers have one fan in
+set input_buffer_pins [get_db [get_db [get_db ports -if {.direction==in}] .net.loads -if {.obj_type == pin && !.net.is_power && !.net.is_ground && !.net.is_clock}]  -if {.inst.is_buffer || .inst.is_inverter}]
+# - it's the following only returns 1, then every single input buffer only drives a port
+set unique_fanin [get_db $input_buffer_pins .net.num_drivers -unique]
+
+if { $unique_fanin != "1" } {
+    puts "ERROR: All input buffers should have a fanin of 1."
+    puts "  unique_fanin: $unique_fanin"
+} else {
+    puts "Viewpoint STA_2876-check_input_buffers_fanin1 passed."
+}
