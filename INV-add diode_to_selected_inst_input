@@ -1,0 +1,10 @@
+proc add_diode_to_selected_inst_input_pin {} {
+    if { [llength [get_db selected]] == 1} {
+	set pin [get_db pins [ get_db [get_db selected] .pins.name ] -if {.direction == in}]
+	set pin_name [get_db $pin .base_name]
+	set pin_inst [get_db $pin .inst.name]
+	create_diode -diode_cell ANTENNAOPABWP210H6P51CNODLVTLL -pin $pin_inst $pin_name -prefix ECO_DIODE_FOR_ANTENNA_FIX_
+    } {
+	puts "Need to selected only one instance."
+    }
+}
