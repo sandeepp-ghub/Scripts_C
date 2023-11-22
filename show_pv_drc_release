@@ -1,0 +1,25 @@
+#!/bin/tcsh
+
+# Generic script to summarize design data for different blocks in the project using the latest release
+
+set release_area = /proj/$MRVL_PROJECT/release
+
+echo "#$release_area"
+
+set designs = `ls -1 $release_area | grep -v work`
+
+foreach design ( $designs )
+    #echo $design
+    set latest_release = `ls -1 $release_area/$design | tail -n 1`
+    set pv_drc_dir = $release_area/$design/$latest_release/pv.signoff.drc/report
+    if ( -e $pv_drc_dir ) then;
+	echo ""
+	echo -n "$design $latest_release | "
+	cd $pv_drc_dir
+	if ( -e pv.signoff.drc.sum ) then
+	    # Get the Count of instances from the invcui.post.opt report
+	    \grep sum: pv.signoff.drc.sum | awk '{printf "%s_%s %s  ", $1, $2, $3}'
+	endif
+	cd -
+    endif
+end
