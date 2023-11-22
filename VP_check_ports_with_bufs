@@ -1,0 +1,60 @@
+# This script is for viewpoint checklist item 2071: "Make sure that all PnR block signal pins ports are attached with buffers (with exceptions) (verify no errors at end of script)"
+#                              checklist item 2072: "Check that all I/O buffers are placed at a short distance from block edge. (visual inspection from sourcing script) List any discrepancies."
+
+
+set design_width  [format %.3f [ get_db designs .bbox.ur.x]]
+set design_height [format %.3f [ get_db designs .bbox.ur.y]]
+set req_max_distance_from_edge "65.0"
+array unset too_far_from_edge
+
+# Get list of input port nets
+set input_port_nets [get_db [get_db ports -if {.direction==in}] .net];
+
+set load_counter 0
+set error_counter 0
+# Cycle through each input_port_net load
+foreach l [get_db $input_port_nets .loads] {
+    incr load_counter
+    set instance [get_db $l .inst]
+
+    # Check that the load is a pin and flag if it's not a Buffer/Inverter/Antenna/Level-Shifter
+    if {([get_db $l .obj_type] ne "pin") || (![get_db $l .inst.is_buffer] && ![get_db $l .inst.is_inverter] && ![string match "ANT*" [get_db $l .inst.base_cell.name]] && ![string match "LVL*" [get_db $l .inst.base_cell.name]]) } {
+	incr error_counter
+	puts "ERROR: ($error_counter) IN: [get_db $l .net.name]  [get_db $l .name]  [get_db $l .inst.base_cell.name]"
+    } else {
+
+	set bbox [string range [get_db [get_db $l .inst] .bbox] 1 end-1]
+	set x0 [format %.3f [lindex $bbox 0]]
+	set y0 [format %.3f [lindex $bbox 1]]
+	set x1 [format %.3f [lindex $bbox 2]]
+	set y1 [format %.3f [lindex $bbox 3]]
+
+	set distance_from_left_edge   $x0
+	set distance_from_bottom_edge $y0
+	set distance_from_right_edge  [format %.3f [expr $design_width - $x1]]
+	set distance_from_top_edge    [format %.3f [expr $design_height - $y1]]
+
+	set min_distance_from_edge [format %.3f [expr min($distance_from_left_edge,$distance_from_right_edge,$distance_from_top_edge,$distance_from_bottom_edge)]]
+	if { $min_distance_from_edge > $req_max_distance_from_edge } {
+	    set too_far_from_edge($instance) "$format_line"
+	    set status "Too_far_from_edge"
+	} else {
+	    set status "within_${req_max_distance_from_edge}_of_edge"
+	}
+
+	set format_line [format "%30s | %10s %10s %10s %10s | %40s | %s" $bbox $distance_from_left_edge $distance_from_bottom_edge $distance_from_right_edge $distance_from_top_edge $status $instance]; 
+	puts $format_line
+	select_obj $instance
+    }
+}
+
+puts ""
+set format_line [format "%30s | %10s %10s %10s %10s | %s" "bbox" "from_left_edge" "from_bot_edge" "from_right_edge" "from_top_edge" "Instance"]; puts $format_line
+puts ""
+puts "Width = $design_width | Height = $design_height"
+puts ""
+puts "-------------------------------------------"
+puts "Found $load_counter loads on [llength $input_port_nets] Input Port Nets. Invalid scenarios found: $error_counter"
+if {[array exists too_far_from_edge]} {
+    parray too_far_from_edge
+}
