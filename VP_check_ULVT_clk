@@ -1,0 +1,52 @@
+# Retrieve all the cells in the clock tree
+set clk_cells [get_db insts -if {.cts_node_type!= ""} ]
+
+set non_ulvt_cells [get_db [get_db $clk_cells -if {.base_cell.name != *ULVT }] .name]
+
+if {[llength $non_ulvt_cells] > 0 } {
+    # Define file handle
+    set output_file "./eco_change_All_clockcells_to_ULVT.tcl"
+    set output_id [open $output_file w]
+    
+    puts $output_id "# Need to set this for processing this ECO (will be set back"
+    puts $output_id "set_db eco_honor_dont_touch false"
+    puts $output_id "set_db eco_batch_mode true"
+    puts $output_id ""
+    puts $output_id "## Change violating cells to ULVT"
+    
+    set i 0
+    # Cycle through each cell and check if it is something other than ULVT
+    foreach inst $non_ulvt_cells {  
+	incr i
+	
+	# Get the base cell type
+	set base_cell [get_db [get_db insts $inst] .base_cell.name];    # DFRPQTXGD1BWP143M286H3P48CPDLVT
+	
+	# Get dont_touch attribute
+	set dont_touch [get_db [get_db insts $inst] .dont_touch]
+	
+	regsub "D(LVTLL|LVT|ULVTLL)" $base_cell "DULVT" new_base_cell
+	#puts "$i: dont_touch=$dont_touch | $base_cell ==> $new_base_cell | $inst"
+	
+	set format_line [format "%s: dont_touch=%s | %50s ==> %50s | %s" $i $dont_touch $base_cell $new_base_cell $inst]; puts "$format_line"
+	
+	if {![string match COMPHY* $base_cell]} {
+	    puts $output_id "eco_update_cell -insts $inst -cell $new_base_cell; # Was originally $base_cell"
+	} else {
+	    puts " **** Skipping $format_line"
+	}
+	
+    }
+    
+    puts $output_id ""
+    puts $output_id "# Reset back to previous settings"
+    puts $output_id "set_db eco_honor_dont_touch true"
+    puts $output_id "set_db eco_batch_mode false"
+    
+    close $output_id 
+    puts "[date]: Review this eco file and source back into your Innovus session to change the cell types of the violating instances"
+    puts "        $output_file"
+
+} else {
+    puts "Viewpoint 2845 check for ULVT clocktree passed."
+}
