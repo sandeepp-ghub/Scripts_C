@@ -1,0 +1,22 @@
+# Examples in 3nm:
+# PADH15AS25_VDDLV_AVSS_W45
+
+set dros [get_db [get_db insts * -if {.base_cell == DRO* }] .name]
+
+puts "Found [llength $dros] DRO* cells ..."
+
+set i 0
+foreach inst $dros {
+    incr i
+    set base_cell [get_db [get_db insts $inst] .base_cell.name]
+    set bbox [get_db [get_db insts $inst] .bbox]
+    set format_line [format "%5s | %15s | %40s | %s" $i $bbox $base_cell $inst]; puts $format_line
+}
+
+if { $i > 0 } {
+    puts "For VPP4978, - check that number of DRO sets exists according to guidelines"
+    puts "             - review locations and connectivity"
+    puts "             - verify they are inserted near IPs with matching VTs of standard cells if IPs contain various VTs of standard cells"
+} else {
+    puts "This check does not apply .. mark as N/A"
+}
