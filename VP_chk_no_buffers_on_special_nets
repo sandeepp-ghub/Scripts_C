@@ -1,0 +1,27 @@
+# Get list of special nets
+set special_nets [get_db [get_db nets * -if { .special_wires != "" } ] .name]
+
+set i 0; 
+foreach special_net $special_nets {
+    incr i; 
+    puts ""
+    puts "-------------------------------------------------------"
+    puts "Special net ($i): $special_net"
+
+    set loads [get_db [get_db nets $special_net] .loads]
+
+    foreach p $loads {
+	puts $p
+	#set cell_name_ptr [get_object [get_cells -of [get_pins $p]]]
+	#set cell_type [get_db [get_db insts $cell_name_ptr] .base_cell]
+	#puts "$cell_type | $pin"
+    }
+
+    ## - ensure that all output buffers only drive a port.
+    #set output_buffer_pins [get_db [get_db [get_db ports -if {.direction==out}] .net.drivers -if {.obj_type == pin && !.net.is_power && !.net.is_ground && !.net.is_clock}]  -if {.inst.is_buffer || .inst.is_inverter}]
+    ## - it's the following only returns 1, then every single output buffer only drives a port
+    #set unique_fanout [get_db $output_buffer_pins .net.num_loads -unique]
+
+}
+
+
