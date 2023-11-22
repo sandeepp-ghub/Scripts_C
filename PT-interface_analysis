@@ -1,0 +1,64 @@
+# Define block prefixes
+set roc_prefix(bpemm) pcxfa_pcxfa_bpem0_g_bpem_bpem_bpemm
+set roc_prefix(bpemc) pcxfa_pcxfa_bpem0_g_bpem_bpem_bpemc
+set roc_prefix(pemm)  pcxfa_pcxfa_pem0_g_pem_pem_pemm
+set roc_prefix(pemc)  pcxfa_pcxfa_pem0_g_pem_pem_pemc
+
+
+
+# Define output directory
+# NOTE: multi_scenario_working_directory is available in restore PT session
+# ex: multi_scenario_working_directory = /mrvl2g/dc5purecl01_s_f105a0_wa_004/f105a0/f105a0/wa_004/nightly/nightly_rundirs/roc_pcx____20210401_000805
+set working_dir_tail [file tail $multi_scenario_working_directory]
+set output_dir /proj/f105a0/wa_003/dnetrabile/impl/interface_analysis/${working_dir_tail}
+if {![file exists $output_dir]} {
+    file mkdir $output_dir
+}
+
+puts "output_dir = $output_dir"
+
+# Source TCL procs
+source /user/dnetrabile/scripts/PT-get_timing_path_info.tcl
+
+# Define combinations
+set combinations "bpemm:bpemc  bpemc:bpemm   pemm:pemc   pemc:pemm"
+
+foreach combo $combinations {
+    set startingBlock [lindex [split $combo ":"] 0]
+    set endingBlock   [lindex [split $combo ":"] 1]
+
+    set corner_info_file "$interface_dir/.${combo}"
+
+    puts "Analyzing timing paths for $startingBlock --> $endingBlock ..."
+    
+    if { $run_type == "min" } {
+	# Generate timing paths from starting block to ending block
+	# NOTE: $run_type = 'min' or 'max' and is available in PT restored session
+	# NOTE: $run_type_specific is the corner name (ex: func_min3)
+	set tps [get_timing_paths -from $roc_prefix($startingBlock)/* -to $roc_prefix($endingBlock)/* -delay_type $run_type -max_paths 10000 -slack_lesser_than inf]
+
+	# Write out all interface timing paths from the 'min' corner
+	set output_filename  "$output_dir/${combo}.${run_type_specific}.txt"
+	redirect -file $output_filename  { ::dn::get_tp_info $tps }
+	redirect -file $corner_info_file { puts "$output_filename" }
+
+	puts "Wrote $run_type_specific slacks to '$output_filename'"
+	
+	#set tps_bpemm_to_bpemc [get_timing_paths -from pcxfa_pcxfa_bpem0_g_bpem_bpem_bpemm/* -to pcxfa_pcxfa_bpem0_g_bpem_bpem_bpemc/* -delay_type min -max_paths 4000 -slack_lesser_than inf]
+	#redirect -file $interface_dir/bpemm_to_bpemc.min3.txt {::dn::get_tp_info $tps_bpemm_to_bpemc }
+    } else {
+	if {![file exists $corner_info_file]} {
+	    puts "(E): Couldn't find corner_info_file: $corner_info_file"
+	} else {
+	    set input_filename [exec cat $corner_info_file]
+	    if {![file exists $input_filename]} {
+		puts "(E): Couldn't find input_filename: $input_filename"
+	    } else {
+		puts "  --> Reading in $input_filename ..."
+		set output_filename  [string map ".txt _slack.with_${run_type_specific}_slack.txt" $input_filename ]
+		redirect -file $output_filename { ::dn::read_min_paths_get_max_paths $input_filename }
+		puts "  --> Adding $run_type_specific slacks and writing to '$output_filename'"
+	    }
+	}
+    }
+}
