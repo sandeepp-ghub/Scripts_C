@@ -1,0 +1,170 @@
+# This script will identify all the registers within the DWC and get the worst slack at each endpoint
+
+puts "[date]: Calling [info script] ..."
+set skip_io_paths 1
+set clock_domain "pnr_pclk"
+set design [get_object [current_design]]
+set troublesome_path_ulvt_threshold "70"
+set max_paths 2500
+
+# False path the I/Os so we only get reg2reg timing paths
+set_false_path -through [get_ports]
+
+# ----------------------------------------------------------------
+# Get the endpoints
+#set reg_endpoints [lsort [lsearch -inline [get_object [all_registers -clock $clock_domain -data_pins ]] "*DWC*/D*"]]  
+
+set tps [get_timing_paths -slack_lesser_than 0 -max_paths $max_paths]
+
+#set reg_endpoints [lsort [lsearch -all -inline [get_object [all_registers -clock pnr_pclk -data_pins ]] "*u_radm_rc*/D*"]]
+#set tps [get_timing_paths -slack_lesser_than inf -max_paths 1000 -through $reg_endpoints]
+
+set total_eps [sizeof_collection $tps]
+puts "Found $total_eps endpoints"
+
+#set ofile "./$design.DWC_endpoints.$run_type_specific.txt"
+set ofile "./$design.$run_type_specific.failing_paths.vt_breakdown.txt"
+set ofile_id [open $ofile w]
+
+puts "[date]: Writing endpoint info to $ofile ..."
+
+# ----------------------------------------------------------------
+# Identify how big the vt columns should be
+set vts "DLVTLL DLVT DULVTLL DULVT"    ; # Place VT definitions here
+set vt_string_lengths "" ; 
+set vt_header_string "";
+foreach vt $vts { 
+    set str_length [string length $vt]
+    append vt_string_lengths " $str_length"
+    append vt_header_string " $vt"
+}
+
+# Add additional column for 'other' vt
+append vt_string_lengths " 5"
+append vt_header_string  " other"
+
+
+# ----------------------------------------------------------------
+# Write a header
+set format_line [format "%10s | %10s | %20s | %5s %7s %5s | %s | %5s | %10s | %s <== %s" "#PATH" "SLACK" "GROUP" "GATES" "BUF/INV" "PCT" "$vt_header_string" "ULVT%" "DIAGNOSIS" "Endpoint" "Startpoint"]
+puts $ofile_id $format_line
+
+set i 0 ; # Counter for the endpoint
+set upper_limit "$total_eps"
+# Cycle through each endpoint
+
+
+for {set i 0} {$i < $upper_limit } {incr i} {
+    #set reg_endpoint [lindex $reg_endpoints $i]  ; # Grab the endpoint
+}
+
+set i 0
+foreach_in_collection tp $tps {
+    incr i
+    if { $i < $upper_limit } {
+	# Print out a status update
+	if {[expr $i % 3000] == "0" } { puts "[date]: Processing endpoint $i of $total_eps" }
+
+	# ----------------------------------------------------------------
+	# Reset / initialize variables and arrays
+	set io_path 0
+	set path_string "reg2reg"
+	set pct_buf_or_inv "9999"
+	set all_ref_names ""
+	set all_inst_names ""
+	set path_group ""
+	set diagnosis ""
+	array unset vt_counts
+	foreach vt $vts { set vt_counts($vt) 0 	}
+
+	# ----------------------------------------------------------------
+	# Get the timing path information for the endpoint
+	#set tp [get_timing_path -to $reg_endpoint -slack_lesser_than inf]
+	set sp [get_object [get_attribute $tp startpoint]]
+	set ep [get_object [get_attribute $tp endpoint]]
+	set slack [get_attribute $tp slack]
+	set path_group [get_object [get_attribute $tp path_group]]
+
+	# Get the timing points within the path
+	set timing_points [get_attribute $tp points]
+	
+	# Check if the startpoint is a port
+	if {[get_ports -quiet $sp] != "" } {
+	    #puts "FOUND I/O path: $sp --> $ep"
+	    # Is an I/O pin
+	    set io_path 1
+	    #set path_string "IN->reg" 
+	    set path_string "I/O"
+	} elseif {[get_ports -quiet $ep] != "" } {
+	    # Check if the endpoint is a port
+	    #puts "FOUND I/O path: $sp --> $ep"
+	    # Is an I/O pin
+	    set io_path 1
+	    #set path_string "reg->OUT" 
+	    set path_string "I/O"
+	}
+	
+	if { 1 || !$io_path || ($io_path && !$skip_io_paths) } {
+	    # Cycle through each point in the timing path to verify there are no I/Os
+	    set t 0 ; # Counter for the timing point
+	    foreach_in_collection point $timing_points { 
+		set pin [get_object [get_attribute $point object]] 
+		# If I/O path, the 1st point in the list is a port, so skip attempt to 'get_pin / get_cell'
+		if { !$io_path || ($io_path && $t > "0") } {
+		    set inst_name [get_object [get_cell -of [get_pin $pin]]]
+		    append all_inst_names " $inst_name"
+		}
+		incr t
+	    }
+	    
+	    # Uniquify the list of instances and get a count
+	    set unique_inst_names [lsort -unique $all_inst_names]
+	    set path_inst_count   [llength $unique_inst_names]
+	    
+	    # Cycle though each unique instance name to get the ref_name
+	    foreach inst_name $unique_inst_names {
+		set ref_name  [get_attribute [get_cell $inst_name] ref_name]
+		append all_ref_names " $ref_name"
+	    }
+	    
+	    # Cycle through each vt type and get the number of those devices in the path
+	    set vt_string ""
+	    set j 0 ; # Counter for the list of VT types
+	    set known_vt_type_count "0"
+	    foreach vt $vts {
+		set vt_count($vt) [llength [lsearch -all -inline $all_ref_names "*${vt}"]]
+		set vt_str_length [lindex $vt_string_lengths $j]
+		append vt_string " [format %${vt_str_length}s $vt_count($vt)]"
+		incr known_vt_type_count $vt_count($vt)
+		incr j	    
+	    }
+	    
+	    set other_vt_count [expr $path_inst_count - $known_vt_type_count]
+	    set vt_str_length [lindex $vt_string_lengths end]
+	    append vt_string " [format %${vt_str_length}s $other_vt_count]"
+	    
+	    # Identify any BUF | INV cells and compute percentage of all cells
+	    set buf_or_inv_count "0"
+	    set buf_or_inv_count [expr $buf_or_inv_count + [llength [lsearch -all -inline $all_ref_names "BUF*"]]]
+	    set buf_or_inv_count [expr $buf_or_inv_count + [llength [lsearch -all -inline $all_ref_names "INV*"]]]
+	    
+	    # If path inst count is greater than 0, then print to file
+	    if { $path_inst_count > 0 } {
+		set pct_buf_or_inv [format %.f [expr 100 * $buf_or_inv_count / $path_inst_count ]] ; # Compute percentage of buf/inv in the path
+		set pct_ulvt       [format %.f [expr 100 * $vt_count(DULVT) / $path_inst_count ]]  ; # Compute percentage of ULVT in the path 
+
+		if { ($pct_ulvt > [expr abs($troublesome_path_ulvt_threshold)]) && $slack < 0 } {
+		    set diagnosis "*TROUBLE"
+		} else { 
+		    set diagnosis "fixable"
+		}
+
+		set format_line [format "%10s | %10s | %20s | %5s %7s %5s | %s | %5s | %10s | %s <== %s" $i [format %.3f $slack] $path_group $path_inst_count $buf_or_inv_count "${pct_buf_or_inv}%" $vt_string "${pct_ulvt}%" $diagnosis $ep $sp]
+		puts $ofile_id $format_line
+	    }
+	}
+    }
+}
+
+close $ofile_id
+puts "[date]: Finished writing info to $ofile"
