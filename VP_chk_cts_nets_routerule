@@ -1,0 +1,22 @@
+
+puts "Analyzing wire codes for clock nets"
+set clk_nets [get_nets -of [get_db insts -if {.cts_node_type!= ""} ]]; # Get list of the clock nets
+
+array unset clk_info; 
+array unset unique_clk_wire_codes
+set i 0
+foreach_in_collection net $clk_nets { 
+    incr i
+    set route_rule [get_db [get_db nets $net] .route_rule.name]; 
+    set netname [get_object $net]; 
+    set clk_info($netname) $route_rule 
+    set unique_clk_wire_codes($route_rule) ""
+}
+
+set output_file ./VPP_INV_4962-Clock_wire_codes.txt
+
+redirect $output_file { parray clk_info }
+
+puts "Wrote wire codes for $i clock nets to $output_file"
+puts "Found [array size unique_clk_wire_codes] unique clock wire codes"
+parray unique_clk_wire_codes
