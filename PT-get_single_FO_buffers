@@ -1,0 +1,21 @@
+proc get_single_fanout_buffers_from_tps { endpoint } {
+
+    set tps [get_timing_paths -to $endpoint -nworst 50]
+
+    foreach tp $tps 
+
+    set bufs [get_cells -of [get_selection] -filter "ref_name=~BUF*"]
+    set del [get_cells -of [get_selection] -filter "ref_name=~DEL*"]
+    
+    set single_fanout_buf ""; 
+    foreach_in_collection cell $bufs { 
+	set inst [get_object [get_cell $cell]]; 
+	set net [get_net -of [get_pin ${inst}/Z]]; 
+	set fanout [get_attribute [get_net $net] number_of_leaf_loads]; 
+	if { $fanout == "1" } { 
+	    append single_fanout_buf " $inst" ; 
+	    puts "$fanout | [get_object $net] ==> $inst "; 
+	}  
+    }
+    return "$single_fanout_buf"
+}
