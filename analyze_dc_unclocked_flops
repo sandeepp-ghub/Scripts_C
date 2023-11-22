@@ -1,0 +1,68 @@
+#!/bin/tclsh
+
+# Description: Used to process <track>/dc.opt/report/dc.opt.finish.unclocked_flops.rpt
+
+# Usage: ex: /user/dnetrabile/scripts/analyze_dc_unclocked_flops.tclsh dc.opt.finish.unclocked_flops.rpt
+#        
+# Which produces 'dc.opt.finish.unclocked_flops.rpt-AFTER_WAIVERS.txt'
+# Then on Linux command line: grep -v ^#W: dc.opt.finish.unclocked_flops.rpt-AFTER_WAIVERS.txt'
+
+set unclocked_flops_file [lindex $argv 0]
+set approved_waived_flops /proj/stc03c1m/wa/dnetrabile/impl/COBRA_TOP/collateral/APPROVED_UNCLOCKED_FLOPS_IN_DC_OPT/exclusion_list
+
+set unclocked_flops_id [open $unclocked_flops_file r]
+set waiver_file_id     [open $approved_waived_flops r]
+
+array unset waiver_expr
+array unset unclocked_flops
+
+puts "Reading in waiver file data: $approved_waived_flops ..."
+while {[gets $waiver_file_id line] >= 0 } {
+
+    if {![string match "#*" $line]} {
+	set waiver_expr($line) ""
+    }
+}
+
+close $waiver_file_id
+
+set output_file $unclocked_flops_file.AFTER_WAIVERS.txt
+set output_id   [open $output_file w]
+
+set start_string "List of clock drivers and number of unclocked clock pins in their fanout:"
+set stop_string "List of clock drivers and number*"
+
+set stop_processing 0
+puts "Reading in unclock flops report: $unclocked_flops_file ..."
+set i 0
+set w 0
+while {[gets $unclocked_flops_id line] >= 0 } {
+    incr i
+
+    if {[string match "${stop_string}*" $line]} { set stop_processing 1 }
+
+    if {[string match "${start_string}" $line]} {
+	puts $output_id "## UNCLOCKED FLOPS NOT WAIVED ABOVE THIS LINE ***"
+	puts $output_id "## WAIVER_FILE_USED: $approved_waived_flops "
+	puts $output_id ""
+	puts $output_id "$line"
+
+    } elseif {[info exists waiver_expr($line)] && !$stop_processing } {
+	incr w
+	puts $output_id "#W: $line"
+	set unclocked_flops($line) ""	
+    } else {
+	puts $output_id "$line"
+    }
+}
+
+close $unclocked_flops_id
+close $output_id
+
+puts "Finished writing waived file to $output_file"
+puts "Processed $i lines"
+puts "Waived $w lines"
+puts "#------"
+puts ""
+puts "To see the [file tail $unclocked_flops_file] after waviers were applied, do:"
+puts "\grep -v ^#W $output_file"
