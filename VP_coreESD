@@ -1,0 +1,21 @@
+# Examples in 3nm:
+# CORESD1_B2BDIO_M9V_H25W5 
+# CORESD1_1P8V_M15V_H120W20
+# CORESD1_1P5V_M13V_H120W20
+
+set coresds [get_db [get_db insts * -if {.base_cell == CORESD* }] .name]
+
+puts "Found [llength $coresds] *CORESD* cells ..."
+
+set i 0
+foreach inst $coresds {
+    incr i
+    set base_cell [get_db [get_db insts $inst] .base_cell.name]
+    set format_line [format "%5s | %40s | %s" $i $base_cell $inst]; puts $format_line
+}
+
+if { $i > 0 } {
+    puts "For VPP4974, check CORESD cell connection to make sure that CORESD VDD/VSS pins are connected using MTOP and large arrays to core P/G grid"
+} else {
+    puts "This check does not apply .. mark as N/A"
+}
