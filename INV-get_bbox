@@ -1,0 +1,20 @@
+#set all_instance_names [get_db insts -if { .is_macro == true && .place_status == "*"}]
+set all_instance_names [get_db selected]
+foreach inst $all_instance_names {
+    incr instance_count
+    set location  [get_db $inst .location]  ; # Query innovus for the location (ex: { x1 y1 } )
+    set bbox      [string range [get_db $inst .bbox] 1 end-1]      ; # Query innovus for the bounding box (ex: x1 y1 x2 y2)
+    set base_cell [get_db $inst .base_cell] ; # Query innovus for the basecell (ex: tprf_32x68m2k1_l)
+    
+    # Keep track of the min and max x,y coordinates of each instance and save to a list
+    set x1 [lindex $bbox 0]
+    set y1 [lindex $bbox 1]
+    set x2 [lindex $bbox 2]
+    set y2 [lindex $bbox 3]
+    append all_x_coords " $x1 $x2"
+    append all_y_coords " $y1 $y2"
+    
+    #set pins_direction [::dn::get_direction_of_instance_pins $inst]; 
+    
+    set format_line [format "   %20s | %40s | Pins on %10s | %-40s | %s" $location $bbox $pins_direction $base_cell $inst]; puts $format_line;
+}
