@@ -1,0 +1,156 @@
+###############################################################################
+#Procs to help produce correct relative placement floorplan
+#more info on Cadence support:
+#https://support.cadence.com/apex/ArticleAttachmentPortal?id=a1Od0000002JdzFEAS&pageName=ArticleContent
+#Edges definition:
+#        ___3(-3)_
+#   (-5)|         |
+#   __1_|2(-4)    |4(-2)
+#  |              |
+# 0|              |
+#  |_______5(-1)__|
+#  
+#    ___1(-3)_____
+#  |              |
+#  |              |2(-2)
+#  |              |
+# 0|              |
+#  |_______3(-1)__|
+#  
+#  Note: many more features available. Please consult document above
+###############################################################################
+#procedure ::user::floorplan::create_relative_placement {
+#    -description "Example code to produce relative macro placement"    
+#} {
+#    #NOTE : assuming square boundary at the example
+#    #Example : first macro - place relative to core boundary
+#    #this places macro foo at x=10 y=20 away from LL corner of core boundary
+#    set macro_foo "foo"
+#    create_relative_floorplan \
+#        -place  $macro_foo \
+#        -ref_type {core_boundary} \
+#        -horizontal_edge_separate {3 10 3} \
+#        -vertical_edge_separate {0 20 0} \
+#        -orient "R0"
+#    #Example : second macro - place relative to the first macro
+#    #this places macro bar at x=5 y=5 away from UR corner of macro foo
+#    set macro_bar "bar"
+#    create_relative_floorplan \
+#        -place $macro_bar \
+#        -ref_type {object} \
+#        -ref $macro_foo \
+#        -horizontal_edge_separate {1 5 3} \
+#        -vertical_edge_separate {2 5 0} \
+#        -orient "R0"
+
+# Define the anchor object (relative to 0,0)
+
+# #### Floorplan the first object ####
+# create_relative_floorplan \
+#     -place pemm_pemm_csr_cfgtbl_cfgtbl_ram_m_m_0_0 \
+#     -ref   pemm_pemm_csr_cfgtbl_cfgtbl_ram_m_m_0_0 \
+#     -ref_type object \
+#     -horizontal_edge_separate {3 0 3} \
+#     -vertical_edge_separate {0 0 0} \
+#     -orient R0
+# 
+# 
+# 
+# 
+# #
+# #
+# #
+# #
+# #
+# #
+# #
+# 
+# # Template for 2 or more objects that are vertically aligned to the left edge (0) &
+# #  stacked on top of each other
+# #  Edge 1 = top edge & Edge 3 = bottom edge
+# create_relative_floorplan \
+#     -object 
+#     -vertical_edge_separate {0 0 0} \
+#     -horizontal_edge_separate {1 $vertical_gap 3} \
+#     -orient R0
+#     
+# 
+# 
+# ################
+# # top left corner and 3 memories below that
+# ################
+# # PLACE FIRST OBJECT RELATIVE TO CORE BOUNDARY
+# create_relative_floorplan \
+#     -place  pemm_pemm_csr_cfgtbl_cfgtbl_ram_m_m_0_0 \
+#     -ref_type core_boundary \
+#     -horizontal_edge_separate [list 1 $initial_y_gap 1] \
+#     -vertical_edge_separate [list 0 $initial_x_gap 0]  \
+#     -orient R0
+# 
+# create_relative_floorplan \
+#     -place  g_tad/dat/row1/qdtm0/dtm0/mem0  \
+#     -ref_type object \
+#     -ref    g_tad/dat/row1/qdtm1/dtm0/mem0 \
+#     -horizontal_edge_separate [list 3 $vertical_gap 1] \
+#     -vertical_edge_separate {0 0 0} \
+#     -orient R0
+# 
+# create_relative_floorplan \
+#     -place  g_tad/dat/row0/qdtm1/dtm0/mem0 \
+#     -ref_type object \
+#     -ref    g_tad/dat/row1/qdtm0/dtm0/mem0 \
+#     -horizontal_edge_separate [list 3 $vertical_gap 1] \
+#     -vertical_edge_separate {0 0 0} \
+#     -orient R0
+# 
+# 
+# 
+# 
+
+set number_of_objects_in_group [llength [get_db selected]]
+if { $number_of_objects_in_group == "1" } {
+    # One object in group
+} else {
+    # More than one object in group
+
+    # Get the type of memory
+    set all_memory_types ""
+    set unique_memory_types [lsort -unique $all_memory_types]
+
+    # How many unique memory types?
+
+    # Foreach instance
+    #  1. What is the orientation of each instance?
+    #  2. What is the coordinate info for the instance?
+}
+
+
+
+# # These blocks are vertically aligned
+# @innovus 9> foreach inst [get_db selected] { puts "$inst ==> [get_db $inst .orient] ==> [string range [get_db $inst .bbox] 1 end-1]" }
+# inst:bpemm/pemm_pemm_ob_ncbo_real_pemm_ob_ncbo_pemm_ob_ncbo_fifos_p_data_fif_mem_m_m_a_0_1 ==> r0 ==> 81.396 240.436 93.075 369.796
+# inst:bpemm/pemm_pemm_ob_ncbo_real_pemm_ob_ncbo_pemm_ob_ncbo_fifos_p_data_fif_mem_m_m_a_0_0 ==> r0 ==> 81.396 100.996 93.075 230.356
+# inst:bpemm/pemm_pemm_ob_ncbo_real_pemm_ob_ncbo_pemm_ob_ncbo_fifos_p_data_fif_mem_m_m_a_0_2 ==> r0 ==> 81.396 11.76 93.075 91.14
+#                                                                                                         |            |
+# 
+# # These blocks are horizontally aligned
+# @innovus 10> foreach inst [get_db selected] { puts "$inst ==> [get_db $inst .orient] ==> [string range [get_db $inst .bbox] 1 end-1]" }
+# inst:bpemm/pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_3 ==> my ==> 214.404 11.76 229.959 60.536
+# inst:bpemm/pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_2 ==> r0 ==> 183.804 11.76 199.359 135.352
+# inst:bpemm/pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_1 ==> my ==> 167.484 11.76 183.039 135.352
+# inst:bpemm/pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_0 ==> r0 ==> 136.986 11.76 152.541 135.352
+#  
+
+proc ::dn::generate_vertically_aligned_constraints { starting_corner instances } {
+    set valid_corners "ll ul lr ur"
+    if {[lsearch $valid_corners $starting_corner] == -1 } {
+	puts "Error: Invalid starting_corner specified '$starting_corner'. Must be one of '$valid_corners'"
+    } else {
+	puts "starting_corner = $starting_corner"
+	puts "$instances"
+	foreach inst [get_db selected] { 
+	    puts "$inst ==> [get_db $inst .orient] ==> [string range [get_db $inst .bbox] 1 end-1]" 
+	}
+    }
+}
+
