@@ -1,0 +1,27 @@
+#!/bin/tcsh
+
+# Generic script to summarize design data for different blocks in the project using the latest release
+
+set release_area = /proj/$MRVL_PROJECT/release
+
+echo "#$release_area"
+
+set designs = `ls -1 $release_area | grep -v work`
+
+foreach design ( $designs )
+    #echo $design
+    set latest_release = `ls -1 $release_area/$design | tail -n 1`
+    set dc_rpt_dir = $release_area/$design/$latest_release/dc.syn/report
+    if ( -e $dc_rpt_dir ) then;
+	echo ""
+	echo -n "$design-$latest_release "
+	#echo $dc_rpt_dir
+	cd $dc_rpt_dir
+	# Get the Count of instances from the invcui.post.opt report
+	zcat $dc_rpt_dir/*qor* | \grep " Scenario" -A 12 | \grep -v " ------------" | \grep -v "Number of Violating Paths" | sed -e 's/Scenario /Scenario: /' -e 's/Group /Group: /' | awk '{for(i=1; i<NF; i++) {printf "%s_", $i}; printf "\n";}' | sed 's/:_//' | awk '{if($0~/Scenario/){printf "\n%s | ", $NF} else { printf "%s ", $NF}}' | sort -u
+
+	zcat $dc_rpt_dir/*qor* | \grep " Scenario" -A 12 | \grep -v " ------------" | \grep -v "Number of Violating Paths" | awk '{if($0~/Scenario /){printf "\n%s | ", $NF} else { printf "%s ", $NF}}'
+
+	cd -
+    endif
+end
