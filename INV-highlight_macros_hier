@@ -1,0 +1,502 @@
+namespace eval ::dn {} {
+    # Default settings
+    set ::dn::enable_auto_macro_flipping "0"
+    set ::dn::default_spacing "7"
+    set ::dn::macro_list_text_height "10"
+    set ::dn::macro_place_status "*"
+
+    # This uses the Innovus color index starting at 64 and going down to 0
+    set ::dn::starting_color_index "64"  ; 
+
+    set ::dn::macro_name_delimiter "_m_m"
+
+    # ----------------------------------------------------------------
+    # This sets up the GUI preferences to my liking
+    proc my_fp_settings { } {
+	
+	set cmd "set_layer_preference node_layer -is_visible 0     ; # Turn off layers"; puts $cmd; eval $cmd;
+	set cmd "set_layer_preference node_route -is_visible 0     ; # Turn off routes"; puts $cmd; eval $cmd;
+	set cmd "set_layer_preference node_blockage -is_visible 0  ; # Turn off blockages"; puts $cmd; eval $cmd;
+	set cmd "set_db floorplan_snap_block_grid placement ; # Snap blocks to placement grid"; puts $cmd; eval $cmd;
+    }
+
+    # ----------------------------------------------------------------
+    # This procedure should be executed inside of Innovus and is used to identify macro groups and colorize them to a common color
+    #  thereby allowing the user to see macros that should be grouped together during floorplanning
+    proc color_macro_groups { } {
+	
+	# -----------------------------------------------------------
+	# Initialize Environment
+	gui_deselect -all ; # Deselect all items in the GUI
+	gui_clear_highlight; # Clear all highlight
+	::dn::clear_gui_texts; # Clear all GUI text
+	array unset all_macro_groups ; # Initialize macro-group list
+	array unset all_macro_text_labels ; # Used to stored locations of the macro group centroids
+	array unset all_macro_group_text_labels ; # Used to stored locations of the macro group names
+	
+	set place_status "$::dn::macro_place_status"
+	
+	# Define variables for lower left origin
+	set lowest_x 10
+	set lowest_y 10
+	
+	# -----------------------------------------------------------
+	# Get the current_design name
+	set design_name [get_db current_design .name]
+	
+	# -----------------------------------------------------------
+	# Define filehandle for writing out the list of macros
+	set ofile "$::env(PWD)/report/${design_name}.macro_groups.txt"
+	set ofid [open $ofile w]
+	
+	# -----------------------------------------------------------
+	# Select all the MACROS in the design
+	select_obj [get_db insts -if { .is_macro == true && .place_status == $place_status}];
+	
+	# -----------------------------------------------------------
+	# Cycle through each of the selection list
+	foreach inst [lsort [get_db selected]] {
+	    #puts $inst 
+	    
+	    # ex: set inst           "inst:pemm/pemm_ib_ib_ebi_pemm_ib_ebi_pemm_ib_ebi_fifos_df_c_mem0_m_m_0_0"
+	    #     set macro_group    "inst:pemm/pemm_ib_ib_ebi_pemm_ib_ebi_pemm_ib_ebi_fifos_df_c_mem0*
+
+	    regsub "$::dn::macro_name_delimiter" $inst "_* " m_m_removed
+	    #regsub "_m_m" $inst "_* " m_m_removed
+	    regsub "/" $m_m_removed " " inst_removed
+	    set macro_group [lindex $inst_removed 1]	
+	    
+	    # Store the macro group name as the array index
+	    set all_macro_groups($macro_group) ""
+	}
+	
+	# -----------------------------------------------------------
+	# Define starting position to list all the macro groups
+	set macro_list_x [expr [ get_db designs .bbox.ur.x] + 30]; # This is the width of the core box + offset
+	set macro_list_y [ get_db designs .bbox.ur.y]; # This is the height of the core box
+	set macro_list_y_spacing [expr $macro_list_y / [array size all_macro_groups]]; # This the spacing in the 'Y' direction of the macro text boxes
+	#set macro_list_text_height 10
+	
+	# -----------------------------------------------------------
+	# Define location of text box for list of group names
+	set title [create_gui_text -pt "$macro_list_x $macro_list_y"  -layer 999 -label "******* $design_name ********" -height $::dn::macro_list_text_height]
+	gui_highlight $title -color white
+	
+	# Decrement the next label in the y direction
+	set macro_list_y [expr $macro_list_y - $macro_list_y_spacing]
+	
+	set color_index "$::dn::starting_color_index";
+	
+	# -----------------------------------------------------------
+	set group_number 0 ; # Counter for keeping track of the macro groups
+	
+	parray all_macro_groups
+
+	# -----------------------------------------------------------
+	# Cycle through each macro group
+	foreach group [lsort [array names all_macro_groups]] {
+	    incr group_number
+	    gui_deselect -all ; # Clear any previously selected items in the GUI
+	    set format_line [format "------------------------------------------------" ]; puts $format_line; puts $ofid $format_line;
+	    #set format_line [format    "select_obj \[get_db insts -if { .is_macro == true && .place_status == $place_status && .base_name == $group }\]" ]; puts $format_line; puts $ofid "# $format_line"
+	    set format_line [format    "select_obj \[get_db insts -if { .is_macro == true && .place_status == $place_status && .escaped_name == *$group }\]" ]; puts $format_line; puts $ofid "# $format_line"
+	    set format_line [format "%3s. Setting %-60s ==> Color Set %s" $group_number $group $color_index]; puts $format_line; puts $ofid $format_line	
+
+	    puts "group = $group"
+	    
+	    # Select the Objects
+	    #select_obj [get_db insts -if { .is_macro == true && .place_status == $place_status && .base_name == $group }]
+	    select_obj [get_db insts -if { .is_macro == true && .place_status == $place_status && .escaped_name == *$group }]
+	    
+	    # Highlight selected objects 
+	    gui_highlight -index $color_index; 
+
+	    # NOTE: I am purposely skipping index 49 to 33 because the color schemes are not filled, so makes it more difficult to see
+	    if { $color_index == 49 } { set color_index 33 }
+	    incr color_index -1
+	    if { $color_index == "0" } { set color_index "$::dn::starting_color_index" }
+	    
+	    set all_x_coords "" ; # Keep track of all the x-coordinates
+	    set all_y_coords "" ; # Keep track of the the y-coordinates for the instancess
+	    
+	    set instance_count 0
+	    set all_instance_names [lsort [get_db selected]]
+
+	    # 5/20/2020: These are the 2 banking styles of memories I've observed so far
+	    if {[lsearch $all_instance_names "*a_0_0"] != -1 && [lsearch $all_instance_names "*b_0_0"] != -1} {
+		# Style 1:   <memory_name>_*a_0_0 / <memory_name>_*b_0_0
+		set apply_ab_processing "1"
+		puts "Apply ab processing"
+	    } else {
+		# Style 2:   <memory_name>_*_0_0 / <memory_name>_*_0_1
+		set apply_ab_processing "0"
+	    }
+	    
+	    # Print out all the instances in this group
+	    foreach inst $all_instance_names {
+		incr instance_count
+		set location  [get_db $inst .location]  ; # Query innovus for the location (ex: { x1 y1 } )
+		set bbox      [string range [get_db $inst .bbox] 1 end-1]      ; # Query innovus for the bounding box (ex: x1 y1 x2 y2)
+		set base_cell [get_db $inst .base_cell] ; # Query innovus for the basecell (ex: tprf_32x68m2k1_l)
+
+		# Keep track of the min and max x,y coordinates of each instance and save to a list
+		set x1 [lindex $bbox 0]
+		set y1 [lindex $bbox 1]
+		set x2 [lindex $bbox 2]
+		set y2 [lindex $bbox 3]
+		append all_x_coords " $x1 $x2"
+		append all_y_coords " $y1 $y2"
+		
+		set pins_direction [::dn::get_direction_of_instance_pins $inst]
+		
+		set format_line [format "   %20s | %40s | Pins on %10s | %-40s | %s" $location $bbox $pins_direction $base_cell $inst]; puts $format_line; puts $ofid $format_line
+	    }
+
+	    if { $::dn::enable_auto_macro_flipping } {
+		# This performs some movement and alignment and flipping of macro pairs
+		# NOTE: ::inv::floorplan::prep_for_macro_placement should be run prior to executing this part of the code
+		if { $instance_count == "1" } {
+		    puts "#1: No extra processing"	    
+		} elseif { $instance_count == "2" } {
+		    # -------------------------------------------
+		    # Grab the instance that ends in _0_0 and get it's location
+		    gui_deselect -all
+		    set expression "${group}_0_0"
+		    if { $apply_ab_processing } { set expression "${group}_a_0_0" }
+		    puts "expression = $expression"
+		    #select_obj [get_db insts -if { .is_macro == true && .place_status == $place_status && .base_name == $expression }] ;
+		    select_obj [get_db insts -if { .is_macro == true && .place_status == $place_status && .escaped_name == *$expression }] ;
+		    set location_0_0  [string range [get_db [get_db selected] .location] 1 end-1]
+		    set x_0_0 [lindex $location_0_0 0]
+		    set y_0_0 [lindex $location_0_0 1]
+		    
+		    # We want the first instance with pins facing right
+		    if {[::dn::get_direction_of_instance_pins [get_db selected]] == "left" } { flip_or_rotate_obj -flip MY -group }
+		    
+		    # -------------------------------------------
+		    # Grab the instance that ends in _0_1 and get_it's location
+		    gui_deselect -all
+		    set expression "${group}_0_1"
+		    if { $apply_ab_processing } { set expression "${group}_b_0_0" }
+		    puts "expression = $expression"
+		    #select_obj [get_db insts -if { .is_macro == true && .place_status == $place_status && .base_name == $expression }] ;
+		    select_obj [get_db insts -if { .is_macro == true && .place_status == $place_status && .escaped_name == *$expression }] ;
+		    set location_0_1  [string range [get_db [get_db selected] .location] 1 end-1]
+		    set x_0_1 [lindex $location_0_1 0]
+		    set y_0_1 [lindex $location_0_1 1]
+		    
+		    # We want the 2nd instance in pins facing left
+		    if {[::dn::get_direction_of_instance_pins [get_db selected]] == "right" } { flip_or_rotate_obj -flip MY -group }
+		    
+		    # Line up the instances in order
+		    if { $x_0_0 > $x_0_1 } {
+			# x_0 is at 10
+			# x_1 is at 5 
+			# x_diff = 
+			set x_diff [format %.3f [expr $x_0_0 - $x_0_1]]
+			set x_move [expr $x_diff + 20]
+			::dn::mover $x_move
+		    }
+		    
+		    # Align & space the instances
+		    gui_deselect -all
+		    set expression "${group}"
+		    #select_obj [get_db insts -if { .is_macro == true && .place_status == $place_status && .base_name == $expression }]
+		    select_obj [get_db insts -if { .is_macro == true && .place_status == $place_status && .escaped_name == *$expression }]
+		    ::dn::alignt
+		    ::dn::spacel 10
+		    #create_inst_space_group -group_name $expression -spacing_x 20 -inst "$all_instances"
+		    gui_deselect -all
+		}
+	    }
+	    # End 'if { $::dn::enable_auto_macro_flipping }'
+	    
+	    # Uniquify & sort the X and Y coordinates to compute the centroid of the list
+	    set sorted_x_coords [lsort -unique -real $all_x_coords]
+	    set sorted_y_coords [lsort -unique -real $all_y_coords]
+
+	    set center_x [format %.3f [expr ([lindex $sorted_x_coords 0] + [lindex $sorted_x_coords end]) / 2]]
+	    set center_y [format %.3f [expr ([lindex $sorted_y_coords 0] + [lindex $sorted_y_coords end]) / 2]]
+	    #puts "sorted_x = $sorted_x_coords"
+	    #puts "sorted_y = $sorted_y_coords"
+	    #puts "Center: $center_x $center_y"
+	    
+	    # Define location of text box for group number
+	    #set all_macro_text_labels($group_number) [create_gui_text -box "[expr $center_x-10] [expr $center_y - 10] [expr $center_x + 10] [expr $center_y + 10]" -layer 999 -label "#${group_number}" -no_bbox]
+	    set all_macro_text_labels($group_number) [create_gui_text -box "[expr $center_x-10] [expr [lindex $sorted_y_coords end]] [expr $center_x + 10] [expr [lindex $sorted_y_coords end] + 10]" -layer 999 -label "#${group_number}" -no_bbox]
+	    gui_highlight $all_macro_text_labels($group_number) -color white
+	    
+	    # Define location of text box for list of group names
+	    set all_macro_group_text_labels($group_number) [create_gui_text -pt "$macro_list_x $macro_list_y"  -layer 999 -label "#${group_number}: $group ($instance_count)" -height $::dn::macro_list_text_height]
+	    gui_highlight $all_macro_group_text_labels($group_number) -color white
+	    
+	    # Decrement the next label in the y direction
+	    set macro_list_y [expr $macro_list_y - $macro_list_y_spacing]
+
+	    gui_deselect -all
+	}
+	
+	close $ofid
+	puts "Wrote out list of macros to:"
+	puts "  $ofile"
+    }
+    
+
+    # ------------------------------------------------------------------------------------------------------
+    # Space selected objects by specified spacing. At least 2 objects must be selected. The letter after 'space' specifies which object is fixed    
+    proc spacel { spacing } {
+	if {![info exists spacing] } { set spacing "$::dn::default_spacing" }
+	space_selected -fix_side left -space $spacing
+    }
+    
+    proc spacer { spacing } {
+	if {![info exists spacing] } { set spacing "$::dn::default_spacing" }
+	space_selected -fix_side right -space $spacing
+    }
+    
+    proc spacet { spacing } {
+	if {![info exists spacing] } { set spacing "$::dn::default_spacing" }
+	space_selected -fix_side top -space $spacing
+    }
+    
+    proc spaceb { spacing } {
+	if {![info exists spacing] } { set spacing "$::dn::default_spacing" }
+	space_selected -fix_side bottom -space $spacing
+    }
+
+    # ------------------------------------------------------------------------------------------------------    
+    # Align selected objects by specified spacing. At least 2 objects must be selected. The letter after 'space' specifies which object is used as the reference point
+    #  ex: If 'alignr' is used, then all selected objects are aligned to the right most object.
+    #      NOTE: When objects are on top of each other, I don't know what it's going to do, so I typically add some misalignment to make sure I know which object is going to be the reference point.
+    proc alignl    { } { align_selected -side left }
+    proc alignr    { } { align_selected -side right }
+    proc alignt    { } { align_selected -side top }
+    proc alignb    { } { align_selected -side bottom }
+    
+    # ------------------------------------------------------------------------------------------------------
+    # Move selected objected a specified distance
+    proc moveu     { distance } { shift_selected -direction up    -distance $distance }
+    proc moved     { distance } { shift_selected -direction down  -distance $distance }
+    proc mover     { distance } { shift_selected -direction right -distance $distance }
+    proc movel     { distance } { shift_selected -direction left  -distance $distance }
+
+    proc moveu3     { distance } { move_obj -selected -direction up    -distance $distance }
+    proc moved3     { distance } { move_obj -selected -direction down  -distance $distance }
+    proc mover3     { distance } { move_obj -selected -direction right -distance $distance }
+    proc movel3     { distance } { move_obj -selected -direction left  -distance $distance }
+
+    # ------------------------------------------------------------------------------------------------------
+    # Flip selected object about X or Y axis
+    proc flipx    { } { flip_or_rotate_obj -flip MX -group }
+    proc flipy    { } { flip_or_rotate_obj -flip MY -group }
+
+    # ------------------------------------------------------------------------------------------------------    
+    # Print the selected objects to the logfile
+    proc print_selected { } { 
+	foreach inst [lsort [get_db selected]] {
+	    puts $inst
+	}
+    }
+
+    # ------------------------------------------------------------------------------------------------------
+    # Determine which side the macro pins are on by calculating where the pins area located relative to the origin
+    proc get_direction_of_instance_pins { inst } {
+	# Get location of the instance (this will give the origin of the block)
+	set inst_location [string range [get_db $inst .location] 1 end-1]
+	set inst_location_x [expr int([lindex $inst_location 0])]
+	set inst_location_y [expr int([lindex $inst_location 1])]
+	
+	set all_x ""
+	set all_y ""
+	
+	# Get the coord of the pins location
+	foreach pin [get_db [get_db $inst] .pins] {
+	    set pin_location [string range [get_db $pin .location] 1 end-1]
+	    set pin_location_x [expr round([lindex $pin_location 0])]; append all_x " $pin_location_x"
+	    #if { $pin_location_x > $inst_location_x } { append all_x " 1" } else { append all_x " 0" }
+	    
+	    set pin_location_y [expr round([lindex $pin_location 1])]; append all_y " $pin_location_y"
+	    #if { $pin_location_y > $inst_location_y } { append all_y " 1" } else { append all_y " 0" }
+	}
+	
+	set unique_x [lsort -unique $all_x]
+	set unique_y [lsort -unique $all_y]
+	
+	#puts "[llength $unique_x]: $unique_x"
+	#puts "[llength $unique_y]: $unique_y"
+	#puts "-------------------"
+	#puts "$inst_location_x"
+	#puts "$inst_location_y"
+	
+	if {[llength $unique_x] < [llength $unique_y]} {
+	    # Pins of right or left if all the pins likely have the same x coordinate
+	    if { $pin_location_x > $inst_location_x } {
+		set direction "right"
+	    } else {
+		set direction "left"
+	    }
+	} elseif {[llength $unique_x] > [llength $unique_y] } {
+	    # Pins of top or bottom if all the pins likely have the same y coordinate
+	    if { $pin_location_y > $inst_location_y } {
+		set direction "top"
+	    } else {
+		set direction "bottom"
+	    }
+	} else {
+	    set direction "NA"
+	}
+	
+	return $direction
+    }
+    
+    # ------------------------------------------------------------------------------------------------------
+    proc create_rect { x1 y1 x2 y2 color } {
+	set rect [create_gui_shape -rect {$x1 $y1 $x2 $y2} -layer 99 -width 3]
+	gui_highlight $rect -color $color
+    }
+    
+
+    # ------------------------------------------------------------------------------------------------------    
+    # Draw a ruler through the specified point
+    #  ex: rulerThru 
+    proc rulerThru { X Y } {
+	#set theX [lindex $thePoint 0]; 
+	#set theY [lindex $thePoint 1]
+	
+	#create_ruler -coords [list 0 $theY [ get_db designs .bbox.ur.x] $theY ]
+	#create_ruler -coords [list $theX 0 $theX [ get_db designs .bbox.ur.y] ]
+
+	
+	create_ruler -coords [list 0 $Y [ get_db designs .bbox.ur.x] $Y ]
+	create_ruler -coords [list $X 0 $X [ get_db designs .bbox.ur.y] ]
+
+    }
+    
+    # ----------------------------------------------------------------
+    # This procedure is used to clear out any gui text
+    proc clear_gui_texts { } {
+	delete_obj [get_db current_design .gui_texts];     # Remove previous text objects
+    }
+    
+    # Grouping macros
+    # 1. Identify the macro groups
+    # 2. Cycle through each macro group
+    #    1. Get a list of all the instances in that group
+    #    2. Determine number of instances in the group
+    #    3. if $number_of_instances > 1
+    #           group1: a/b configuration (*m_m_a_0_0 / *m_m_b_0_0)
+    #           group2: 0/1 configuration (*m_m_0_0 / *m_m_0_1)
+    #           if $config1 
+    #                select_obj; 
+    #                need to order them in a_0_0/b_0_0, a_0_1/b_0_1, a_0_2/b_0_2 (series of move commands)
+    #                align_top; spacer 10
+    #                GROUP THEM TOGETHER
+    #           if $config2
+    #                select_obj;
+    #
+    #                
+    #    ALIGN_BOTTOM in same row   (with appropriate spacer #)
+    #    ALIGN_TOP in same row      (with appropriate spacel #)
+    #    ALIGN_LEFT in same column  (with appropriate spacet #)
+    #    ALIGN_RIGHT in same column (with appropriate spaceb #)
+    #
+    #       else
+    #           place at the bottom of the screen outside the die
+    #    
+    
+    # COMMON CONFIGURATIONS:
+    #  2: 1x2; move *m_m_0_0 to left or *m_m_0_1; spacel 10; align_top; flip *m_m_0_0 horizontally
+    #  2: 1x2; spacel 10; align_bottom
+    #  2: 1x4; move
+
+    # ----------------------------------------------------------------
+    # This procedure is used to write out the floorplan scripts
+    proc write_fp_script_and_placement_def { } {
+	set macro_placement {../config/before_::inv::floorplan::create_macro_placement.tcl.new}
+	puts "Wrote macro_placement file to '$macro_placement' ..."
+	write_floorplan_script -sections blocks $macro_placement
+
+
+	# -----------------------------------------------------------
+	# Get the current_design name
+	set design_name [get_db current_design .name]
+	
+	select_obj [get_db insts -if { .is_macro == true && .place_status == fixed}]
+	set new_def "5nm.${design_name}.new_placement.def"
+	puts "Writing macros to def file: '$new_def' ..."
+	write_def -selected $new_def
+	
+    }
+    
+    # ----------------------------------------------------------------
+    # This procedure is a lighter version of color_macro_groups. 
+    # set color_groups {
+    #    { 
+    #        macro1A
+    #        macro1B
+    #        macro1C
+    #    }
+    #
+    #    { 
+    #        macro2A
+    #        macro2B
+    #        macro2C
+    #    }
+    #}
+
+    proc color_macros_lite { macro_groups_file } {
+	if {![info exists macro_groups_file]} {
+	    set macro_groups_file ""
+	}
+
+	if {![file exists $macro_groups_file]} {
+	    puts "Sourcing macro_groups_file: '$macro_groups_file' ..."
+	} else {
+	    source $macro_groups_file
+	}
+
+	if {![info exists ::dn::color_groups]} {
+	    puts "(E): Must define groups of macros in ::dn::color_groups variable"
+	} else {
+	    # Initialize Environment
+	    gui_deselect -all ; # Deselect all items in the GUI
+	    gui_clear_highlight; # Clear all highlight
+	    
+	    set all_macros ""
+	    
+	    set color_index "$::dn::starting_color_index";
+	    set i 0 
+	    foreach group $::dn::color_groups {
+		incr i
+		
+		gui_deselect -all
+		
+		puts "Group $i: "
+		foreach entry $group {
+		    append all_macros " $entry"
+		    select_obj [get_db insts $entry]
+		    #puts "   - $entry"
+		}
+		
+		foreach f [get_db selected] {
+		    puts "  - $f"
+		}
+		
+		# NOTE: I am purposely skipping index 49 to 33 because the color schemes are not filled, so makes it more difficult to see
+		if { $color_index == 49 } { set color_index 33 }
+		incr color_index -1
+		if { $color_index == "0" } { set color_index "$::dn::starting_color_index" }
+		
+		# Highlight selected objects 
+		gui_highlight -index $color_index; 
+		
+	    }
+	    
+	    
+	    # Select all macros and write out a def
+	    select_obj [get_db insts $all_macros]
+	}
+	
+    }
+
+}
