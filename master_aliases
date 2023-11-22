@@ -1,0 +1,611 @@
+# PrimeTime aliases I received from Chirag (original from ddyson)
+#source /nfs/cadtools/imp_tools/phys_configs/allproj/primetime/run_pt_timing/alias_pt
+
+# -*- sh -*-
+### unalias
+alias xt 'xterm -bg black -fg white -fn 7x14 -sb -sl 10000'
+
+alias ll        'ls -alF'
+alias startvnc  'vncserver -geometry 3400x1000 -depth 24 -alwaysshared -IdleTimeout 0'
+alias startvnc_4k   'vncserver -geometry 3820x2100 -depth 24 -alwaysshared -IdleTimeout 0'
+alias vnclist '/nfs/users/bstysiack/bin/vnclist'
+alias vncviewer 'vncviewer -Shared'
+
+alias who 'who | cut -f 1 -d " " | sort -u'
+
+alias lr 'ls -ltra'
+alias la 'ls -al'
+alias l1 'ls -1'
+
+# productivity
+alias egl 'grep -e {-E-} *.log'
+alias eglc 'grep -e {-E-} *.log -c | grep -v {:0}'
+alias egll 'grep -e {-E-} *.log | less'
+
+# check jobs
+alias qpnr 'ibjobs -m pnr -all -sort type'
+alias qtim 'ibjobs -m tim -all -sort type'
+alias qwho 'qpnr | cut -d "|" -f 4 | sort -u'
+
+# workstation
+alias rdesk   'rdesktop -g 1800x950 -a 32 -d CAVEONETWORKS -u $USER -r clipboard:PRIMARYCLIPBOARD -r sound:local mawinte&'
+# macbook
+alias rdeskmac 'rdesktop -g 1900x1000 -a 32 -d CAVEONETWORKS -u $USER -r clipboard:PRIMARYCLIPBOARD -r sound:local mawin1 &'
+# 4k workstation
+alias rdesk_f   'rdesktop -g 2200x2100 -a 32 -d CAVEONETWORKS -u $USER -r clipboard:PRIMARYCLIPBOARD -r sound:local mawim1 &'
+
+# employee phone directory
+alias maelf     phone
+### unalias
+unalias run_pt
+
+# ECO Aliases
+alias run_eco 				 '/nfs/users/hspringer/bin/tcl/ECO/eco_timing_build_files.tcl'
+alias run_eco_min 		 '/nfs/users/hspringer/bin/tcl/ECO/eco_timing_fix_min.tcl'
+alias eco_emacs 			 'emacs ./ECO/timing_eco/*_V\!*.tcl'
+alias lkeco 				   'grep \!* */ECO/timing_eco/*'
+alias eco_gettimcell	 '/nfs/users/mle/script/perl/official/getTimingCell.pl \!*'
+alias eco_status 			 '/nfs/users/hspringer/bin/tcl/ECO/eco_status.tcl'
+alias eco_error_blk 	 'grep "\(\!*\)" max_failing_paths.rpt.gz.tmp |grab 2 |sort -d -u'
+alias get_clock_slack  '/nfs/users/hspringer/bin/tcl/get_clock_slack.tcl \!*|sort -k 3'
+alias get_driver_loads '/nfs/users/hspringer/bin/tcl/check_driver_loads.tcl \!*'
+alias get_startpoints	 'echo "\n";grep startpoint \!* | grab 2 | cut -d/ -f2 | sort -u -d;echo "\n"'
+alias pt_process_rpts  'roc_nightly; /nfs/users/mscott/bin/perl/pt_split_blocks_from_report2.pl -interface_with alone -hcsv ../roc_blk_timing_instance.csv -out_dir processed_max -tim_rpt roc.max_paths.rpt.gz -wiki ; /nfs/users/mscott~/bin/ppt_split_blocks_from_report2.pl -interface_with alone -hier_csv ../roc_blk_timing_instance.csv -out_dir processed_max_tr-trans_rpt max_max_tran_failures.txt -wiki'
+
+### 
+alias maelf	phone
+
+
+alias bcd      'cd `bfind -f \!*`'
+alias ll       ls -Fl --color
+alias ldir     'ls -lrt --color=always | grep ^d'
+alias mydir    'ls -lrt --color=always | \grep ^d | grep $USER'
+alias llink    'clear; pwd; echo ""; ls -altr |grep ^l; echo ""' 
+alias findit   'find . |grep -i \!*'
+#alias grep     'egrep --color=always'
+alias ls 	  	 'ls --color=always'
+
+
+alias etags_tcl "etags --language=none --regex='/proc[ \t]+\([^ \t]+\)/\1/' *.tcl"
+
+### Trex
+alias test_Trex '/nfs/users/ahughes/trex/Trex'
+alias Trex_test '/nfs/users/ahughes/trex/Trex'
+
+### synopsys
+alias qdc    				qrsh -q pnr -l lic_dc=1     -pty yes  -v project /nfs/cadtools/synopsys/syn/N-209-SP5-4/bin/dc_shell-xg-t -to
+alias qde    				qrsh -q pnr -l lic_dc_exp=1 -pty yes  -v project /nfs/cadtools/synopsys/syn/N-2017.09-SP5-4/bin/de_shell -to
+#alias qfm   				'qrsh -q pnr -l lic_fm=1 -l mem_tokens=8 -pe pnr_pe 4 -pty yes  -v project /nfs/ools/synopsys/formality/N-2017.09-SP1/bin/fm_shell -64'
+alias qfm   				'qrsh -q pnr -l lic_fm=1 -l mem_tokens=8 -pe pnr_pe 4 -pty yes  -v project /nfs/ools/synopsys/formality/N-2017.09-SP4/bin/fm_shell -64'
+alias qicc   				qrsh -q pnr -l lic_icc=1   -pty yes  -l mem_tokens=8 -pe pnr_pe 4 -v project /nfdtools/synopsys/icc/M-2016.12-SP5/bin/icc_shell -64
+alias qicc_nolic  '/nfs/users/hspringer/bin/tcl/addto_synopsys_icc_prefs.tcl; qrsh -q pnr -l mem_tokens=8 -pe pnr_pe 4 -oject /nfs/cadtools/synopsys/icc/M-2016.12-SP5/bin/icc_shell -64'
+alias qicc2   				qrsh -q pnr -l lic_icc2=1 -pty yes -l mem_tokens=8 -pe pnr_pe 4 -v project  /nfstools/synopsys/icc2/M-2016.12-SP5/bin/icc2_shell -64
+alias qicc2_nolic '/nfs/users/hspringer/bin/tcl/addto_synopsys_icc_prefs.tcl; qrsh -q pnr -pty yes  -l mem_tokens=8 -pe pe 4 -v project /nfs/cadtools/synopsys/icc2/M-2016.12-SP5/bin/icc2_shell -64'
+alias qicc_icv   			qrsh -V -q pnr -l -pty yes lic_icc=1,lic_drc=1 -pty yes -l mem_tokens=8 -pe pnr_ -v project /nfs/cadtools/synopsys/icc/latest/bin/icc_shell -64
+alias bqicc  				'qrsh -q pnr -l lic_icc=1,urg_incr=160 -l mem_tokens=8 -pe pnr_pe 4 -v project /cadtools/synopsys/icc/I-2013.12-SP5/bin/icc_shell -64'
+#alias run_pt_batch 			"qrsh -N \!:1 -v project -q phys -l mem_tokens=\!:2  -l cpu_grade=\!:3 -l lic_ptpe phys_pe \!:4 /nfs/cadtools/synopsys/pt/latest/bin/pt_shell -64 -f \!:5 |& tee \!:6"
+
+#alias run_pt_batch                      "qrsh -pty y -N \!:1 -v project -q $SGE_PRIMETIME_QUEUE -l mem_tokens=\!:2 -l lic_pt=1 -pe phys_pe \!:3 /nfs/cadtools/synopsys/pt/latest/bin/pt_shell -f \!:4 \| tee \!:5"
+
+#alias run_pt_batch_temp                      "qrsh -pty y -N \!:1 -v project -q $SGE_PRIMETIME_QUEUE -l mem_tokens=\!:2 -l lic_pt=1 -pe phys_pe \!:3 /nfs/cadtools/synopsys/pt/P-2019.03/bin/pt_shell -f \!:4 \| tee \!:5"
+
+#alias run_pt_batch_constraints          "qrsh -pty y -N \!:1 -v project -q $SGE_PRIMETIME_QUEUE -l mem_tokens=\!:2 -l lic_pt=1 -pe phys_pe \!:3 /nfs/cadtools/synopsys/pt/latest/bin/pt_shell -constraints -f \!:4 \| tee \!:5"
+
+alias run_pt_batch_max 		"run_pt_batch roc__max 128 9 8 max.pt max.log" 
+alias run_pt_batch_min 		"run_pt_batch roc__min 128 9 8 min.pt min.log" 
+alias run_pt_batch_min2 	"run_pt_batch roc__min2 128 9 8 min2.pt min2.log" 
+
+alias mw32   				/nfs/cadtools/synopsys/mw/latest/bin/IA.32/Milkyway -galaxy -tcl
+alias mw64   				/nfs/cadtools/synopsys/mw/latest/bin/AMD.64/Milkyway -galaxy -tcl
+
+alias run_pt     "qrsh -q phys -l lic_pt=1 -v project /nfs/cadtools/synopsys/pt/latest/bin/pt_shell -64 -f"
+alias qpt        "qrsh -q phys -l lic_pt=1 -v project /nfs/cadtools/synopsys/pt/latest/bin/pt_shell -64"
+
+alias qpnr ibjobs -m pnr -all -sort type
+alias qpt  ibjobs -m prime
+alias qpnrw "qpnr -window &"
+
+### cvs
+alias cs 'cvs -qn update -dP \!* |& grep -v -- "-- ignored"'
+alias cu cvs -q update -dP
+
+## queue/license gui
+alias pending2  '~bstysiack/scripts/ibjobs2/gui.tcl -pnr'
+
+### project dependent aliases
+if ($?PHYSPROJ) then 
+  ### cd
+  alias    goproj      'cd $PHYSMNT/$PHYSPROJ/\!*'
+  alias    gocustom    'cd $PHYSMNT/$PHYSPROJ/custom/\!*'
+  alias    gonanotime  'cd $PHYSMNT/$PHYSPROJ/custom/nanotime/\!*'
+  alias    gofeas      'cd $PHYSMNT/$PHYSPROJ/custom/spice/\!*'
+  alias    gocktver    'cd $PHYSMNT/$PHYSPROJ/custom/cktver/\!*'
+  alias    goem        'cd $PHYSMNT/$PHYSPROJ/custom/em/\!*'
+  alias    gogds       'cd $PHYSMNT/$PHYSPROJ/custom/lay/gds/\!*'
+  alias    gospice     'cd $PHYSMNT/$PHYSPROJ/custom/spice/\!*'
+  alias    gogate      'cd $PHYSMNT/$PHYSPROJ/gate/\!*'
+  alias    gocap       'cd $PHYSMNT/$PHYSPROJ/cap/\!*'
+  alias    goemcap     'cd $PHYSMNT/$PHYSPROJ/cap/em/\!*'
+  alias    gotiming    'cd $PHYSMNT/$PHYSPROJ/timing/\!*'
+  alias    goeco   	   'cd $PHYSMNT/$PHYSPROJ/timing/nightly/results/ECO_DATA/\!*'
+  alias    goglobal    'cd $PHYSMNT/$PHYSPROJ/global_node/\!*'
+  alias    gorouter    'cd $PHYSMNT/$PHYSPROJ/router/\!*'
+  alias    gogrout     'cd $GROUTMNT/work/\!*'
+  alias    gofv        'cd $PHYSMNT/$PHYSPROJ/fver/sherlock/\!*'
+  alias    godrc       'cd $PHYS_DRC/$PHYSPROJ/drc/\!*'
+  alias    golvs       'cd $PHYS_LVS/$PHYSPROJ/\!*'
+  alias    gopnr       'cd $PNRMNT/$PHYSPROJ/\!*'
+  alias    pnrgo       'cd $PNRMNT/work/\!*'
+  alias    godpp       'cd /nfs/dv1/dpp/${PHYS_CHIP}_dpp/rtl/\!*'
+  
+  if ($?SHELL) then
+    if ($SHELL == "/bin/tcsh") then
+       ### auto-complete for the above go* cmds.
+       complete goproj      p@1@D:$PHYSMNT/$PHYSPROJ/@
+       complete gocustom    p@1@D:$PHYSMNT/$PHYSPROJ/custom/@
+       complete gonanotime  p@1@D:$PHYSMNT/$PHYSPROJ/custom/nanotime/@
+       complete gofeas      p@1@D:$PHYSMNT/$PHYSPROJ/custom/spice/@
+       complete gocktver    p@1@D:$PHYSMNT/$PHYSPROJ/custom/cktver/@
+       complete goem        p@1@D:$PHYSMNT/$PHYSPROJ/custom/em/@
+       complete gogds       p@1@D:$PHYSMNT/$PHYSPROJ/custom/lay/gds/@
+       complete gospice     p@1@D:$PHYSMNT/$PHYSPROJ/custom/spice/@
+       complete gogate      p@1@D:$PHYSMNT/$PHYSPROJ/gate/@
+       complete gocap       p@1@D:$PHYSMNT/$PHYSPROJ/cap/@
+       complete goemcap     p@1@D:$PHYSMNT/$PHYSPROJ/cap/em/@
+       complete gotiming    p@1@D:$PHYSMNT/$PHYSPROJ/timing/@
+       complete goglobal    p@1@D:$PHYSMNT/$PHYSPROJ/global_node/@
+       complete gorouter    p@1@D:$PHYSMNT/$PHYSPROJ/router/@
+       complete gofv        p@1@D:$PHYSMNT/$PHYSPROJ/fver/sherlock/@
+       complete godrc       p@1@D:$PHYS_DRC/$PHYSPROJ/drc/@
+       complete golvs       p@1@D:$PHYS_LVS/$PHYSPROJ/@
+       complete gopnr       p@1@D:$PNRMNT/$PHYSPROJ/@
+       complete godpp       p@1@D:/nfs/dv1/dpp/${PHYS_CHIP}_dpp/rtl/@
+       
+       complete routerver 'c/-/(update check timing layout all version sort)/' "p@*@D:$PHYSMNT/$PHYSPROJ/router/@ @"
+       complete pnrver 'c/-/(update check timing layout all version sort)/'    "p@*@D:$PNRMNT/$PHYSPROJ/release/@@"
+       complete nanover 'c/-/(update check timing layout all version sort)/'   "p@*@D:$PHYSMNT/$PHYSPROJ/custom/nanotimeease/@ @"
+       complete svn 'p/1/(add blame cat checkout cleanup commit copy delete diff export help import info list lock log m mkdir move resolved revert status switch unlock update)/' 'c@$SVNROOT@`svn ls $:2`@@'
+       complete lvs 'c/@/f:*.list/'
+
+    endif
+  endif
+
+  ### peek into the same directory of a different project
+  alias eproj  'echo `pwd | perl -pi -e "s/$PHYS_CHIP/\!*/g" `'
+  alias cdproj   'cd `pwd | perl -pi -e "s/$PHYS_CHIP/\!*/g" `'
+
+### if no project is setup, define these aliases
+else
+	alias setproj 'setenv project \!:1; source ~/.cshrc'
+endif
+
+
+### greps
+alias grepi    'grep -i'
+alias grepc    'grep -c'
+alias recall   'history | grep'
+alias fgrep 'find . -name "\!:2*" | xargs grep -i -n \!:1'
+alias hgrep 'grep -r --exclude "*db" -E "(HACK|TEMP|WORKAROUND|TODO|TOFIX|FIXME|REMOVE)"'
+
+
+###
+alias check_nt 'cat undef.log; grep GNF nettran.log'
+alias purge    'rm *~'
+alias pland    'enscript -r '
+alias mydisp   'setenv DISPLAY ln-sconchieri:0.0'
+alias find_big_files 'find . -type f -size +100000 -ls'
+
+###
+alias e 'emacs'
+
+### synopsys
+alias slmstat  'lmstat -c /nfs/licenses/synopsys/license.dat'
+
+alias up		"cd ../"
+alias up2		"cd ../../"
+alias up3		"cd ../../../"
+alias up4		"cd ../../../../"
+alias t81 		"setproj t81_1.0"
+alias t88 		"setproj t88_1.1"
+alias o781		"setproj o78_1.1"
+alias o782		"setproj o78_2.0"
+alias o731		"setproj o73_1.0"
+alias o751		"setproj o75_1.0"
+alias o701		"setproj o70_1.0"
+alias e5      "setproj e5_1.0"
+
+#alias rt		  "echo DE:; tail run/de/dc.log | grep runtime; echo DC:; tail run/dc/dc.log | grep runtime; echCP:; tail run/iccp/log/*c.log | grep runtime; echo ICCC; tail run/iccc/log/*c.log | grep runtime; echo ICCR; tail run/iccr/log/*c.log | grep runtime; echo ICCF; tail run/iccf/log/*final.log | grep runtime"
+alias rtz 		"zgrep runtime *.log.gz | grep days"
+alias rtz1		"zgrep runtime rpt-*/dc.log.gz | grep days"
+alias rtz2		"zgrep runtime rpt-*/2.init_design_icc.log.gz | grep days"
+alias rtz3		"zgrep runtime rpt-*/3.place_opt_icc.log.gz | grep days"
+alias rtz4		"zgrep runtime rpt-*/4.clock_opt_icc.log.gz | grep days"
+alias rtz5		"zgrep runtime rpt-*/5.route_icc.log.gz | grep days"
+alias rtz5b		"zgrep runtime rpt -*/5b.route_analyze_icc.log.gz | grep days"
+alias rtz6		"zgrep runtime rpt-*/6.route_opt_icc.log.gz | grep days"
+alias rtz7		"zgrep runtime rpt-*/7.chip_finish_icc.log.gz | grep days"
+alias rtz8		"zgrep runtime rpt-*/8.final.log.gz | grep days"
+alias rtzf		"zgrep runtime rpt-*/fm.log.gz | grep total"
+alias status	"svn stat -u"
+alias skewer	"./tools/skewer/skewer.tcl"
+alias mplacer	"./tools/macro_placer/macro_placer.tcl"
+
+alias rt2 	"echo DE:; tail run/de/dc.log | grep runtime; echo DC:; tail run/dc/dc.log | grep runtime; echo FM:; grentime run/fm/fm.log ; echo ICC2 2:; tail run/icc2/log/2*c2.log | grep runtime;   echo ICC2 3:; tail run/icc2/log/3*c2.logrep runtime;   echo ICC2 4:; tail run/icc2/log/4*c2.log | grep runtime;   echo ICC2 5:; tail run/icc2/log/5*c2.log | gruntime;    echo ICC2 6:; tail run/icc2/log/6*c2.log | grep runtime;  echo ICC2 7:; tail run/icc2/log/7*c2.log | grep run;  echo ICC2 8:; tail run/icc2/log/8*c2.log | grep runtime;  echo CAPEXT:;  cat run/capext/*.star_sum | grep Overall"
+
+alias grt 	"echo InitFloorplan:; tail run/InitFloorplan/icc2_output.txt | grep runtime;   echo PowerGrid:; tail runerGrid/icc2_output.txt | grep runtime; echo FinishFP:;  tail run/FinishFP/icc2_output.txt | grep runtime;   echo Relink:il run/Relink/icc2_output.txt | grep runtime;   echo PlaceOpt:; tail run/PlaceOpt/icc2_output.txt | grep runtime;  echo dCTS:; tail run/BuildCTS/icc2_output.txt | grep runtime;  echo Route:; tail run/Route/icc2_output.txt | grep runtime;  eRouteOpt:; tail run/RouteOpt/icc2_output.txt | grep runtime | grep runtime;  echo ChipFinish:; tail run/ChipFinish/icc2_ut.txt | grep runtime; echo GenOut:; tail run/GenOut/icc2_output.txt | grep runtime; echo CapExt:; grep Overall: run/Cap*.star_sum "
+
+
+alias log0 "emacs run/de/dc.log"
+alias log1 "emacs run/dc/dc.log"
+alias logf "emacs run/fm/fm.log"
+
+
+alias gl0 "emacs run/InitFloorplan/icc2_output.txt"
+alias gl1 "emacs run/PowerGrid/icc2_output.txt"
+alias gl2 "emacs run/FinishFP/icc2_output.txt"
+alias gl3 "emacs run/PlaceOpt/icc2_output.txt"
+alias gl4 "emacs run/BuildCTS/icc2_output.txt"
+alias gl5 "emacs run/Route/icc2_output.txt"
+alias gl6 "emacs run/RouteOpt/icc2_output.txt"
+alias gl7 "emacs run/ChipFinish/icc2_output.txt"
+
+
+
+alias log2 "emacs run/icc2/log/2.init_design_icc2.log"
+alias log3 "emacs run/icc2/log/3.place_opt_icc2.log"
+alias log4 "emacs run/icc2/log/4.clock_opt_icc2.log"
+alias log5 "emacs run/icc2/log/5.route_icc2.log"
+alias log6 "emacs run/icc2/log/6.route_opt_icc2.log"
+alias log7 "emacs run/icc2/log/7.chip_finish_icc2.log"
+alias log8 "emacs run/icc2/log/8.final_icc2.log"
+alias log10 "emacs run/icc2/log/10.eco_icc2.log"
+
+
+alias tail0 "tail -f  run/de/dc.log"
+alias tail1 "tail -f  run/dc/dc.log"
+alias tail2 "tail -f  run/iccp/log/2.init_design_icc.log"
+alias tail3 "tail -f  run/iccp/log/3.place_opt_icc.log"
+alias tail4 "tail -f  run/iccc/log/4.clock_opt_icc.log"
+alias tail5 "tail -f  run/iccr/log/5.route_icc.log"
+alias tail6 "tail -f  run/iccr/log/6.route_opt_icc.log"
+alias tail7 "tail -f  run/iccr/log/7.chip_finish_icc.log"
+alias tailf "tail -f  run/fm/fm.log"
+
+alias 2tail2 "tail -f  run/icc2/log/2.init_design_icc2.log"
+alias 2tail3 "tail -f  run/icc2/log/3.place_opt_icc2.log"
+alias 2tail4 "tail -f  run/icc2/log/4.clock_opt_icc2.log"
+alias 2tail5 "tail -f  run/icc2/log/5.route_icc2.log"
+alias 2tail6 "tail -f  run/icc2/log/6.route_opt_icc2.log"
+alias 2tail7 "tail -f  run/icc2/log/7.chip_finish_icc2.log"
+alias 2tail8 "tail -f  run/icc2/log/8.final_icc2.log"
+alias 2tail10 "tail -f  run/icc2/log/10.eco_base_icc2.log"
+
+alias gdcdft  "grep {DFT-} run/dc/dc.log"
+alias gedc    "grep Error run/dc/dc.log"
+
+alias ginit		"grep GRF-Info-Start run/iccp/log/2.init_design_icc.log"
+alias gplace	"grep GRF-Info-Start run/iccp/log/3.place_opt_icc.log"
+alias groute	"grep GRF-Info-Start run/iccr/log/5.route_icc.log"
+alias ganal		"grep GRF-Info-Start run/iccr/log/5b.route_analyze_icc.log"
+alias gropt		"grep GRF-Info-Start run/iccr/log/6.route_opt_icc.log"
+alias gfin		"grep GRF-Info-Start run/iccr/log/7.chip_finish_icc.log"
+
+alias prog1		"echo ./tools/progrpt.pl -step 1 -num 5 ; ./tools/progrpt.pl -num 5 -step 1"
+alias prog2		"echo ./tools/progrpt.pl -step 2 -num 5 ; ./tools/progrpt.pl -num 5 -step 2"
+alias prog3		"echo ./tools/progrpt.pl -step 3 -num 5 ; ./tools/progrpt.pl -num 5 -step 3"
+alias prog4		"echo ./tools/progrpt.pl -step 4 -num 5 ; ./tools/progrpt.pl -num 5 -step 4"
+alias prog5		"echo ./tools/progrpt.pl -step 5 -num 5 ; ./tools/progrpt.pl -num 5 -step 5"
+alias prog6		"echo ./tools/progrpt.pl -step 6 -num 5 ; ./tools/progrpt.pl -num 5 -step 6"
+alias prog7		"echo ./tools/progrpt.pl -step 7 -num 5 ; ./tools/progrpt.pl -num 5 -step 7"
+alias prog8 	"echo ./tools/progrpt.pl -step 8 -num 5 ; ./tools/progrpt.pl -num 5 -step 8"
+alias prog		"echo ./tools/progrpt.pl -num 5 ; ./tools/progrpt.pl -num 5"
+
+alias progrpt           "echo ./tools/projflow/common/report/progrpt.pl; tools/projflow/common/report/progrpt.pl"
+
+### bucket paths
+#alias violated  "/o75/pnr/work/tools/violated.pl"
+
+alias viol1		"./tools/violated.pl rpt/timing.150dcfinal.rpt			 -gates   | less"
+alias viol3		"./tools/violated.pl rpt/3.place_opt_icc2.max1.rpt	 -gates   | less"
+alias viol4		"./tools/violated.pl rpt/4.clock_opt_icc2.max1.rpt	 -gates   | less"
+alias viol5		"./tools/violated.pl rpt/5.route_icc2.max1.rpt		   -gates   | less"
+alias viol6		"./tools/violated.pl rpt/6.route_opt_icc2.max1.rpt	 -gates   | less"
+alias viol8		"./tools/violated.pl rpt/8.final_icc2.max1.rpt       -gates   | less"
+alias viol		"./tools/violated.pl rpt/6.route_opt_icc2.max1.rpt	 -gates   | less"
+
+alias v3 "pt_detailed VIOL '3.place_opt_icc2.max1.rpt' --filtered_out 3.place_opt_icc2.max1.rpt.MET > 3.place_opt_icc2.mrpt.VIOL"
+alias v4 "pt_detailed VIOL '4.clock_opt_icc2.max1.rpt' --filtered_out 4.clock_opt_icc2.max1.rpt.MET > 4.clock_opt_icc2.mrpt.VIOL"
+alias v5 "pt_detailed VIOL '5.route_icc2.max1.rpt' --filtered_out 5.route_icc2.max1.rpt.MET > 5.route_icc2.max1.rpt.VIOL"
+alias v6 "pt_detailed VIOL '6.route_opt_icc2.max1.rpt' --filtered_out 6.route_opt_icc2.max1.rpt.MET > 6.route_opt_icc21.rpt.VIOL"
+alias v7 "pt_detailed VIOL '7.final.max1.rpt' --filtered_out 7.final.max1.rpt.MET > 7.final.max1.rpt.VIOL"
+
+### COMB_PATHS
+alias combo "./tools/violated.pl rpt/8.final.max1.rpt	 | \grep ^COMB_PATHS, -gates   | less"
+alias combofp "./tools/violated.pl rpt/8.final.max1.rpt | \grep ^COMB_PATHS, | \grep -vE 'scan|jtg|rst'"
+
+#alias latency 	"~rhallur/bin/get_latency_data.pl -i"
+alias pt_rep	"cd /o75/phys/o75_1.0/timing/nightly/results/latest/roc/reports/block_paths"
+
+#alias go		'cd $PNRMNT/work/\!*'
+#alias go2		'cd $PNRMNT/work2/\!*'
+
+alias syntail 	"tail -20 .syn_history"
+alias gtail     "tail -20 .grout_history"
+alias galias    "source grout_tools/bin/grout_aliases.tcsh"
+
+alias sandbox   "cd /nfs/dv80/sconchieri/dev14_base/spr_tools"
+
+## PT Utils
+alias pt_histogram "pt_filter_paths.pl --histogram --fixed"
+alias pt_detailed "pt_filter_paths.pl --detailrex"
+alias pt_sum "pt_filter_paths.pl --nodetailed"
+#alias pt_endpoint "pt_filter_paths.pl --format "%-80s %-80s %10.4f" --format '$self->startpoint_pin(),$self->endpoint_pin(), $self->slack()' --nodetailed"
+
+alias altqueue "~hspringer/bin/tcl/altqueue.tcl"
+
+## Loading PT session
+alias run_pt_int "qrsh -N roc -v project -q phys@@orcas -l mem_tokens=50 -l lic_pt=1 -pe phys_pe 2 /nfs/cadtools/synopsys/pt/latest/bin/pt_shell"
+alias run_pt_int_max "run_pt_batch_reserved roc_max_eco orca02 50 2 restore_session_max1.pt roc_max_eco.log"
+alias run_pt_int_min "run_pt_batch_reserved nworst_min orca02 50 2 nworst_min.pt nworst_min.log"
+alias run_pt_int_min2 "run_pt_batch_reserved nworst_min2 orca02 50 2 nworst_min2.pt nworst_min2.log"
+
+alias minfix "/o73/pnr/work/tools/eco/min_fixes.pl -r -u"
+alias tranfix "/o73/pnr/work/tools/eco/max_tran_fix.pl -r -u"
+alias ibjobs2 "~bstysiack/scripts/ibjobs2/gui.tcl -pnr &"
+alias myjobs '~bstysiack/scripts/ibjobs2/gui.tcl -jobFilter "Owner sconchieri"'
+
+alias mydiff "diff --width 200 --suppress-common-lines -y"
+
+#alias ptresults 'cd $PHYSMNT/$PHYSPROJ/timing/nightly/results/latest/pcl/reports'
+#alias gone 'cd $PHYSMNT/$PHYSPROJ/timing/nightly/nightly_rundirs/'
+
+## RUN PT 
+alias run_pcl_pt "run_nightly t81_1.0 pcl 4 32 0 all all"
+alias run_pcl_pt_pnr "run_nightly_pnr_constaints_only t81_1.0 pcl 4 32 0 all all"
+
+alias run_roc_pt_t83 "run_nightly_noreleaseconstraints t83_1.0 roc 8 160 0 max all"
+alias run_pcl_pt_t83 "run_nightly_eco t83_1.0 pcl 8 80 0 all all"
+alias pt_t83_eco_noconstraints "run_nightly_no_constraints_run_eco t83_1.0 pcl 8 80 0 all all"
+
+alias restore_maxpt "run_pt_batch_reserved pcl_max_int orca02 50 2 restore_session_max1.pt restore_session_max1.log"
+alias restore_min2pt "run_pt_batch_reserved pcl_min2_int orca02 50 2 restore_session_min2.pt restore_session_min2.log"
+
+alias restore_maxcore "run_pt_batch_reserved core_max_int orca02 50 2 restore_session_max1.pt restore_session_max1.log.rh"
+alias restore_min2core "run_pt_batch_reserved core_min2_int orca02 50 2 restore_session_min2.pt restore_session_min2.log.rh"
+alias restore_maxroc "run_pt_batch_reserved roc_max_int orca02 50 2 restore_session_max1.pt restore_session_max1.log.rh"
+alias restore_min2roc "run_pt_batch_reserved roc_min2_int orca02 50 2 restore_session_min2.pt restore_session_min2.log.rh"
+
+
+
+
+# Run Formality
+alias roc_fm "./tools/run_formality.pl -status rh_roc_010615.txt fpa osm iobn iobp bgx ciu tim mio rad vrm jtg roc_ocla zip_ctl zip bch roc_scan_ctl_top roc_scan_ctl_bot usbdrd uphy_pnra sso_pnr dpi_dma dfa_nca dfa_dtc dfa_ctl rnk pko_pnr2 pko_pnr1 pko_pnr3 pki_pix_ipec pki_pix_mech pki_pbe pki_pfe hna_hnc hna_hpc hna_ctl"
+ # from Hans
+alias grab           "awk '{print $ \!*}'"
+#alias violated       "/o78/pnr/work/tools/violated.pl"
+alias viol           "/nfs/users/hspringer/bin/tcl/violated.tcl \!*"
+alias sclk_mesh_load 'clear; echo "SCLK MESH LOAD VIOLATIONS\n"; cd $PNRMNT/$PHYSPROJ/../work; grep "sclk_mesh" */rpt/syn.log | grep ff | grep violated |\grep -v "OLD"; cd - '
+alias rclk_mesh_load 'clear; echo "RCLK MESH LOAD VIOLATIONS\n"; cd $PNRMNT/$PHYSPROJ/../work; grep "rclk_mesh" */rpt/syn.log | grep ff | grep violated |\grep -v "OLD"; cd - '
+alias read           "nedit"
+alias msctslog       "read  rpt/4.clock_opt.mscts_clock_tree.rpt rpt/4.clock_opt.mscts_cto.rpt rpt/4.clock_opt.mscts_balance_pre_route.rpt rpt/4.clock_opt.mscts_balance_post_route.rpt"
+alias msctsrpt       "/nfs/users/hspringer/bin/tcl/t83/mscts_report.tcl"
+alias sclk_slack     "/nfs/users/hspringer/bin/tcl/t83/report_sclk_slack.tcl"
+alias ppv            'pnr_physical_verification \!*'
+alias report_drc     '/nfs/users/hspringer/bin/tcl/t98/report_drc.tcl \!*'
+
+
+# arm doc
+alias armdoc 'acroread /nfs/ip/gf_14lpp/arm/arm_mems/rf_sp_hse_rvt_mvt/r3p0-01eac0/doc/14lpp_rf_sp_hse_rvt_mvt_userguide.pdf'
+
+
+# grout
+alias e5_grout_fp '/nfs/cadtools/imp_tools/grout_tools/bin/display_blackbox_csv.pl /e5/grout/e5_1.0/release/latest/everest/everest.csv -label'
+alias lic_what '/nfs/cadtools/imp_tools/grout_tools/bin/compare_licenses.pl'
+
+# firefox
+#alias firefox '/nfs/cadtesttools/mozilla/firefox-45.9.0-esr/firefox'
+
+# Added by Dileep
+#alias runtimes "\grep 'total runtime' ./run/icc2/log/*icc2*log"
+alias runtimes "\grep write_grid_token */report/*proc*log | sed 's/Mem:  //' | sort -k 16,17 "
+
+alias fp "perl -pe 's/^/###JUNK/g;' | perl -pe 'chomp; s/Startpoint/\n Startpoint/g;' | \!* | perl -pe 's/###JUNK/\n/g;'"
+alias fpr "perl -pe 's/^/###JUNK/g;' | perl -pe 'chomp; s/Startpoint/\n Startpoint/g;' | egrep -v 'COMB' | egrep -v '_IN' | egrep -v '_OUT' | perl -pe 's/###JUNK/\n/g;'"
+
+# Alias for breaking down INV reports
+alias fpinv "perl -pe 's/^/###JUNK/g;' | perl -pe 'chomp; s/Path/\n Path/g;' | \!* | perl -pe 's/###JUNK/\n/g;'"
+
+alias violated "./tools/projflow/common/report/violated.pl"
+alias v "./tools/projflow/common/report/violated.pl \!:1 |  sed -n '/All violations/,/processed/p' | \grep -v generated | \grep -v violations | column -t;"
+
+# Calls script to get startpoint/endpoints listed from a PrimeTime report
+#alias spep "/user/dnetrabile/scripts/show_startpoint_endpoint_from_PT_rpt.sh"
+alias spep "/user/dnetrabile/scripts/wrapper_startpoint_endpoint.tcsh"
+
+# Parses Innovus clock latency report to show the latencies in a tabular format
+alias latency "/user/dnetrabile/scripts/parse_innovus_latency_rpt.tcsh"
+
+# Parse PT summary report to provide a high-level block summary
+alias interface       "/user/dnetrabile/scripts/parse_pcx_sum_reports.tclsh"
+alias interface_pem   "/user/dnetrabile/scripts/analyze_pem_interface.tcsh"
+
+# 10/21/2022: Parse PrimeTime bottleneck report
+alias bottlenecks "column -t -s , pt.signoff/timing_rundir/reports/quality_reports/func_max3/endpoint_bottlenecks_func_max3.rpt"
+
+#alias timingsandbox "cd /nfs/sandbox/$USER/imp_tools/phys_configs/$project/timing"
+#alias timingprod    "cd /nfs/cadtools/imp_tools/phys_configs/$project/timing"
+##alias cnhelp "./tools/cn_help.tcl | sed -n '/Voltage Domains are:/,\\$p' | \grep PROC: | awk '{printf "%s %50s %s ", $1, $2, $3; for (i=4;i<=NF;i++){printf "%s ", $i}; printf "\n"}'"
+
+# Getting data setup checks
+#zcat max1_failing_paths.rpt.gz | \grep -e rbphys2a1s14lpp28g2l1c_afe -e "data check setup time" | grep -v life | awk '{if($0~/data check/){printf "%s\n\n", $0} else {print $0}}'
+
+
+# Compile timing results
+alias gserc "/nfs/users/dnetrabile/bin/compile_summary_reports.tclsh gserc_bphy"
+
+alias roc       "setenv runtypes func; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh roc__ 'bpemc bpemm pemc pemm roc_ch_w2'"
+alias pcx       "setenv runtypes func; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh roc_pcx 'bpemc bpemm pemc pemm'"
+alias pcx_bc    "setenv runtypes func; setenv full_or_bc bc; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh roc_pcx 'bpemc bpemm pemc pemm'"
+
+alias pcx_extest   "setenv runtypes scan_atspeed_extest; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh roc_pcx 'roc_pcx_ch_pipe_0 bpemc bpemm pemc pemm'"
+alias pcx_intest   "setenv runtypes scan_atspeed_intest; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh roc_pcx 'roc_pcx_ch_pipe_0 bpemc bpemm pemc pemm'"
+alias pcx_shift  "setenv runtypes scan_shift; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh roc_pcx 'roc_pcx_ch_pipe_0 bpemc bpemm pemc pemm'"
+alias pcx_stuck  "setenv runtypes scan_stuck; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh roc_pcx 'roc_pcx_ch_pipe_0 bpemc bpemm pemc pemm'"
+
+alias relnotes  "\grep release_message */.bfw_log | \grep -v before"
+
+# Alias to report the disk usage in the current directory
+alias diskusage 'du -shc *'
+
+# Alias to report the available diskspace 
+alias spaceleft 'df -BG .' ; # in the current directory
+alias volspace  'df -k'  ; # Across all volumes
+
+# Alias to launch Calibre from a bfw track
+alias drv  "calibre=aoi_cal_2020.1_17.9 ; calibredrv -m !* -l /proj/tools01/pkgs/pver_tsmcn5p/V005/tsmc5innovus.layerprops -sgq normal -sgm 20 -sgc 4 -sgfg"
+
+# 
+alias review 'grep "==" summary.txt | sort -k 4'
+
+alias summarize '/user/vdesai2/scripts/block_summary.pl'
+
+alias ody_sum '/user/mshade/work/block_summary.pl `cat /user/mshade/work/pcx_pnr_blocks.txt`'
+alias ody_pcie0       "setenv runtypes func; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh pcie0 'fpemm fpemc'"
+alias ody_pcie1       "setenv runtypes func; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh pcie1 'fpemm fpemc'"
+alias ody_pcie2       "setenv runtypes func; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh pcie2 'fpemm fpemc'"
+alias ody_pcie3       "setenv runtypes func; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh pcie3 'fpemm fpemc'"
+
+alias ody_pcx        "setenv runtypes func; setenv full_or_bc full; /user/dnetrabile/scripts/show_roc_pcx_timing.tclsh pcx 'fpemm fpemc'"
+
+# Alias to generate a VT report across the project
+alias vts           "/user/dnetrabile/scripts/show_vt_usage.tcsh | column -t"     ; # Project reports
+alias mvs           "/user/dnetrabile/scripts/show_multivoltage_usage.tcsh | column -t" ; # Project reports
+alias mbffs         "/user/dnetrabile/scripts/show_mbff_usage.tcsh | column -t" ; # Project reports
+alias gating        "/user/dnetrabile/scripts/show_clock_gating_stats.tcsh | column -t" ; # Project reports
+alias drc           "/user/dnetrabile/scripts/show_pv_drc_stats.tcsh | column -t" ; # Project reports
+alias erc           "/user/dnetrabile/scripts/show_pv_erc_stats.tcsh | column -t" ; # Project reports
+alias lvs           "/user/dnetrabile/scripts/show_pv_lvs_stats.tcsh | column -t" ; # Project reports
+alias util          "/user/dnetrabile/scripts/show_utilization_stats.tcsh | column -t" ; # Project reports
+alias ff            "/user/dnetrabile/scripts/show_flop_counts.tcsh | column -t" ; # Project reports
+alias vtsum         "/user/dnetrabile/scripts/generate_vt_report.tcsh" ; # Project reports
+alias show_drc      "unalias firefox; /bin/firefox /proj/odysseya0/wa_003/pdorweiler/PV_dashboard/html_files/block_summary/all_hier_blocks_summary.html" ; # Project reports
+alias dcqor         "/user/dnetrabile/scripts/show_dc_qor.tcsh | column -t" ; # Project reports
+alias bfwprocs      "/user/dnetrabile/scripts/show_bfw_status.tcsh; date"
+alias bfw_runtimes  "/user/dnetrabile/scripts/get_step_runtimes.tcsh"
+
+alias m1dpxrt       "/user/dnetrabile/scripts/show_m1dpx_step_runtimes.tcsh \!*"
+alias steprt        "\grep -h -A 6 'SESSION SUMMARY' */logfiles/*.log"
+# Alias to generate block summaries using Matt Shade's script (need to pass in the names of the blocks)
+alias block_summary "/user/mshade/work/block_summary.pl fpemm fpemc hpemm hpemc qpemm qpemc fpide gserp_4lane gserp_16lane pcie0_ch0 pcie1_ch0 pcie2_ch0 pcie3_ch0"
+
+# =============================================================
+# DC5
+if ($?MRVL_PROJECT) then 
+   if ($MRVL_PROJECT == "f105a0") then
+       alias go "cd /proj/${MRVL_PROJECT}/wa_003/$USER/impl"
+   else if ($MRVL_PROJECT == "t103a0") then
+       alias go "cd /proj/${MRVL_PROJECT}/wa_003/$USER/impl"
+       alias    gotiming  'cd /proj/${MRVL_PROJECT}/timing/nightly/nightly_rundirs\!*'
+   else if ($MRVL_PROJECT == "odysseya0") then
+       alias go "cd /proj/${MRVL_PROJECT}/wa_003/$USER/impl"
+       alias go2 "cd /proj/${MRVL_PROJECT}/wa_pnr2/$USER/impl"
+       alias    gotiming  'cd /proj/${MRVL_PROJECT}/timing/nightly/nightly_rundirs\!*'
+   else if ($MRVL_PROJECT == "xplorer5a0") then
+       alias go "cd /proj/${MRVL_PROJECT}/wa_003/$USER/impl"
+       alias    gotiming  'cd /proj/${MRVL_PROJECT}/timing/nightly/nightly_rundirs\!*'
+   else if ($MRVL_PROJECT == "iliada0") then
+       alias go "cd /proj/${MRVL_PROJECT}/wa_pnr/$USER/impl"
+       alias    gotiming  'cd /proj/${MRVL_PROJECT}/timing/nightly/nightly_rundirs\!*'
+   else   
+       alias go "cd /proj/${MRVL_PROJECT}/wa/$USER"
+   endif
+
+endif
+
+alias gorel "cd /proj/${MRVL_PROJECT}/release; pwd; ls -l"
+
+alias tkdiff /proj/eda/UNSUPPORTED/TKDIFF/4.2/bin/tkdiff
+alias nedit /proj/eda/UNSUPPORTED/NEDIT/5.5/bin/nedit
+
+# ----------------------------------------------------------------------------------------------
+# run-time (across DC and Innovus steps)
+alias rt5 'echo DC \(dc.syn\) :; tail -n 15 dc.syn/logfiles/DC*.log | grep took; echo Innovus FP \(invcui.pre.fp\) :; tail invcui.pre.fp/logfiles/*log.inv.logv | grep \"Innovus\" ; echo Innovus Place \(invcui.pre.place\) :; tail invcui.pre.place/logfiles/**log.inv.logv | grep \"Innovus\" ; echo Innovus CTS \(invcui.cts\) :; tail invcui.cts/logfiles/**log.inv.logv | grep \"Innovus\" ;   echo Innovus Route \(invcui.post\) :; tail invcui.post/logfiles/**log.inv.logv | grep \"Innovus\" ; '
+
+# DC run-time step detail
+alias rt5_dc '\grep -i -e "PNR-INFO: job" -e ".*interactive.*start.*" -e ".*interactive.*finished.*" -e "INFO: Finished finish" -e "INFO: took" dc.syn/logfiles/DC*.log '
+
+# Innovus run-time step detail
+#alias rt5_inv '\grep -e "# Entering" -e "# Exiting" invcui.*/logfiles/INV*.inv.logv | sed "s/logfiles\/INV/logfiles INV/" | sort -k2 -k4 -k8 | sed "s/logfiles INV/logfiles\/INV/"'
+alias rt5_inv '\grep -e "# Entering" -e "# Exiting" invcui.*/logfiles/INV*.inv.logv'
+
+# DC Message Analysis
+#cat DC_2020_02_18_084721.log | awk '{if($NF~/-/){print $1, $NF}}' | \grep -i -e ^Warning -e ^Info -e ^Error | sort | uniq -c | sort
+
+# ----------------------------------------------------------------------------------------------
+# Launching standalone DC
+alias dc_shell 'syn dc_shell@P-2019.03-SP5 -sgq normal -sgm 4 -sgc 1'
+alias dc_shell-t 'syn dc_shell@P-2019.03-SP5 -topographical_mode -sgq normal -sgm 4 -sgc 1'
+alias dcnxt_shell-t 'syn dcnxt_shell@P-2019.03-SP5 -topographical_mode -sgq normal -sgm 4 -sgc 1'
+
+# To launch standalone innovus
+alias inv1913 'inv innovus@19.13.000 -sgq normal -sgm 40 -sgc 4 -stylus'
+
+alias progress '/proj/tools01/wa/dnetrabile/impl/scripts/show_progress.tcl'
+
+#alias sven1 '~smeier/Scripts/BFW/rpt_release.pl -u dnetrabile -b nixtx_pnr2 -t nixtx_pnr2.DE1/track.baseline,nixtx_pnr2.DE1/track.only_svt,nixtx_pnr2.DE1/track.only_lvt,nixtx_pnr2.DE1/track.only_ulvt,nixtx_pnr2.DE1/track.dc_lvtll_inv_lvtll_lvt_svt_ulvt,nixtx_pnr2.DE1/track.dc_lvtll_inv_lvtll_lvt_svt'
+#alias sven2 '~smeier/Scripts/BFW/rpt_release.pl -u dnetrabile -b nixtx_pnr2 -t nixtx_pnr2.DE2/track.baseline,nixtx_pnr2.DE2/track.only_svt,nixtx_pnr2.DE2/track.only_lvt,nixtx_pnr2.DE2/track.only_ulvt,nixtx_pnr2.DE2/track.dc_lvtll_inv_lvtll_lvt_svt_ulvt,nixtx_pnr2.DE2/track.dc_lvtll_inv_lvtll_lvt_svt'
+
+alias sven1 './tools/projflow/common/report/pnr_rpt.pl -u dnetrabile -b nixtx_pnr2 -t nixtx_pnr2.DE1/track.baseline,nixtx_pnr2.DE1/track.dc_lvtll_inv_lvtll_lvt_svt_ulvt,nixtx_pnr2.DE1/track.dc_lvtll_inv_lvtll_lvt_svt'
+alias sven2 './tools/projflow/common/report/pnr_rpt.pl -u dnetrabile -b nixtx_pnr2 -t nixtx_pnr2.DE2/track.baseline,nixtx_pnr2.DE2/track.dc_lvtll_inv_lvtll_lvt_svt_ulvt,nixtx_pnr2.DE2/track.dc_lvtll_inv_lvtll_lvt_svt'
+
+alias pnr_prog1 '/proj/tools01/wa/dnetrabile/impl/nixtx_pnr2.DE1/track.baseline/tools/projflow/common/report/pnr_rpt.pl -u dnetrabile -b nixtx_pnr2 -t nixtx_pnr2.DE1/track.baseline,nixtx_pnr2.DE1/track.only_svt,nixtx_pnr2.DE1/track.only_lvt,nixtx_pnr2.DE1/track.only_ulvt,nixtx_pnr2.DE1/track.dc_lvtll_inv_lvtll_lvt_svt_ulvt,nixtx_pnr2.DE1/track.dc_lvtll_inv_lvtll_lvt_svt'
+alias pnr_prog2 '/proj/tools01/wa/dnetrabile/impl/nixtx_pnr2.DE1/track.baseline/tools/projflow/common/report/pnr_rtp.pl -u dnetrabile -b nixtx_pnr2 -t nixtx_pnr2.DE2/track.baseline,nixtx_pnr2.DE2/track.only_svt,nixtx_pnr2.DE2/track.only_lvt,nixtx_pnr2.DE2/track.only_ulvt,nixtx_pnr2.DE2/track.dc_lvtll_inv_lvtll_lvt_svt_ulvt,nixtx_pnr2.DE2/track.dc_lvtll_inv_lvtll_lvt_svt'
+
+alias showdiskhogs '~dnetrabile/scripts/show_diskhogs.tcsh | sort -k 5 -n'
+
+# Scott's alias
+alias prog '/proj/tools01/wa/sconchieri/pkg_dev/block_flow_tsmcn5/projflow/common/report/progrpt.pl'
+
+alias pemrel 'cd /proj/${MRVL_PROJECT}/release; grep "Parsing TCL contents" *pem*/*/release.log | grep release_template; cd -'
+
+alias expla0  'proj_swgrp xplorer5a0 ipdvyellow01 t103a0 f105a0 t106a0 rocpd01 tools01 ccpd01 dvtool01'
+alias ody     'proj_swgrp odysseya0 ipdvyellow01 f105a0 t106a0 rocpd01 tools01 ccpd01 dvtool01'
+alias t103a0  'proj_swgrp t103a0 ipdvyellow01 f105a0 t106a0 rocpd01 tools01 ccpd01 dvtool01'
+alias f105a0  'proj_swgrp f105a0 ipdvyellow01 t106a0 rocpd01 tools01 ccpd01 dvtool01'
+alias tools  'proj_swgrp ipdvyellow01 tools01 rocpd01 f105a0 t106a0 ccpd01 dvtool01'
+alias t106a0  'proj_swgrp t106a0 ipdvyellow01 f105a0 rocpd01 tools01 ccpd01 dvtool01'
+alias cobra   'proj_swgrp stc03c1m stc03c1 stc03c0l stc05c3l stc03c0 tsmc03e tools03 fiptsmc003p techtsmc003p'
+alias iliad   'proj_swgrp iliada0 odysseya0 tanza0 armgit01 armyellow01 ipdvyellow01 rocpd01 tools01 ccpd01 dvtool01'
+
+alias goto   "/user/dnetrabile/scripts/switch_track.tcsh"
+
+alias dc_log "/user/dnetrabile/scripts/parse_dc_log_for_errors.tcsh"
+
+alias less "/bin/less -N" ; # This automatically adds line numbers
+
+alias trackinfo "track sessions --select session dependencies state start_time end_time runtime est_mem req_mem maxpss_gb cpu_util step job_id"
+
+alias rfry "cd /proj/${MRVL_PROJECT}/wa_001/rfry/impl/COBRA_TOP; ls -trl; pwd"
+alias aw   "cd /proj/${MRVL_PROJECT}/wa/awagstaff/impl/COBRA_TOP; ls -trl; pwd"
+alias dn   "cd /proj/${MRVL_PROJECT}/wa/dnetrabile/impl/COBRA_TOP; ls -trl; pwd"
+alias kd   "cd /proj/${MRVL_PROJECT}/wa/kdeweese/impl/COBRA_TOP; ls -trl; pwd"
+alias cdd  "cd /proj/${MRVL_PROJECT}/wa/cdega/impl/COBRA_TOP/track.custom.4/pgv.signoff.dynamic/dynamic_run/adsRpt; ls -trl; pwd"
+alias cds  "cd /proj/${MRVL_PROJECT}/wa/cdega/impl/COBRA_TOP/track.custom.4/pgv.signoff.static/static_run/adsRpt; ls -trl; pwd"
+alias cdem "cd /proj/${MRVL_PROJECT}/wa/cdega/impl/COBRA_TOP/track.custom.4/pgv.signoff.signalEM/signalem_run/*/adsSem; less sem.rpt | \grep -B 3 -A 1 Irms/Limit | \grep -v Irms | perl -pe 'chomp; s/NET /\n NET /g;' | column -t | less; ls -trl; pwd"
+alias yi   "cd /proj/stc03c1m/wa/yimingl/impl/COBRA_TOP; ls -trl; pwd"
+alias rb   "cd /proj/stc03c1m/wa/rbansal1/impl/COBRA_TOP; ls -trl; pwd"
+alias gorelc "cd /proj/${MRVL_PROJECT}/release/COBRA_TOP.1.0A; pwd; ls -l"
+
+alias sdc  "cd /proj/${MRVL_PROJECT}/wa/dnetrabile/impl/COBRA_TOP/collateral/sdc/20230929; ls -trl; pwd"
+alias macphy1 "cd /proj/stc03c0l/wa/jkyungl/impl/COBRA_MACPHY_WRAPPER.1.0A/DE1.0/release_DE3.2; ls -trl ; pwd"
+
+alias lef "echo 'Loading LEF'"
+
+alias sm  "cd /proj/cheetaha0/wa_pcx/snimbalkar/impl; ls -trl; pwd"
+
+# Git alias
+alias changes "git log | less"
+alias bigfiles "find . -xdev -type f -size \!* -print | xargs ls -lh | sort -k 5 -r"  ; # Usage: 'bigfiles +2G' will recursively find files larger than 2Gb
+alias flowchart "track sessions -f png > /proj/${MRVL_PROJECT}/wa/$USER/flowchart.png;  /bin/display /proj/${MRVL_PROJECT}/wa/$USER/flowchart.png ; rm /proj/${MRVL_PROJECT}/wa/$USER/flowchart.png"
+
+alias DRV  "app add calibre=v2023.3_40.23; app add designrev; designrev -calibre_v aoi_cal_2022.4_28.13 -fdry tsmc -proc CLN3_LO -mstk 1P16M_1Xa_h_1Xb_v_1Xc_h_1Xd_v_1Ya_h_1Yb_v_5Y_hvhvh_2Yy2R -sgq normal:4c:64m"
