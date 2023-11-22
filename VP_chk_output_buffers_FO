@@ -1,0 +1,12 @@
+# - ensure that all output buffers only drive a port.
+set output_buffer_pins [get_db [get_db [get_db ports -if {.direction==out}] .net.drivers -if {.obj_type == pin && !.net.is_power && !.net.is_ground && !.net.is_clock}]  -if {.inst.is_buffer || .inst.is_inverter}]
+# - it's the following only returns 1, then every single output buffer only drives a port
+set unique_fanout [get_db $output_buffer_pins .net.num_loads -unique]
+
+
+if { $unique_fanout != "1" } {
+    puts "ERROR: All output buffers should have a fanout of 1."
+    puts "  unique_fanout: $unique_fanout"
+} else {
+    puts "Viewpoint STA_2876-check_output_buffers_fanout1 passed."
+}
