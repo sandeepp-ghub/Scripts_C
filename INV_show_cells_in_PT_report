@@ -1,0 +1,193 @@
+namespace eval ::dn {} {
+
+    set script_info [info script]
+
+    proc read_pt_failing_paths_rpt { fname } {
+	if {![info exists ::dn::debug]} { set ::dn::debug 0 }
+	if {![file exists $fname]} {
+	    puts "(E): Specified filename doesn't exists:"
+	    puts "     $fname"
+	} else {
+            set fid [open "| gzip -cd $fname" r]
+	    puts "(I): Reading in $fname"
+
+	    # Initialize variables
+	    set startpoint ""
+	    set endpoint   ""
+	    set path_group ""
+	    set path_type  ""
+	    set begin_path_collection 0
+	    set end_path_collection 0
+	    set path_index 0
+	    set cells_in_path ""
+	    set nets_in_path  ""
+	    set endpoint_pin ""
+	    set startpoint_pin ""
+	    set slack "-9999"
+
+	    # Initialize path_collection array
+	    array unset ::path_collection
+	    set line_number 0
+	    while {[gets $fid line] >= 0} {
+		incr line_number
+		if {![string match "-------------------*" [lindex $line 0]]} {
+		    #puts "DEBUG: ($line_number) $line"
+		    #puts -nonewline "$line_number "
+		    
+		    #if { $line_number == "46907" } { set ::dn::debug 1 } else { set ::dn::debug 0 }
+		    if { $::dn::debug } {
+			puts "\nDEBUG: $line_number: $line"
+		    }
+		    
+		    if {[string match "*Startpoint:*" $line]} { set startpoint [lindex $line end] }
+		    if {[string match "*Endpoint:*" $line]}  { set endpoint   [lindex $line end] }
+		    if {[string match "Group:" [lindex $line 1]] } { set path_group [lindex $line end]}
+		    if {[string match "Type:" [lindex $line 1]]} { set path_type [lindex $line end]}
+		    
+		    if {[string match "$startpoint/*" [lindex $line 0]]} { 
+			#puts "STARTING PATH COLLECTION ($path_index): $line"
+			set begin_path_collection 1 
+			set end_path_collection 0
+			set cells_in_path ""
+			set nets_in_path  ""
+			set startpoint_pin [lindex $line 0]
+			append cells_in_path " [get_object [get_cell -of [get_pin $startpoint_pin]]]"
+		    } elseif {[string match "$endpoint/*" [lindex $line 0]] && $begin_path_collection } {
+			incr path_index
+			#puts "ENDING PATH COLLECTION ($path_index): $line"
+			set begin_path_collection 0
+			set end_path_collection   1
+			set endpoint_pin [lindex $line 0]
+			append cells_in_path " [get_object [get_cell -of [get_pin $endpoint_pin]]]"
+			
+			set unique_cells_in_path [lsort -unique $cells_in_path]
+			set unique_nets_in_path  [lsort -unique $nets_in_path]
+			
+			# Data Dump to the path_collection array
+			set ::path_collection($path_index) " {$path_group} {$path_type} {$startpoint_pin} {$endpoint_pin} { $unique_cells_in_path } { $unique_nets_in_path } "
+
+			# Reset variables
+			set cells_in_path ""
+			set nets_in_path ""
+			set unique_cells_in_path ""
+			set unique_nets_in_path ""
+			set startpoint_pin ""
+			set endpoint_pin ""
+			set path_type ""
+			set path_group ""
+			
+			
+		    } elseif { [lindex $line 0] == "slack" && ![string match "*derating*" $line] } {
+			set slack [lindex $line end]
+			if {[info exists ::path_collection($path_index)]} {
+			    lappend ::path_collection($path_index) "$slack"
+			}
+		    }
+		    
+		    if { $begin_path_collection && !$end_path_collection } 		    {
+			#if { $begin_path_collection } 
+			if { $::dn::debug } { puts "Got here 4" }
+			if { [lindex $line 1] == "(net)" } { 
+			    if { $::dn::debug } { puts "Got here 4a" }
+			    append nets_in_path " [lindex $line 0]" 
+			} else {
+			    if { $::dn::debug } { puts "Got here 4b" }
+			    append cells_in_path " [get_object [get_cell -of [get_pin [lindex $line 0]]]]"
+			}
+		    }
+		    
+		    set split_line [split $line ","]
+		    set sp [string trim [lindex $split_line 0]]
+		}
+		# End if {![string match "-------------------*" [lindex $line 0]]}
+	    }
+	    # End while {[gets $fid line] >= 0}
+	    puts "Call ::dn::highlight_cells_and_nets <path_index> "
+	    puts " ex: (1st)  ::dn::highlight_cells_and_nets 1"
+	    puts " ex: (last) ::dn::highlight_cells_and_nets $path_index"
+	    
+	    close $fid
+	    
+	    puts "Analyzed $path_index paths"
+	    
+	}
+	# End if/else {![file exists $fname]}
+	
+    }
+    # End proc read_pt_failing_paths_rpt { fname }
+    
+    # ----------------------------------------------------------
+    proc highlight_cells_and_nets { path_number } {
+	#puts "(I): Entering ::dn::highlight_cells_and_nets procedure ..."
+	
+	if {![info exists ::dn::debug ]} { set ::dn::debug 0 }
+	if {![info exists ::dn::slack_threshold]} { set ::dn::slack_threshold "-9999" }
+	
+	if {![info exists ::path_collection]} {
+	    puts "(E): Couldn't find ::path_collection array"
+	    return
+	} elseif {![info exists ::path_collection($path_number)]} {
+	    puts "(E): Couldn't find ::path_collection($path_number)"
+	} else {
+	    set path_group [lindex $::path_collection($path_number) 0]
+	    set path_type  [lindex $::path_collection($path_number) 1]
+	    set sp         [lindex $::path_collection($path_number) 2]
+	    set ep         [lindex $::path_collection($path_number) 3]
+	    set cells      [lindex $::path_collection($path_number) 4]
+	    set nets       [lindex $::path_collection($path_number) 5]
+	    set slack      [lindex $::path_collection($path_number) 6]
+	    
+	    if { $::dn::debug } {
+		puts ""
+		foreach cell $cells { 
+		    if {[string match "$cell/*" $sp]} { 
+			set tag "SP ==> " 
+		    } elseif {[string match "$cell/*" $ep]} { 
+			set tag "EP ==> " 
+		    } else {
+			set tag "       "
+		    }
+
+		    puts "cell: $tag $cell" 
+		}
+		puts "slack:      $slack"
+
+		foreach net $nets {
+		    puts "net: $net"
+		}
+	    }
+
+	    if { $slack <= $::dn::slack_threshold } {
+		# --------------------------------------
+		# Cycle through each cell & net
+		#gui_deselect -all ; # Deselect all items in the GUI
+		select_obj [get_cells "$cells"]
+		select_obj [get_nets  "$nets"]
+		set color_index 57
+		gui_highlight -index $color_index;
+		
+		if { 0 } {
+		    # --------------------------------------
+		    # Color the startpoint cell
+		    gui_deselect -all ; # Deselect all items in the GUI
+		    select_obj [get_cells -of [get_pins $sp]]
+		    set color_index 60
+		    gui_highlight -index $color_index;
+		    puts "SP     $sp"
+		    
+		    # Color the endpoint cell
+		    gui_deselect -all ; # Deselect all items in the GUI
+		    select_obj [get_cells -of [get_pins $ep]]
+		    set color_index 59
+		    gui_highlight -index $color_index;
+		    puts "EP     $ep"
+		}
+	    } else {
+		puts "(W): Path $path_number has slack ($slack) > slack_threshold ($::dn::slack_threshold)"
+	    }
+	}
+    }
+
+}
+# End namespace eval ::dn {}
+puts "::dn::read_pt_failing_paths_rpt <corner_failing_paths.rpt.gz>"
