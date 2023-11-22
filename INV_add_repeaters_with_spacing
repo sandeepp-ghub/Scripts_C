@@ -1,0 +1,44 @@
+# Shared by M. Amundson
+# add a new buffer at a point-to-point distance
+proc buffer_pins { pins prefix {repeat 250} {cell BUFFD16BWP210H6P51CNODULVT} } {
+  set new_bufs ""
+
+  set iter 0
+  foreach pin_name $pins {
+    incr iter ; # global iterations
+
+    set pin [get_pins $pin_name]
+    set net [get_nets -of_objects $pin]
+    set src [get_property $net driver_pins]
+
+    set loc_pin [get_pin_location $pin_name]
+    set loc_src [get_pin_location [get_object_name $src]]
+
+    lassign $loc_src x1 y1
+    lassign $loc_pin x2 y2
+
+    set dist [mortar::distance -p1 $loc_pin -p2 $loc_src] ; # pt-to-pt
+
+    set num_buf [expr int(ceil($dist/$repeat)) - 1]
+    if { $num_buf == 0 } { set num_buf 1 }
+
+    set rise  [expr $y2-$y1]
+    set run   [expr $x2-$x1]
+    set slope [expr $rise/$run]
+
+    puts "Adding $num_buf buffers to drive $pin_name via $cell"
+    puts "  Source:   $loc_src"
+    puts "  Pin:      $loc_pin"
+    puts "  Dist:     $dist"
+    puts "  Rise/Run: $rise / $run (slope $slope)"
+
+    for {set i 1} {$i <= $num_buf} {incr i} {
+      set loc [list [expr $x1 + double($i)/double($num_buf+1)*$run] [expr $y1 + double($i)/double($num_buf+1)*$rise]]
+      set buf_name "${prefix}_buffer_pin_${iter}_${i}"
+      puts "  $buf_name at $loc"
+      eco_add_repeater -name $buf_name -pins $pin_name -cells $cell -location $loc
+      lappend new_bufs [get_object_name [get_cells -hier -filter "name == $buf_name"]]
+    }
+  }
+  return $new_bufs
+}
