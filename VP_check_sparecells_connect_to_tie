@@ -1,0 +1,29 @@
+array unset untied_spare_cell_inputs
+set spare_cell_inputs [get_db pins SPARE*/* -if {.direction==in}] ; # Grab all the SPARE cell input pins
+
+set i 0 ; # Counter for spare cell input pins processed
+set e 0 ; # Counter for errors
+
+# Cycle through each spare cell input pin
+foreach input $spare_cell_inputs {
+    incr i
+
+    set driver_pins  [get_pins [get_db $input .net.drivers.name]]
+    set driver_cells [get_object [get_cell -of $driver_pins]]
+    if {![string match LTIE* $driver_cells]} {
+	incr e
+	set untied_spare_cell_inputs($input) "$drivers"
+    }
+}
+
+puts ""
+puts -nonewline "** Processed $i SPARE* input pins ..."
+puts -nonewline "Found $e spare cell inputs that weren't tied to LTIE* cells ... "
+if { $i > 0 } {
+    if { !$e } {
+	puts "Viewpoint check 2844 PASSED"
+    } else {
+	puts "Viewpoint check 2844 FAILED"
+    }
+}
+puts ""
