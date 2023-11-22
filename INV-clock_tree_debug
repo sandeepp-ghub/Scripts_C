@@ -1,0 +1,545 @@
+namespace eval ::dn {} {
+    # ----------------------------------------------------------------
+    # This proc populates the clock info
+    proc animate_clocks { clk starting_level ending_level } { 
+
+	array unset ::dn::clock_fanout
+
+	if { 1 } {
+	    set previous 0
+	    puts ""
+	    puts "-----------------------------------------------------------------------------------------------------------"
+	    gui_clear_highlight
+	    set color_index "64"
+
+	    # Highlight the source of the clock
+	    set clock_sources [get_db [get_clocks $clk] .sources]
+	    select_obj $clock_sources
+	    foreach src $clock_sources {
+		set location [string range [get_db $src .location] 1 end-1]
+		set location_x [lindex $location 0]
+		set location_y [lindex $location 1]
+
+		set x1 [format %.3f [expr $location_x - 5.0]]
+		set x2 [format %.3f [expr $location_x + 5.0]]
+		set y1 [format %.3f [expr $location_y - 5.0]]
+		set y2 [format %.3f [expr $location_y + 5.0]]
+
+		puts " $src $x1 $y1 $x2 $y2"
+		# Draw a shape highlighting the source
+		set rect [create_gui_shape -rect "$x1 $y1 $x2 $y2" -layer 99 -width 3]
+		gui_highlight $rect -color red
+			 
+	    }
+
+	    set j 0
+	    for {set i 1} {$i <= 30} {incr i} {
+		if { $i > $starting_level && $i <= $ending_level } {
+		    if { $color_index == 49 } { set color_index 33 }
+		    incr color_index -1
+		    if { $color_index == "0" } { set color_index "$::dn::starting_color_index" }
+
+		    set ::dn::clock_fanout($clk.$i) [get_cells -of [all_fanout -flat -from [get_db [get_clocks $clk] .sources] -level $i]]
+		    if { [sizeof_collection $::dn::clock_fanout($clk.$i)] > $previous } {
+
+			if { $i >= 2 } {
+			    # Only highlight the cells at the current level
+			    set j [expr $i - 1]
+			    if {![info exists ::dn::clock_fanout($clk.$j)]} {
+				set ::dn::clock_fanout($clk.$j) [get_cells -of [all_fanout -flat -from [get_db [get_clocks $clk] .sources] -level $j]]
+			    }
+			    set current_level [remove_from_collection [get_cells $::dn::clock_fanout($clk.$i)] [get_cells $::dn::clock_fanout($clk.$j)]]
+			    gui_deselect -all;
+			    #puts "  [sizeof_collection $current_level]"
+			    select_obj $current_level
+			    gui_highlight -index $color_index
+
+			    # If the number of cells at the current level is less than 100, it is hard to see the instances, so might be helpful to mark them
+			    if { 0 && [sizeof_collection $::dn::clock_fanout($clk.$i)] < 100} { 
+				foreach_in_collection c $::dn::clock_fanout($clk.$i) {
+				    set location [string range [get_db $c .location] 1 end-1]
+				    set location_x [lindex $location 0]
+				    set location_y [lindex $location 1]
+				    
+				    set x1 [format %.3f [expr $location_x - 2.0]]
+				    set x2 [format %.3f [expr $location_x + 2.0]]
+				    set y1 [format %.3f [expr $location_y - 2.0]]
+				    set y2 [format %.3f [expr $location_y + 2.0]]
+				    
+				    #puts " $src $x1 $y1 $x2 $y2"
+				    # Draw a shape highlighting the source
+				    set rect [create_gui_shape -rect "$x1 $y1 $x2 $y2" -layer 99 -width 2]
+				    gui_highlight $rect -color $color_index
+				}
+			    }
+
+			    sleep 2
+			} else {
+			    set current_level [get_cells $::dn::clock_fanout($clk.$i)]
+			}
+			puts "$clk | level = $i | size of ::dn::clock_fanout($clk.$i) = [sizeof_collection $::dn::clock_fanout($clk.$i)] | unique = [sizeof_collection $current_level]  ==> select_obj \$::dn::clock_fanout($clk.$i)"
+			
+		    }
+		    gui_deselect -all ;
+		    set previous [sizeof_collection $::dn::clock_fanout($clk.$i)]
+		}
+	    }
+	}
+    }
+    # End proc animate_clocks { } 
+
+    # ----------------------------------------------------------------
+    # This proc draws rectangle shape at the specified coordinate
+    proc create_rect { x1 y1 x2 y2 color } {
+	set rect [create_gui_shape -rect {$x1 $y1 $x2 $y2} -layer 99 -width 3]
+	gui_highlight $rect -color $color
+    }
+
+    # ----------------------------------------------------------------
+    proc show_reg_groups { } {
+	set reg_sinks [get_db selected "*_reg_*"]
+	array unset sink_groups; 
+	foreach i $reg_sinks {
+	    regsub "_reg_" $i "_reg* " new; 
+	    set trimmed [lindex $new 0]; 
+	    if {![info exists sink_groups($trimmed)]} { 
+		set sink_groups($trimmed) "1" 
+	    } else { 
+		incr sink_groups($trimmed) 
+	    } 
+	}
+	parray sink_groups; 
+	array size sink_groups
+
+    }
+
+    # ----------------------------------------------------------------
+    # This proc highlights the worst clocks paths
+    proc highlightingWorstIDpaths {args} {
+	define_proc_arguments highlightingWorstIDpaths -info "highlight the top worst clock ID paths of a specified skew group"\
+	    -define_args {
+		{-skew_group "specify the name of the skew_group" "" string required}
+		{-number_of_paths "specifies the number of worst paths which user wants to highlight" "" integer required}
+	    }
+	
+	parse_proc_arguments -args $args opt
+	set sg $opt(-skew_group)
+	set count $opt(-number_of_paths)
+	
+	set list_sink_id ""
+	foreach sink [get_db skew_group:$sg .sinks_active.name] {
+	    lappend list_sink_id "$sink [get_skew_group_delay -to $sink -skew_group $sg]"
+	}
+	
+	set i 0
+	set  worstSinks ""
+	foreach data [lsort -index 1  -decreasing $list_sink_id] {
+	    incr i
+	    lappend worstSinks [lindex $data 0 ]
+	    if {$i > $count} {break}
+	}
+	
+	set i 0
+	gui_ctd_open -title highlightingTopWorstClockPaths
+	foreach sink $worstSinks {
+	    incr i
+	    gui_deselect -all
+	    select_obj [lindex [get_skew_group_path -skew_group $sg -sink $sink] 0]
+	    if { [lsort -unique [get_db selected .obj_type]] == "pin" } { 
+		gui_ctd_highlight -to [get_db pin:$sink .inst.name] -from [get_db pin:[lindex [get_skew_group_path -skew_group $sg -sink $sink] 0] .inst.name] -index $i
+		if { $i == 32 } {
+		    set i 0
+		}
+	    } else {
+		gui_ctd_highlight -to [get_db pin:$sink .inst.name] -from [lindex [get_skew_group_path -skew_group $sg -sink $sink] 0] -index $i
+		if { $i == 32 } {
+		    set i 0
+		}
+	    }
+	}
+    }
+
+    # ----------------------------------------------------------------
+    # This proc calculates the max sink in the clock tree name by calculating it's manhattan distance
+    proc findingFarthestSink {args} {
+	define_proc_arguments findingFarthestSink -info "find out the max sink by calculating its manhattan distance"\
+	    -define_args {
+		{-in_clock_tree "specify the clock tree name" "" string required}
+		{-root "specify the root name" "" string required}
+		{-skew_group "specify the skew group name" "" string required}
+	    }
+
+	parse_proc_arguments -args $args opt
+	set clock_tree_name $opt(-in_clock_tree)
+	set root $opt(-root)
+	set skew_group $opt(-skew_group)
+	
+	set sink_list ""
+	foreach i [get_clock_tree_sinks -in_clock_trees $clock_tree_name] { 
+	    select_obj $root
+	    if { [lsort -unique [get_db selected .obj_type]] == "pin" } {
+		set x [expr abs([expr [get_db pin:$i .location.x] - [get_db pin:$root .location.x]])] 
+		set y  [expr abs([expr [get_db pin:$i .location.y] - [get_db pin:$root .location.y]])] 
+		lappend sink_list "$i [expr $x + $y]"
+	    } else {
+		set x [expr abs([expr [get_db pin:$i .location.x] - [get_db port:$root .location.x]])] 
+		set y  [expr abs([expr [get_db pin:$i .location.y] - [get_db port:$root .location.y]])] 
+		lappend sink_list "$i [expr $x + $y]"
+	    }
+	}
+	puts "[lindex [lsort -index 1 -real -decreasing $sink_list] 0]"
+	gui_clear_highlight
+	gui_ctd_open -title HighlightFarthestSink
+	gui_ctd_highlight -from [lindex [get_skew_group_path -skew_group $skew_group -sink [lindex [lindex [lsort -index 1 -real -decreasing $sink_list] 0] 0] ] 0] -to [lindex [lindex [lsort -index 1 -real -decreasing $sink_list] 0] 0] -color red
+    }
+
+    # ----------------------------------------------------------------
+    # This proc provides a clock path based stage delay (export output into a spreadsheet for legibility)
+    proc stageDelaywithCellList {args} {	
+	define_proc_arguments stageDelaywithCellList -info "find out the stage wise delay alongwith the cell list for a timing path"\
+	    -define_args {
+		{-skew_group "specify the skew_group name" "" string required}
+		{-sink "specify the sink name"  "" string required}
+	    }
+
+	parse_proc_arguments -args $args opt
+	set skew_group $opt(-skew_group)
+	set sink $opt(-sink)
+	
+	puts "ClockPort/Pin Net CellType ArrivalTime Delay WireLength\n"
+	
+	set root [lindex [get_skew_group_path  -skew_group $skew_group -sink $sink ] 0]
+	set root_delay [get_skew_group_delay -skew_group $skew_group -to $root]
+	puts "$root NA $root_delay $root_delay"
+	set prev_delay $root_delay
+	
+	foreach i [get_skew_group_path  -skew_group $skew_group -sink $sink ] {
+	    gui_deselect -all
+	    select_obj $i
+	    if { [get_db selected .obj_type] == "pin" } { 
+		set delay [get_skew_group_delay -skew_group $skew_group -to $i]
+		puts "$i [get_db pin:$i .inst.base_cell.base_name] [get_skew_group_delay -skew_group $skew_group -to $i] [expr $delay - $prev_delay]"
+		set prev_delay [expr $delay + $root_delay]
+	    } 
+	}
+    }
+
+    # ----------------------------------------------------------------
+    # This proc calculates the path net length per layer for a clock
+    proc calculatePathNetLengthLayerWise {args} {
+	define_proc_arguments calculatePathNetLengthLayerWise -info "Calculate the layer wise net length for all the net in that path"\
+	    -define_args {
+		{-skew_group "specify the skew_group name" "" string required}
+		{-sink "specify the sink name" "" string required}
+	    }
+    
+	parse_proc_arguments -args $args opt
+	set sink $opt(-sink)
+	set skew_group $opt(-skew_group)
+	set net [get_object_name [get_nets -of_objects [get_skew_group_path -skew_group $skew_group -sink $sink]]]
+	set metal_layer [get_db [get_db layers -if { .type == routing}] .name]
+	puts "Net cts_net_type route_rule $metal_layer total \n"
+	foreach k $net {
+	    printf "$k "
+	    printf "[get_db net:$k .cts_net_type] "
+	    if { [get_db net:$k .route_rule.name] == "" } { 
+		printf "NA " 
+	    } else {
+		printf "[get_db net:$k .route_rule.name] "
+	    }
+	    set total 0
+	    foreach j $metal_layer {
+		set sum 0
+		foreach i [get_db [get_db -u net:$k .wires -if { .layer.name == $j }] .length] {
+		    set sum [expr $sum + $i]  
+		}
+		printf "[format "%.1f" $sum] "
+		set total [expr $total + $sum]
+	    }
+	    print "[format "%.1f" $total]"
+	}
+	
+	printf "Total NA NA "
+	set net [get_object_name [get_nets -of_objects [get_skew_group_path -skew_group $skew_group -sink $sink]]]
+	foreach j $metal_layer {
+	    set total 0
+	    foreach k $net {
+		set sum 0
+		foreach i [get_db [get_db -u net:$k .wires -if { .layer.name == $j }] .length] {
+		    set sum [expr $sum + $i]  
+		}
+		set total [expr $total + $sum]
+	    }
+	    printf "[format "%.1f" $total] "
+	}
+	printf "\n"
+    }
+    
+    # ----------------------------------------------------------------
+    # This proc displays wirelength statistics for the clock tree for different metal layers
+    proc calculateLayerWiseWireLength {args} {
+	define_proc_arguments calculateLayerWiseWireLength -info "calculate the layer wise wirelength of a specified clock tree"\
+	    -define_args {
+		{-in_clock_tree "specify the clock tree name" "" string required}
+	    }
+	
+	parse_proc_arguments -args $args opt
+	set clock_tree_name $opt(-in_clock_tree)
+	
+	set clockNet [get_db clock_tree:$clock_tree_name .nets.name]
+	set metalLayer [get_db [get_db layers -if { .type == routing}] .name]
+	
+	set TotLength 0
+	set TotLength0 0
+	set TotLength1 0
+	set TotLength2 0
+	set count 0
+	set top_metal ""
+	set trunk_metal ""
+	set leaf_metal ""
+	set wl ""
+	set cnt ""
+	
+	foreach ml $metalLayer {
+	    set total0 0
+	    set total1 0
+	    set total2 0
+	    set length 0
+	    set count_top 0
+	    set count_trunk 0
+	    set count_leaf 0
+	    foreach net $clockNet {
+		set sum0 0
+		set sum1 0
+		set sum2 0
+		if { [get_db net:$net .cts_net_type] == "top" } {
+		    incr count_top
+		    foreach wireLength [get_db [get_db net:$net .wires -if { .layer.name == $ml }] .length] {
+			set sum0 [expr $sum0 + $wireLength]  
+		    }
+		} elseif { [get_db net:$net .cts_net_type] == "trunk" } {
+		    incr count_trunk
+		    foreach wireLength [get_db [get_db net:$net .wires -if { .layer.name == $ml }] .length] {
+			set sum1 [expr $sum1 + $wireLength]  
+		    }
+		} elseif { [get_db net:$net .cts_net_type] == "leaf" } {
+		    incr count_leaf
+		    foreach wireLength [get_db [get_db net:$net .wires -if { .layer.name == $ml }] .length] {
+			set sum2 [expr $sum2 + $wireLength]
+		    }
+		}
+		set total0 [expr $total0 + $sum0]
+		set total1 [expr $total1 + $sum1]
+		set total2 [expr $total2 + $sum2]
+		set length [expr $total1 + $total2 +$total0]
+	    }
+	    lappend top_metal $total0
+	    lappend trunk_metal $total1
+	    lappend leaf_metal $total2
+	    lappend wl $length
+	    set TotLength [expr $TotLength + $length]
+	    set TotLength0 [expr $TotLength0 + $total0]
+	    set TotLength1 [expr $TotLength1 + $total1]
+	    set TotLength2 [expr $TotLength2 + $total2]
+	    lappend cnt $count
+	    incr count
+	}
+
+	# Print out the column headings
+	set headings "MetalLayer WireLength TopWL TrunkWL LeafWL TopLayerAdherence(%) TrunkLayerAdherence(%) LeafLayerAdherence(%) TotalWL(%)"
+	array unset column_width
+	for {set c 0} {$c < [llength $headings]} { incr c } {
+	    set column_name [lindex $headings $c]
+	    #puts "$column_name = [string length $column_name]"
+	    set column_width($c) [expr [string length $column_name] + 3] ; set m $column_width($c);
+	    puts -nonewline [format "%${m}s | " $column_name]
+	}
+	puts ""
+
+	# Print out the table data
+	if { $TotLength0 == "0" } {
+	    foreach i $cnt {
+		#puts "metal[expr $i + 1] [format "%.2f" [lindex $wl $i]]  0.00 [format "%.2f" [lindex $trunk_metal $i]] [format "%.2f" [lindex $leaf_metal $i]] 0.00% [format "%.2f" [expr [expr [lindex $trunk_metal $i]/$TotLength1]*100]]% [format "%.2f" [expr [expr [lindex $leaf_metal $i]/$TotLength2]*100]]%  [format "%.2f" [expr [expr [lindex $wl $i]/$TotLength]*100]]%"
+		set data "metal[expr $i + 1]([lindex $metalLayer $i]) [format "%.2f" [lindex $wl $i]]  0.00 [format "%.2f" [lindex $trunk_metal $i]] [format "%.2f" [lindex $leaf_metal $i]] 0.00% [format "%.2f" [expr [expr [lindex $trunk_metal $i]/$TotLength1]*100]]% [format "%.2f" [expr [expr [lindex $leaf_metal $i]/$TotLength2]*100]]%  [format "%.2f" [expr [expr [lindex $wl $i]/$TotLength]*100]]%"
+		#puts "1: DATA has [llength $data] columns"
+		#puts "$data"
+		for {set c 0} {$c < [llength $headings]} { incr c } {
+		    puts "c=$c ; [lindex $data $c]"
+		    set m $column_width($c);
+		    puts -nonewline [format "%${m}s | [lindex $data $c]"]
+		}
+		puts ""
+	    }
+	} else {
+	    foreach i $cnt {
+		#puts "metal[expr $i + 1] [format "%.2f" [lindex $wl $i]]  [format "%.2f" [lindex $top_metal $i]] [format "%.2f" [lindex $trunk_metal $i]] [format "%.2f" [lindex $leaf_metal $i]] [format "%.2f" [expr [expr [lindex $top_metal $i]/$TotLength0]*100]]% [format "%.2f" [expr [expr [lindex $trunk_metal $i]/$TotLength1]*100]]% [format "%.2f" [expr [expr [lindex $leaf_metal $i]/$TotLength2]*100]]%  [format "%.2f" [expr [expr [lindex $wl $i]/$TotLength]*100]]%"
+		set data ""
+		append data " metal[expr $i + 1]([lindex $metalLayer $i])"
+		append data " [format %.2f [lindex $wl $i]]"
+		append data " [format %.2f [lindex $top_metal $i]]"
+		append data " [format %.2f [lindex $trunk_metal $i]]"
+		append data " [format %.2f [lindex $leaf_metal $i]]"
+		append data " [format %.2f [expr [expr [lindex $top_metal $i]/$TotLength0]*100]]"
+		append data " [format %.2f [expr [expr [lindex $trunk_metal $i]/$TotLength1]*100]]"
+		append data " [format %.2f [expr [expr [lindex $leaf_metal $i]/$TotLength2]*100]]"
+		append data " [format %.2f [expr [expr [lindex $wl $i]/$TotLength]*100]]"
+		#puts "2: DATA has [llength $data] columns"
+		#puts "$data"
+		for {set c 0} {$c < [llength $headings]} { incr c } {
+		    #puts "c=$c ; [lindex $data $c]"
+		    set m $column_width($c);
+		    puts -nonewline [format "%${m}s | " [lindex $data $c]]
+		}
+		puts ""
+	    }
+	}
+	# Print Totals
+	set totals "TOTALS $TotLength $TotLength0 $TotLength1 $TotLength2"
+	for {set c 0} { $c < [llength $totals]} { incr c } { 
+	    set m $column_width($c);
+	    puts -nonewline [format "%${m}s | " [lindex $totals $c]]
+	}
+	puts ""
+
+	# Explanation:
+	puts "# ---"
+	puts "# Analysis:"
+	puts "#  - The total wirelength for all the clocks of the clock_tree '$clock_tree_name' is '$TotLength'"
+	puts "#  -   Top WL = Top nets wirelength ($count_top nets)"
+	puts "#  - Trunk WL = Trunk nets wirelength (doesn't include leaf nets; these form the main part of clock tree from the root down till the leaf nets) ($count_trunk nets)"
+	puts "#  -  Leaf WL = Leaf nets wirelength (connected to the sink input pins) ($count_leaf nets)"
+	
+    }
+
+    proc highlight_clock_ports { } { 
+	set previous 0
+	puts ""
+	puts "-----------------------------------------------------------------------------------------------------------"
+	gui_clear_highlight
+	set color_index "64"
+
+	set clocks [lsort -unique [get_object [get_clocks]]]
+	
+	foreach clk $clocks {
+	    # Highlight the source of the clock
+	    set clock_sources [get_db [get_clocks $clk] .sources]
+	    select_obj $clock_sources
+	    foreach src $clock_sources {
+		set location [string range [get_db $src .location] 1 end-1]
+		set location_x [lindex $location 0]
+		set location_y [lindex $location 1]
+		
+		set x1 [format %.3f [expr $location_x - 5.0]]
+		set x2 [format %.3f [expr $location_x + 5.0]]
+		set y1 [format %.3f [expr $location_y - 5.0]]
+		set y2 [format %.3f [expr $location_y + 5.0]]
+		
+		puts " $src $x1 $y1 $x2 $y2"
+		# Draw a shape highlighting the source
+		set rect [create_gui_shape -rect "$x1 $y1 $x2 $y2" -layer 99 -width 3]
+		gui_highlight $rect -color red	
+
+		# Draw GUI text to highlight it
+		set x_coord [format %.3f [expr ($x2 + 5)]]
+		set y_coord [format %.3f [expr ($y1 + $y2)/2]]
+		set member_label [create_gui_text -pt "$x_coord $y_coord" -layer 999 -label "$clk" -height 10] ; # This creates the GUI text pointer
+		gui_highlight $member_label -color white
+	    }
+	}
+    }
+
+    proc highlight_clock_sources { clk } {
+	# Highlight the source of the clock
+	set clock_sources [get_db [get_clocks $clk] .sources]
+	select_obj $clock_sources
+	foreach src $clock_sources {
+	    set location [string range [get_db $src .location] 1 end-1]
+	    set location_x [lindex $location 0]
+	    set location_y [lindex $location 1]
+	    
+	    set x1 [format %.3f [expr $location_x - 5.0]]
+	    set x2 [format %.3f [expr $location_x + 5.0]]
+	    set y1 [format %.3f [expr $location_y - 5.0]]
+	    set y2 [format %.3f [expr $location_y + 5.0]]
+	    
+	    puts " $src $x1 $y1 $x2 $y2"
+	    # Draw a shape highlighting the source
+	    set rect [create_gui_shape -rect "$x1 $y1 $x2 $y2" -layer 99 -width 3]
+	    gui_highlight $rect -color red
+	    
+	}
+    }
+
+    proc highlight_mscts_sinks { mscts_clk } {
+
+	set tap_cells [get_object [get_cells ${mscts_clk}_MSCTS_TAP*]]
+
+	gui_clear_highlight
+	set color_index "64"
+
+	set uncloneable [exec cat /user/dnetrabile/uncloneable.bpemc]
+	set uncloneable ""
+
+	foreach tap $tap_cells {
+	    if { $color_index == 49 } { set color_index 33 }
+	    incr color_index -1
+	    sleep 3
+	    set all_fanout [get_object [all_fanout -flat -endpoints_only -from [get_pins ${tap}/Z]]]
+	    puts "$tap has [llength $all_fanout] endpoints (color_index = $color_index)"
+	    gui_deselect -all;
+	    select_obj $all_fanout
+	    gui_highlight -index $color_index
+	    
+	    set i 0
+	    foreach cell $uncloneable {
+		if {[lsearch $all_fanout $cell/*] != -1 } {
+		    incr i
+		    puts "     ---> Found uncloneable in fanout cone ($i): $cell"
+		}
+	    }
+
+	}
+
+    }
+
+}
+
+
+#::dn::animate_clocks
+# End namespace eval ::dn {}
+
+
+set all_clocks [lsort -unique [get_object_name [get_clocks]]]
+
+puts "-------------------------------------------------------------------"
+puts "The following clocks were found:"
+puts "   --> $all_clocks"
+puts ""
+puts ""
+puts "Loading proc ::dn::animate_clocks { <clk> <starting_level> <ending_level> } ...."
+puts "    ex: ::dn::animate_clocks [lindex $all_clocks 0] 0 99"
+puts ""
+puts "Loading proc ::dn::show_reg_groups ..."
+puts "    ex: ::dn::show_reg_groups"
+puts ""
+puts "Loading proc ::dn::highlightingWorstIDpaths -skew_group <skew_group> -number_of_paths <number>"
+puts "    ex: ::dn::highlightingWorstIDpaths -skew_group sclk/func:min6_hold_ssgnp0p675vm40c -number_of_paths 1"
+puts ""
+puts "Loading proc ::dn::findingFarthestSink -in_clock_tree <clock_tree> -root <root_name> -skew_group <skew_group_name>"
+puts "    ex: ::dn::findingFarthestSink -in_clock_tree sclk -root sclk -skew_group sclk/func:max1_setup_ssgnp0p675vm40c"
+puts ""
+puts "Loading proc ::dn::stageDelaywithCellList -skew_group <skew_group> -sink <sink_name>"
+puts "    ex: ::dn::stageDelaywithCellList -skew_group sclk/func:max1_setup_ssgnp0p675vm40c -sink <sink_name>"
+puts ""
+puts "Loading proc ::dn::calculatePathNetLengthLayerWise -skew_group <skew_group> -sink <sink_name>"
+puts "    ex: ::dn::calculatePathNetLengthLayerWise -skew_group sclk/func:max1_setup_ssgnp0p675vm40c -sink <sink_name>"
+puts ""
+puts "Loading proc ::dn::calculateLayerWiseWireLength -in_clock_tree <clock_tree>"
+puts "    ex: ::dn::calculateLayerWiseWireLength -in_clock_tree sclk"
+puts ""
+puts "Loading proc ::dn::highlight_clock_ports"
+puts ""
+puts "Loading proc ::dn::highlight_clock_sources <clk>"
+puts ""
+puts "Loading proc ::dn::highlight_mscts_sinks <mscts_clk>"
+puts ""
