@@ -1,0 +1,52 @@
+set input_files ""
+
+# This script is used in PrimeTime to append the clocks associated with failing ir drop instance files written out by PGV.dynamic step
+# Orig :  /proj/stc03c1/wa/fjohn/current/links_dft_ccds/ccds/ir_drop_20231026/psi_highlight_fails_worstavg
+lappend input_files /proj/stc03c1/wa/fjohn/current/links_dft_ccds/ccds/ir_drop_20231026/johnfu_ir_drop_gt_10p_sort_by_instanceName.list
+lappend input_files /proj/stc03c1/wa/fjohn/current/links_dft_ccds/ccds/ir_drop_20231026/johnfu_ir_drop_gt_10p_sort_by_irdrop.list
+lappend input_files /proj/stc03c1/wa/fjohn/current/links_dft_ccds/ccds/ir_drop_20231026/johnfu_ir_drop_gt_15p_sort_by_instanceName.list
+lappend input_files /proj/stc03c1/wa/fjohn/current/links_dft_ccds/ccds/ir_drop_20231026/johnfu_ir_drop_gt_15p_sort_by_irdrop.list
+
+
+foreach input_file $input_files {
+    set input_ID [open $input_file r]
+    set i 0
+    
+    puts "Reading $input_file"
+    set output_file "./[file tail $input_file].with_clocks.txt"
+    set output_ID [open $output_file w]
+    puts $output_ID "# Processed $input_file @ [date]"
+    while {[gets $input_ID line]>=0} {
+	incr i
+
+	# ex: 'set  inst_name  CTS_cdb_inv_54844 #DCCKND16BWP143M169H3P48CPDULVT                0.66055V  =  0.76169V  -  0.10114V   19.93'
+	if {[string match "set*inst*" $line] } {
+	    set trimmed_line [string map  ; ""  [lrange $line 2 end]]
+	} else {
+	    set trimmed_line $line
+	}
+
+	#puts $output_ID "-------------------------------------------------------------------------"
+	set instance [lindex $trimmed_line 0]
+	set pins     [get_object [get_pins -of [get_cell $instance]]]
+	set all_clocks ""
+	set unique_clocks "NO_CLOCKS_FOUND"
+	foreach p $pins {
+	    # Get clock attribute for each pin
+	    set clks [get_object [get_attribute -quiet [get_pin $p] clocks]]
+	    #set format_line [format "              @ $p ==> $clks"]; puts $output_ID $format_line
+	    append all_clocks " $clks"
+	}
+	
+	if {[llength $all_clocks]} { set unique_clocks [join [lsort -unique $all_clocks] ","] }
+	
+	puts $output_ID "$trimmed_line | $unique_clocks"
+	
+	    
+    }
+    
+    close $input_ID
+    close $output_ID
+    
+    puts "Finished writing to $output_file"
+}
