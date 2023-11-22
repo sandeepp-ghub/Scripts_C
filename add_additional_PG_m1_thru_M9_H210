@@ -1,0 +1,1742 @@
+####################################################################
+#
+# add_additional_pg_m1_thru_m9_H210.tcl
+# Questions  : Contact : Arun Hegde (ahegde@marvell.com)
+#
+# Usage :
+# To add additional PG on existing designs that are going through ECOs.
+# 
+# 1) source /proj/ccpd01/wa/ahegde/flow_scripts/add_pg/add_additional_pg_m1_thru_m9_H210.tcl
+#
+# 2) Specify the PG nets :
+# set IPBU_DEFINES(gnd_net) gnd
+# set IPBU_DEFINES(pwr_net) vdd_core
+#
+# 3) Specify the PG metal layers that you want to bolster :
+# set IPBU_DEFINES(draw_pg_layer_name_list) [list M1 M2 M3 M4 M5 M6 M7 M8 M9]
+# set IPBU_DEFINES(draw_pg_layer_name_list) [list M1 M2]
+# Note : although it is possible to go all the way up to M9, most blocks might benefit by just going
+# upt to M2.
+#
+# 4) Define the list of bounding boxes that the script should concentrate on in adding the additional PG
+# set IPBU_DEFINES(bbox_list_to_target_for_additional_pg) [list \
+#                                                            [list 51.3 24.13 57.3 26.24] \
+#                                                            [list 51.3 44.30 57.3 46.40] \
+#                                                            [list 51.3 54.38 57.3 56.78] \
+#                                                        ]
+#
+#
+# 5) ipbu_add_additional_pg_m1_thru_m9
+#
+# 6) If you want to restart, delete your old 'additional_pg' by calling :
+#    ipbu_delete_all_additional_pg_m1_thru_m9
+#
+# Before implementing an ECO (that could potentially affect regions that you added 'additional_pg' in), I have found that it best
+# to remove the previously added 'additional_pg'. But note : this is more a user judgement call. 
+# Use the following routine to remove the additional_pg that you had added before. 
+#
+# ipbu_delete_all_additional_pg_m1_thru_m9
+# 
+####################################################################
+
+### Define PG net names - if you are working bolstering different pwr gnd nets, change the names here
+set IPBU_DEFINES(gnd_net) gnd
+set IPBU_DEFINES(pwr_net) vdd_core
+
+# Although we support M1 thru M9, most blocks will benefit by choosing only M1 thru M2 (it could give you the max. benefit in most cases). 
+set IPBU_DEFINES(draw_pg_layer_name_list) [list M1 M2]
+# set IPBU_DEFINES(draw_pg_layer_name_list) [list M1 M2 M3 M4 M5 M6 M7 M8 M9]
+
+set IPBU_DEFINES(bbox_list_to_target_for_additional_pg) [list ]
+
+#
+# Define the bbox boundary list that you want to enhance the PG at :
+#
+#set IPBU_DEFINES(bbox_list_to_target_for_additional_pg) [list \
+#                                                            [list 50 0 60 60] \
+#                                                            [list 50 0 120 20] \
+#                                                        ]
+#
+#set IPBU_DEFINES(bbox_list_to_target_for_additional_pg) [list \
+#                                                            [list 51.3 24.13 57.3 26.24] \
+#                                                            [list 51.3 44.30 57.3 46.40] \
+#                                                            [list 51.3 54.38 57.3 56.78] \
+#                                                        ]
+
+proc ipbu_delete_all_additional_pg_m1_thru_m9 {} {
+    puts "DEBUG_MSG: Deleting all additional PG added by script \"ipbu_add_additional_pg_m1_thru_m9\" ..."
+    ipbu_cleanup_added_route_blockages
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_wire -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.layer.name == M1}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_wire -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.layer.name == M2}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_wire -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.layer.name == M3}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_wire -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.layer.name == M4}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_wire -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.layer.name == M5}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_wire -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.layer.name == M6}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_wire -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.layer.name == M7}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_wire -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.layer.name == M8}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_wire -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.layer.name == M9}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_via -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.via_def.cut_layer.name == VIA0}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_via -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.via_def.cut_layer.name == VIA1}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_via -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.via_def.cut_layer.name == VIA2}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_via -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.via_def.cut_layer.name == VIA3}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_via -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.via_def.cut_layer.name == VIA4}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_via -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.via_def.cut_layer.name == VIA5}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_via -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.via_def.cut_layer.name == VIA6}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_via -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.via_def.cut_layer.name == VIA7}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_via -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.via_def.cut_layer.name == VIA8}]
+    delete_obj [get_db [get_db [get_obj_in_area -obj_type special_via -area [get_db designs .boundary.bbox]] -if {.user_class == additional_pg}] -if {.via_def.cut_layer.name == VIA9}]
+    puts "DEBUG_MSG: Deleted all additional PG"
+}
+
+proc ipbu_cleanup_added_route_blockages {} {
+    delete_obj [get_db route_blockages -if {.name == Boundary_RB}]
+    delete_obj [get_db route_blockages -if {.name == Outside_PGB_RB}]
+    delete_obj [get_db route_blockages -if {.name == M1_Stripe_RB}]
+    delete_obj [get_db route_blockages -if {.name == M3_Stripe_RB}]
+    delete_obj [get_db route_blockages -if {.name == M5_Stripe_RB}]
+    delete_obj [get_db route_blockages -if {.name == M7_Stripe_RB}]
+    delete_obj [get_db route_blockages -if {.name == M9_Stripe_RB}]
+    # add_power_mesh_colors
+}
+
+#
+# A lot of errors can occur on post ECO/routed designs.
+#
+proc ipbu_cleanup_drc_viols {} {
+    global IPBU_DEFINES
+    
+    ipbu_cleanup_added_route_blockages
+    add_power_mesh_colors
+
+    set M0_pitch [get_db [get_db layers M0] .pitch_y]
+    set M1_pitch [get_db [get_db layers M1] .pitch_x]
+    set M2_pitch [get_db [get_db layers M2] .pitch_y]
+    set M3_pitch [get_db [get_db layers M3] .pitch_x]
+    set M4_pitch [get_db [get_db layers M4] .pitch_y]
+    set M5_pitch [get_db [get_db layers M5] .pitch_x]
+    set M6_pitch [get_db [get_db layers M6] .pitch_x]
+    set M7_pitch [get_db [get_db layers M7] .pitch_x]
+    set M8_pitch [get_db [get_db layers M8] .pitch_x]
+    set M9_pitch [get_db [get_db layers M9] .pitch_x]
+    set M10_pitch [get_db [get_db layers M10] .pitch_x]
+
+    set M0_min_width [get_db [get_db layers M0] .min_width]
+    set M1_min_width [get_db [get_db layers M1] .min_width]
+    set M2_min_width [get_db [get_db layers M2] .min_width]
+    set M3_min_width [get_db [get_db layers M3] .min_width]
+    set M4_min_width [get_db [get_db layers M4] .min_width]
+    set M5_min_width [get_db [get_db layers M5] .min_width]
+    set M6_min_width [get_db [get_db layers M6] .min_width]
+    set M7_min_width [get_db [get_db layers M7] .min_width]
+    set M8_min_width [get_db [get_db layers M8] .min_width]
+    set M9_min_width [get_db [get_db layers M9] .min_width]
+    set M10_min_width [get_db [get_db layers M10] .min_width]
+
+    
+    # We call check_drc multiple times and resolve errors in groups. The idea is that when some of the errors are resolved,
+    # others that were seen before do not appear. And more might appear because of our fixes.
+    
+    # Let us first delete the vias that we have added that cause DRCs 
+    delete_markers -all
+    check_drc -area $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) -limit 1000000 -check_only special
+    set objects_to_delete [list ]
+    foreach marker [get_db markers -if {.layer.name == VIA0 || .layer.name == VIA1 || .layer.name == VIA2 || .layer.name == VIA3 || .layer.name == VIA4 ||
+                                        .layer.name == VIA5 || .layer.name == VIA6 || .layer.name == VIA7 || .layer.name == VIA8 || .layer.name == VIA9}] {
+        set via_list [get_obj_in_area -obj_type special_via -area [get_db $marker .bbox]]
+        set via_layer [get_db $marker .layer.name]
+        foreach via $via_list {
+            set obj_to_delete [get_db $via -if {.user_class == additional_pg && .via_def.cut_layer.name == $via_layer}]
+            if {[llength $obj_to_delete] > 0} {
+                lappend objects_to_delete $obj_to_delete
+            }
+        }
+    }
+    delete_obj $objects_to_delete
+
+    # Cleaning up VIA0 Via_Group_Spacing violations that are caused because of internal vias within cells being close to 
+    # the newly added VIA0s.
+    delete_markers -all
+    check_drc -area $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) -limit 1000000 -check_only special
+    set objects_to_delete [list ]
+    foreach marker [get_db markers -if {.layer.name == VIA0 && .subtype == *Via*Group*Spacing*}] {
+        # Get the violation marker's bbox and expand it by 0.08u in Y and .067u in X
+        set bbox [get_db $marker .bbox]
+        set new_bbox [get_computed_shapes $bbox SIZEX 0.067]
+        set new_bbox [get_computed_shapes $new_bbox SIZEY 0.080]
+        # Grab the VIA0s that are within this new bbox and see if these are the vias that we have added.
+        set via_list [get_obj_in_area -obj_type special_via -layers VIA0 -area $new_bbox]
+        foreach via $via_list {
+            set obj_to_delete [get_db $via -if {.user_class == additional_pg && .via_def.cut_layer.name == VIA0}]
+            if {[llength $obj_to_delete] > 0} {
+                lappend objects_to_delete $obj_to_delete
+            }
+        }
+    }
+    
+    foreach marker [get_db markers -if {.layer.name == M1 && .subtype == *Adjacent*Cut*Four*Cuts*}] {
+        # Get the violation marker's bbox
+        set bbox [get_db $marker .bbox]
+        set wire_list [get_obj_in_area -obj_type special_wire -layers M1 -area $bbox]
+        foreach wire $wire_list {
+            set obj_to_delete [get_db $wire -if {.user_class == additional_pg}]
+            if {[llength $obj_to_delete] > 0} {
+                lappend objects_to_delete $obj_to_delete
+            }
+        }
+    }               
+    delete_obj $objects_to_delete
+
+    #
+    # removing some edge vias will help in preserving the original metal but might reduce the errors
+    #
+    delete_markers -all
+    check_drc -area $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) -limit 1000000 -check_only special
+    set objects_to_delete [list ]
+    
+    set metal_layer_list [list M1 M2 M3 M4 M5 M6 M7 M8 M9]
+    foreach metal $metal_layer_list {
+        foreach marker [get_db markers -if {.layer.name == $metal && .subtype == *EndOfLine*Keepout*}] {
+            set bbox [get_db $marker .bbox]
+            set new_bbox [get_computed_shapes $bbox SIZE [expr $${metal}_min_width]]
+            set layer_num 0
+            set foundnum [regex {\d+} $metal layer_num]
+            set via_layer VIA${layer_num}
+            set via_list [get_obj_in_area -obj_type special_via -layers $via_layer -area $new_bbox]
+            foreach via $via_list {
+                set obj_to_delete [get_db $via -if {.user_class == additional_pg && .via_def.cut_layer.name == $via_layer}]
+                if {[llength $obj_to_delete] > 0} {
+                    lappend objects_to_delete $obj_to_delete
+                }
+            }
+            set layer_num [expr {$layer_num - 1}]
+            set via_layer VIA${layer_num}
+            set via_list [get_obj_in_area -obj_type special_via -layers $via_layer -area $new_bbox]
+            foreach via $via_list {
+                set obj_to_delete [get_db $via -if {.user_class == additional_pg && .via_def.cut_layer.name == $via_layer}]
+                if {[llength $obj_to_delete] > 0} {
+                    lappend objects_to_delete $obj_to_delete
+                }
+            }
+        }
+    }    
+
+    foreach metal $metal_layer_list {
+        foreach marker [get_db markers -if {.layer.name == $metal && .subtype == *Metal*EndOfLine*Spacing*}] {
+            set bbox [get_db $marker .bbox]
+            set layer_num 0
+            set foundnum [regex {\d+} $metal layer_num]
+            set via_layer VIA${layer_num}
+            set via_list [get_obj_in_area -obj_type special_via -layers $via_layer -area $bbox]
+            foreach via $via_list {
+                set obj_to_delete [get_db $via -if {.user_class == additional_pg && .via_def.cut_layer.name == $via_layer}]
+                if {[llength $obj_to_delete] > 0} {
+                    lappend objects_to_delete $obj_to_delete
+                }
+            }
+        }
+    }        
+
+    # We now cleanup any end of line spacing due to pg being in parallel with signals
+    foreach metal $metal_layer_list {
+        foreach marker [get_db markers -if {.layer.name == $metal && .subtype == *Metal*EndOfLine*Spacing*}] {
+            set bbox [get_db $marker .bbox]
+            set wire_list [get_obj_in_area -obj_type special_wire -layers $metal -area $bbox]
+            foreach wire $wire_list {
+                set obj_to_delete [get_db $wire -if {.user_class == additional_pg}]
+                if {[llength $obj_to_delete] > 0} {
+                    lappend objects_to_delete $obj_to_delete
+                }
+            }
+        }
+    }        
+
+    delete_obj $objects_to_delete
+
+    # The remaining EndOfLine_Keepout Errors in M1, M2, M3 and M4 can be fixed by cutting the metal lines accordingly
+    # Because of cutting we might end up with other EndOfLine spacing errors. This error is better fixed interactively
+    # but this is an attempt to reduce the number of errors that needs fixed interactively
+
+    set loop_cnt 0
+    while {$loop_cnt < 2} {
+        delete_markers -all
+        check_drc -area $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) -limit 1000000 -check_only special
+        set metal_layer_list [list M1 M2 M3 M4 M5 M6 M7 M8 M9]
+        foreach metal $metal_layer_list {
+            foreach marker [get_db markers -if {.layer.name == $metal && .subtype == *EndOfLine*Keepout*}] {
+                set bbox [get_db $marker .bbox]
+                if {$metal == "M1" || $metal == "M3" || $metal == "M5" || $metal == "M7" || $metal == "M9"} {
+                    set bbox [get_computed_shapes $bbox SIZEX [expr 1*$${metal}_min_width]]
+                    set new_bbox [get_computed_shapes $bbox SIZEY [expr 2*$${metal}_pitch]]
+                } else {
+                    set bbox [get_computed_shapes $bbox SIZEY [expr 1*$${metal}_min_width]]
+                    set new_bbox [get_computed_shapes $bbox SIZEX [expr 2*$${metal}_pitch]]
+                }
+                set wire_list [get_obj_in_area -obj_type special_wire -layers $metal -area $new_bbox]
+                set objects_to_select [list]
+                deselect_obj -all
+                foreach wire $wire_list {
+                    set obj_to_select [get_db $wire -if {.user_class == additional_pg && .layer.name == $metal}]
+                    if {[llength $obj_to_select] > 0} {
+                        lappend objects_to_select $obj_to_select
+                    }
+                }
+                select_obj $objects_to_select
+                if {[llength $objects_to_select] > 1} {
+                    # We do not want cut to the expanded bbox, the smaller bbox will suffice
+                    # Since all wires seen are of class additional_pg
+                    edit_cut_route -box $bbox -selected
+                } else {
+                    # Cut to the larger bbox.
+                    edit_cut_route -box $new_bbox -selected
+                }
+                deselect_obj -all
+                if {$metal == "M1" || $metal == "M3" || $metal == "M5" || $metal == "M7" || $metal == "M9"} {
+                    set new_bbox [get_computed_shapes $new_bbox SIZEY [expr 1*$${metal}_min_width]]
+                } else {
+                    set new_bbox [get_computed_shapes $new_bbox SIZEX [expr 1*$${metal}_min_width]]
+                }
+                select_routes -area $new_bbox -type special -sub_class additional_pg -layer $metal
+                delete_routes -selected
+                deselect_obj -all
+            }
+        }    
+
+        # By cutting some wires, we might have introduced some EndOfLine errors due to close by vias, delete the vias
+        foreach metal $metal_layer_list {
+            foreach marker [get_db markers -if {.layer.name == $metal && .subtype == *EndOfLine*Keepout*}] {
+                set bbox [get_db $marker .bbox]
+                set new_bbox [get_computed_shapes $bbox SIZE [expr $${metal}_min_width]]
+                set layer_num 0
+                set foundnum [regex {\d+} $metal layer_num]
+                set layer_num [expr {$layer_num - 1}]
+                set via_layer VIA${layer_num}
+                set via_list [get_obj_in_area -obj_type special_via -layers $via_layer -area $new_bbox]
+                foreach via $via_list {
+                    set obj_to_delete [get_db $via -if {.user_class == additional_pg && .via_def.cut_layer.name == $via_layer}]
+                    if {[llength $obj_to_delete] > 0} {
+                        lappend objects_to_delete $obj_to_delete
+                    }
+                }
+                set layer_num [expr {$layer_num + 1}]
+                set via_layer VIA${layer_num}
+                set via_list [get_obj_in_area -obj_type special_via -layers $via_layer -area $new_bbox]
+                foreach via $via_list {
+                    set obj_to_delete [get_db $via -if {.user_class == additional_pg && .via_def.cut_layer.name == $via_layer}]
+                    if {[llength $obj_to_delete] > 0} {
+                        lappend objects_to_delete $obj_to_delete
+                    }
+                }
+            }
+        }    
+        delete_obj $objects_to_delete
+        incr loop_cnt
+    }
+    
+    # Check for MinStep or Min Area due to just vias sitting on metal
+    delete_markers -all
+    check_drc -area $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) -limit 1000000 -check_only special
+    set objects_to_delete [list ]
+    foreach marker [get_db markers -if {.subtype == *MinStep* || .subtype == *Minimal*Area*}] {
+        set bbox [get_db $marker .bbox]
+        set metal [get_db $marker .layer.name]
+        set foundnum [regex {\d+} $metal layer_num]
+        set via_layer VIA${layer_num}
+        set via_list [get_obj_in_area -obj_type special_via -layers $via_layer -area $bbox]
+        foreach via $via_list {
+            set obj_to_delete [get_db $via -if {.user_class == additional_pg && .via_def.cut_layer.name == $via_layer}]
+            if {[llength $obj_to_delete] > 0} {
+                lappend objects_to_delete $obj_to_delete
+            }
+        }
+        set layer_num [expr {$layer_num - 1}]
+        set via_layer VIA${layer_num}
+        set via_list [get_obj_in_area -obj_type special_via -layers $via_layer -area $bbox]
+        foreach via $via_list {
+            set obj_to_delete [get_db $via -if {.user_class == additional_pg && .via_def.cut_layer.name == $via_layer}]
+            if {[llength $obj_to_delete] > 0} {
+                lappend objects_to_delete $obj_to_delete
+            }
+        }
+    }
+    delete_obj $objects_to_delete
+    
+    
+    #
+    # We have some strange Cut_Enclosure errors : 
+    # 
+    delete_markers -all
+    check_drc -area $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) -limit 1000000 -check_only special
+    set objects_to_delete [list ]
+    foreach marker [get_db markers -if {.subtype == *Cut*Enclosure*}] {
+        set via_layer [get_db $marker .layer.name]
+        set via_list [get_obj_in_area -obj_type via -layers $via_layer -area [get_db $marker .bbox]]
+        foreach via $via_list {
+            set top_rect [get_db $via .top_rects]
+            set bot_rect [get_db $via .bottom_rects]
+            set top_metal_layer [get_db $via .via_def.top_layer.name]
+            set bot_metal_layer [get_db $via .via_def.bottom_layer.name]
+            set check_rect [get_computed_shapes [list $top_rect $bot_rect] BBOX]
+            # Identify the pg grid that we added that lies underneath
+            set wire_list [get_obj_in_area -obj_type special_wire -area $check_rect]
+            foreach wire $wire_list {
+                set obj_to_delete [get_db $wire -if {.user_class == additional_pg && (.layer.name == $bot_metal_layer || .layer.name == $top_metal_layer)}]
+                if {[llength $obj_to_delete] > 0} {
+                    lappend objects_to_delete $obj_to_delete
+                }
+                set wire_via_list [get_obj_in_area -obj_type special_via -layers $via_layer -area [get_db $wire .rect]]
+                foreach special_via $wire_via_list {
+                    set obj_to_delete [get_db $special_via -if {.user_class == additional_pg && .via_def.cut_layer.name == $via_layer}]
+                    if {[llength $obj_to_delete] > 0} {
+                        lappend objects_to_delete $obj_to_delete
+                    }
+                }
+            }
+        }
+    }
+    delete_obj $objects_to_delete
+    
+
+    # Till now we had tried to do a surgical deletion of wires, now let us attempt a more broader deletion of wires
+    # Now we check for DRCs again and see if there are wires that we added that cause DRCs. 
+
+    delete_markers -all
+    check_drc -area $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) -limit 1000000 -check_only special
+    set objects_to_delete [list ]
+    foreach marker [get_db markers -if {.layer.name == M1 || .layer.name == M2 || .layer.name == M3 || .layer.name == M4 || .layer.name == M5 
+                                        .layer.name == M6 || .layer.name == M7 || .layer.name == M8 || .layer.name == M9}] {
+        set wire_list [get_obj_in_area -obj_type special_wire -area [get_db $marker .bbox]]
+        set wire_layer [get_db $marker .layer.name]
+        foreach wire $wire_list {
+            set obj_to_delete [get_db $wire -if {.user_class == additional_pg && .layer.name == $wire_layer}]
+            if {[llength $obj_to_delete] > 0} {
+                lappend objects_to_delete $obj_to_delete
+            }
+        }
+    }
+    delete_obj $objects_to_delete
+
+    # When wires are deleted, there could be some floating vias left, that we need to delete those 
+    delete_markers -all
+    check_drc -area $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) -limit 1000000 -check_only special
+    set objects_to_delete [list ]
+    foreach marker [get_db markers -if {.layer.name == VIA0 || .layer.name == VIA1 || .layer.name == VIA2 || .layer.name == VIA3 || .layer.name == VIA4 ||
+                                        .layer.name == VIA5 || .layer.name == VIA6 || .layer.name == VIA7 || .layer.name == VIA8 || .layer.name == VIA9}] {
+        set via_list [get_obj_in_area -obj_type special_via -area [get_db $marker .bbox]]
+        set via_layer [get_db $marker .layer.name]
+        foreach via $via_list {
+            set obj_to_delete [get_db $via -if {.user_class == additional_pg && .via_def.cut_layer.name == $via_layer}]
+            if {[llength $obj_to_delete] > 0} {
+                lappend objects_to_delete $obj_to_delete
+            }
+        }
+    }
+    delete_obj $objects_to_delete
+    
+    # Some more cleanup of floating vias causing min area etc violations
+    set i 0
+    while {$i < 2} {
+        delete_markers -all
+        check_drc -area $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) -limit 1000000 -check_only special
+        set objects_to_delete [list ]
+        foreach marker [get_db markers -if {.layer.name == M1 || .layer.name == M2 || .layer.name == M3 || .layer.name == M4 || .layer.name == M5 ||
+                                            .layer.name == M6 || .layer.name == M7 || .layer.name == M8 || .layer.name == M9}] {
+            set wire_layer [get_db $marker .layer.name]
+            # Derive via layers to look for wire layer
+            set layer_num 0
+            set foundnum [regex {\d+} $wire_layer layer_num]
+            if {$foundnum == 1 } {
+                set via_layer "VIA${layer_num}"
+                set via_list [get_obj_in_area -obj_type special_via -layers $via_layer -area [get_db $marker .bbox]]
+                foreach via $via_list {
+                    set obj_to_delete [get_db $via -if {.user_class == additional_pg}]
+                    if {[llength $obj_to_delete] > 0} {
+                        lappend objects_to_delete $obj_to_delete
+                    }
+                }
+                set layer_num [expr {$layer_num - 1}] 
+                set via_layer "VIA${layer_num}"
+                set via_list [get_obj_in_area -obj_type special_via -layers $via_layer -area [get_db $marker .bbox]]
+                foreach via $via_list {
+                    set obj_to_delete [get_db $via -if {.user_class == additional_pg}]
+                    if {[llength $obj_to_delete] > 0} {
+                        lappend objects_to_delete $obj_to_delete
+                    }
+                }
+            }
+            
+        }
+        delete_obj $objects_to_delete
+        incr i
+    }
+    delete_markers -all
+    check_drc -area $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) -limit 1000000 -check_only special
+}
+
+proc ipbu_add_additional_pg_m1_thru_m9 {} {
+
+    global IPBU_DEFINES
+    
+    if {[llength IPBU_DEFINES(bbox_list_to_target_for_additional_pg)] == 0} {
+        puts "ERROR : Please specify a list of bboxes to operate on"
+        return
+    }
+
+    puts ""
+    puts "DEBUG_MSG: Begin PG addition ..."
+    puts "DEBUG_MSG: [date]"
+    puts ""
+
+    ### Define PG net names
+    set vss $IPBU_DEFINES(gnd_net)
+    set vddc $IPBU_DEFINES(pwr_net)
+
+    
+    #
+    # Although, possible, not worth changing (or making it flexible for users to change), we will end up with probably more unique DRC issues 
+    # to solve with not much benefit.
+    # 
+    
+    set IPBU_DEFINES(m2_pg_length_increase) 0.3
+    set IPBU_DEFINES(m4_pg_length_increase) 0.3
+    set IPBU_DEFINES(m6_pg_length_increase) 0.15
+    set IPBU_DEFINES(m8_pg_length_increase) 0.15
+    
+    set allLayerNameList [list M0 M1 M2 M3 M4 M5 M6 M7 M8 M9 M10 M11 M12 M13 M14 M15 M16]
+    foreach layerName $allLayerNameList {
+        set "pg_create_$layerName" 0
+    }
+
+    if {[info exists IPBU_DEFINES(draw_pg_layer_name_list)]} {
+        foreach layerName $IPBU_DEFINES(draw_pg_layer_name_list) {
+            set "pg_create_$layerName" 1
+        }
+    } else {
+        foreach layerName allLayerNameList {
+            set "pg_create_$layerName" 1
+        }
+    }
+
+    set cell_height [lindex [get_db designs .rows.site.size.y -u]  0]
+    set poly_pitch [lindex [get_db designs .rows.site.size.x -u]  0]
+
+    set core_llx [get_db designs .core_bbox.ll.x]
+    set core_lly [get_db designs .core_bbox.ll.y]
+    set core_urx [get_db designs .core_bbox.ur.x]
+    set core_ury [get_db designs .core_bbox.ur.y]
+
+    set die_llx [get_db designs .boundary.bbox.ll.x]
+    set die_lly [get_db designs .boundary.bbox.ll.y]
+    set die_urx [get_db designs .boundary.bbox.ur.x]
+    set die_ury [get_db designs .boundary.bbox.ur.y]
+
+    set M0_pitch [get_db [get_db layers M0] .pitch_y]
+    set M1_pitch [get_db [get_db layers M1] .pitch_x]
+    set M2_pitch [get_db [get_db layers M2] .pitch_y]
+    set M3_pitch [get_db [get_db layers M3] .pitch_x]
+    set M4_pitch [get_db [get_db layers M4] .pitch_y]
+    set M5_pitch [get_db [get_db layers M5] .pitch_x]
+    set M6_pitch [get_db [get_db layers M6] .pitch_x]
+    set M7_pitch [get_db [get_db layers M7] .pitch_x]
+    set M8_pitch [get_db [get_db layers M8] .pitch_x]
+    set M9_pitch [get_db [get_db layers M9] .pitch_x]
+    set M10_pitch [get_db [get_db layers M10] .pitch_x]
+
+    set M0_min_width [get_db [get_db layers M0] .min_width]
+    set M1_min_width [get_db [get_db layers M1] .min_width]
+    set M2_min_width [get_db [get_db layers M2] .min_width]
+    set M3_min_width [get_db [get_db layers M3] .min_width]
+    set M4_min_width [get_db [get_db layers M4] .min_width]
+    set M5_min_width [get_db [get_db layers M5] .min_width]
+    set M6_min_width [get_db [get_db layers M6] .min_width]
+    set M7_min_width [get_db [get_db layers M7] .min_width]
+    set M8_min_width [get_db [get_db layers M8] .min_width]
+    set M9_min_width [get_db [get_db layers M9] .min_width]
+    set M10_min_width [get_db [get_db layers M10] .min_width]
+
+
+    # Defined in std-cells, we cannot change this
+    set M0_pg_width 0.056
+    set M0_pg_to_rt_pitch 0.049
+    set M0_vdd_vss_spacing_y [expr {$cell_height - $M0_pg_width }]
+    set M0_start_offset_y [expr {$cell_height - $M0_pg_width/2}]
+    set M0_set_to_set_y [expr {2*$cell_height}]
+
+    # TSMC wants the M1 tracks to be offset by (1/6)*CPP or (1/4)*M1_pitch from core boundary
+    #
+    set M1_track_offset_x [expr {$poly_pitch/6}]
+    set M1_pg_width $M1_min_width
+    # TSMC wants the first PG to be placed @18th M1 track. The boundary cells have empty PG tracks there, hence they want it this way
+    set M1_first_pg_track_from_core_edge 18
+    # TSMC wants the M1 extension beyond a std-cell edge to be 0.086u
+    # Note this extension value is used to limit extensions of M3 and M5 too. 
+    set M1_extension_y 0.086
+    set M1_set_to_set_x [expr {36*$M1_pitch}]
+    set M1_staple_length [expr {12*$cell_height + 2*$M1_extension_y}]
+    set M1_vddc_start_offset_x [expr {$M1_track_offset_x + ($M1_first_pg_track_from_core_edge-1)*$M1_pitch - $M1_pg_width/2}]
+    set M1_vddc_staple_ctr_offset_from_die_edge_y [expr {$core_lly + $cell_height - $M1_extension_y + $M1_staple_length/2}]
+    set M1_vss_start_offset_x [expr {$M1_vddc_start_offset_x + $M1_set_to_set_x/2}]
+    set M1_vss_staple_ctr_offset_from_die_edge_y [expr {$M1_vddc_staple_ctr_offset_from_die_edge_y + $cell_height}]
+
+    set M2_pg_width $M2_min_width
+    set M2_set_to_set_y [expr {2*$cell_height}]
+    set M2_staple_length [expr {8*$M1_pitch}]
+    set M2_vddc_start_offset_y [expr {$cell_height - $M2_pg_width/2}]
+    set M2_vss_start_offset_y [expr {2*$cell_height - $M2_pg_width/2}]
+
+    # M3 and M1 need to be close to each other
+    set M3_pg_width $M3_min_width
+    set M3_staple_length [expr {60*$M2_pitch} + 2*$M1_extension_y]
+    set M3_vddc_start_offset_x [expr {$M1_vddc_start_offset_x - $M3_pitch}]
+    set M3_vss_start_offset_x [expr {$M1_vss_start_offset_x - $M3_pitch}]
+    set M3_vddc_staple_ctr_offset_from_die_edge_y [expr {$core_lly + $cell_height - $M1_extension_y + $M3_staple_length/2}]
+    set M3_vss_staple_ctr_offset_from_die_edge_y [expr {$M3_vddc_staple_ctr_offset_from_die_edge_y + $cell_height}]
+    set M3_set_to_set_x [expr {((3+26+3+26+3+26+3+27+3+26+3+26+3)+26)*$M3_pitch}]
+
+    set M4_pg_width $M4_min_width
+    set M4_staple_length [expr {5*$M3_pitch}]
+    set M4_set_to_set_y [expr {4*$cell_height}]
+    set M4_net_spacing [expr {3*$M4_pitch - $M4_pg_width}]
+    set M4_vddc_start_offset_y [expr {$M2_vddc_start_offset_y + 3*$M4_pitch}]
+    set M4_vss_start_offset_y [expr {$M4_vddc_start_offset_y + $cell_height}]
+
+    # M5 and M1 need to be of same length and are close to each other
+    set M5_pg_width $M5_min_width
+    set M5_staple_length [expr 13*$cell_height + 2*$M4_pitch]
+    set M5_vddc_start_offset_x [expr {$M1_vddc_start_offset_x}]
+    set M5_vss_start_offset_x [expr {$M1_vss_start_offset_x}]
+    set M5_vddc_staple_ctr_offset_from_die_edge_y [expr {$core_lly + $cell_height - $M1_extension_y + $M5_staple_length/2 + 2*$M4_pitch}]
+    set M5_vss_staple_ctr_offset_from_die_edge_y [expr $M5_vddc_staple_ctr_offset_from_die_edge_y + $cell_height]
+    set M5_set_to_set_x [expr $M1_set_to_set_x]
+
+    set M6_pg_width $M6_min_width
+    set M6_staple_length [expr {6*$M5_pitch}]
+    set M6_set_to_set_y [expr {4*$cell_height}]
+    set M6_vddc_start_offset_y [expr {$M2_vddc_start_offset_y + 3*$M4_pitch}]
+    set M6_vss_start_offset_y [expr {$M6_vddc_start_offset_y + $cell_height}]
+
+    set M7_pg_width $M7_min_width
+    set M7_vddc_start_offset_x [expr {$M5_vddc_start_offset_x}]
+    set M7_vss_start_offset_x [expr {$M5_vss_start_offset_x}]
+    set M7_set_to_set_x [expr $M5_set_to_set_x]
+
+    set M8_pg_width $M8_min_width
+    set M8_vddc_start_offset_y [expr {$M6_vddc_start_offset_y}]
+    set M8_vss_start_offset_y [expr {$M6_vss_start_offset_y}]
+    set M8_set_to_set_y [expr $M6_set_to_set_y]
+
+    set M9_pg_width $M9_min_width
+    set M9_vddc_start_offset_x [expr {$M7_vddc_start_offset_x}]
+    set M9_vss_start_offset_x [expr {$M7_vss_start_offset_x}]
+    set M9_set_to_set_x [expr $M7_set_to_set_x]
+
+
+    ###VIA definitions
+    set VIA0_master VIA01_big_BW20_UW20
+    set VIA1_master VIA12_1cut_BW20_UW20
+    set VIA2_master VIA23_1cut_BW20_UW20
+    set VIA3_master VIA34_1cut_BW20_UW20
+    set VIA4_master VIA45_1cut_BW20_UW38
+    set VIA5_master VIA56_1cut_BW38_UW40
+    set VIA6_master VIA67_1cut_BW40_UW38
+    set VIA7_master VIA78_1cut_BW38_UW40
+    set VIA8_master VIA89_1cut_BW40_UW38
+    set VIA9_master VIA910_1cut_BW38_UW40
+
+
+    ##Create Core to boundary VIA routing blockage
+    set die_bbox [get_db designs .boundary.bbox]
+    set core_bbox [get_db designs .core_bbox]
+    set core_to_boundary [get_computed_shapes -output rect $die_bbox ANDNOT [get_computed_shapes $core_bbox SIZEY -0.015]]
+
+    foreach rect $core_to_boundary {
+        create_route_blockage -rects $rect -layer {VIA1 VIA2 VIA3 VIA4 VIA5 VIA6 VIA7 VIA8 VIA9} -name Boundary_RB -spacing 0
+    }
+
+
+    set region_outside_pg_bolster [get_computed_shapes -output rect $die_bbox ANDNOT [get_computed_shapes $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) SIZEY 0]]
+    foreach rect $region_outside_pg_bolster {
+        create_route_blockage -rects $rect -layer {M0 M1 M2 M3 M4 M5 M6 M7 M8 M9 VIA0 VIA1 VIA2 VIA3 VIA4 VIA5 VIA6 VIA7 VIA8 VIA9} -name Outside_PGB_RB -spacing 0
+    }
+
+
+    reset_db -category generate_special_via
+    reset_db -category route_special
+    reset_db -category add_stripes
+
+    ###############################################################
+    # 1. Bolster M1 and M2
+    ###############################################################
+    #
+    set_db add_stripes_ignore_drc false
+    set_db add_stripes_stacked_via_bottom_layer M0
+    set_db add_stripes_stacked_via_top_layer M2
+    set_db add_stripes_stapling_nets_style end_to_end
+    set_db add_stripes_extend_to_closest_target area_boundary
+    reset_db add_stripes_trim_stripe
+    reset_db -category generate_special_via
+    set_db generate_special_via_rule_preference [list $VIA0_master $VIA1_master]    
+    # make sure that we honor all pre-drawn routes and not cause DRCs
+    set_db add_stripes_respect_routes all
+
+
+    # Create a routing blockage at the top so that we do not draw M1 in that region.
+    # Drawing first and deleting later is more time consuming, hence we add the blockage first
+    set bbox_llx [expr $core_llx]
+    set bbox_lly [expr {$core_ury - $cell_height + $M1_extension_y}]
+    set bbox_urx [expr $core_urx]
+    set bbox_ury [expr {$die_ury}]
+
+    set cmd "create_route_blockage -layer M1 -rects {$bbox_llx $bbox_lly $bbox_urx $bbox_ury} -name M1_RB -spacing 0"
+    if { $pg_create_M1 == 1 } {          
+        eval $cmd
+    }
+
+    # We will need to get all the std-cell M1 shapes in that region and create blockage shapes
+    # so that add_stripes call can recognize those shapes within the std-cells. Normally 
+    # add_stripes call ignores such shapes to reduce on DRC run time.
+
+    # Grab the std-cell M1 metal shapes within the bounding box
+
+    # Extend M2 rails so that we can add the necessary M1 straps to overlap with it.
+    # Grab all M2 vdd_core and gnd shapes in the bounding box and expand them in the x direction by 
+    # IPBU_DEFINES(m2_pg_length_increase)+4*$M2_min_width in each direction
+    #
+    
+    if { $pg_create_M2 == 1 } {          
+        deselect_obj -all
+        foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+            select_routes -area $bbox -type special -use power -nets $vddc -layer M2
+        }
+        set vddc_m2_rects [get_db selected .rect]
+        foreach rect $vddc_m2_rects {
+            set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m2_pg_length_increase)+3*$M1_pitch}]]
+            puts "DEBUG_MSG : extending vddc M2 to : $new_rect"
+             # Only If we do not find any other M2 shapes directly underneath other than our original power grid, expand the metal2.
+            set reg_wire_count [llength [get_obj_in_area -area $new_rect -obj_type wire -layer M2]]
+            set special_wire_count [llength [get_obj_in_area -area $new_rect -obj_type special_wire -layer M2]]
+            set patch_wire_count [llength [get_obj_in_area -area $new_rect -obj_type patch_wire -layer M2]]
+            set via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type via] -if {.via_def.cut_layer.name == VIA1}]]
+            set special_via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type special_via] -if {.via_def.cut_layer.name == VIA1}]]
+            if {$reg_wire_count == 0 && $special_wire_count == 1 && $patch_wire_count == 0 && $via_count == 0 && $special_via_count == 1} {
+                set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m2_pg_length_increase)}]]        
+                create_shape -shape stripe -net $vddc -status fixed -rect $new_rect -layer M2 -user_class additional_pg
+            } else {
+                puts "DEBUG_MSG : (M2) reg_wire_count=$reg_wire_count, special_wire_count=$special_wire_count, patch_wire_count=$patch_wire_count, via_count=$via_count, special_via_count=$special_via_count"  
+            }
+        }
+        deselect_obj -all
+
+        foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+            select_routes -area $bbox -type special -use power -nets $vss -layer M2
+        }
+        set vss_m2_rects [get_db selected .rect]
+        foreach rect $vss_m2_rects {
+            set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m2_pg_length_increase)+3*$M1_pitch}]]
+            puts "DEBUG_MSG : extending vss M2 to : $new_rect"
+            # Only If we do not find any other M2 shapes directly underneath other than our origianl power grid, expand the metal2.
+            set reg_wire_count [llength [get_obj_in_area -area $new_rect -obj_type wire -layer M2]]
+            set special_wire_count [llength [get_obj_in_area -area $new_rect -obj_type special_wire -layer M2]]
+            set patch_wire_count [llength [get_obj_in_area -area $new_rect -obj_type patch_wire -layer M2]]
+            set via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type via] -if {.via_def.cut_layer.name == VIA1}]]
+            set special_via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type special_via] -if {.via_def.cut_layer.name == VIA1}]]
+            if {$reg_wire_count == 0 && $special_wire_count == 1 && $patch_wire_count == 0 && $via_count == 0 && $special_via_count == 1} {
+                set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m2_pg_length_increase)}]]        
+                create_shape -shape stripe -net $vss -status fixed -rect $new_rect -layer M2 -user_class additional_pg
+            } else {
+                puts "DEBUG_MSG : (M2) reg_wire_count=$reg_wire_count, special_wire_count=$special_wire_count, patch_wire_count=$patch_wire_count, via_count=$via_count, special_via_count=$special_via_count"  
+            }
+        }
+        deselect_obj -all
+    }
+
+    # I do not grab the VIA0 as I did before with VIA1 since VIA0 seems to be completely covered by patch metals or real M1 and we never
+    # see cases of the via being on the edge of the wires.
+    #
+    set m1_patch_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m1_patch_rects [get_db [get_obj_in_area -layers M1 -obj_type patch_wire -area [get_computed_shapes $bbox SIZEY [expr {3*$M2_pitch}]]] .rect]
+        set m1_patch_rects [list {*}$m1_patch_rects {*}$t_m1_patch_rects]
+    }
+
+    set m1_wire_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m1_wire_rects [get_db [get_obj_in_area -layers M1 -obj_type wire -area [get_computed_shapes $bbox SIZEY [expr {3*$M2_pitch}]]] .rect]
+        set m1_wire_rects [list {*}$m1_wire_rects {*}$t_m1_wire_rects]
+    }
+
+    set m1_via_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m1_via_rects [get_db [get_obj_in_area -layers VIA1 -obj_type via -area $bbox] .bottom_rects]
+        # increasing X since we find that on widened vias, add-stripe call adds the wire if it just touches the blockage on the side
+        set t_m1_via_rects [get_computed_shapes $t_m1_via_rects SIZEX 0.01]
+        set m1_via_rects [list {*}$m1_via_rects {*}$t_m1_via_rects]
+    }
+
+    set m1_cell_rects [list ]
+    set std_cell_inst_list [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set temp_inst_list [get_obj_in_area -obj_type inst -area $bbox]
+        set std_cell_inst_list [list {*}$std_cell_inst_list {*}$temp_inst_list]
+    }
+    
+    foreach inst $std_cell_inst_list {
+        set int_cell_rects [get_db [get_db [get_db $inst .base_cell.base_pins.physical_pins.layer_shapes] -if {.layer.name == M1}] .shapes.rect]
+        if {[llength $int_cell_rects] > 0} {
+            set t_int_cell_rects [get_transform_shapes -inst $inst -local_pt $int_cell_rects]
+            set m1_cell_rects [list {*}$m1_cell_rects {*}$t_int_cell_rects]
+        }
+        set int_cell_rects [get_db [get_db [get_db $inst .base_cell.obs_layer_shapes] -if {.layer.name == M1}] .shapes.rect]
+        if {[llength $int_cell_rects] > 0} {
+            set t_int_cell_rects [get_transform_shapes -inst $inst -local_pt $int_cell_rects]
+            set m1_cell_rects [list {*}$m1_cell_rects {*}$t_int_cell_rects]
+        }
+    }
+
+    set final_m1_rects [list {*}$m1_patch_rects {*}$m1_wire_rects {*}$m1_via_rects {*}$m1_cell_rects]
+    foreach rect $final_m1_rects {
+        # grow the size of the blockage by 3*M1_pitch on both sides
+        set new_rect [get_computed_shapes $rect SIZEY [expr {3*$M1_pitch}]]    
+        if { $pg_create_M1 == 1 } {          
+            create_route_blockage -rects $new_rect -layer M1 -name M1_Stripe_RB -spacing 0
+        }
+    }
+
+    #
+    # First create vddc stripes
+    #
+    set final_start_offset_x  [expr {$M1_vddc_start_offset_x + 10*$M1_pitch}]
+    set init_start_offset_x  [expr {$M1_vddc_start_offset_x + 4*$M1_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x < $final_start_offset_x} {
+        puts "DEBUG_MSG: Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M1 \
+                -width $M1_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M1_set_to_set_x \
+                -nets $vddc \
+                -start_offset $start_offset_x \
+                -stapling {$M1_staple_length $M1_vddc_staple_ctr_offset_from_die_edge_y $cell_height:14} \
+                -user_class additional_pg \
+                "
+        if { $pg_create_M1 == 1} {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Incrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x + 4*$M1_pitch}]
+    }
+
+    set final_start_offset_x  [expr {$M1_vddc_start_offset_x - 10*$M1_pitch}]
+    set init_start_offset_x  [expr {$M1_vddc_start_offset_x - 4*$M1_pitch}]
+    set start_offset_x $init_start_offset_x    
+    while {$start_offset_x > $final_start_offset_x} {
+        puts "DEBUG_MSG: Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M1 \
+                -width $M1_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M1_set_to_set_x \
+                -nets $vddc \
+                -start_offset $start_offset_x \
+                -stapling {$M1_staple_length $M1_vddc_staple_ctr_offset_from_die_edge_y $cell_height:14} \
+                -user_class additional_pg \
+                "
+        if { $pg_create_M1 == 1} {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Decrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x - 4*$M1_pitch}]
+    }
+
+    #
+    # Then create vss stripes
+    #
+    set final_start_offset_x  [expr {$M1_vss_start_offset_x + 10*$M1_pitch}]
+    set init_start_offset_x  [expr {$M1_vss_start_offset_x + 4*$M1_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x < $final_start_offset_x} {
+        puts "DEBUG_MSG: Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M1 \
+                -width $M1_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M1_set_to_set_x \
+                -nets $vss \
+                -start_offset $start_offset_x \
+                -stapling {$M1_staple_length $M1_vss_staple_ctr_offset_from_die_edge_y $cell_height:14} \
+                -user_class additional_pg \
+                "
+        if { $pg_create_M1 == 1} {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Incrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x + 4*$M1_pitch}]
+    }
+
+    set final_start_offset_x  [expr {$M1_vss_start_offset_x - 10*$M1_pitch}]
+    set init_start_offset_x  [expr {$M1_vss_start_offset_x - 4*$M1_pitch}]
+    set start_offset_x $init_start_offset_x    
+    while {$start_offset_x > $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M1 \
+                -width $M1_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M1_set_to_set_x \
+                -nets $vss \
+                -start_offset $start_offset_x \
+                -stapling {$M1_staple_length $M1_vss_staple_ctr_offset_from_die_edge_y $cell_height:14} \
+                -user_class additional_pg \
+                "
+        if { $pg_create_M1 == 1} {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Decrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x - 4*$M1_pitch}]
+    }
+
+    set cmd "delete_route_blockages -name M1_RB"
+    if { $pg_create_M1 == 1 } {          
+        eval $cmd
+    }
+
+    ###############################################################
+    # 2. Bolster M3 and M4 (1x layer).
+    ###############################################################
+
+    set_db add_stripes_stacked_via_bottom_layer M2
+    set_db add_stripes_stacked_via_top_layer M4
+    set_db add_stripes_stapling_nets_style side_to_side
+    set_db add_stripes_extend_to_closest_target area_boundary
+    reset_db -category generate_special_via
+    set_db generate_special_via_rule_preference [list $VIA2_master $VIA3_master]
+    # make sure that we honor all pre-drawn routes and not cause DRCs
+    set_db add_stripes_respect_routes all
+
+
+    if { $pg_create_M4 == 1 } {          
+        deselect_obj -all
+        foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+            select_routes -area $bbox -type special -use power -nets $vddc -layer M4
+        }
+        set vddc_m4_rects [get_db selected .rect]
+        foreach rect $vddc_m4_rects {
+            set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m4_pg_length_increase)+3*$M3_pitch}]]
+            puts "DEBUG_MSG : extending vddc M4 to : $new_rect"
+            # Only If we do not find any other M4 shapes directly underneath other than our origianl power grid, expand the metal4.
+            set reg_wire_count [llength [get_obj_in_area -area $new_rect -obj_type wire -layer M4]]
+            set special_wire_count [llength [get_obj_in_area -area $new_rect -obj_type special_wire -layer M4]]
+            set patch_wire_count [llength [get_obj_in_area -area $new_rect -obj_type patch_wire -layer M4]]
+            set via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type via] -if {.via_def.cut_layer.name == VIA3}]]
+            set special_via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type special_via] -if {.via_def.cut_layer.name == VIA3}]]
+            if {$reg_wire_count == 0 && $special_wire_count == 1 && $patch_wire_count == 0 && $via_count == 0 && $special_via_count == 2} {
+                set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m4_pg_length_increase)}]]        
+                create_shape -shape stripe -net $vddc -status fixed -rect $new_rect -layer M4 -user_class additional_pg
+            } else {
+                puts "DEBUG_MSG : (M4) reg_wire_count=$reg_wire_count, special_wire_count=$special_wire_count, patch_wire_count=$patch_wire_count, via_count=$via_count, special_via_count=$special_via_count"  
+            }
+        }
+        deselect_obj -all
+
+        foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+            select_routes -area $bbox -type special -use power -nets $vss -layer M4
+        }
+        set vss_m4_rects [get_db selected .rect]
+        foreach rect $vss_m4_rects {
+            set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m4_pg_length_increase)+3*$M3_pitch}]]
+            puts "DEBUG_MSG : extending vss M4 to : $new_rect"
+            # Only If we do not find any other M2 shapes directly underneath other than our origianl power grid, expand the metal2.
+            set reg_wire_count [llength [get_obj_in_area -area $new_rect -obj_type wire -layer M4]]
+            set special_wire_count [llength [get_obj_in_area -area $new_rect -obj_type special_wire -layer M4]]
+            set patch_wire_count [llength [get_obj_in_area -area $new_rect -obj_type patch_wire -layer M4]]
+            set via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type via] -if {.via_def.cut_layer.name == VIA3}]]
+            set special_via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type special_via] -if {.via_def.cut_layer.name == VIA3}]]
+            if {$reg_wire_count == 0 && $special_wire_count == 1 && $patch_wire_count == 0 && $via_count == 0 && $special_via_count == 2} {
+                set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m4_pg_length_increase)}]]        
+                create_shape -shape stripe -net $vss -status fixed -rect $new_rect -layer M4 -user_class additional_pg
+            } else {
+                puts "DEBUG_MSG : (M4) reg_wire_count=$reg_wire_count, special_wire_count=$special_wire_count, patch_wire_count=$patch_wire_count, via_count=$via_count, special_via_count=$special_via_count"  
+            }
+        }
+        deselect_obj -all
+    }
+
+    set m3_patch_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m3_patch_rects [get_db [get_obj_in_area -layers M3 -obj_type patch_wire -area [get_computed_shapes $bbox SIZEY [expr {4*$M4_pitch}]]] .rect]
+        set m3_patch_rects [list {*}$m3_patch_rects {*}$t_m3_patch_rects]
+    }
+
+    set m3_wire_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m3_wire_rects [get_db [get_obj_in_area -layers M3 -obj_type wire -area [get_computed_shapes $bbox SIZEY [expr {4*$M4_pitch}]]] .rect]
+        set m3_wire_rects [list {*}$m3_wire_rects {*}$t_m3_wire_rects]
+    }
+
+    set m3_via_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m3_via_rects [get_db [get_obj_in_area -layers VIA2 -obj_type via -area $bbox] .top_rects]
+        # increasing X since we find that on widened vias, add-stripe call adds the wire if it just touches the blockage on the side
+        set t_m3_via_rects [get_computed_shapes $t_m3_via_rects SIZEX 0.01]
+        set m3_via_rects [list {*}$m3_via_rects {*}$t_m3_via_rects]
+    }
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m3_via_rects [get_db [get_obj_in_area -layers VIA3 -obj_type via -area $bbox] .bottom_rects]
+        # increasing X since we find that on widened vias, add-stripe call adds the wire if it just touches the blockage on the side
+        set t_m3_via_rects [get_computed_shapes $t_m3_via_rects SIZEX 0.01]
+        set m3_via_rects [list {*}$m3_via_rects {*}$t_m3_via_rects]
+    }
+    
+    set final_m3_rects [list {*}$m3_patch_rects {*}$m3_wire_rects {*}$m3_via_rects]
+    foreach rect $final_m3_rects {
+        # grow the size of the blockage by 4*$M3_pitch top and bottom
+        set new_rect [get_computed_shapes $rect SIZEY [expr {4*$M4_pitch}]]    
+        if { $pg_create_M3 == 1 } {          
+            create_route_blockage -rects $new_rect -layer M3 -name M3_Stripe_RB -spacing 0
+        }
+    }
+
+
+    # M1_set_to_set_x is 1.224u
+    # We want M3 Vdd/Vss staples to be close to the M1 power rails so that short M2 pieces can connect the two
+    # M1_set_to_set_x and M3 routing pitch repeat patterns can occur at LCM(1224,42) = 8568nm = 8.568u
+    # There  is only one pattern that needs to sit over the repeating M2 staples. (since we want the distance
+    # between the two M3 stripes of the same group to be always a constant).
+    # We need to find out repeating patterns in an interval of 8568
+    # 8568/$M3_pitch = 8568/42 = 204. Hence set to set distance should be a multiple of 204*$M3_pitch
+    # set M3_set_to_set_x [expr 204*$M3_pitch]
+
+    # set M3_set_to_set_x [expr {((3+26+3+26+3+26+3+27+3+26+3+26+3)+26)*$M3_pitch}]
+
+    # Note we have 14 nets that need to be specified
+    set M3_net_names_list [list]
+    set i 0
+    while {$i < 14} {
+        lappend M3_net_names_list $vddc
+        incr i
+    }
+
+    set M3_net_spacing_list [list]
+
+    lappend M3_net_spacing_list [expr {3*$M3_pitch-$M3_min_width}] 
+    lappend M3_net_spacing_list [expr {26*$M3_pitch-$M3_min_width}] 
+
+    lappend M3_net_spacing_list [expr {3*$M3_pitch-$M3_min_width}] 
+    lappend M3_net_spacing_list [expr {26*$M3_pitch-$M3_min_width}] 
+
+    lappend M3_net_spacing_list [expr {3*$M3_pitch-$M3_min_width}] 
+    lappend M3_net_spacing_list [expr {26*$M3_pitch-$M3_min_width}] 
+
+    lappend M3_net_spacing_list [expr {3*$M3_pitch-$M3_min_width}] 
+    lappend M3_net_spacing_list [expr {27*$M3_pitch-$M3_min_width}] 
+
+    lappend M3_net_spacing_list [expr {3*$M3_pitch-$M3_min_width}] 
+    lappend M3_net_spacing_list [expr {26*$M3_pitch-$M3_min_width}] 
+
+    lappend M3_net_spacing_list [expr {3*$M3_pitch-$M3_min_width}] 
+    lappend M3_net_spacing_list [expr {26*$M3_pitch-$M3_min_width}] 
+
+    lappend M3_net_spacing_list [expr {3*$M3_pitch-$M3_min_width}]
+ 
+    set cmd "create_route_blockage -layer M3 -rects {$bbox_llx $bbox_lly $bbox_urx $bbox_ury} -name M3_RB -spacing 0"
+    if { $pg_create_M3 == 1 } {          
+        eval $cmd
+    }
+
+    #
+    # First create vddc stripes
+    #
+    set final_start_offset_x  [expr {$M3_vddc_start_offset_x + 9*$M3_pitch}]
+    set init_start_offset_x  [expr {$M3_vddc_start_offset_x + 6*$M3_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x < $final_start_offset_x} {
+        set cmd "add_stripes \
+                    -area {$core_llx $core_lly $core_urx $core_ury} \
+                    -layer M3 \
+                    -width $M3_pg_width \
+                    -direction vertical \
+                    -set_to_set_distance $M3_set_to_set_x \
+                    -nets {$M3_net_names_list} \
+                    -spacing {$M3_net_spacing_list} \
+                    -start_offset $start_offset_x \
+                    -stapling {$M3_staple_length $M3_vddc_staple_ctr_offset_from_die_edge_y $M2_pitch:72} \
+                    -user_class additional_pg \
+                "
+        if { $pg_create_M3 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Incrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x + 3*$M3_pitch}]
+    }
+    
+    set final_start_offset_x  [expr {$M3_vddc_start_offset_x - 9*$M3_pitch}]
+    set init_start_offset_x  [expr {$M3_vddc_start_offset_x - 1*$M3_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x > $final_start_offset_x} {
+        set cmd "add_stripes \
+                    -area {$core_llx $core_lly $core_urx $core_ury} \
+                    -layer M3 \
+                    -width $M3_pg_width \
+                    -direction vertical \
+                    -set_to_set_distance $M3_set_to_set_x \
+                    -nets {$M3_net_names_list} \
+                    -spacing {$M3_net_spacing_list} \
+                    -start_offset $start_offset_x \
+                    -stapling {$M3_staple_length $M3_vddc_staple_ctr_offset_from_die_edge_y $M2_pitch:72} \
+                    -user_class additional_pg \
+                "
+        if { $pg_create_M3 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Decrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x - 3*$M3_pitch}]
+    }
+
+    #
+    # Now create vss stripes
+    #
+
+    set M3_net_names_list [list]
+    set i 0
+    while {$i < 14} {
+        lappend M3_net_names_list $vss
+        incr i
+    }
+    
+    set final_start_offset_x  [expr {$M3_vss_start_offset_x + 9*$M3_pitch}]
+    set init_start_offset_x  [expr {$M3_vss_start_offset_x + 6*$M3_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x < $final_start_offset_x} {
+        set cmd "add_stripes \
+                    -area {$core_llx $core_lly $core_urx $core_ury} \
+                    -layer M3 \
+                    -width $M3_pg_width \
+                    -direction vertical \
+                    -set_to_set_distance $M3_set_to_set_x \
+                    -nets {$M3_net_names_list} \
+                    -spacing {$M3_net_spacing_list} \
+                    -start_offset $start_offset_x \
+                    -stapling {$M3_staple_length $M3_vss_staple_ctr_offset_from_die_edge_y $M2_pitch:72} \
+                    -user_class additional_pg \
+                "
+        if { $pg_create_M3 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Incrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x + 3*$M3_pitch}]
+    }
+
+    set final_start_offset_x  [expr {$M3_vss_start_offset_x - 9*$M3_pitch}]
+    set init_start_offset_x  [expr {$M3_vss_start_offset_x - 1*$M3_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x > $final_start_offset_x} {
+        set cmd "add_stripes \
+                    -area {$core_llx $core_lly $core_urx $core_ury} \
+                    -layer M3 \
+                    -width $M3_pg_width \
+                    -direction vertical \
+                    -set_to_set_distance $M3_set_to_set_x \
+                    -nets {$M3_net_names_list} \
+                    -spacing {$M3_net_spacing_list} \
+                    -start_offset $start_offset_x \
+                    -stapling {$M3_staple_length $M3_vss_staple_ctr_offset_from_die_edge_y $M2_pitch:72} \
+                    -user_class additional_pg \
+                "
+        if { $pg_create_M3 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Decrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x - 3*$M3_pitch}]
+    }
+
+    set cmd "delete_route_blockages -name M3_RB"
+    if { $pg_create_M3 == 1 } {          
+        eval $cmd
+    }
+
+
+
+    ###############################################################
+    # 3. Bolster M5 and M6 (2x layer).
+    ###############################################################
+
+    set_db add_stripes_stacked_via_bottom_layer M4
+    set_db add_stripes_stacked_via_top_layer M6
+    set_db add_stripes_stapling_nets_style side_to_side
+    set_db add_stripes_extend_to_closest_target area_boundary
+    reset_db -category generate_special_via
+    # set_db generate_special_via_use_fgc 1
+    set_db generate_special_via_rule_preference [list $VIA4_master $VIA5_master]
+    # make sure that we honor all pre-drawn routes and not cause DRCs
+    set_db add_stripes_respect_routes all
+
+    if { $pg_create_M6 == 1 } {          
+        deselect_obj -all
+        foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+            select_routes -area $bbox -type special -use power -nets $vddc -layer M6
+        }
+        set vddc_m6_rects [get_db selected .rect]
+        foreach rect $vddc_m6_rects {
+            set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m6_pg_length_increase)+3*$M5_pitch}]]
+            puts "DEBUG_MSG : extending vddc M6 to : $new_rect"
+            # Only If we do not find any other M6 shapes directly underneath other than our origianl power grid, expand the metal6.
+            set reg_wire_count [llength [get_obj_in_area -area $new_rect -obj_type wire -layer M6]]
+            set special_wire_count [llength [get_obj_in_area -area $new_rect -obj_type special_wire -layer M6]]
+            set patch_wire_count [llength [get_obj_in_area -area $new_rect -obj_type patch_wire -layer M6]]
+            set via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type via] -if {.via_def.cut_layer.name == VIA5}]]
+            set special_via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type special_via] -if {.via_def.cut_layer.name == VIA5}]]
+            if {$reg_wire_count == 0 && $special_wire_count == 1 && $patch_wire_count == 0 && $via_count == 0 && $special_via_count == 1} {
+                set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m6_pg_length_increase)}]]        
+                create_shape -shape stripe -net $vddc -status fixed -rect $new_rect -layer M6 -user_class additional_pg
+            } else {
+                puts "DEBUG_MSG : (M6) reg_wire_count=$reg_wire_count, special_wire_count=$special_wire_count, patch_wire_count=$patch_wire_count, via_count=$via_count, special_via_count=$special_via_count"  
+            }
+        }
+        deselect_obj -all
+
+        foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+            select_routes -area $bbox -type special -use power -nets $vss -layer M6
+        }
+        set vss_m6_rects [get_db selected .rect]
+        foreach rect $vss_m6_rects {
+            set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m6_pg_length_increase)+3*$M5_pitch}]]
+            puts "DEBUG_MSG : extending vss M6 to : $new_rect"
+            # Only If we do not find any other M6 shapes directly underneath other than our origianl power grid, expand the metal6.
+            set reg_wire_count [llength [get_obj_in_area -area $new_rect -obj_type wire -layer M6]]
+            set special_wire_count [llength [get_obj_in_area -area $new_rect -obj_type special_wire -layer M6]]
+            set patch_wire_count [llength [get_obj_in_area -area $new_rect -obj_type patch_wire -layer M6]]
+            set via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type via] -if {.via_def.cut_layer.name == VIA5}]]
+            set special_via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type special_via] -if {.via_def.cut_layer.name == VIA5}]]
+            if {$reg_wire_count == 0 && $special_wire_count == 1 && $patch_wire_count == 0 && $via_count == 0 && $special_via_count == 1} {
+                set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m6_pg_length_increase)}]]        
+                create_shape -shape stripe -net $vss -status fixed -rect $new_rect -layer M6 -user_class additional_pg
+            } else {
+                puts "DEBUG_MSG : (M6) reg_wire_count=$reg_wire_count, special_wire_count=$special_wire_count, patch_wire_count=$patch_wire_count, via_count=$via_count, special_via_count=$special_via_count"  
+            }
+        }
+        deselect_obj -all
+    }
+
+    # Create a routing blockage at the top so that we do not draw M5 in that region.
+    # Drawing first and deleting later is more time consuming, hence we add the blockage first
+    set cmd "create_route_blockage -layer M5 -rects {$bbox_llx $bbox_lly $bbox_urx $bbox_ury} -name M5_RB -spacing 0"
+    if { $pg_create_M5 == 1 } {          
+        eval $cmd
+    }
+
+    set m5_patch_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m5_patch_rects [get_db [get_obj_in_area -layers M5 -obj_type patch_wire -area [get_computed_shapes $bbox SIZEY [expr {3*$M6_pitch}]]] .rect]
+        set m5_patch_rects [list {*}$m5_patch_rects {*}$t_m5_patch_rects]
+    }
+
+    set m5_wire_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m5_wire_rects [get_db [get_obj_in_area -layers M5 -obj_type wire -area [get_computed_shapes $bbox SIZEY [expr {3*$M6_pitch}]]] .rect]
+        set m5_wire_rects [list {*}$m5_wire_rects {*}$t_m5_wire_rects]
+    }
+
+    set m5_via_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m5_via_rects [get_db [get_obj_in_area -layers VIA4 -obj_type via -area $bbox] .top_rects]
+        # increasing X since we find that on widened vias, add-stripe call adds the wire if it just touches the blockage on the side
+        set t_m5_via_rects [get_computed_shapes $t_m5_via_rects SIZEX [expr 2*$M5_pitch]]
+        set m5_via_rects [list {*}$m5_via_rects {*}$t_m5_via_rects]
+    }
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m5_via_rects [get_db [get_obj_in_area -layers VIA5 -obj_type via -area $bbox] .bottom_rects]
+        # increasing X since we find that on widened vias, add-stripe call adds the wire if it just touches the blockage on the side
+        set t_m5_via_rects [get_computed_shapes $t_m5_via_rects SIZEX [expr 2*$M5_pitch]]
+        set m5_via_rects [list {*}$m5_via_rects {*}$t_m5_via_rects]
+    }
+    
+    set final_m5_rects [list {*}$m5_patch_rects {*}$m5_wire_rects {*}$m5_via_rects]
+    foreach rect $final_m5_rects {
+        # grow the size of the blockage by 3*$M5_pitch top and bottom
+        set new_rect [get_computed_shapes $rect SIZEY [expr {3*$M6_pitch}]]    
+        if { $pg_create_M5 == 1 } {          
+            create_route_blockage -rects $new_rect -layer M5 -name M5_Stripe_RB -spacing 0
+        }
+    }
+
+    #
+    # First create vddc stripes
+    #
+    set final_start_offset_x  [expr {$M5_vddc_start_offset_x + 4*$M5_pitch}]
+    set init_start_offset_x  [expr {$M5_vddc_start_offset_x + 3*$M5_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x < $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M5 \
+                -width $M5_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M5_set_to_set_x \
+                -nets $vddc \
+                -start_offset $start_offset_x \
+                -stapling {$M5_staple_length $M5_vddc_staple_ctr_offset_from_die_edge_y $cell_height:16} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                "
+        if { $pg_create_M5 == 1} {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Incrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x + 1*$M5_pitch}]
+    }
+
+    set final_start_offset_x  [expr {$M5_vddc_start_offset_x - 4*$M5_pitch}]
+    set init_start_offset_x  [expr {$M5_vddc_start_offset_x - 2*$M5_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x > $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M5 \
+                -width $M5_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M5_set_to_set_x \
+                -nets $vddc \
+                -start_offset $start_offset_x \
+                -stapling {$M5_staple_length $M5_vddc_staple_ctr_offset_from_die_edge_y $cell_height:16} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                "
+        if { $pg_create_M5 == 1} {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Decrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x - 1*$M5_pitch}]
+    }
+
+    #
+    # Then create vss stripes
+    #
+    set final_start_offset_x  [expr {$M5_vss_start_offset_x + 4*$M5_pitch}]
+    set init_start_offset_x  [expr {$M5_vss_start_offset_x + 3*$M5_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x < $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M5 \
+                -width $M5_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M5_set_to_set_x \
+                -nets $vss \
+                -start_offset $start_offset_x \
+                -stapling {$M5_staple_length $M5_vss_staple_ctr_offset_from_die_edge_y $cell_height:16} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                "
+        if { $pg_create_M5 == 1} {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Incrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x + 1*$M5_pitch}]
+    }
+
+    set final_start_offset_x  [expr {$M5_vss_start_offset_x - 4*$M5_pitch}]
+    set init_start_offset_x  [expr {$M5_vss_start_offset_x - 2*$M5_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x > $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M5 \
+                -width $M5_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M5_set_to_set_x \
+                -nets $vss \
+                -start_offset $start_offset_x \
+                -stapling {$M5_staple_length $M5_vss_staple_ctr_offset_from_die_edge_y $cell_height:16} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                "
+        if { $pg_create_M5 == 1} {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Decrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x - 1*$M5_pitch}]
+    }
+
+    set cmd "delete_route_blockages -name M5_RB"
+    if { $pg_create_M5 == 1 } {          
+        eval $cmd
+    }
+
+    ###############################################################
+    # 4. Bolster M7 and M8 (2x layer).
+    ###############################################################
+
+    set_db add_stripes_stacked_via_bottom_layer M6
+    set_db add_stripes_stacked_via_top_layer M8
+    set_db add_stripes_stapling_nets_style side_to_side
+    set_db add_stripes_extend_to_closest_target area_boundary
+    reset_db -category generate_special_via
+    set_db generate_special_via_rule_preference [list $VIA6_master $VIA7_master]
+    # make sure that we honor all pre-drawn routes and not cause DRCs
+    set_db add_stripes_respect_routes all
+
+    if { $pg_create_M8 == 1 } {          
+        deselect_obj -all
+        foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+            select_routes -area $bbox -type special -use power -nets $vddc -layer M8
+        }
+        set vddc_m8_rects [get_db selected .rect]
+        foreach rect $vddc_m8_rects {
+            set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m8_pg_length_increase)+3*$M7_pitch}]]
+            puts "DEBUG_MSG : extending vddc M8 to : $new_rect"
+            # Only If we do not find any other M8 shapes directly underneath other than our origianl power grid, expand the metal6.
+            set reg_wire_count [llength [get_obj_in_area -area $new_rect -obj_type wire -layer M8]]
+            set special_wire_count [llength [get_obj_in_area -area $new_rect -obj_type special_wire -layer M8]]
+            set patch_wire_count [llength [get_obj_in_area -area $new_rect -obj_type patch_wire -layer M8]]
+            set via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type via] -if {.via_def.cut_layer.name == VIA7}]]
+            set special_via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type special_via] -if {.via_def.cut_layer.name == VIA7}]]
+            if {$reg_wire_count == 0 && $special_wire_count == 1 && $patch_wire_count == 0 && $via_count == 0 && $special_via_count == 1} {
+                set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m8_pg_length_increase)}]]        
+                create_shape -shape stripe -net $vddc -status fixed -rect $new_rect -layer M8 -user_class additional_pg
+            } else {
+                puts "DEBUG_MSG : (M8) reg_wire_count=$reg_wire_count, special_wire_count=$special_wire_count, patch_wire_count=$patch_wire_count, via_count=$via_count, special_via_count=$special_via_count"  
+            }
+        }
+        deselect_obj -all
+
+        foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+            select_routes -area $bbox -type special -use power -nets $vss -layer M8
+        }
+        set vss_m8_rects [get_db selected .rect]
+        foreach rect $vss_m8_rects {
+            set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m8_pg_length_increase)+3*$M7_pitch}]]
+            puts "DEBUG_MSG : extending vss M8 to : $new_rect"
+            # Only If we do not find any other M8 shapes directly underneath other than our origianl power grid, expand the metal8.
+            set reg_wire_count [llength [get_obj_in_area -area $new_rect -obj_type wire -layer M8]]
+            set special_wire_count [llength [get_obj_in_area -area $new_rect -obj_type special_wire -layer M8]]
+            set patch_wire_count [llength [get_obj_in_area -area $new_rect -obj_type patch_wire -layer M8]]
+            set via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type via] -if {.via_def.cut_layer.name == VIA7}]]
+            set special_via_count [llength [get_db [get_obj_in_area -area $new_rect -obj_type special_via] -if {.via_def.cut_layer.name == VIA7}]]
+            if {$reg_wire_count == 0 && $special_wire_count == 1 && $patch_wire_count == 0 && $via_count == 0 && $special_via_count == 1} {
+                set new_rect [get_computed_shapes $rect SIZEX [expr {$IPBU_DEFINES(m8_pg_length_increase)}]]        
+                create_shape -shape stripe -net $vss -status fixed -rect $new_rect -layer M8 -user_class additional_pg
+            } else {
+                puts "DEBUG_MSG : (M8) reg_wire_count=$reg_wire_count, special_wire_count=$special_wire_count, patch_wire_count=$patch_wire_count, via_count=$via_count, special_via_count=$special_via_count"  
+            }
+        }
+        deselect_obj -all
+    }
+
+    # Create a routing blockage at the top so that we do not draw M7 in that region.
+    # Drawing first and deleting later is more time consuming, hence we add the blockage first
+    set cmd "create_route_blockage -layer M7 -rects {$bbox_llx $bbox_lly $bbox_urx $bbox_ury} -name M7_RB -spacing 0"
+    if { $pg_create_M7 == 1 } {          
+        eval $cmd
+    }
+
+    set m7_patch_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m7_patch_rects [get_db [get_obj_in_area -layers M7 -obj_type patch_wire -area [get_computed_shapes $bbox SIZEY [expr {4*$M8_pitch}]]] .rect]
+        set m7_patch_rects [list {*}$m7_patch_rects {*}$t_m7_patch_rects]
+    }
+
+    set m7_wire_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m7_wire_rects [get_db [get_obj_in_area -layers M7 -obj_type wire -area [get_computed_shapes $bbox SIZEY [expr {4*$M8_pitch}]]] .rect]
+        set m7_wire_rects [list {*}$m7_wire_rects {*}$t_m7_wire_rects]
+    }
+
+    set m7_via_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m7_via_rects [get_db [get_obj_in_area -layers VIA6 -obj_type via -area $bbox] .top_rects]
+        # increasing X since we find that on widened vias, add-stripe call adds the wire if it just touches the blockage on the side
+        set t_m7_via_rects [get_computed_shapes $t_m7_via_rects SIZEX [expr 2*$M7_pitch]]
+        set m7_via_rects [list {*}$m7_via_rects {*}$t_m7_via_rects]
+    }
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m7_via_rects [get_db [get_obj_in_area -layers VIA7 -obj_type via -area $bbox] .bottom_rects]
+        # increasing X since we find that on widened vias, add-stripe call adds the wire if it just touches the blockage on the side
+        set t_m7_via_rects [get_computed_shapes $t_m7_via_rects SIZEX [expr 2*$M7_pitch]]
+        set m7_via_rects [list {*}$m7_via_rects {*}$t_m7_via_rects]
+    }
+    
+    set final_m7_rects [list {*}$m7_patch_rects {*}$m7_wire_rects {*}$m7_via_rects]
+    foreach rect $final_m7_rects {
+        # grow the size of the blockage by 4*$M7_pitch top and bottom
+        set new_rect [get_computed_shapes $rect SIZEY [expr {4*$M7_pitch}]]    
+        if { $pg_create_M7 == 1 } {          
+            create_route_blockage -rects $new_rect -layer M7 -name M7_Stripe_RB -spacing 0
+        }
+    }
+
+    set final_start_offset_x  [expr {$M7_vddc_start_offset_x + 4*$M7_pitch}]
+    set init_start_offset_x  [expr {$M7_vddc_start_offset_x + 3*$M7_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x < $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M7 \
+                -width $M7_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M7_set_to_set_x \
+                -nets $vddc \
+                -start_offset $start_offset_x \
+                -stapling {auto M6} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                 "
+     
+        if { $pg_create_M7 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Incrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x + 1*$M7_pitch}]
+    }
+
+    set final_start_offset_x  [expr {$M7_vddc_start_offset_x - 4*$M7_pitch}]
+    set init_start_offset_x  [expr {$M7_vddc_start_offset_x - 3*$M7_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x > $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M7 \
+                -width $M7_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M7_set_to_set_x \
+                -nets $vddc \
+                -start_offset $start_offset_x \
+                -stapling {auto M6} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                 "
+     
+        if { $pg_create_M7 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Incrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x - 1*$M7_pitch}]
+    }
+
+    #
+    # Then create vss stripes
+    #
+
+    set final_start_offset_x  [expr {$M7_vss_start_offset_x + 4*$M7_pitch}]
+    set init_start_offset_x  [expr {$M7_vss_start_offset_x + 3*$M7_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x < $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M7 \
+                -width $M7_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M7_set_to_set_x \
+                -nets $vss \
+                -start_offset $start_offset_x \
+                -stapling {auto M6} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                 "
+     
+        if { $pg_create_M7 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Decrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x + 1*$M7_pitch}]
+    }
+
+    set final_start_offset_x  [expr {$M7_vss_start_offset_x - 4*$M7_pitch}]
+    set init_start_offset_x  [expr {$M7_vss_start_offset_x - 3*$M7_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x > $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M7 \
+                -width $M7_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M7_set_to_set_x \
+                -nets $vss \
+                -start_offset $start_offset_x \
+                -stapling {auto M6} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                 "
+     
+        if { $pg_create_M7 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Decrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x - 1*$M7_pitch}]
+    }
+
+    ###############################################################
+    # 4. Bolster M9 (2x layer).
+    ###############################################################
+    set_db add_stripes_stacked_via_bottom_layer M8
+    set_db add_stripes_stacked_via_top_layer M10
+    set_db add_stripes_stapling_nets_style side_to_side
+    set_db add_stripes_extend_to_closest_target area_boundary
+    reset_db -category generate_special_via
+    set_db generate_special_via_rule_preference [list $VIA8_master $VIA9_master]
+
+
+    # Create a routing blockage at the top so that we do not draw M9 in that region.
+    # Drawing first and deleting later is more time consuming, hence we add the blockage first
+
+    set cmd "create_route_blockage -layer M9 -rects {$bbox_llx $bbox_lly $bbox_urx $bbox_ury} -name M9_RB -spacing 0"
+    if { $pg_create_M9 == 1 } {          
+        eval $cmd
+    }
+
+    set m9_patch_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m9_patch_rects [get_db [get_obj_in_area -layers M9 -obj_type patch_wire -area [get_computed_shapes $bbox SIZEY [expr {4*$M10_pitch}]]] .rect]
+        set m9_patch_rects [list {*}$m9_patch_rects {*}$t_m9_patch_rects]
+    }
+
+    set m9_wire_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m9_wire_rects [get_db [get_obj_in_area -layers M9 -obj_type wire -area [get_computed_shapes $bbox SIZEY [expr {4*$M10_pitch}]]] .rect]
+        set m9_wire_rects [list {*}$m9_wire_rects {*}$t_m9_wire_rects]
+    }
+
+    set m9_via_rects [list ]
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m9_via_rects [get_db [get_obj_in_area -layers VIA8 -obj_type via -area $bbox] .top_rects]
+        # increasing X since we find that on widened vias, add-stripe call adds the wire if it just touches the blockage on the side
+        set t_m9_via_rects [get_computed_shapes $t_m9_via_rects SIZEX [expr 2*$M9_pitch]]
+        set m9_via_rects [list {*}$m9_via_rects {*}$t_m9_via_rects]
+    }
+    foreach bbox $IPBU_DEFINES(bbox_list_to_target_for_additional_pg) {
+        set t_m9_via_rects [get_db [get_obj_in_area -layers VIA9 -obj_type via -area $bbox] .bottom_rects]
+        # increasing X since we find that on widened vias, add-stripe call adds the wire if it just touches the blockage on the side
+        set t_m9_via_rects [get_computed_shapes $t_m9_via_rects SIZEX [expr 2*$M9_pitch]]
+        set m9_via_rects [list {*}$m9_via_rects {*}$t_m9_via_rects]
+    }
+    
+    set final_m9_rects [list {*}$m9_patch_rects {*}$m9_wire_rects {*}$m9_via_rects]
+    foreach rect $final_m9_rects {
+        # grow the size of the blockage by 4*$M9_pitch top and bottom
+        set new_rect [get_computed_shapes $rect SIZEY [expr {4*$M9_pitch}]]    
+        if { $pg_create_M9 == 1 } {          
+            create_route_blockage -rects $new_rect -layer M9 -name M9_Stripe_RB -spacing 0
+        }
+    }
+
+    #
+    # First create vddc stripes
+    #
+    set final_start_offset_x  [expr {$M9_vddc_start_offset_x + 4*$M9_pitch}]
+    set init_start_offset_x  [expr {$M9_vddc_start_offset_x + 3*$M9_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x < $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M9 \
+                -width $M9_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M9_set_to_set_x \
+                -nets $vddc \
+                -start_offset $start_offset_x \
+                -stapling {auto M8} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                 "
+ 
+        if { $pg_create_M9 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Incrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x + 1*$M9_pitch}]
+    }
+
+    set final_start_offset_x  [expr {$M9_vddc_start_offset_x - 4*$M9_pitch}]
+    set init_start_offset_x  [expr {$M9_vddc_start_offset_x - 3*$M9_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x > $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M9 \
+                -width $M9_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M9_set_to_set_x \
+                -nets $vddc \
+                -start_offset $start_offset_x \
+                -stapling {auto M8} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                 "
+ 
+        if { $pg_create_M9 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Incrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x - 1*$M9_pitch}]
+    }
+
+    #
+    # Then create vss stripes
+    #
+
+    set final_start_offset_x  [expr {$M9_vss_start_offset_x + 4*$M9_pitch}]
+    set init_start_offset_x  [expr {$M9_vss_start_offset_x + 3*$M9_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x < $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M9 \
+                -width $M9_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M9_set_to_set_x \
+                -nets $vss \
+                -start_offset $start_offset_x \
+                -stapling {auto M8} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                 "
+ 
+        if { $pg_create_M9 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Decrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x + 1*$M9_pitch}]
+    }
+
+    set final_start_offset_x  [expr {$M9_vss_start_offset_x + 4*$M9_pitch}]
+    set init_start_offset_x  [expr {$M9_vss_start_offset_x - 3*$M9_pitch}]
+    set start_offset_x $init_start_offset_x
+    while {$start_offset_x > $final_start_offset_x} {
+        puts "Using start_offset = $start_offset_x"
+        set cmd "add_stripes \
+                -area {$core_llx $core_lly $core_urx $core_ury} \
+                -layer M9 \
+                -width $M9_pg_width \
+                -direction vertical \
+                -set_to_set_distance $M9_set_to_set_x \
+                -nets $vss \
+                -start_offset $start_offset_x \
+                -stapling {auto M8} \
+                -snap_wire_center_to_grid GRID \
+                -user_class additional_pg \
+                 "
+ 
+        if { $pg_create_M9 == 1 } {          
+            eval $cmd
+        }
+        puts "DEBUG_MSG: Decrementing start_offset ..."
+        set start_offset_x  [expr {$start_offset_x - 1*$M9_pitch}]
+    }
+   
+    # Cleanup DRCs
+    ipbu_cleanup_drc_viols
+}
