@@ -1,0 +1,91 @@
+proc find_common_nets { startpoint endpoint } {
+
+    set common_nets ""
+    puts "--------------------------------"
+    puts "Common nets of SP: $startpoint"
+    puts "               EP: $endpoint"
+
+    set sp [get_pins $startpoint]
+    set ep [get_pins $endpoint]
+    set fanin_nets_of_ep  [get_object [get_nets -of [get_pins [all_fanin -to $ep -flat ]]]]
+    set fanout_nets_of_sp [get_object [get_nets -of [get_pins [all_fanout -from $sp -flat ]]]]
+    set superset_nets [lsort -unique "$fanout_nets_of_sp $fanin_nets_of_ep"]
+
+    foreach net $superset_nets { 
+	#puts "superset: $net"
+	if {[lsearch $fanout_nets_of_sp $net] != -1  && [lsearch $fanin_nets_of_ep $net] != -1 } { 
+	    append common_nets " $net" 
+	} 
+    }
+
+    #foreach net $common_nets {puts "common: $net" }
+
+    return "{$fanin_nets_of_ep} {$fanout_nets_of_sp} {$superset_nets} {$common_nets}"
+}
+
+proc find_common_cells { startpoint endpoint } {
+
+    set common_cells ""
+    puts "--------------------------------"
+    puts "Common cells of SP: $startpoint"
+    puts "                EP: $endpoint"
+
+    set sp [get_pins $startpoint]
+    set ep [get_pins $endpoint]
+    set fanin_cells_of_ep  [get_object [get_cells -of [get_pins [all_fanin -to $ep -flat ]]]]
+    set fanout_cells_of_sp [get_object [get_cells -of [get_pins [all_fanout -from $sp -flat ]]]]
+    set superset_cells [lsort -unique "$fanout_cells_of_sp $fanin_cells_of_ep"]
+
+    foreach cell $superset_cells { 
+	#puts "superset: $cell"
+	if {[lsearch $fanout_cells_of_sp $cell] != -1  && [lsearch $fanin_cells_of_ep $cell] != -1 } { 
+	    append common_cells " $cell" 
+	} 
+    }
+
+    #foreach cell $common_cells {puts "common: $cell" }
+
+    return "{$fanin_cells_of_ep} {$fanout_cells_of_sp} {$superset_cells} {$common_cells}"
+}
+
+
+
+
+# #################################################
+set prefix "U_COBRA_MACPHY_WRAPPER_P1/U_COMPHY_64G_PIPE6_X4_4PLL_WTOP/U_COMPHY_64G_PIPE6_X4_4PLL_wrapper0/U_COMPHY_64G_PIPE6_X4_4PLL_TOP/COMPHY_64G_PIPE6_X4_4PLL_DFT/COMPHY_64G_PIPE6_X4_4PLL/PIN_TXCLK_ALIGN"
+
+set pairs { {OUT0 IN1} {OUT0 IN2} {OUT0 IN3} {OUT1 IN_REF1} {OUT2 IN_REF2} {OUT3 IN_REF3}}
+
+foreach pair $pairs {
+    unset nets_of_sp
+    unset nets_of_ep
+    unset nets_union
+    unset nets_intersect
+    unset cells_of_sp
+    unset cells_of_ep
+    unset cells_union
+    unset cells_intersect
+
+    set sp [lindex $pair 0]; set startpoint "${prefix}_$sp"
+    set ep [lindex $pair 1]; set endpoint   "${prefix}_$ep"
+
+    # --------------------------------------------
+    # Analyze common nets
+    set returned_nets  [find_common_nets $startpoint $endpoint]
+
+    # Assign the returned nets to variables of interest
+    lassign $returned_nets nets_of_sp  nets_of_ep  nets_union  nets_intersect
+
+    #foreach net $nets_intersect { puts "common net: $net" }
+
+    # --------------------------------------------
+    # Analyze common cells
+    set returned_cells  [find_common_cells $startpoint $endpoint]
+
+    # Assign the returned cells to variables of interest
+    lassign $returned_cells cells_of_sp  cells_of_ep  cells_union  cells_intersect
+
+    foreach cell $cells_intersect { puts "common cell: $cell" }
+
+
+}
