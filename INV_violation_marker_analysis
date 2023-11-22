@@ -1,0 +1,95 @@
+# Description 
+
+# ###########################################################################
+# Get the list of violations to skip
+set skip_violation_list "Out_Of_Die"
+
+# ###########################################################################
+# Initialize variables / arrays
+array unset ALL_DRC_TYPES
+array unset NETS_IN_BLAST_ZONE
+if {![info exists skip_violation_list]} { set skip_violation_list "" }
+
+puts ""
+puts "-------------------------------------------------------------"
+# ###########################################################################
+puts "Analyzing all loaded DRC markers ..."
+# Repeat for each marker
+foreach marker [get_db markers] {
+    # Determine the marker type
+    set subtype [get_db $marker .subtype]
+
+    # Initialize array entry if it doesn't exist
+    if {![info exists ALL_DRC_TYPES($subtype)]} { 
+	set ALL_DRC_TYPES($subtype) " " 
+	puts "Initializing ALL_DRC_TYPES($subtype)"
+    }
+
+    # Add the marker associated with that subtype
+    append ALL_DRC_TYPES($subtype) " $marker"
+
+}    
+
+# ###########################################################################
+# Remove violations from the array that user doesn't want analyzed
+foreach subtype "$skip_violation_list" {
+    puts "Skipping violation type from further analysis: $subtype ..."
+    unset ALL_DRC_TYPES($subtype)
+}
+
+puts ""
+puts "-------------------------------------------------------------"
+# ###########################################################################
+puts "Identifying nets in the blast of above marker types ..."
+set i 0
+# Repeat for each subtype
+foreach subtype [lsort [array names ALL_DRC_TYPES]] {
+    puts ""
+    puts "-------------------------------------------------------------"
+    incr i
+    set count [llength $ALL_DRC_TYPES($subtype)]
+    #set format_line [format "%10s violations | %s" $count $subtype]; puts $format_line    
+
+    # Begin output with the marker subtype
+    set format_line [format "%3s | %-30s | %10s |  " $i $subtype $count];    puts $format_line 
+
+    foreach marker $ALL_DRC_TYPES($subtype) {
+	set message_id [get_db $marker .message_id]
+	set message [get_db $marker .message]
+	puts "          $message,"
+	set nets_list [get_obj_in_area -obj_type net -area [get_db $marker .bbox]]
+	foreach n $nets_list {
+	    set net [get_db $n .name]
+	    if {![info exists NETS_IN_BLAST_ZONE($net)]} { set NETS_IN_BLAST_ZONE($net) "" }
+	    append NETS_IN_BLAST_ZONE($net) " $subtype"
+	}
+	puts "========="
+
+    }
+    puts ""
+}
+
+puts ""
+puts "-------------------------------------------------------------"
+# ###########################################################################
+set i 0
+# Repeat for each net
+foreach net [lsort -unique [array names NETS_IN_BLAST_ZONE]] {
+    incr i
+
+    # Identify the unique subtypes associated with each net
+    set unique_subtypes [lsort -unique $NETS_IN_BLAST_ZONE($net)]
+    set unique_subtypes_count [llength $unique_subtypes]
+
+    # Begin output with the net name
+    set format_line [format "%10s | marker_types=%-2s | NET: %s ==> " $i $unique_subtypes_count $net ]
+    puts -nonewline $format_line 
+
+    # Repeat for each subtype
+    foreach subtype $unique_subtypes {
+	set count [llength [lsearch -all $unique_subtypes $subtype]] ; # Get the number of violations of associated with each subtype
+	puts -nonewline " $subtype:$count"
+    }
+    puts ""
+}
+
