@@ -1,0 +1,55 @@
+#proc breakdown_pt_report { infile } 
+if { 1 } {
+ 
+    set infile "./testfile"
+
+    if {![file exists $infile]} {
+	puts "(E): '$infile' does not exist"
+    } else {
+	set input_id [open $infile r]
+
+	set path 0
+	set reading_new_entry 0
+	set new_record ""
+	array unset timing_info_array
+	while {[gets $input_id line] >= 0 } {
+	    if { $line != "" } {
+		if {[string match [lindex $line 0] "Startpoint:" ]} {
+		    if { $new_record != "" && [string match "*Startpoint:*" $new_record]} {
+			#
+			set timing_info_array($path) "$new_record"
+			#puts "$path | $new_record"
+			set new_record "" ; # Reset for next path
+			incr path
+		    }
+		    set reading_new_entry 1
+		    set new_record "${line}"
+		} elseif { $reading_new_entry } {
+		    lappend new_record "${line}"
+		}
+	    }
+	}
+
+	puts "Timing Path Info stored in array 'timing_info_array'"
+	close $input_id
+    }
+
+
+    foreach path [lsort -dictionary [array names timing_info_array]] {
+	set startpoint [lsearch -inline $timing_info_array($path) "*Startpoint:*"]
+	set endpoint   [lsearch -inline $timing_info_array($path) "*Endpoint:*"]
+	set data_at    [lsearch -inline $timing_info_array($path) "*data arrival time*"]
+	set data_rat   [lsearch -inline $timing_info_array($path) "*data required time*"]
+	set slack      [lsearch -inline $timing_info_array($path) "*slack*"]
+
+	puts "Path $path"
+	puts "  --> SP: $startpoint"
+	puts "  --> EP: $endpoint"
+	puts "  --> $data_at"
+	puts "  --> $data_rat"
+	puts "  ==> $slack"
+
+    }
+
+
+}
