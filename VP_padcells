@@ -1,0 +1,19 @@
+# Examples in 3nm:
+# PADH15AS25_VDDLV_AVSS_W45
+
+set pads [get_db [get_db insts * -if {.base_cell == PAD* }] .name]
+
+puts "Found [llength $pads] PAD* cells ..."
+
+set i 0
+foreach inst $pads {
+    incr i
+    set base_cell [get_db [get_db insts $inst] .base_cell.name]
+    set format_line [format "%5s | %40s | %s" $i $base_cell $inst]; puts $format_line
+}
+
+if { $i > 0 } {
+    puts "For VPP4978, check if the follow core pad guidelines"
+} else {
+    puts "This check does not apply .. mark as N/A"
+}
