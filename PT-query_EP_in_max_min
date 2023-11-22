@@ -1,0 +1,84 @@
+proc get_max_min_timing_slack { ep } {
+    set tp_max    [get_timing_paths -delay_type max -to $ep]
+    set slack_max [get_attribute $tp_max slack]
+    set sp_max    [get_attribute $tp_max startpoint]
+
+    set tp_min    [get_timing_paths -delay_type min -to $ep]
+    set slack_min [get_attribute $tp_min slack]
+    set sp_min    [get_attribute $tp_min startpoint]
+
+    #set format_line [format "max/min = %10s | %10s | $ep" $slack_max $slack_min ]
+    set format_line [format "%10.3f | %s" $slack_min $ep]
+    puts $format_line
+}
+
+puts "Loading proc get_max_min_timing_slack <ep>"
+
+
+#set eps " \
+#pemm_ib_ib_ncb_pemm_ib_ncb_df_cflt_mem_m_m_0_0/MEB \
+#pemm_ib_ib_ncb_pemm_ib_ncb_df_cflt_mem_m_m_0_0/MEA \
+#pemm_ob_ob_ebo_pemm_ob_ebo_pemm_ob_ebo_fifos_c_cmd_fifo_mem_m_m_0_1/DA[82] \
+#pemm_ob_ob_ebo_pemm_ob_ebo_pemm_ob_ebo_fifos_c_cmd_fifo_mem_m_m_0_1/DA[81] \
+#pemm_ob_ob_ebo_pemm_ob_ebo_pemm_ob_ebo_fifos_c_cmd_fifo_mem_m_m_0_1/DA[79] \
+#pemm_ob_ob_ebo_pemm_ob_ebo_pemm_ob_ebo_fifos_c_cmd_fifo_mem_m_m_0_1/DA[76] \
+#pemm_ob_ob_ebo_pemm_ob_ebo_pemm_ob_ebo_fifos_n_cmd_fifo_mem_m_m_0_1/DA[79] \
+#pemm_ob_ob_ebo_pemm_ob_ebo_pemm_ob_ebo_fifos_n_cmd_fifo_mem_m_m_0_1/DA[78] \
+#pemm_ob_ob_ebo_pemm_ob_ebo_pemm_ob_ebo_fifos_n_cmd_fifo_mem_m_m_0_1/DA[77]"
+#
+
+set eps "\
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[260] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[259] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[269] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[153] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[270] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[268] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[264] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[273] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_2/D[134] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_2/D[135] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[263] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_2/D[137] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[267] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[192] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_2/D[139] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_2/D[136] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[262] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[257] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[265] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_2/D[138] \
+pemm_pemm_csr_cfgtbl_cfgtbl_ram_m_m_0_0/D[68] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[258] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_2/D[142] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[261] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[149] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_2/D[134] \
+pemm_pemm_csr_cfgtbl_cfgtbl_ram_m_m_0_0/D[70] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_2/D[141] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[157] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_2/D[141] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_2/D[139] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_2/D[140] \
+pemm_pemm_csr_cfgtbl_cfgtbl_ram_m_m_0_0/D[69] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_2/D[137] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_1/D[46] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_2/D[133] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_2/D[135] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_2/D[133] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_c_mem_m_m_0_2/D[55] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[134] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[256] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[274] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_1/D[41] \
+pemm_pemm_ob_pemm_ob_c_client_ncbo_fe_real_pemm_ob_c_cl_ncbo_fe_bpem_ncbo_cpl_mem_cpl_mem_m_m_0_0/D[271] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_2/D[2] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_cflt_mem_m_m_0_0/MEB \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_p_mem_m_m_0_2/D[140] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_1/D[50] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_c_mem_m_m_0_2/D[50] \
+pemm_pemm_ib_ib_ncb_pemm_ib_ncb_df_n_mem_m_m_0_2/D[138]"
+
+foreach ep $eps {
+    get_max_min_timing_slack $ep
+}
