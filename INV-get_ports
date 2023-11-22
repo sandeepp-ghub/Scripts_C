@@ -1,0 +1,70 @@
+array unset port_list
+array unset which_edge
+array unset locations
+
+set ports [get_ports [get_db selected]]
+
+# Get the size of the design
+set core_box_width  [get_db designs .bbox.ur.x];
+set core_box_height [get_db designs .bbox.ur.y];
+
+# Cycle through each port
+foreach_in_collection port $ports {
+    set p [get_object $port];
+
+    # Remove the square brackets from multibit ports
+    set format_p [string map {{[} " " {]} " "} $p]
+
+    # Get location of the port
+    set port_location [string range [get_db [get_ports $p] .location] 1 end-1]
+    set port_coord_x  [lindex $port_location 0]
+    set port_coord_y  [lindex $port_location 1]
+
+    if { $port_coord_x == "0" } {
+	set edge "left"
+    } elseif { $port_coord_y == "0" } {
+	set edge "bottom"
+    } elseif { $port_coord_x == "$core_box_width" && ($port_coord_y <=  $core_box_height) && ($port_coord_y > 0) } {
+	set edge "right"
+    } elseif { $port_coord_y == "$core_box_height" && ($port_coord_x <=  $core_box_width) && ($port_coord_x > 0) } {
+	set edge "top"
+    } else {
+	set edge "N/A"
+    }
+
+    if { $p == "$format_p" } {
+	set port_list($p) ""
+	set which_edge($p) "$edge"
+    } else {
+	set base_port [lindex $format_p 0]
+	set bit [lindex $format_p end]
+	if {![info exist port_list($base_port)]} {
+	    set port_list($base_port) " $bit"
+	} else {
+	    append port_list($base_port) " $bit"
+	}
+
+	if {![info exist which_edge($base_port)]} {
+	    set which_edge($base_port) " $edge"
+	} else {
+	    append which_edge($base_port) " $edge"
+	}
+
+    }
+}
+
+#parray port_list
+
+foreach port_name [lsort [array names port_list]] {
+    set edges [lsort -unique $which_edge($port_name)]
+    if {[llength $port_list($port_name)] > 0 } {
+	set sorted_bits [lsort -dictionary $port_list($port_name)]
+	set start [lindex $sorted_bits 0]
+	set end [lindex $sorted_bits end]
+	set size [llength $sorted_bits]
+	set format_line [format "%10s | %10s | %s" $size $edges "$port_name[${start}:${end}]" ]
+    } else {
+	set format_line [format "%10s | %10s | %s" "" $edges $port_name]
+    }
+    puts $format_line
+}
