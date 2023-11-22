@@ -1,0 +1,40 @@
+namespace eval ::dn {} {
+    proc get_tp_info { timing_paths } { 
+	set i 0
+	foreach_in_collection tp $timing_paths {
+	    incr i
+	    set slack [get_attribute $tp slack]
+	    set startpoint [get_object [get_attribute $tp startpoint]]
+	    set endpoint   [get_object [get_attribute $tp endpoint]]
+	    set format_line [format "%5s | %5.4f | %s <--- %s" $i $slack $endpoint $startpoint]
+	    puts $format_line
+	}
+    }
+
+    proc read_min_paths_get_max_paths { min_path_timing_file } {
+	set fname $min_path_timing_file
+	set fid [open $fname r]; 
+	while {[gets $fid line] >= 0 } { 
+	    puts "$line (min)"
+	    set min_slack [lindex $line 2]; 
+	    set ep [lindex $line 4];  
+	    set max_tp [get_timing_paths -to $ep -slack_lesser_than inf]; 
+	    set max_slack [get_attribute $max_tp slack]; 
+	    set sp [get_object_name [get_attribute $max_tp startpoint]]; 
+	    set max_format_line  [format "%5s | %5.4f | %s <--- %s (max)" "" $max_slack $ep $sp]; 
+	    puts $max_format_line; 
+	    set margin [format %.4f [expr $max_slack + $min_slack]]; 
+	    set msg ""; 
+	    if { $margin < 0 } { set msg "WINDOW_TOO_SMALL" ;  change_selection -add $max_tp }
+	    puts "# Margin = $margin $msg"; 
+	    puts "# --------------------------------------------------------------------------" 
+	}
+	close $fid 
+    }
+
+}
+
+#redirect -file  min_eps_with_max_path_slacks.txt {set fname min_path_info.txt ; set fid [open $fname r]; while {[gets $fid line] >= 0 } { set ep [lindex $line 4];  set max_tp [get_timing_paths -to $ep -slack_lesser_than inf]; set max_slack [get_attribute $max_tp slack]; set sp [get_object_name [get_attribute $max_tp startpoint]]; set max_format_line  [format "%5s | %5.4f | %s <--- %s" "" $max_slack $ep $sp]; puts $line; puts $max_format_line; puts "----" }; close $fid}
+
+puts "Loading proc '::dn::get_tp_info <timing_path_collection>'"
+puts "Loading proc '::dn::read_min_paths_get_max_paths <min_path_timing_file>'"
