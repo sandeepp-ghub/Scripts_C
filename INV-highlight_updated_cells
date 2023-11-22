@@ -1,0 +1,54 @@
+namespace eval ::dn {} {
+
+    proc highlight_updated_cells { fname } {
+	puts ""
+	puts "(I): Entering 'highlight_updated_cells' procedure ..."
+	if {![info exists fname]} { set fname "/dev/null" }
+	if {![file exists $fname]} {
+	    puts "(E): Must provide valid filename ('$fname')"
+	    puts "     Look for ../invcui.post.eco/dataout/*.log"
+	} else { 
+	    set fid [open $fname r]
+	    set ::dn::updated_instances ""
+	    while {[gets $fid line] >= 0} {
+		puts "$line"
+		if {[string match eco_update_cell [lindex $line 0]] || [string match size_cell [lindex $line 0]] } {
+		    set instance [lindex $line 2]
+		    lappend ::dn::updated_instances $instance		    
+		}
+	    }
+	    puts "Found [llength $::dn::updated_instances] updated instances via 'eco_update_cell'"
+	    puts "Stored in ::dn::updated_instances"
+	    close $fid
+	}
+    
+    }
+    proc highlight_inserted_cells { fname } {
+	puts ""
+	puts "(I): Entering 'highlight_inserted_cells' procedure ..."
+	if {![info exists fname]} { set fname "/dev/null" }
+	if {![file exists $fname]} {
+	    puts "(E): Must provide valid filename ('$fname')"
+	} else { 
+	    set fid [open $fname r]
+	    set ::dn::inserted_instances ""
+	    while {[gets $fid line] >= 0} {
+		# ex: insert_buffer [get_pins {pemm_ob_ob_ebo_pemm_ob_ebo_pemm_ob_ebo_fifos_c_cmd_fifo_mem_bist_U1765/A1}] DELED1BWP210H6P51CNODLVTLL -new_net_names {PTECO_HOLD_NET_2021_03_30__PTECO_HOLD_NET38} -new_cell_names {PTECO_HOLD_2021_03_30__PTECO_HOLD_BUF38}
+		# ex: insert_buffer [get_pins {pemm_ob_ob_ebo_pemm_ob_ebo_U18844/A2}] BUFFD16BWP210H6P51CNODLVTLL -new_net_names {PTECO_HOLD_NET_2021_03_30__PTECO_HOLD_NET40} -new_cell_names {PTECO_HOLD_2021_03_30__PTECO_HOLD_BUF40}
+		if {[string match insert_buffer [lindex $line 0]]} {
+		    set instance [lindex $line end]
+		    lappend ::dn::inserted_instances $instance		    
+		}
+	    }
+	    puts "Found [llength $::dn::inserted_instances] insert_buffer"
+	    puts "Stored in ::dn::inserted_instances"
+	    close $fid
+	}
+    
+
+    }
+
+}
+
+puts "Loading proc ::dn::highlight_updated_cells <../invcui.post.eco/dataout/*.log>"
+puts "Loading proc ::dn::highlight_inserted_cells <pt_eco_file>"
