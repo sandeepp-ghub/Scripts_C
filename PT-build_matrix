@@ -1,0 +1,56 @@
+
+set levels_to_keep 3
+set levels_to_fold 4; 
+
+array unset modules; 
+
+foreach_in_collection reg [all_registers] { 
+    set reg_name [get_object $reg]; 
+    set stripped_reg_name [split $reg_name "/"]; 
+    set module [join [lrange $stripped_reg_name 0 end-${levels_to_fold}] "/"]; 
+    if {![info exists modules($module)]} { 
+	set modules($module) "1"
+    } else { 
+	incr modules($module) 
+    } 
+}
+
+set threshold 100; 
+array unset modules_past_threshold; 
+foreach module [array names modules] { 
+    #puts "modules($module) = '$modules($module)'"  
+    set split_module [split $module "/"]
+    if {[llength $split_module] > 1 && [llength $split_module] <= $levels_to_keep  } {
+	if { $modules($module) >= $threshold } { 
+	    set modules_past_threshold($module) "$modules($module)"
+	} 
+    }
+}
+
+puts [array size modules_past_threshold]
+parray modules_past_threshold
+
+
+
+set design [get_object [current_design]]
+set output_file /user/dnetrabile/pt_matrix.$design.out
+redirect -file $output_file { puts "# PT Matrix for $design" }
+set current_module ""
+# Start building the matrix
+foreach startpoint [lsort [array names modules_past_threshold]] {
+    foreach endpoint [lsort [array names modules_past_threshold]] {	
+	set tps [get_timing_paths -from $startpoint -to $endpoint -max_paths 1]
+	foreach_in_collection tp $tps {
+	    set slack [get_attribute $tp slack]
+	    set sp [get_object [get_attribute $tp startpoint]]
+	    set ep [get_object [get_attribute $tp endpoint]]
+	    redirect -file $output_file -append { puts "" }
+	    redirect -file $output_file -append { puts "# -----------------------------------------------------------------------------------------------------" }
+	    #redirect -file $output_file -append { puts "# $startpoint --> $endpoint" }
+	    set format_line [format "# %-150s | %10s | %10s | $sp --> $ep" "$startpoint --> $endpoint" "" $slack]; redirect -file $output_file -append { puts $format_line }
+	}
+    }
+}
+
+
+puts "[date]: Finished writing PT matrix to $output_file"
