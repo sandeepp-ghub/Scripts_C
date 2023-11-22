@@ -1,0 +1,211 @@
+namespace eval ::dn {} { 
+
+    #Usage: create_gui_shape [-help] -layer <layerName> [-width <width>] {-rect {x1 y1 x2 y2} | -line {x1 y1 x2 y2 ...} | -polygon {x1 y1 x2 y2 ...}} [ -line {x1 y1 x2 y2 ...} [-arrow ] ]
+    #
+    #-help                       # Prints out the command usage
+    #-arrow                      # Draw arrow in the middle of the line with direction from start point to end point (bool, required)
+    #-layer <layerName>          # GUI layer name to use or create for the rect/line. If the specified layer does not exist, it will be automatically created. (string, required)
+    #-line {x1 y1 x2 y2 ...}     # The beginning and ending coordinates for the line segments (values are in microns) ((point)+, optional)
+    #-polygon {x1 y1 x2 y2 ...}  # The coordinates for the polygon segment (values are in microns) ((point)+, optional)
+    #-rect {x1 y1 x2 y2}         # Coordinates of the lower-left and upper-right points of the rectangle (values are in microns) (rect, optional)
+    #-width <width>              # Number of pixels in the border of the object (int, optional, min=1, max=7)
+
+
+    proc highlight_timing_paths { sp } {
+	if {![info exists ::dn::xref_sp_to_ep($sp)]} {
+	    puts "Error: Couldn't locate ::dn::xref_sp_to_ep($sp)"
+	} else {
+	    select_obj [get_cells -of [get_pins $sp]];
+	    set selected_sp [get_db selected]
+	    set location_sp [get_db $selected_sp .location]
+	    gui_highlight -index 50
+
+	    gui_deselect -all;
+
+	    puts "Startpoint: $sp"
+	    # Cycle through each endpoint
+	    foreach ep $::dn::xref_sp_to_ep($sp) {
+		set slack $::dn::xref_sp_ep_to_slack($sp:$ep)
+		puts "   $slack | $ep"
+
+		select_obj [get_cells -of [get_pins $ep]]
+		set selected_ep [get_db selected]
+		set location_ep [get_db $selected_ep .location]
+
+		gui_highlight -index 54 
+		create_gui_shape -arrow -line "$location_sp $location_ep" -layer paths
+		gui_deselect -all
+	    }
+	}
+    }
+
+    proc read_timing_paths { input_file } {
+	if {![file exists $input_file]} {
+	    puts "Error: $input_file doesn't exist"
+	} else {
+	    set fid [open $input_file r]
+	    array unset ::dn::xref_rank_to_sp_ep
+	    array unset ::dn::xref_sp_to_ep
+
+	    # 1 processing file "/proj/odysseya0/wa_003/dnetrabile/impl/fpemm.PNR1/track.0519rtl_V017/pt.signoff/timing_rundir/reports/func_max3_failing_paths.rpt.gz", generated on Wed May 25 17:00:26 2022
+	    # 2
+	    # 3 All violations per pathgroup, slack < 0.000ns:
+	    # 4 PATHGROUP, SCENARIO, SLACK, STARTPOINT -> ENDPOINT
+	    set line_number 0
+	    set rank 0
+	    set read_data 0
+	    while {[gets $fid line] >= 0 } {
+		incr line_number
+		# REG_2_MACRO, default, -0.0407, pemm/pemm_ob/ncbo_real_pemm_ob_ncbo/pemm_ob_ncbo_decode/ncbo_parse_reg_cmd_data__data__100__ncbo_parse_reg_cmd_data__data__110__ncbo_parse_reg_cmd_data__data__146__ncbo_parse_reg_cmd_data__data__147__1/Q -> pemm/pemm_ob/ncbo_real_pemm_ob_ncbo/pemm_ob_ncbo_fifos/p_fifo/p_data_fif/m/m_0_4/DA[44]
+		# REG_2_MACRO, default, -0.0388, pemm/pemm_ib/ib_ncb_pemm_ib_ncb/ncb_req/gnt_master_data_reg_1_/Q -> pemm/pemm_ib/ib_ncb_pemm_ib_ncb/nmem_df_n_mem0/m/m_0_7/MEB
+		#puts "DEBUG: $line_number  --> $line"
+
+
+		if {[string match "*default,*" $line]} {
+		    set split_line [split $line ","]
+		    if {[llength $split_line] == "4" } {
+			incr rank
+			set sp     [lindex [lindex $split_line end] 0]
+			set ep     [lindex [lindex $split_line end] 2]
+			set slack  [lindex $line 2]
+			
+			if {![info exists ::dn::xref_sp_to_ep($sp)]} {
+			    set ::dn::xref_sp_to_ep($sp) "$ep"
+			} else {
+			    lappend ::dn::xref_sp_to_ep($sp) "$ep"
+			}
+			
+			set ::dn::xref_rank_to_sp_ep($rank) "$sp $ep $slack"
+			set ::dn::xref_sp_ep_to_slack($sp:$ep) "$slack"
+		    }
+		}
+
+		if {[llength $line] == "0" || [string match "processed file*" $line]} {
+		    set read_data 0
+		}
+	    }
+
+	    close $fid
+	}
+    }
+
+    proc show_flylines { from_pin } { 
+	if {[get_object [get_pins $from_pin]] != "" } {
+	    select_obj [get_cells -of [get_pins $from_pin]];
+	    set selected_sp [get_db selected]
+	    set location_sp [get_db $selected_sp .location]
+	    gui_highlight -index 50
+
+	    gui_deselect -all;
+
+	    puts -nonewline "Starting point: $from_pin"
+	    # Generate fanout list of endpoints
+	    set eps [all_fanout -from $from_pin -endpoints_only]
+
+	    puts "==> [sizeof_collection $eps]"
+
+	    # Cycle through each endpoint
+	    foreach_in_collection ep $eps {
+		select_obj [get_cells -of [get_pins $ep]]
+		set selected_ep [get_db selected]
+		set location_ep [get_db $selected_ep .location]
+		
+		gui_highlight -index 55 
+		#gui_highlight -index 60
+		create_gui_shape -arrow -line "$location_sp $location_ep" -layer paths
+		gui_deselect -all
+	    }
+	}
+    }
+
+   proc draw_flyline { from_pin to_pin } { 
+	if {[get_object [get_pins $from_pin]] != "" } {
+	    select_obj [get_cells -of [get_pins $from_pin]];
+	    set selected_sp [get_db selected]
+	    set location_sp [get_db $selected_sp .location]
+	    gui_highlight -index 50
+
+	    gui_deselect -all;
+
+	    puts "Starting point: $from_pin"
+	    # Generate fanout list of endpoints
+
+	    set eps [get_object [all_fanout -from $from_pin -endpoints_only]]
+
+	    set ep ""
+	    set ep [lsearch -inline $eps $to_pin]
+
+	    if { $ep == "" } {
+		puts "(Warning): '$to_pin' is not an endpoint of '$from_pin'"
+	    } else {
+		puts "Endpoint: $to_pin"
+		select_obj [get_cells -of [get_pins $ep]]
+		set selected_ep [get_db selected]
+		set location_ep [get_db $selected_ep .location]
+		
+		gui_highlight -index 55 
+		#gui_highlight -index 60
+		create_gui_shape -arrow -line "$location_sp $location_ep" -layer paths
+		gui_deselect -all
+	    }
+	}
+    }
+
+    proc remove_gui_shapes { } {
+	gui_delete_objs -shape; # Clear all lines
+    } 
+
+    proc remove_gui_highlights { } {
+	gui_clear_highlight; #Clear all GUI text
+    }
+
+    proc remove_gui_texts { } {
+	::dn::clear_gui_texts; # Clear all GUI text
+    }
+
+}
+
+puts "::dn::read_timing_paths <input_file>"
+puts "::dn::highlight_timing_paths <sp>"
+puts "-------------------------------------------"
+#::dn::read_timing_paths /user/dnetrabile/out1
+#::dn::read_timing_paths /proj/odysseya0/wa_003/dnetrabile/impl/fpemm.PNR1/track.0519rtl_V017/for_brendan/func_max3.out
+#::dn::read_timing_paths /proj/odysseya0/wa_003/dnetrabile/impl/fpemc.PNR1/track.0519rtl_V017/analysis/invcui.post.opt.func_max1.out
+#::dn::read_timing_paths /proj/odysseya0/wa_003/dnetrabile/impl/fpemc.PNR1/track.0519rtl_V017/analysis/invcui.pre.fp.func_max1.out
+#::dn::read_timing_paths /proj/odysseya0/wa_003/dnetrabile/impl/fpemc.PNR1/track.0603rtl_V018/analysis/invcui.post.opt.func_max1.pnr_pclk.out
+#::dn::read_timing_paths /proj/odysseya0/wa_003/dnetrabile/impl/fpemm.PNR1/track.0603rtl_V018_ulvt/analysis/pt.signoff.func_max3.out.filtered
+#::dn::read_timing_paths /proj/odysseya0/wa_003/dnetrabile/impl/fpemm.PNR1/track.0603rtl_V018_ulvt/analysis/top10
+
+#::dn::read_timing_paths /proj/odysseya0/wa_pnr2/dnetrabile/impl/fpemc.PNR1/track.0610rtl_V018_ulvt/analysis/radm_formation
+#::dn::read_timing_paths /proj/odysseya0/wa_pnr2/dnetrabile/impl/fpemm.PNR1/track.0621rtl_V019/analysis/pt.signoff.func_max1
+#::dn::read_timing_paths /proj/odysseya0/wa_pnr2/dnetrabile/impl/fpemm.PNR1/track.0621rtl_V019_skewedRAMs/analysis/pt.signoff.func_max1
+#::dn::read_timing_paths /proj/odysseya0/wa_pnr2/dnetrabile/impl/fpemc.PNR1/track.0624rtl_V019/analysis/pt.signoff.func_max1.out
+#::dn::read_timing_paths /proj/odysseya0/wa_pnr2/dnetrabile/impl/fpemc.PNR1/track.0708rtl_V020/analysis/invcui.cts.pnr_pclk.out
+#::dn::read_timing_paths /proj/odysseya0/wa_pnr2/dnetrabile/impl/fpemc.PNR1/track.0708rtl_V020.no_mb.ulvt/analysis/invcui.post.route.pnr_pclk.out
+#::dn::read_timing_paths /proj/odysseya0/wa_pnr2/dnetrabile/impl/fpemc.PNR1/track.0708rtl_V020.no_mb.ulvt/analysis/invcui.post.opt.pnr_pclk.out
+::dn::read_timing_paths /proj/odysseya0/wa_pnr2/dnetrabile/impl/fpemm.PNR1/track.0722rtl_V021/analysis/invcui.pre.place.pnr_pclk.out
+
+if { 1 } { 
+    gui_delete_objs -shape; # Clear all lines
+    gui_deselect -all; # Deselect all items in the GUI
+    gui_clear_highlight; #Clear all GUI text
+    ::dn::clear_gui_texts; # Clear all GUI text
+
+    #::dn::highlight_timing_paths pemm/pemm_ob/pemm_ob_c_client/ncbo_fe_real_pemm_ob_c_cl_ncbo_fe/buffer_ptr_sync/r_mem_addr_pop_reg_0__r_mem_addr_pop_reg_1__r_mem_addr_pop_reg_2__r_mem_addr_pop_reg_3__1_0
+    #::dn::highlight_timing_paths pemm/pemm_ob/pemm_ob_c_client/ncbo_fe_real_pemm_ob_c_cl_ncbo_fe/pem_cpl_buffer_flist/r_free_vec_reg_151__r_free_vec_reg_152__r_free_vec_reg_153__r_free_vec_reg_154__2
+
+    if { 1 } {
+	foreach sp [array names ::dn::xref_sp_to_ep] { 
+	    ::dn::highlight_timing_paths $sp
+	    #::dn::highlight_timing_paths  pemm/pemm_ob/pmerge_real_pemm_ob_pmerge_mult/gnt_rr_reg_4__gnt_rr_reg_5__gnt_rr_reg_6__pemm_ob_pmerge_tlp_r_reg_eot_
+	    #::dn::highlight_timing_paths  pemm/pemm_ob/pemm_ob_c_client/ncbo_fe_real_pemm_ob_c_cl_ncbo_fe/cpl_queue_fif/ctl/rptr_reg/q_reg_0__q_reg_1__q_reg_2__q_reg_3_
+	}
+    } else {
+	foreach rank [array names ::dn::xref_rank_to_sp_ep] {
+	    if { $rank < 100 } {
+		set sp [lindex $::dn::xref_rank_to_sp_ep($rank) 0]
+		::dn::highlight_timing_paths $sp
+	    }
+	}
+    }
+}
