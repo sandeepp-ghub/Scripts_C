@@ -1,0 +1,53 @@
+namespace eval ::dn {} {
+
+    proc report_arrival_times_at_endpoints { startpoint } {
+	#set fanout [sort_collection [all_fanout -flat -endpoints_only -from $startpoint ] full_name];
+	set fanout [sort_collection [all_fanout -flat -from $startpoint ] full_name];
+
+	set earliest_min_at "999.0"  ; set earliest_min_at_pin ""
+	set latest_min_at   "-999.0" ; set latest_min_at_pin  ""
+	set earliest_max_at "999.0";   set earliest_max_at_pin ""
+	set latest_max_at   "-999";    set latest_max_at_pin  ""
+
+	set format_line [format "# %10s | %10s | %-50s | %s" "max_at" "min_at" "ref_name" "pin_name"]; puts $format_line;
+	puts "#-------------------------------------------------------------------------------------------------------"
+	foreach_in_collection pin $fanout { 
+	    set object_class [get_attribute [get_pins -quiet $pin] object_class]
+	    set is_black_box "0"
+	    if { $object_class == "pin" } {
+		set pin_name    [get_object [get_pin $pin]]; 
+		set cell_name   [get_cell -of [get_pin -quiet $pin]]
+		set ref_name    [get_attribute $cell_name ref_name];
+		set is_black_box [get_attribute [get_cell $cell_name] is_black_box]		
+		set max_at      [get_attribute [get_pin -quiet $pin] max_arrival]; 
+		set min_at      [get_attribute [get_pin -quiet $pin] min_arrival]; 
+	    } else {
+		set ref_name "PORT"
+		set pin_name    [get_object [get_port $pin]]; 
+		set max_at      [get_attribute [get_port -quiet $pin] max_arrival]; 
+		set min_at      [get_attribute [get_port -quiet $pin] min_arrival]; 
+	    }
+
+	    if { !${is_black_box} } {
+		if { $max_at > $latest_max_at } { set latest_max_at "$max_at"; set latest_max_at_pin "$pin_name" }
+		if { $max_at > $latest_min_at } { set latest_min_at "$min_at"; set latest_min_at_pin "$pin_name" }
+		if { $max_at < $earliest_max_at } { set earliest_max_at "$max_at"; set earliest_max_at_pin "$pin_name" }
+		if { $min_at < $earliest_min_at } { set earliest_min_at "$min_at"; set earliest_min_at_pin "$pin_name" }
+		
+		set format_line [format "  %10s | %10s | %-50s | %s" $max_at $min_at $ref_name $pin_name]; 
+		puts $format_line 
+	    }
+	}
+
+	puts "#-------------------------------------------------------------------------------------------------------"
+	set format_line [format "# %10s | %10s | %-50s | %s" "max_at" "min_at" "ref_name" "pin_name"]; puts $format_line;
+	puts "#-------------------------------------------------------------------------------------------------------"
+	set format_line [format "# Earliest min arrival time = %10s @ %s" $earliest_min_at $earliest_min_at_pin]; puts $format_line;
+	set format_line [format "#   Latest min arrival time = %10s @ %s" $latest_min_at $latest_min_at_pin]; puts $format_line;
+	set format_line [format "# Earliest max arrival time = %10s @ %s" $earliest_max_at $earliest_max_at_pin]; puts $format_line
+	set format_line [format "#   Latest max arrival time = %10s @ %s" $latest_max_at $latest_max_at_pin]; puts $format_line
+    }
+}
+# End namespace eval ::dn {}
+
+puts "Loading proc '::dn::report_arrival_times_at_endpoints <startpoint>'"
