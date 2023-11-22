@@ -1,0 +1,32 @@
+namespace eval ::dn {} {
+
+    # This uses the Innovus color index starting at 64 and going down to 0
+    set ::dn::starting_color_index "64"  ; 
+
+    proc highlight_fanout_cone { startpoint } {
+	    
+	if {![info exists ::dn::color_index]} {
+	    set ::dn::color_index $::dn::starting_color_index
+	}
+
+	if { $::dn::color_index == 49 } { set ::dn::color_index 33 }
+	incr ::dn::color_index -1
+		
+	gui_deselect -all ; # Deselect all items in the GUI
+	puts "Highlighting fanout from '$startpoint'"
+	set cells [get_cells -of [all_fanout -from $startpoint]]
+	
+	select_obj $cells
+	gui_highlight -index $::dn::color_index
+    }
+}
+
+
+# -----------------------------------------------------------
+# Initialize Environment
+#gui_deselect -all ; # Deselect all items in the GUI
+#gui_clear_highlight; # Clear all highlight
+
+
+::dn::highlight_fanout_cone pclk
+#::dn::highlight_fanout_cone refclk
