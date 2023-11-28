@@ -1,0 +1,225 @@
+procedure ::gen::report::gen_create_reports {
+    -description "Common report creation proc for Genus"
+    -args { 
+	{-area \
+	    -type none \
+	    -default 1 \
+	    -description "area report"
+	}
+	{-boundary_opt \
+	    -type none \
+	    -default 1 \
+	    -description "boundary opt report"
+	}
+	{-clock_gating \
+	    -type none \
+	    -default 1 \
+	    -description "clock gating report"
+	}
+	{-design_rules \
+	    -type none \
+	    -default 1 \
+	    -description "design rules report"
+	}
+	{-gates \
+	    -type none \
+	    -default 1 \
+	    -description "gates report"
+	}
+	{-messages \
+	    -type none \
+	    -default 1 \
+	    -description "messages report"
+	}
+	{-multibit \
+	    -type none \
+	    -default 1 \
+	    -description "multibit report"
+	}
+        {-power \
+            -type none \
+            -default 1 \
+            -description "power report"
+        }
+	{-qor \
+	    -type none \
+	    -default 1 \
+	    -description "qor report"
+	}
+	{-timing \
+	    -type none \
+	    -default 1 \
+	    -description "timing report"
+	}
+        {-reports_dir \
+            -type existingdirectory \
+            -description "report dir pointer"
+        }
+	{-utilization \
+	    -type none \
+	    -default 1 \
+	    -description "utilization report"
+	}
+	{-vt_groups \
+	    -type none \
+	    -default 1 \
+	    -description "vt_groups report"
+	}
+        {-file_prefix \
+            -type string \
+            -description "file prefix to use for rpt"
+        }
+    }
+} {
+
+    puts "DEBUG: got here 99"
+    set prefix ${::DESIGN}.$::SESSION(tool).syn.$::SESSION(step_suffix)   
+
+    if {![info exists reports_dir]} {
+	set reports_dir ./report
+    }
+
+    ################################################################################
+    #proc gen_Report_Area_Hier {}
+    log -info "Report Area"
+    if { $area } {
+	set total_hm_area 0
+	## find / -inst * == hier and leaf inst
+	foreach macro [get_db [get_cells -hier] -if {.is_macro==true}] {
+	    set total_hm_area [expr $total_hm_area + [get_db $macro .area]]
+	}
+	set total_area [get_db [current_design] .area]
+	redirect -tee $reports_dir/$prefix.area_hier.rpt {
+	    format "%-*s %*s" 40 "Macro area:" 20 [format %.1f $total_hm_area]
+	    format "%-*s %*s" 40 "Std area:" 20 [format %.1f [expr $total_area - $total_hm_area]]
+	    format "%-*s %*s" 40 "Total area:" 20 [format %.1f $total_area]
+	}
+    }
+    
+    if { $boundary_opt } {
+	#proc gen_Report_Boundary_Opt {}
+	log -info "Report Boundary Opt"
+	redirect -tee $reports_dir/$prefix.boundary_opt.rpt { report_boundary_opt }
+    }
+    
+    if { $clock_gating } { 
+	#proc gen_Report_Clock_Gating {}
+	log -info "Report Clock Gating"
+	redirect -tee $reports_dir/$prefix.clock_gating_summary.rpt { report_clock_gating -summary }
+	redirect -tee $reports_dir/$prefix.clock_gating_ungated.rpt { report_clock_gating -ungated -detail }
+    }
+
+    if { $design_rules } { 
+	#proc gen_Report_Design_Rules {}
+	log -info "Report Design Rules"
+	redirect -tee $reports_dir/$prefix.drv.rpt { report_design_rules }
+    }
+
+
+    if { $gates } {
+	#proc gen_Report_Gates {}
+	log -info "Report Gates"
+	redirect -tee $reports_dir/$prefix.gate.rpt { report_gates -power }
+    }
+    
+    if { $messages } { 
+	#proc gen_Report_Messages {}
+	log -info "Report Messages"
+	redirect $reports_dir/$prefix.msg.rpt { report_messages }
+    }
+    
+    if { $multibit } { 
+	#proc gen_Report_Multibit {} 
+	log -info "Report Multibit Inferencing"
+	redirect -tee $reports_dir/$prefix.multibit.rpt { report_multibit_inferencing }	
+	redirect -tee $reports_dir/$prefix.multibit.map.rpt { report_multibit_inferencing -mapping }
+    }
+    
+    if { $power } {
+	#proc gen_Report_Power {}
+	log -info "Report Power"
+	redirect -tee $reports_dir/$prefix.power.rpt { report_power -unit mW }
+
+	#proc gen_Report_Power_Intent {}
+	log -info "Reporting Power Intent"
+	redirect -tee $reports_dir/$prefix.power_intent.rpt { report_power_intent }
+    
+	#proc gen_Report_Power_Intent_Instances {}
+	log -info "Reporting Power Intent Instances"
+	redirect $reports_dir/$prefix.power_intent_instances.rpt { report_power_intent_instances -detail }
+    }
+
+    if { $qor } {
+	#proc gen_Report_QOR {}
+	log -info "Reporting QOR"
+	redirect -tee $reports_dir/$prefix.qor.rpt { report_qor }
+    }
+
+    if { $timing } { 
+	#proc gen_Report_Timing {}
+	file delete $reports_dir/$prefix.timing.rpt
+	foreach cg [get_db cost_groups] {
+	    redirect -append $reports_dir/$prefix.timing.rpt {
+		
+		set_db timing_report_fields {timing_point arc edge cell fanout load transition transition_mean transition_sigma delay delay_mean delay_sigma arrival_mean arrival_sigma arrival instance_location user_derate aocv_derate socv_derate total_derate}
+		report_timing -hpins -max_paths 100 -cost_group [list $cg] 
+		
+		#report_timing -hpins -user_derate -max_paths 100 -cost_group [list $cg] 
+	    }
+	}
+    }
+    
+    if { $utilization } {
+	#proc gen_Report_Utilization {}
+	log -info "Reporting Utilization"
+	redirect -tee $reports_dir/$prefix.utilization.rpt { report_utilization }
+    }
+    
+    ################################################################################
+    if { $vt_groups } {
+	log -info "Reporting VT groups"
+	if { 1 } {
+	    ::inv::common::report_vt_groups -vt_groups [::common::util::find_vts] -output $reports_dir/$prefix.vt_groups.rpt
+	} else {
+	    #proc gen_Report_Vt_Groups {cellPatternList outfile} 
+	    file delete $outfile
+	    set total_cells 0
+	    set total_area  0
+	    set design [get_db [current_design] .name]
+	    set max_string_length 0
+	    foreach cellType $cellPatternList {
+		set cells [get_cells -quiet -hier -filter "ref_name=~$cellType"]
+		if { [set cellCount($cellType) [llength $cells]] } {
+		    set cellArea($cellType) [expr [join [get_db $cells .area] +]]
+		    incr total_cells $cellCount($cellType)
+		    set total_area [expr $total_area + $cellArea($cellType)]
+		} else {
+		    set cellArea($cellType) 0
+		}
+		set max_string_length [expr max($max_string_length,[string length $cellType])]
+	    }
+	    
+	    set catergorized_num 0
+	    set catergorized_area 0
+	    if { $total_cells == 0 } { set total_cells 1 ; set total_area 1 }
+	    foreach cellType $cellPatternList {
+		set out "[format %-*s $max_string_length $cellType] : [format {count %.2f%% - area %.2f%%} [expr $cellCount($cellType)* 100.0 / ${total_cells}] [expr $cellArea($cellType)* 100.0 / ${total_area}]]"
+		echo $out 
+		echo $out >> $outfile
+		incr catergorized_num  $cellCount($cellType)
+		set catergorized_area [expr $catergorized_area + $cellArea($cellType)]
+	    }
+	}
+    }
+
+    ################################################################################
+    if { 0 } {
+	proc gen_Report_Threshold_Voltage_Group {} {
+	    genReportVtGroups $::LIBCELL(vt_groups) $reports_dir/${::DESIGN}_$::SESSION(step_suffix).VT.rpt
+	}
+    }
+
+}
+
+
+
