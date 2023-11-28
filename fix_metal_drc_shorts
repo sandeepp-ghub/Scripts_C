@@ -1,0 +1,15 @@
+set i 0; foreach marker [get_db current_design .markers -if { .layer == layer:M1 }] {
+    incr i; 
+    set box [string range [get_db $marker .bbox] 1 end-1]
+    set x0 [format %.2f [lindex $box 0]]; 
+    set y0 [format %.2f [lindex $box 1]]; 
+    set x1 [format %.2f [lindex $box 2]]; 
+    set y1 [format %.2f [lindex $box 3]]; 
+    #puts "box = '$box' ==> x0 = $x0 | y0 = $y0 | x1 = $x1 | y1 = $y1"
+    if { 1 || $x0 > 693.5 && $x1 < 694.0 && $y0 > 194.0 && $y1 < 195.0 } {
+	select_obj [get_obj_in_area -area $box -obj_type special_wire]; puts "$i) $marker ==> $box"  
+    } 
+}
+
+puts "To deleting trim routes, type 'edit_trim_routes -selected'"
+#edit_trim_routes -selected
