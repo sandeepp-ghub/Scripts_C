@@ -1,0 +1,122 @@
+#!/bin/tclsh
+namespace eval ::dn {} {
+
+    set script_info [info script]
+
+    proc read_pt_failing_paths_rpt { fname } {
+	if {![file exists $fname]} {
+	    puts "(E): Specified filename doesn't exists:"
+	    puts "     $fname"
+	} else {
+            set fid [open "| gzip -cd $fname" r]
+            set split_fname [split $fname "/"]
+	    set design      [lindex $split_fname [expr [lsearch $split_fname "pt.signoff"] - 2]]
+            set track_name  [lindex $split_fname [expr [lsearch $split_fname "pt.signoff"] - 1]]
+            regsub "\.gz" [file tail $fname] "" filetail   ; # Remove the .gz from the filetail
+	    regsub "_failing_paths" $filetail "" parent_corner_name ; # Remove the _failing_paths to get the corner name
+	    set output_dir  "$::env(HOME)/PT_to_INV_analysis/$design/$track_name"
+	    if {![file exists $output_dir]} {
+		puts "(I): Creating $output_dir ..."
+		file mkdir $output_dir
+	    }
+	    set output_fname "$output_dir/INV-show_paths_failing_from_PT-${parent_corner_name}-${filetail}.tcl"
+
+	    set output_id [open $output_fname w]
+	    
+	    puts "(I): Reading in $filetail"
+	    puts "(I): Writing compare data to $output_fname"
+
+	    # Initialize variables
+	    set startpoint ""
+	    set endpoint   ""
+	    set path_group ""
+	    set path_type  ""
+	    set begin_path_collection 0
+	    set end_path_collection 0
+	    set path_index 0
+	    set cells_in_path ""
+	    set nets_in_path  ""
+	    set endpoint_pin ""
+	    set startpoint_pin ""
+	    puts $output_id "# Source this file into Innovus interactive session with invcui.post.opt or invcui.post.eco session loaded to view the cells and nets that were failing in PrimeTime"
+	    puts $output_id "#set ::path_collection($path_index) { path_group   path_type   startpoint_pin  endpoint_pin  { unique_cells_in_path } { unique_nets_in_path } }"
+	    puts $output_id "# -------------------------------------------------------------------"
+	    puts $output_id ""
+	    puts $output_id "puts \"(I): Sourcing $::dn::script_info to analyze fails in [file tail $output_fname]\""
+	    puts $output_id "source $::dn::script_info"
+	    puts $output_id "array unset ::path_collection"
+	    while {[gets $fid line] >= 0} {
+		if {[string match "*Startpoint:*" $line]} { set startpoint [lindex $line end] }
+		if {[string match "*Endpoint:*" $line]}  { set endpoint   [lindex $line end] }
+		if {[string match "Group:" [lindex $line 1]] } { set path_group [lindex $line end]}
+		if {[string match "Type:" [lindex $line 1]]} { set path_type [lindex $line end]}
+
+		if {[string match "$startpoint/*" [lindex $line 0]]} { 
+		    #puts "STARTING PATH COLLECTION ($path_index): $line"
+		    set begin_path_collection 1 
+		    set cells_in_path ""
+		    set nets_in_path  ""
+		    set startpoint_pin [lindex $line 0]
+		} elseif {[string match "$endpoint/*" [lindex $line 0]] && $begin_path_collection } {
+		    incr path_index
+		    #puts "ENDING PATH COLLECTION ($path_index): $line"
+		    set begin_path_collection 0
+		    set end_path_collection   1
+		    set endpoint_pin [lindex $line 0]
+		    set unique_cells_in_path [lsort -unique $cells_in_path]
+		    set unique_nets_in_path  [lsort -unique $nets_in_path]
+		    # Data Dump to file
+		    puts $output_id "set ::path_collection($path_index) { {$path_group} {$path_type} {$startpoint_pin} {$endpoint_pin} { $unique_cells_in_path } { $unique_nets_in_path } }"
+
+		    # Reset variables
+		    set cells_in_path ""
+		    set nets_in_path ""
+		    set unique_cells_in_path ""
+		    set unique_nets_in_path ""
+		    set startpoint_pin ""
+		    set endpoint_pin ""
+		    set path_type ""
+		    set path_group ""
+
+		}
+
+		if { $begin_path_collection } {
+		    if {[string match $line *edge*]} { 
+			set path_delay    [lindex $line end]
+			set clock_name_sp [lrange $line 0 3]
+			set format_line   [format "100s %s" $clock_name_sp $path_delay]
+			puts $format_line
+		    } elseif {[string match $line *unconnected*]} {
+			set path_delay    [lindex $line end-2]
+			set instance      [lindex [split [lindex $line 0] "/"] 0]
+			set format_line   [format "100s %s" $instance $path_delay]
+			puts $format_line
+		    }
+		}
+
+		set split_line [split $line ","]
+		set sp [string trim [lindex $split_line 0]]
+	    }
+
+	    puts $output_id ""
+	    puts $output_id "# -------------------------------------------------------------------"
+	    puts $output_id "puts { There are cells/nets from $path_index paths to analyze }"
+	    puts $output_id "puts { Call ::dn::highlight_cells_and_nets <path_index> }"
+	    puts $output_id "puts { ex: (1st)  ::dn::highlight_cells_and_nets 1 }"
+	    puts $output_id "puts { ex: (last) ::dn::highlight_cells_and_nets $path_index }"
+	    close $fid
+	    close $output_id
+	    puts "Analyzed $path_index paths"
+	    puts "Finished writing to $output_fname"
+	}
+	# End if/else {![file exists $fname]}
+
+    }
+    # End proc read_pt_failing_paths_rpt { fname }
+
+}
+# End namespace eval ::dn {}
+#puts "::dn::read_pt_failing_paths_rpt <corner_failing_paths.rpt.gz>"
+::dn::read_pt_failing_paths_rpt pemc-internal.rpt.gz
+
+
