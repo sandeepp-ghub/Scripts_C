@@ -1,0 +1,8 @@
+#!/bin/tcsh
+
+set dc_log = $1
+
+# This command parses the Innovus clock latency report
+# ex: <track>/invcui.cts/report/invcui.cts.clock_timing.latency.rpt.gz
+cat $dc_log | \grep -B 1 Error: | awk '{if($0~/Warning:/){printf "%s ==> ", $0} else {print $0}}' | sort | uniq -c | less 
+
