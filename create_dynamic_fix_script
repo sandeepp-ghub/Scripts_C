@@ -1,0 +1,80 @@
+source /user/spletch/SCRIPTS/t103/add_additional_pg_m1_thru_m9_H210.tcl
+
+#set POWER_LIMIT 0.740 ; # Scott Pletch's original value
+set POWER_LIMIT "0.721875";  # 12.5% ir drop threshold for Odyssey on 9/20/2022
+#set POWER_LIMIT "0.705"
+set DYNAMIC_FIX_BOXES_FILE ../DYNAMIC_FIX_BOXES.tcl
+
+set IPBU_DEFINES(draw_pg_layer_name_list) [list M1 M2 M3 M4 M5 M6 M7 M8 M9] 
+set primary_power [get_db [get_db power_domains -if {.is_default }] .primary_power_net.name]
+set primary_ground [get_db [get_db power_domains -if {.is_default }] .primary_ground_net.name]
+set IPBU_DEFINES(gnd_net) $primary_ground
+set IPBU_DEFINES(pwr_net) $primary_power
+#set DYNAMIC_FILE [glob ../pgv.signoff.dynamic.bak.1/dynamic_run/adsRail/*_105C_dynamic_1/reports/rail/domain/${primary_power}_${primary_ground}.worstavg.iv]
+set DYNAMIC_FILE [glob ../dynamic_ir_fails.bak.1/${primary_power}_${primary_ground}.worstavg.iv]
+#set DYNAMIC_FILE [glob ../pgv.signoff.dynamic/dynamic_run/adsRail/*_105C_dynamic_1/reports/rail/domain/${primary_power}_${primary_ground}.worstavg.iv]
+
+set DYNAMIC_IN_FILE [open $DYNAMIC_FILE r]
+
+set failing_insts {}
+
+foreach line [split [read $DYNAMIC_IN_FILE] \n] {
+ set line [regsub -all {\s+} $line " "]
+ set spline [split $line " "]
+ if {[llength $spline] == 11} {
+  if {[lindex $spline 0] == "-"} {
+   if {[lindex $spline 2] != "NA"} {
+     set power [expr [lindex $spline 2]]
+     set inst [lindex $spline 1]
+     set cell_type [lindex $spline 8]
+     if {[expr $power < $POWER_LIMIT]} {   
+       lappend failing_insts $inst
+      }
+   }
+  }
+ }
+}
+
+close $DYNAMIC_IN_FILE
+set failing_insts_boxes [get_db [get_db insts $failing_insts] .bbox]
+
+set areas [get_computed_shapes -output polygon [get_computed_shapes -output polygon $failing_insts_boxes SIZEY 0.840 SIZEX 0.84] SIZEY -0.740 SIZEX -0.63]
+set floorplan_boxes [get_computed_shapes -output rect [get_db current_design .boundary] SIZEX -2.2 SIZEY -2]
+set areas_within_floorplan [get_computed_shapes -output rect $areas AND $floorplan_boxes]
+set macro_boxes [get_computed_shapes -output rect [get_db [get_db insts * -if {.is_macro == true}] .bbox] SIZEX 1.2 SIZEY 0.8]
+set add_power_boxes [get_computed_shapes -output rect [get_computed_shapes -output rect [get_computed_shapes -output rect $areas_within_floorplan ANDNOT $macro_boxes] SIZE 2] SIZE -2]
+set IPBU_DEFINES(bbox_list_to_target_for_additional_pg) $add_power_boxes
+
+set DYNAMIC_FIX_BOXES_OUT_FILE [open $DYNAMIC_FIX_BOXES_FILE w]
+
+
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "source /user/spletch/SCRIPTS/t103/add_additional_pg_m1_thru_m9_H210.tcl"
+
+#puts $DYNAMIC_FIX_BOXES_OUT_FILE "set POWER_LIMIT 0.740"
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "set POWER_LIMIT $POWER_LIMIT"
+
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "set IPBU_DEFINES\(draw_pg_layer_name_list\) \[list M1 M2 M3 M4 M5 M6 M7 M8 M9\]"
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "set primary_power \[get_db \[get_db power_domains -if \{.is_default \}\] .primary_power_net.name\]"
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "set primary_ground \[get_db \[get_db power_domains -if \{.is_default \}\] .primary_ground_net.name\]"
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "set IPBU_DEFINES\(gnd_net\) $primary_ground"
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "set IPBU_DEFINES\(pwr_net\) $primary_power"
+
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "\n"
+
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "set IPBU_DEFINES\(bbox_list_to_target_for_additional_pg\) \[list \\"
+foreach box $add_power_boxes { puts $DYNAMIC_FIX_BOXES_OUT_FILE " \{ $box \} \\" }
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "\]"
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "\n"
+
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "gui_delete_objs -shape; # Clear all lines"
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "foreach bbox \$IPBU_DEFINES(bbox_list_to_target_for_additional_pg) \{"
+puts $DYNAMIC_FIX_BOXES_OUT_FILE {   create_gui_shape -layer dynamic_ir -rect $bbox -width 2 }
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "\}"
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "\n"
+
+puts $DYNAMIC_FIX_BOXES_OUT_FILE "#ipbu_add_additional_pg_m1_thru_m9"
+
+close $DYNAMIC_FIX_BOXES_OUT_FILE
+
+#create_gui_shape -layer 1 -rect $rect
+
