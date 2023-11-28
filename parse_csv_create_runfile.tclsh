@@ -1,0 +1,110 @@
+#!/bin/tclsh
+
+# sven1 | grep -e track -e invcui | grep -v drc | sed 's/*//g' | awk '{if($0~/track/){printf "\n%s ", $0} else {printf " %s,%s", $1, $(NF-2)}}' | awk '{for(i=2; i<=NF; i++) {print $1, $i}}' | sed -e 's/\,/ /' -e 's/:/ /g' | awk '{seconds=3600*$(NF-2)+60*$(NF-1)+NF;   printf "%s %s %s\n", $2, $1, seconds}' | sort > ~/scripts/runtimes.csv
+
+set input_file [lindex $argv 0]
+if {![file exists $input_file]} {
+    puts "(E): Input_file doesn't exist"
+} else {
+    set colors "red blue green yellow purple cyan magenta"
+
+    set input_id [open $input_file r]
+
+    array unset all_runtime_data
+
+    set all_runtypes ""
+    set all_tracks   ""
+    set all_unique_runtypes ""
+    set all_unique_tracks ""
+    
+    set x_axis_labels "" ; # This will be the first field
+
+    while {[gets $input_id line] >= 0 } {
+	if {[llength $line] > 0 } {
+	    set runtype [lindex $line 0]
+	    set track   [lindex [split [lindex [split [lindex $line 1] "/"] 1] "."] 1]
+	    set time_value [lindex $line 2]
+	    set all_runtime_data($runtype:$track) "$time_value"
+	    append all_tracks " $track"
+	    append all_runtypes " $runtype"
+	}
+    }
+    
+    #parray all_runtime_data
+
+    set all_unique_tracks   [lsort -unique $all_tracks]
+    set all_unique_runtypes [lsort -unique $all_runtypes]
+
+    # --------------------------------------------------
+    # Build a string of the unique runtypes
+    set runtypes_string "runtypes = \["
+    set i 0
+    foreach runtype [lsort $all_unique_runtypes] {
+	if { $i > 0 } { append runtypes_string "," }
+	append runtypes_string " '$runtype'" 
+	incr i
+    }
+    append runtypes_string "\]"
+
+    puts "all_unique_tracks = $all_unique_tracks"
+    array unset all_values
+    # --------------------------------------------------
+    foreach track [lsort $all_unique_tracks ] {
+	set all_track_strings($track) "$track = np.array\(\["
+	set i 0
+	puts "$track : $all_unique_runtypes"
+	set all_values($track) ""
+	foreach runtype [lsort $all_unique_runtypes ] {
+	    set value "0"
+	    if { $i } { append all_track_strings($track) "," }
+	    if {[info exists all_runtime_data($runtype:$track)]} {
+		set value "$all_runtime_data($runtype:$track)"
+		append all_values($track) " $value"
+	    }
+	    append all_track_strings($track) "$value"
+	    incr i
+	}
+	
+	append all_track_strings($track) "\]\)"
+    }
+
+    parray all_values
+    #parray all_track_strings
+    
+    set output_file "stacked_barplot.py"
+    set output_id  [open $output_file w]
+    
+    set first_line [join "# ! /proj/eda/UNSUPPORTED/PYTHON/3.6.8/bin/python3.6" ""]
+    puts $output_id "$first_line"
+    puts $output_id ""
+    puts $output_id "import numpy as np"
+    puts $output_id "import matplotlib.pyplot as plt"
+    puts $output_id "from matplotlib import rc"
+    puts $output_id ""
+    puts $output_id "rc('font', weight='hold')"
+    puts $output_id ""
+    puts $output_id "$runtypes_string"
+    foreach track_string [lsort [array names all_track_strings]] {
+	puts $output_id "$all_track_strings($track_string)"
+    } 
+    
+    puts $output_id "ind = \[runtype for runtype in runtypes\]"
+    puts $output_id ""
+    set i 0
+    foreach track_string [lsort -decreasing [array names all_track_strings]] {
+	set color [lindex $colors $i]
+	puts $output_id "plt.bar(ind, $track_string, width=0.6, label='$track_string', color='$color')"
+    }
+
+    puts $output_id "plt.xticks(ind, runtypes)"
+    puts $output_id "plt.ylabel(\"Runtime\")"
+    puts $output_id "plt.xlabel(\"Tracks\")"
+    puts $output_id "plt.legend(loc=\"upper right\")"
+    puts $output_id "plt.title(\"Runtime data for Innovus Steps\")"
+    puts $output_id "plt.show()"
+
+    puts "Finished writing to $output_file"
+    close $input_id
+    close $output_id
+}
+puts [exec cat $output_file]
