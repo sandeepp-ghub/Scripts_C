@@ -1,0 +1,78 @@
+set inputs  [get_db ports -if {.direction==in &&.name!=*BP* &&.name!=*Clk* && .name!=*clk* && .name !=*CLK* && .name!=*hub* &&.name!=*jtag* }]
+set outputs [get_db ports -if {.direction==out &&.name!=*BP*}]
+
+foreach p $inputs {
+    puts $p
+    set cells [get_object_name [all_fanout -from $p -endpoints_only -only_cells -trace_through all]]
+    set insts [get_db insts $cells]
+    set pins [get_db [get_db $insts .pins -if {.name==*/D* &&.name!=*hub* &&.name!=*DIODE* && .name==*shared_ac*}] .name]
+    foreach pin $pins {
+        set ports [get_db [all_fanin -to $pin -startpoints_only -trace_through all] -if {.obj_type==port && .name!=*BP* && .name !=*BypassMode* && .name !=*TestMode* && .name !=*scan* && .name !=*jtg*}]
+        if {[llength $ports] > 1} {
+            set MDB($pin) $ports
+        }
+    }
+}
+
+foreach p $outputs {
+    puts $p
+    set cells [get_object_name [all_fanin -to $p -startpoints_only -only_cells -trace_through all]]
+    set insts [get_db insts $cells]
+    puts $insts
+    set pins [get_db [get_db $insts .pins -if {.name==*/Q* &&.name!=*hub* &&.name!=*DIODE*}] .name]
+    puts $pins
+    foreach pin $pins {
+        set ports [get_db [all_fanout -from $pin -endpoints_only -trace_through all] -if {.obj_type==port && .name!=*BP* && .name !=*BypassMode* && .name !=*TestMode* && .name !=*scan* && .name !=*jtg*}]
+        if {[llength $ports] > 1} {
+            set MODB($pin) $ports
+        }
+    }
+}
+
+
+
+
+foreach p $inputs {
+    puts $p
+    set cells [get_object_name [all_fanout -from $p -endpoints_only -only_cells -trace_through all]]
+    set insts [get_db insts $cells]
+    set pins [get_db [get_db $insts .pins -if {.name==*/D* &&.name!=*hub* &&.name!=*DIODE*  }] .name]
+    foreach pin $pins {
+        set ports [get_db [get_db [all_fanin -to $pin -startpoints_only -trace_through all] -if {.obj_type==port && .name!=*BP* && .name !=*BypassMode* && .name !=*TestMode* && .name !=*scan* && .name !=*jtg*}] .name]
+        if {[llength $ports] > 1} {
+            set MDB($pin) $ports
+        }
+    }
+}
+
+foreach reg [array names MDB] {
+    set txt "${reg}"
+    foreach p $MDB($reg) {
+        set txt "$txt,$p"
+    }
+    redirect -append input2reg  {puts "$txt"}    
+}
+
+foreach p $outputs {
+    puts $p
+    set cells [get_object_name [all_fanin -to $p -startpoints_only -only_cells -trace_through all]]
+    set insts [get_db insts $cells]
+    puts $insts
+    set pins [get_db [get_db $insts .pins -if {.name==*/Q* &&.name!=*hub* &&.name!=*DIODE*}] .name]
+    puts $pins
+    foreach pin $pins {
+        set ports [get_db [get_db [all_fanout -from $pin -endpoints_only -trace_through all] -if {.obj_type==port && .name!=*BP* && .name !=*BypassMode* && .name !=*TestMode* && .name !=*scan* && .name !=*jtg*}] .name]
+        if {[llength $ports] > 1} {
+            set MODB($pin) $ports
+        }
+    }
+
+foreach reg [array names MODB] {
+    set txt "${reg}"
+    foreach p $MODB($reg) {
+        set txt "$txt,$p"
+    }
+    redirect -append reg2out  {puts "$txt"}    
+}
+
+}
