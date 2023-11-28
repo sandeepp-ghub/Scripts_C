@@ -1,0 +1,58 @@
+#!/bin/tclsh
+
+array unset net_pd_data
+array unset net_timing_data
+
+set input_pd_file [lindex $argv 0]
+set input_timing_file [lindex $argv 1]
+set output_merged_file [lindex $argv 2]
+if {![file exists $input_pd_file]} {
+    puts "(E): Must provide valid input PD file: '$input_pd_file'"
+} elseif {![file exists $input_timing_file]} {
+    puts "(E): Must provide valid input timing file: '$input_timing_file'"
+} else {
+    puts "##Reading PD data file: '$input_pd_file'"
+    puts "##Reading Timing data file: '$input_timing_file'"
+    puts "#-----"
+    #set output_merged_id [open $output_merged_file w]
+    set input_timing_id  [open $input_timing_file  r]
+    while {[gets $input_timing_id line] >= 0 }  {
+	if {[lindex $line 0] != "net" } {
+	    set netname [lindex $line 0]
+	    set worst_min_slack [format %.3f [lindex $line 1]]
+	    set worst_max_slack [format %.3f [lindex $line 2]]
+	    set slack_window    [format %.3f [lindex $line 3]]
+	    set fanout          [format "%.0f" [lindex $line 4]]
+	    set net_timing_data($netname) "$worst_min_slack $worst_max_slack $slack_window $fanout"
+	}
+    }
+
+    set input_pd_id [open $input_pd_file r]
+    puts "#CELL: CellName EIV ==> REF_NAME"
+    puts "NETNAME: Netname Length --> MinSlack MaxSlack  SlackWindow Fanout"
+    while {[gets $input_pd_id line2] >= 0 } {
+
+	if {[string match "NETNAME:*" $line2]} {
+	    set worst_min_slack "NA"
+	    set worst_max_slack "NA"
+	    set fanout "NA"
+	    set slack_window "NA"
+	    set netname [lindex $line2 1]
+	    if {[info exists net_timing_data($netname)]} {
+		set worst_min_slack [lindex $net_timing_data($netname) 0]
+		set worst_max_slack [lindex $net_timing_data($netname) 1]
+		set slack_window    [lindex $net_timing_data($netname) 2]
+		set fanout          [lindex $net_timing_data($netname) 3]
+	    }
+	    puts "$line2 --> ${worst_min_slack}ns    ${worst_max_slack}ns    ${slack_window}ns    $fanout"
+	} else {
+	    puts "$line2"
+	}
+    }
+
+    close $input_pd_id
+    close $input_timing_id
+    #close $output_merged_id
+    
+    
+}
