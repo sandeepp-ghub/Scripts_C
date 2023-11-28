@@ -1,0 +1,249 @@
+#!/usr/bin/tclsh
+
+# Description: 
+# Author: Dileep Netrabile
+
+proc create_divider_line { character width } {
+    set divider_line ""
+    for {set i 0} {$i < $width} {incr i} { append divider_line "$character" }
+    return $divider_line
+}
+
+#set date_string "20191127_123740"
+
+set user_defined_version ""
+set block ""
+set default_column_width "60"
+
+# User must provide a design
+set block [lindex $argv 0]
+#set block "gserc_bphy"
+set user_defined_version [lindex $argv 1]
+set user_defined_column_width [lindex $argv 2]
+
+# User can adjust the column width if necessary
+if { $user_defined_column_width != "" && $user_defined_column_width > 50} {
+    set column_width "$user_defined_column_width"
+} else {
+    set column_width "$default_column_width"
+}
+
+# Check if reporting trans violations (default is split_bus_compressed)
+if {[string match -nocase "*trans*" $argv ]} {
+    set report_type "split_trans"
+} elseif {[string match -nocase "*cap*" $argv]} {
+    set report_type "split_cap"
+} elseif {[string match -nocase "*period*" $argv]} {
+    set report_type "split_period"
+} elseif {[string match -nocase "*pulse*" $argv]} {
+    set report_type "split_pulse"
+} else {
+    set report_type "split_bus_compressed"
+}
+
+set debug 0
+puts ""
+puts "[info script] $argv"
+puts ""
+puts "Report_type: $report_type"
+puts ""
+if {[llength $argv] == "0" } {
+    puts "Error: Usage:  compile_summary_reports.tclsh <required-block_name> <optional-user_defined_version>"
+} else {
+    #set user_defined_version "V15"
+    
+    # If user doesn't provide a version for the pnr release, then just glob 
+    set physmnt  $env(PHYSMNT)
+    set physproj $env(PHYSPROJ)
+    
+    # PHYSMNT=/f95n/phys
+    # PHYSPROJ=f95n_1.0
+    set nightly_dir "$physmnt/$physproj/timing/nightly"
+    
+    # Define the list of potential runtypes in a list
+    set potential_dirs [list "nightly_rundirs" \
+			    "nightly_scan_shift_rundirs" \
+			    "nightly_scan_at_speed_capture_rundirs" \
+			    "nightly_scan_stuck_at_capture_rundirs"]
+    
+    array unset pnr_version_runtype_array
+    array unset pnr_version_to_runtypes
+    set all_pnr_versions ""
+    # Cycle through each of the nightly rundir types
+    foreach potential_dir $potential_dirs {
+	set nightly_potential_dir "$nightly_dir/$potential_dir"
+	
+	# Get a list of all the runs launched under the nightly_potential_dir (this will have a timestamp name)
+	# ex: /f95n/phys/f95n_1.0/timing/nightly/nightly_scan_at_speed_capture_rundirs/gserc_bphy____20191025_115627
+	set all_rundirs [lsort [glob -nocomplain $nightly_potential_dir/${block}_*]]
+	
+	foreach rundir $all_rundirs {
+	    if { $debug } { puts "rundir = $rundir" }
+	    set test_this_link "$rundir/inp/pnr/gserj_dlm"
+	    # For this directory, get the pnr version number by reading the softlink
+	    if {[file exists $test_this_link]} {
+		set pnr_version_dir [file readlink $test_this_link]
+		set pnr_version  [file tail $pnr_version_dir]
+		# To make the sorting 
+		#if {[string length $pnr_version] == "2" } { regsub "V" $pnr_version "V0" pnr_version }
+		set pnr_version_runtype_array(${pnr_version}:${potential_dir}) "$rundir"
+		if {![info exists pnr_version_to_runtypes($pnr_version)]} {
+		    set pnr_version_to_runtypes($pnr_version) "${potential_dir}"
+		} else {
+		    lappend pnr_version_to_runtypes($pnr_version) "${potential_dir}"
+		}
+		append all_pnr_versions " $pnr_version"
+	    }
+	}	
+    } 
+    
+    set all_pnr_versions [lsort -dictionary -unique $all_pnr_versions]
+    #parray pnr_version_runtype_array
+    #parray pnr_version_to_runtypes
+    puts "all_pnr_versions = '$all_pnr_versions' found for '$block'"
+    
+    set max_runtypes "0"
+    set use_this_version ""
+    
+    # Check if the user_defined_version is one of the pnr versions that it found
+    if {[lsearch $all_pnr_versions "$user_defined_version"] == -1 } {
+	puts "Error: Timing runs using specified version ($user_defined_version) couldn't be located"
+    } else {
+	set use_this_version "$user_defined_version"
+ 
+    
+	# If a user-defined version hasn't already been specified 
+	if { $use_this_version == "" } {
+	    foreach pnr_version [lsort -dictionary [array names pnr_version_to_runtypes]] {
+		if {[llength $pnr_version_to_runtypes($pnr_version)] >= $max_runtypes } {
+		    set use_this_version "$pnr_version"
+		} else {
+		    puts "Warning: newer version ($pnr_version) exists but has less available runtypes than ($use_this_version)"
+		}
+	    }
+	}
+	puts "use_this_version = $use_this_version\n"
+	
+	if { 1 } {
+	    # Read in the summary files for the given PNR version
+	    set max_line_number "0"
+	    set max_line_width "0"
+	    set all_corner_names ""
+	    array unset summary_line_array
+	    foreach {pnr_version_to_runtype  runtypes} [array get pnr_version_to_runtypes] {
+		#puts "$pnr_version_to_runtype : $runtypes"
+		set split_pnr_version_to_runtype [split $pnr_version_to_runtype ":"]
+		set pnr_version [lindex $split_pnr_version_to_runtype 0]
+		# Execute for the matching pnr_version only
+		if { $pnr_version == $use_this_version } {
+		    # Cycle through each runtype
+		    #set final_runtypes [lsort -unique "$runtypes"]
+		    set final_runtypes "$potential_dirs"
+		    foreach runtype $final_runtypes {
+			if {![info exists pnr_version_runtype_array(${pnr_version}:${runtype})]} {
+			    set dirname ""
+			} else {
+			    set dirname "$pnr_version_runtype_array(${pnr_version}:${runtype})"
+			}
+			puts "Runtype: $pnr_version $runtype=$dirname"
+			set summary_files [lsort [glob -nocomplain $dirname/reports/split_reports/*/${report_type}/SUMMARY*gz]]
+			# Cycle through each summary file found
+			foreach summary_file $summary_files {
+			    set line_number 0
+			    set corner_name [lindex [split $summary_file "/"] end-2]
+			    append all_corner_names " $corner_name"
+			    set fid [open "|gzip -cd $summary_file"]
+			    if { $debug } {
+				puts ""
+				puts "CORNER: $corner_name"
+			    }
+			    
+			    while {[gets $fid line] >= 0 } {
+				if { $line_number > $max_line_number } { set max_line_number "$line_number" }
+				set line_width [string length $line]
+				if { $line_width > $max_line_width } { set max_line_width "$line_width" }
+				set summary_line_array($line_number.$runtype.$corner_name) "$line"
+				#puts "$line"
+				incr line_number
+			    }
+			}
+			#puts "#########################################################################"
+		    }
+		    #break
+		}
+	    }
+	    if { $debug } {
+		parray summary_line_array
+		puts "all_corner_names = $all_corner_names"
+		puts "final_runtypes = $final_runtypes"
+		puts "max_line_number = $max_line_number"
+	    }
+	    
+	    set column_width [expr "$max_line_width" + 2]
+	    
+	    puts ""
+	    # Create a header row to show the runtype
+	    for {set j 0} {$j < [llength $final_runtypes]} { incr j } {
+		# Print column header
+		set format_line [format "%${column_width}s | " "*** [lindex $final_runtypes $j] ***" ]; puts -nonewline $format_line
+	    }
+	    puts ""
+	    
+	    # Repeat for each unique corner_name
+	    foreach corner_name [lsort -unique $all_corner_names] {
+		# Create a header row to separate the corner name sections
+		for {set j 0} {$j < [llength $final_runtypes]} { incr j } {
+		    for {set i 0} {$i < $column_width} {incr i} { append divider_line "+" }
+		    set divider_line [create_divider_line "-" "$column_width"]
+		    set format_line [format "%-${column_width}s + " $divider_line]; puts -nonewline $format_line
+		}
+		puts ""  ; # Insert new line after a divider line
+		
+		# New row for the corner name
+		# ex:           max1 |       max1 |       max1 |       max1 |
+		for {set j 0} {$j < [llength $final_runtypes]} { incr j } {
+		    set format_line [format "%-${column_width}s | " $corner_name]; puts -nonewline $format_line
+		}
+		puts ""  ; # Insert new line after a row of corner names
+		
+		# New rows for each line of data
+		for {set i 0} {$i <= $max_line_number} {incr i} {
+		    # Repeat for each column data (i.e, runtype)
+		    for {set j 0} {$j < [llength $final_runtypes]} { incr j } {
+			set runtype [lindex $final_runtypes $j]
+			set dataline ""
+			if {[info exists summary_line_array($i.$runtype.$corner_name)]} { set dataline [string trim "$summary_line_array($i.$runtype.$corner_name)"] }
+			# Check if the last value is an integer and is greater than 0 (to flag failing endpoints)
+			# ex: BLOCK                     TNS      WNS  FAILS
+			# ex: ---------------------------------------------
+			# ex: gserc_dlm-internal    -4.1804  -0.1453     85 <----- flag this
+			# ex: gserc_dlm-interface    0.0000   0.0000      0
+			# ex: top                    0.0000   0.0000      0
+			set last_value [lindex $dataline end]
+			set flag " " 
+			if {[string is integer $last_value]} { 
+			    if { $last_value > 0 } { 
+				set flag "X" 
+				#set format_line [format "%${column_width}s | " ""];  puts -nonewline $format_line
+			    }
+			} else {
+			    #set format_line [format "%${column_width}s | " "$flag $dataline"]; puts -nonewline $format_line
+			}
+			set format_line [format "%${column_width}s | " "$flag $dataline"]; puts -nonewline $format_line			
+
+		    }
+		    puts ""
+		}
+		puts ""
+	    }
+
+	    # Create a header row to show the runtype
+	    for {set j 0} {$j < [llength $final_runtypes]} { incr j } {
+		# Print column header
+		set format_line [format "%${column_width}s | " "*** [lindex $final_runtypes $j] ***" ]; puts -nonewline $format_line
+	    }
+	    puts "\n\n"
+	   
+	}
+    }
+}
