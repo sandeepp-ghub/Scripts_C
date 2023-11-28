@@ -1,0 +1,14 @@
+alias gi  "get_db insts "
+alias gp  "get_db pins "
+alias gn  "get_db nets "
+alias gpo "get_db ports "
+alias rt  "report_timing "
+alias td  "time_design "
+alias ac  "all_connected -leaf "
+alias afo "all_fanout -trace_through all -endpoints_only  -from "
+alias afi "all_fanout -trace_through all -startpoints_only  -to "
+alias gui "gui_show"
+alias win "gui_show"
+alias soc "sizeof_collection"
+
+
