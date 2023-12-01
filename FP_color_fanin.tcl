@@ -1,3 +1,7 @@
+eval_legacy {source  /mrvl/cavmhomes/bsekar/scripts/mem/color_fanin.tcl}
+gui_bind_key F1 -cmd {eval_legacy colorFanin}
+
+
 alias gon get_object_name
 alias gs dbget selected.name -e
 alias dh dehighlight
